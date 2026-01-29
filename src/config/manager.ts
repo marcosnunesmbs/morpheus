@@ -13,7 +13,7 @@ const ConfigSchema = z.object({
   }).default(DEFAULT_CONFIG.agent),
   llm: z.object({
     provider: z.enum(['openai', 'anthropic', 'ollama', 'gemini']).default(DEFAULT_CONFIG.llm.provider),
-    model: z.string().default(DEFAULT_CONFIG.llm.model),
+    model: z.string().min(1).default(DEFAULT_CONFIG.llm.model),
     temperature: z.number().min(0).max(1).default(DEFAULT_CONFIG.llm.temperature),
     api_key: z.string().optional(),
   }).default(DEFAULT_CONFIG.llm),
