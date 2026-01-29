@@ -1,0 +1,70 @@
+import { useState, useEffect } from 'react';
+import { useConfig, saveConfig } from '@/lib/api';
+import { Save, AlertCircle, CheckCircle } from 'lucide-react';
+
+export function Config() {
+  const { data: config, mutate } = useConfig();
+  const [jsonStr, setJsonStr] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (config) {
+      setJsonStr(JSON.stringify(config, null, 2));
+    }
+  }, [config]);
+
+  const handleSave = async () => {
+    try {
+      setError(null);
+      setSuccess(null);
+      const parsed = JSON.parse(jsonStr);
+      await saveConfig(parsed);
+      await mutate();
+      setSuccess('Configuration saved successfully');
+    } catch (e: any) {
+      setError(e.message);
+    }
+  };
+
+  return (
+    <div className="h-full flex flex-col space-y-4">
+       <div className="flex justify-between items-center">
+         <div>
+            <h2 className="text-2xl font-bold text-matrix-highlight">CONFIGURATION</h2>
+            <p className="text-matrix-secondary opacity-80">Edit agent settings (JSON).</p>
+         </div>
+         <button 
+           onClick={handleSave}
+           className="bg-matrix-primary hover:bg-matrix-secondary text-matrix-highlight px-4 py-2 rounded flex items-center gap-2 font-bold transition-colors"
+         >
+           <Save className="w-5 h-5" />
+           SAVE CHANGES
+         </button>
+       </div>
+
+       {error && (
+        <div className="bg-red-900/20 border border-red-500 text-red-500 p-3 rounded flex items-center gap-2">
+          <AlertCircle className="w-5 h-5" />
+          {error}
+        </div>
+       )}
+
+       {success && (
+        <div className="bg-green-900/20 border border-green-500 text-green-500 p-3 rounded flex items-center gap-2">
+          <CheckCircle className="w-5 h-5" />
+          {success}
+        </div>
+       )}
+
+       <div className="flex-1 bg-zinc-950 border border-matrix-primary rounded p-0 overflow-hidden">
+         <textarea
+           value={jsonStr}
+           onChange={(e) => setJsonStr(e.target.value)}
+           className="w-full h-full bg-zinc-950 text-matrix-highlight font-mono p-4 outline-none resize-none"
+           spellCheck={false}
+         />
+       </div>
+    </div>
+  );
+}

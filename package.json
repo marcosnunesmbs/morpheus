@@ -7,7 +7,8 @@
   },
   "type": "module",
   "scripts": {
-    "build": "tsc",
+    "build": "tsc && npm run build:ui",
+    "build:ui": "npm install --prefix src/ui && npm run build --prefix src/ui",
     "start": "node bin/morpheus.js",
     "test": "vitest"
   },
@@ -23,8 +24,11 @@
     "@langchain/openai": "^1.2.3",
     "@types/better-sqlite3": "^7.6.13",
     "better-sqlite3": "^12.6.2",
+    "body-parser": "^2.2.2",
     "chalk": "^5.6.2",
     "commander": "^14.0.2",
+    "cors": "^2.8.6",
+    "express": "^5.2.1",
     "figlet": "^1.10.0",
     "fs-extra": "^11.3.3",
     "js-yaml": "^4.1.1",
@@ -36,6 +40,9 @@
     "zod": "^4.3.6"
   },
   "devDependencies": {
+    "@types/body-parser": "^1.19.6",
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.6",
     "@types/figlet": "^1.7.0",
     "@types/fs-extra": "^11.0.4",
     "@types/js-yaml": "^4.0.9",

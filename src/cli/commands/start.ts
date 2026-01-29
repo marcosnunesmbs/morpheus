@@ -10,6 +10,7 @@ import { TelegramAdapter } from '../../channels/telegram.js';
 import { PATHS } from '../../config/paths.js';
 import { Agent } from '../../runtime/agent.js';
 import { ProviderError } from '../../runtime/errors.js';
+import { HttpServer } from '../../http/server.js';
 
 export const startCommand = new Command('start')
   .description('Start the Morpheus agent')
@@ -52,7 +53,7 @@ export const startCommand = new Command('start')
       display.log(chalk.green(`Morpheus Agent (${config.agent.name}) starting...`));
       display.log(chalk.gray(`PID: ${process.pid}`));
       if (options.ui) {
-         display.log(chalk.blue(`Web UI enabled on port ${options.port}`));
+         display.log(chalk.blue(`Web UI enabled to port ${options.port}`));
       }
 
       // Initialize Agent
@@ -61,7 +62,7 @@ export const startCommand = new Command('start')
         display.startSpinner(`Initializing ${config.llm.provider} agent...`);
         await agent.initialize();
         display.stopSpinner();
-        display.log(chalk.green('✓ Agent initialized'));
+        display.log(chalk.green('✓ Agent initialized'), { source: 'Agent' });
       } catch (err: any) {
         display.stopSpinner();
         if (err instanceof ProviderError) {
@@ -83,6 +84,19 @@ export const startCommand = new Command('start')
       }
 
       const adapters: any[] = [];
+      let httpServer: HttpServer | undefined;
+
+      // Initialize Web UI
+      if (options.ui && config.ui.enabled) {
+        try {
+          httpServer = new HttpServer();
+          // Use CLI port if provided and valid, otherwise fallback to config or default
+          const port = parseInt(options.port) || config.ui.port || 3333;
+          httpServer.start(port);
+        } catch (e: any) {
+          display.log(chalk.red(`Failed to start Web UI: ${e.message}`));
+        }
+      }
 
       // Initialize Telegram
       if (config.channels.telegram.enabled) {
@@ -107,6 +121,10 @@ export const startCommand = new Command('start')
         display.stopSpinner();
         display.log(`\n${signal} received. Shutting down...`);
         
+        if (httpServer) {
+          httpServer.stop();
+        }
+
         for (const adapter of adapters) {
             await adapter.disconnect();
         }
