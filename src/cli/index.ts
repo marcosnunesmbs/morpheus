@@ -7,6 +7,7 @@ import { stopCommand } from './commands/stop.js';
 import { statusCommand } from './commands/status.js';
 import { configCommand } from './commands/config.js';
 import { doctorCommand } from './commands/doctor.js';
+import { initCommand } from './commands/init.js';
 
 // Helper to read package.json version
 const getVersion = () => {
@@ -30,6 +31,7 @@ export async function cli() {
     .description('Morpheus CLI Agent')
     .version(getVersion());
 
+  program.addCommand(initCommand);
   program.addCommand(startCommand);
   program.addCommand(stopCommand);
   program.addCommand(statusCommand);

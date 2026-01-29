@@ -10,7 +10,7 @@ agent:
   personality: string   # default: "helpful_dev"
 
 llm:
-  provider: enum        # "openai" | "anthropic" | "ollama"
+  provider: enum        # "openai" | "anthropic" | "ollama" | "gemini"
   model: string         # e.g. "gpt-4"
   temperature: float    # 0.0 to 1.0
   api_key: string       # format: "env:VAR_NAME" or raw key

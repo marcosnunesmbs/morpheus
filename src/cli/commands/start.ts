@@ -1,11 +1,15 @@
 import { Command } from 'commander';
 import chalk from 'chalk';
+import fs from 'fs-extra';
 import { scaffold } from '../../runtime/scaffold.js';
 import { DisplayManager } from '../../runtime/display.js';
 import { writePid, readPid, isProcessRunning, clearPid, checkStalePid } from '../../runtime/lifecycle.js';
 import { ConfigManager } from '../../config/manager.js';
 import { renderBanner } from '../utils/render.js';
 import { TelegramAdapter } from '../../channels/telegram.js';
+import { PATHS } from '../../config/paths.js';
+import { Agent } from '../../runtime/agent.js';
+import { ProviderError } from '../../runtime/errors.js';
 
 export const startCommand = new Command('start')
   .description('Start the Morpheus agent')
@@ -29,6 +33,13 @@ export const startCommand = new Command('start')
         process.exit(1);
       }
 
+      // Check config existence
+      if (!await fs.pathExists(PATHS.config)) {
+        display.log(chalk.yellow("Configuration not found."));
+        display.log(chalk.cyan("Please run 'morpheus init' first to set up your agent."));
+        process.exit(1);
+      }
+
       // Write current PID
       await writePid(process.pid);
       
@@ -39,6 +50,25 @@ export const startCommand = new Command('start')
       display.log(chalk.gray(`PID: ${process.pid}`));
       if (options.ui) {
          display.log(chalk.blue(`Web UI enabled on port ${options.port}`));
+      }
+
+      // Initialize Agent
+      const agent = new Agent(config);
+      try {
+        await agent.initialize();
+      } catch (err: any) {
+        if (err instanceof ProviderError) {
+          display.log(chalk.red(`\nProvider Error (${err.provider}):`));
+          display.log(chalk.white(err.message));
+          if (err.suggestion) {
+             display.log(chalk.yellow(`Tip: ${err.suggestion}`));
+          }
+        } else {
+          display.log(chalk.red('\nAgent initialization failed:'));
+          display.log(chalk.white(err.message));
+        }
+        await clearPid();
+        process.exit(1);
       }
 
       const adapters: any[] = [];
