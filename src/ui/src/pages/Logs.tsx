@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useLogs, useLogContent } from '@/lib/api';
 import { FileText, RefreshCw } from 'lucide-react';
+import { motion } from 'framer-motion';
 
 export function Logs() {
   const { data: files } = useLogs();
@@ -14,7 +15,12 @@ export function Logs() {
   }, [files, selectedFile]);
 
   return (
-    <div className="h-full flex flex-col space-y-4">
+    <motion.div 
+      className="h-full flex flex-col space-y-4"
+      initial={{ opacity: 0, scale: 0.98 }}
+      animate={{ opacity: 1, scale: 1 }}
+      transition={{ duration: 0.3 }}
+    >
       <div>
         <h2 className="text-2xl font-bold text-matrix-highlight">SYSTEM LOGS</h2>
         <p className="text-matrix-secondary opacity-80">View runtime logs.</p>
@@ -56,6 +62,6 @@ export function Logs() {
           </div>
         </div>
       </div>
-    </div>
+    </motion.div>
   );
 }
