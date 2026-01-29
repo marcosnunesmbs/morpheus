@@ -16,12 +16,12 @@ export interface IAgent {
   /**
    * Get the current conversation history.
    */
-  getHistory(): BaseMessage[];
+  getHistory(): Promise<BaseMessage[]>;
 
   /**
    * Reset the current session.
    */
-  clearMemory(): void;
+  clearMemory(): Promise<void>;
 }
 
 export interface Session {

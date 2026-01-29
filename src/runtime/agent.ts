@@ -1,17 +1,19 @@
 import { BaseChatModel } from "@langchain/core/language_models/chat_models";
 import { BaseMessage, HumanMessage, SystemMessage, AIMessage } from "@langchain/core/messages";
+import { BaseListChatMessageHistory } from "@langchain/core/chat_history";
 import { IAgent } from "./types.js";
 import { ProviderFactory } from "./providers/factory.js";
 import { MorpheusConfig } from "../types/config.js";
 import { ConfigManager } from "../config/manager.js";
 import { ProviderError } from "./errors.js";
 import { DisplayManager } from "./display.js";
+import { SQLiteChatMessageHistory } from "./memory/sqlite.js";
 
 
 export class Agent implements IAgent {
   private provider?: BaseChatModel;
   private config: MorpheusConfig;
-  private history: BaseMessage[] = [];
+  private history?: BaseListChatMessageHistory;
   private display = DisplayManager.getInstance();
 
   constructor(config?: MorpheusConfig) {
@@ -36,6 +38,11 @@ export class Agent implements IAgent {
       if (!this.provider) {
         throw new Error("Provider factory returned undefined");
       }
+
+      // Initialize persistent memory with SQLite
+      this.history = new SQLiteChatMessageHistory({
+        sessionId: "default",
+      });
     } catch (err) {
        if (err instanceof ProviderError) throw err; // Re-throw known errors
        
@@ -53,14 +60,21 @@ export class Agent implements IAgent {
       throw new Error("Agent not initialized. Call initialize() first.");
     }
 
+    if (!this.history) {
+      throw new Error("Message history not initialized. Call initialize() first.");
+    }
+
     try {
       this.display.log('Processing message...', { source: 'Agent' });
       const userMessage = new HumanMessage(message);
       const systemMessage = new SystemMessage(`You are ${this.config.agent.name}, ${this.config.agent.personality}. You are a personal dev assistent.`);
       
+      // Load existing history from database
+      const previousMessages = await this.history.getMessages();
+      
       const messages = [
         systemMessage,
-        ...this.history,
+        ...previousMessages,
         userMessage
       ];
 
@@ -68,8 +82,9 @@ export class Agent implements IAgent {
       
       const content = typeof response.content === 'string' ? response.content : JSON.stringify(response.content);
       
-      this.history.push(userMessage);
-      this.history.push(new AIMessage(content));
+      // Persist messages to database
+      await this.history.addMessage(userMessage);
+      await this.history.addMessage(new AIMessage(content));
 
       this.display.log('Response generated.', { source: 'Agent' });
       return content;
@@ -78,11 +93,17 @@ export class Agent implements IAgent {
     }
   }
 
-  getHistory(): BaseMessage[] {
-    return this.history;
+  async getHistory(): Promise<BaseMessage[]> {
+    if (!this.history) {
+      throw new Error("Message history not initialized. Call initialize() first.");
+    }
+    return await this.history.getMessages();
   }
 
-  clearMemory(): void {
-    this.history = [];
+  async clearMemory(): Promise<void> {
+    if (!this.history) {
+      throw new Error("Message history not initialized. Call initialize() first.");
+    }
+    await this.history.clear();
   }
 }
