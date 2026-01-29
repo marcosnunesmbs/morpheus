@@ -32,10 +32,10 @@ The `start.ts` file already contains calls to `new Agent(config)` and `agent.ini
 
 **Goal**: Confirm the current implementation meets the spec and identify any gaps.
 
-- [ ] **Task**: Review `src/runtime/agent.ts` to ensure it passes `config.llm` correctly to `ProviderFactory`.
-- [ ] **Task**: Verify `src/cli/commands/start.ts` handles `ProviderError` specifically (it seems to, but verify types).
-- [ ] **Task**: **[NEEDS CLARIFICATION]** Does the user expect to chat via the terminal (stdin) if no other channels are active? The current `start.ts` starts a spinner but blocks stdin.
-- [ ] **Task**: Create a `manual_start_verify.ts` script or instructions to test `start` with a real (or mock) API key.
+- [x] **Task**: Review `src/runtime/agent.ts` to ensure it passes `config.llm` correctly to `ProviderFactory`.
+- [x] **Task**: Verify `src/cli/commands/start.ts` handles `ProviderError` specifically (it seems to, but verify types).
+- [x] **Task**: **[RESOLVED: NO]** Does the user expect to chat via the terminal (stdin) if no other channels are active? (See `research.md`).
+- [x] **Task**: Create a `manual_start_verify.ts` script or instructions to test `start` with a real (or mock) API key.
 
 ## Phase 1: Implementation / Refinement
 

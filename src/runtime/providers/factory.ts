@@ -42,12 +42,20 @@ export class ProviderFactory {
       let suggestion = "Check your configuration and API keys.";
       
       const msg = error.message?.toLowerCase() || '';
-      if (msg.includes("401") || msg.includes("unauthorized") || msg.includes("invalid api key")) {
+      
+      // Constructor validation errors (Missing Keys)
+      if (msg.includes("api key") && (msg.includes("missing") || msg.includes("not found"))) {
+        suggestion = `API Key is missing for ${config.provider}. Run 'morpheus config' or set it in .env.`;
+      } 
+      // Network/Auth errors (unlikely in constructor, but possible if pre-validation exists)
+      else if (msg.includes("401") || msg.includes("unauthorized")) {
         suggestion = `Run 'morpheus config' to update your ${config.provider} API key.`;
-      } else if (msg.includes("econnrefused") && config.provider === 'ollama') {
+      } else if ((msg.includes("econnrefused") || msg.includes("fetch failed")) && config.provider === 'ollama') {
         suggestion = "Is Ollama running? Try 'ollama serve'.";
       } else if (msg.includes("model not found") || msg.includes("404")) {
         suggestion = `Model '${config.model}' may not be available. Check provider docs.`;
+      } else if (msg.includes("unsupported provider")) {
+        suggestion = "Edit your config file to use a supported provider (openai, anthropic, ollama, gemini).";
       }
 
       throw new ProviderError(

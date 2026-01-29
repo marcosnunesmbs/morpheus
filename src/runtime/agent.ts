@@ -17,14 +17,31 @@ export class Agent implements IAgent {
 
   async initialize(): Promise<void> {
     if (!this.config.llm) {
-      throw new Error("LLM configuration missing");
+      throw new Error("LLM configuration missing in config object.");
     }
+    
+    // Basic validation before provider creation
+    if (!this.config.llm.provider) {
+        throw new Error("LLM provider not specified in configuration.");
+    }
+
+    // Note: API Key validation is delegated to ProviderFactory or the Provider itself 
+    // to allow for Environment Variable fallback supported by LangChain.
     
     try {
       this.provider = ProviderFactory.create(this.config.llm);
+      if (!this.provider) {
+        throw new Error("Provider factory returned undefined");
+      }
     } catch (err) {
-       if (err instanceof ProviderError) throw err;
-       throw new ProviderError(this.config.llm.provider, err, "Initialization failed");
+       if (err instanceof ProviderError) throw err; // Re-throw known errors
+       
+       // Wrap unknown errors
+       throw new ProviderError(
+         this.config.llm.provider || 'unknown',
+         err, 
+         "Agent initialization failed"
+       );
     }
   }
 
