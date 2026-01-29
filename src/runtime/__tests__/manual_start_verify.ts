@@ -11,7 +11,7 @@ const mockConfig: MorpheusConfig = {
   agent: { name: 'TestAgent', personality: 'Robot' },
   llm: { provider: 'openai', model: 'gpt-3.5-turbo', temperature: 0.1, api_key: 'sk-mock-key' },
   channels: {
-    telegram: { enabled: false },
+    telegram: { enabled: false, allowedUsers: [] },
     discord: { enabled: false }
   },
   ui: { enabled: false, port: 3333 }
