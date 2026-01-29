@@ -12,13 +12,18 @@ export interface LLMConfig {
   api_key?: string;
 }
 
+export interface TelegramConfig {
+  enabled: boolean;
+  token?: string;
+}
+
 export interface ChannelConfig {
   enabled: boolean;
   token?: string;
 }
 
 export interface ChannelsConfig {
-  telegram: ChannelConfig;
+  telegram: TelegramConfig;
   discord: ChannelConfig;
 }
 
