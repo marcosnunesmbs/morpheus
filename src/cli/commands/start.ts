@@ -5,6 +5,7 @@ import { scaffold } from '../../runtime/scaffold.js';
 import { writePid, readPid, isProcessRunning, clearPid, checkStalePid } from '../../runtime/lifecycle.js';
 import { ConfigManager } from '../../config/manager.js';
 import { renderBanner } from '../utils/render.js';
+import { TelegramAdapter } from '../../channels/telegram.js';
 
 export const startCommand = new Command('start')
   .description('Start the Morpheus agent')
@@ -29,7 +30,8 @@ export const startCommand = new Command('start')
       // Write current PID
       await writePid(process.pid);
       
-      const config = ConfigManager.getInstance().get();
+      const configManager = ConfigManager.getInstance();
+      const config = await configManager.load();
       
       console.log(chalk.green(`Morpheus Agent (${config.agent.name}) starting...`));
       console.log(chalk.gray(`PID: ${process.pid}`));
@@ -37,9 +39,32 @@ export const startCommand = new Command('start')
          console.log(chalk.blue(`Web UI enabled on port ${options.port}`));
       }
 
+      const adapters: any[] = [];
+
+      // Initialize Telegram
+      if (config.channels.telegram.enabled) {
+        if (config.channels.telegram.token) {
+          const telegram = new TelegramAdapter();
+          try {
+            await telegram.connect(config.channels.telegram.token);
+            adapters.push(telegram);
+          } catch (e) {
+             console.error(chalk.red('Failed to initialize Telegram adapter. Continuing...'));
+          }
+        } else {
+          console.warn(chalk.yellow('Telegram enabled but no token provided. Skipping.'));
+        }
+      }
+
       // Handle graceful shutdown
       const shutdown = async (signal: string) => {
+        // spinner.stop() if spinner is accessible or just log
         console.log(`\n${signal} received. Shutting down...`);
+        
+        for (const adapter of adapters) {
+            await adapter.disconnect();
+        }
+
         await clearPid();
         process.exit(0);
       };

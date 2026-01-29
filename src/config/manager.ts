@@ -3,6 +3,7 @@ import yaml from 'js-yaml';
 import { z } from 'zod';
 import { MorpheusConfig, DEFAULT_CONFIG } from '../types/config.js';
 import { PATHS } from './paths.js';
+import { setByPath } from './utils.js';
 
 // Zod Schema matching MorpheusConfig interface
 const ConfigSchema = z.object({
@@ -66,6 +67,13 @@ export class ConfigManager {
 
   public get(): MorpheusConfig {
     return this.config;
+  }
+
+  public async set(path: string, value: any): Promise<void> {
+    // Clone current config to apply changes
+    const configClone = JSON.parse(JSON.stringify(this.config));
+    setByPath(configClone, path, value);
+    await this.save(configClone);
   }
 
   public async save(newConfig: Partial<MorpheusConfig>): Promise<void> {
