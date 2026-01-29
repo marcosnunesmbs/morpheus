@@ -1,50 +1,74 @@
-# [PROJECT_NAME] Constitution
-<!-- Example: Spec Constitution, TaskFlow Constitution, etc. -->
+<!-- Sync Impact Report
+Version: 0.0.0 -> 1.0.0
+Modified Principles:
+- Added: I. Local-First & Privacy
+- Added: II. Extensibility by Design
+- Added: III. Orchestration & Context
+- Added: IV. Developer Experience (DX)
+- Added: V. Reliability & Transparency
+Templates requiring updates:
+- .specify/templates/plan-template.md: ✅ (Placeholder aligns)
+- .specify/templates/spec-template.md: ✅
+- .specify/templates/tasks-template.md: ✅
+- .specify/templates/commands/*.md: ⚠ (Folder not found/skipped)
+Follow-up TODOs:
+- Create .specify/templates/commands/ folder and docs if needed.
+-->
+# Morpheus Constitution
 
 ## Core Principles
 
-### [PRINCIPLE_1_NAME]
-<!-- Example: I. Library-First -->
-[PRINCIPLE_1_DESCRIPTION]
-<!-- Example: Every feature starts as a standalone library; Libraries must be self-contained, independently testable, documented; Clear purpose required - no organizational-only libraries -->
+### I. Local-First & Privacy
+**User data and keys remain on the local machine.**
+Morpheus is designed to be a local operator. We do not send data to cloud servers (other than the user's chosen LLM providers). Configuration, history, and keys are stored locally.
+*Rationale*: Trust is paramount for an AI agent with access to dev tools. Users must know exactly where their data goes.
 
-### [PRINCIPLE_2_NAME]
-<!-- Example: II. CLI Interface -->
-[PRINCIPLE_2_DESCRIPTION]
-<!-- Example: Every library exposes functionality via CLI; Text in/out protocol: stdin/args → stdout, errors → stderr; Support JSON + human-readable formats -->
+### II. Extensibility by Design
+**Functionality is extended via Markdown and MCPs, not core recompilation.**
+The core Morpheus CLI should remain lean. New capabilities are added by identifying "commands" in Markdown files or connecting Model Context Protocol (MCP) servers. The system must support hot-reloading of these extensions where possible.
+*Rationale*: Enables rapid iteration and personalization without bloating the core or requiring complex build steps for users.
 
-### [PRINCIPLE_3_NAME]
-<!-- Example: III. Test-First (NON-NEGOTIABLE) -->
-[PRINCIPLE_3_DESCRIPTION]
-<!-- Example: TDD mandatory: Tests written → User approved → Tests fail → Then implement; Red-Green-Refactor cycle strictly enforced -->
+### III. Orchestration & Context
+**Bridge the gap between intention and execution.**
+Morpheus helps the user understand the system before acting. It is an orchestrator that pulls context from various sources (files, tools, MCPs) to inform the LLM. It does not blindly execute; it provides "system awareness".
+*Rationale*: An AI agent without context is dangerous or useless. Context is the "consciousness" of the system.
 
-### [PRINCIPLE_4_NAME]
-<!-- Example: IV. Integration Testing -->
-[PRINCIPLE_4_DESCRIPTION]
-<!-- Example: Focus areas requiring integration tests: New library contract tests, Contract changes, Inter-service communication, Shared schemas -->
+### IV. Developer Experience (DX)
+**Simple to install, configure, and use.**
+- Installation MUST be via standard package managers (npm).
+- Configuration MUST be declarative (file-based) with UI overrides.
+- Errors MUST be human-readable.
+*Rationale*: Tools that are hard to set up don't get used. Morpheus should feel like a natural extension of the terminal.
 
-### [PRINCIPLE_5_NAME]
-<!-- Example: V. Observability, VI. Versioning & Breaking Changes, VII. Simplicity -->
-[PRINCIPLE_5_DESCRIPTION]
-<!-- Example: Text I/O ensures debuggability; Structured logging required; Or: MAJOR.MINOR.BUILD format; Or: Start simple, YAGNI principles -->
+### V. Reliability & Transparency
+**No magic boxes. Observability is mandatory.**
+Users must be able to see what Morpheus is doing. Operations, especially those modifying state (files, git), must be logged and visible.
+- Structured logging is required.
+- "Dry-run" modes should be available for destructive actions.
+*Rationale*: As an agent, Morpheus performs actions on behalf of the user. Transparency builds trust.
 
-## [SECTION_2_NAME]
-<!-- Example: Additional Constraints, Security Requirements, Performance Standards, etc. -->
+## Technology Standards
 
-[SECTION_2_CONTENT]
-<!-- Example: Technology stack requirements, compliance standards, deployment policies, etc. -->
+### Core Stack
+- **Runtime**: Node.js >= 18
+- **Language**: TypeScript (Strict Mode)
+- **AI/Orchestration**: LangChain.js
+- **UI**: React + TailwindCSS (Vite)
+- **Communication**: WebSocket (Real-time updates), Telegram/Discord APIs
 
-## [SECTION_3_NAME]
-<!-- Example: Development Workflow, Review Process, Quality Gates, etc. -->
+## Development Workflow
 
-[SECTION_3_CONTENT]
-<!-- Example: Code review requirements, testing gates, deployment approval process, etc. -->
+### Quality Gates
+1.  **Tests**: Core logic (orchestration, command parsing) MUST have unit tests.
+2.  **Linting**: Code must pass strict linting rules.
+3.  **Semantic Versioning**: All releases must follow SemVer.
+4.  **Documentation**: New features must include user-facing docs (Command usage or MCP config).
 
 ## Governance
-<!-- Example: Constitution supersedes all other practices; Amendments require documentation, approval, migration plan -->
 
-[GOVERNANCE_RULES]
-<!-- Example: All PRs/reviews must verify compliance; Complexity must be justified; Use [GUIDANCE_FILE] for runtime development guidance -->
+**This Constitution supersedes all other process documents.**
+- **Amendments**: Changes to this document require a Pull Request with a clear motivation and "RFC" tag.
+- **Compliance**: All PRs must be reviewed against these principles. If a feature violates "Local-First", it will be rejected unless heavily justified and opt-in.
+- **Versioning**: Principles are versioned. Breaking changes to principles require a Major version bump of the Constitution.
 
-**Version**: [CONSTITUTION_VERSION] | **Ratified**: [RATIFICATION_DATE] | **Last Amended**: [LAST_AMENDED_DATE]
-<!-- Example: Version: 2.1.1 | Ratified: 2025-06-13 | Last Amended: 2025-07-16 -->
+**Version**: 1.0.0 | **Ratified**: 2026-01-29 | **Last Amended**: 2026-01-29
