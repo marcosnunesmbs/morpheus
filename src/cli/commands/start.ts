@@ -1,7 +1,7 @@
 import { Command } from 'commander';
 import chalk from 'chalk';
-import ora from 'ora';
 import { scaffold } from '../../runtime/scaffold.js';
+import { DisplayManager } from '../../runtime/display.js';
 import { writePid, readPid, isProcessRunning, clearPid, checkStalePid } from '../../runtime/lifecycle.js';
 import { ConfigManager } from '../../config/manager.js';
 import { renderBanner } from '../utils/render.js';
@@ -13,6 +13,8 @@ export const startCommand = new Command('start')
   .option('--no-ui', 'Disable web UI')
   .option('-p, --port <number>', 'Port for web UI', '3333')
   .action(async (options) => {
+    const display = DisplayManager.getInstance();
+
     try {
       renderBanner();
       
@@ -23,7 +25,7 @@ export const startCommand = new Command('start')
 
       const existingPid = await readPid();
       if (existingPid !== null && isProcessRunning(existingPid)) {
-        console.log(chalk.red(`Morpheus is already running (PID: ${existingPid})`));
+        display.log(chalk.red(`Morpheus is already running (PID: ${existingPid})`));
         process.exit(1);
       }
 
@@ -33,10 +35,10 @@ export const startCommand = new Command('start')
       const configManager = ConfigManager.getInstance();
       const config = await configManager.load();
       
-      console.log(chalk.green(`Morpheus Agent (${config.agent.name}) starting...`));
-      console.log(chalk.gray(`PID: ${process.pid}`));
+      display.log(chalk.green(`Morpheus Agent (${config.agent.name}) starting...`));
+      display.log(chalk.gray(`PID: ${process.pid}`));
       if (options.ui) {
-         console.log(chalk.blue(`Web UI enabled on port ${options.port}`));
+         display.log(chalk.blue(`Web UI enabled on port ${options.port}`));
       }
 
       const adapters: any[] = [];
@@ -49,17 +51,17 @@ export const startCommand = new Command('start')
             await telegram.connect(config.channels.telegram.token);
             adapters.push(telegram);
           } catch (e) {
-             console.error(chalk.red('Failed to initialize Telegram adapter. Continuing...'));
+             display.log(chalk.red('Failed to initialize Telegram adapter. Continuing...'));
           }
         } else {
-          console.warn(chalk.yellow('Telegram enabled but no token provided. Skipping.'));
+          display.log(chalk.yellow('Telegram enabled but no token provided. Skipping.'));
         }
       }
 
       // Handle graceful shutdown
       const shutdown = async (signal: string) => {
-        // spinner.stop() if spinner is accessible or just log
-        console.log(`\n${signal} received. Shutting down...`);
+        display.stopSpinner();
+        display.log(`\n${signal} received. Shutting down...`);
         
         for (const adapter of adapters) {
             await adapter.disconnect();
@@ -73,7 +75,7 @@ export const startCommand = new Command('start')
       process.on('SIGTERM', () => shutdown('SIGTERM'));
 
       // Keep process alive (Mock Agent Loop)
-      const spinner = ora('Agent active and listening...').start();
+      display.startSpinner('Agent active and listening...');
       
       // Prevent node from exiting
       setInterval(() => {
@@ -81,6 +83,7 @@ export const startCommand = new Command('start')
       }, 5000);
 
     } catch (error: any) {
+      display.stopSpinner();
       console.error(chalk.red('Failed to start Morpheus:'), error.message);
       await clearPid();
       process.exit(1);
