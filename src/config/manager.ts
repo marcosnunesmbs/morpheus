@@ -21,6 +21,7 @@ const ConfigSchema = z.object({
     telegram: z.object({
       enabled: z.boolean().default(false),
       token: z.string().optional(),
+      allowedUsers: z.array(z.string()).default([]),
     }).default(DEFAULT_CONFIG.channels.telegram),
     discord: z.object({
       enabled: z.boolean().default(false),

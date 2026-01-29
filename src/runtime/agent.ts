@@ -5,11 +5,14 @@ import { ProviderFactory } from "./providers/factory.js";
 import { MorpheusConfig } from "../types/config.js";
 import { ConfigManager } from "../config/manager.js";
 import { ProviderError } from "./errors.js";
+import { DisplayManager } from "./display.js";
+
 
 export class Agent implements IAgent {
   private provider?: BaseChatModel;
   private config: MorpheusConfig;
   private history: BaseMessage[] = [];
+  private display = DisplayManager.getInstance();
 
   constructor(config?: MorpheusConfig) {
     this.config = config || ConfigManager.getInstance().get();
@@ -51,8 +54,9 @@ export class Agent implements IAgent {
     }
 
     try {
+      this.display.log('Processing message...', { source: 'Agent' });
       const userMessage = new HumanMessage(message);
-      const systemMessage = new SystemMessage(`You are ${this.config.agent.name}, ${this.config.agent.personality}.`);
+      const systemMessage = new SystemMessage(`You are ${this.config.agent.name}, ${this.config.agent.personality}. You are a personal dev assistent.`);
       
       const messages = [
         systemMessage,
@@ -67,6 +71,7 @@ export class Agent implements IAgent {
       this.history.push(userMessage);
       this.history.push(new AIMessage(content));
 
+      this.display.log('Response generated.', { source: 'Agent' });
       return content;
     } catch (err) {
       throw new ProviderError(this.config.llm.provider, err, "Chat request failed");

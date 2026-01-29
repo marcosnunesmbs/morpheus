@@ -55,7 +55,13 @@ export class DisplayManager implements IDisplayManager {
 
     let prefix = '';
     if (options?.source) {
-      prefix = chalk.blue(`[${options.source}] `);
+      let color = chalk.blue;
+      if (options.source === 'Telegram') {
+        color = chalk.green;
+      } else if (options.source === 'Agent') {
+        color = chalk.hex('#FFA500');
+      }
+      prefix = color(`[${options.source}] `);
     }
 
     let formattedMessage = message;

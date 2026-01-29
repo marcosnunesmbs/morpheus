@@ -84,9 +84,12 @@ export const startCommand = new Command('start')
       // Initialize Telegram
       if (config.channels.telegram.enabled) {
         if (config.channels.telegram.token) {
-          const telegram = new TelegramAdapter();
+          const telegram = new TelegramAdapter(agent);
           try {
-            await telegram.connect(config.channels.telegram.token);
+            await telegram.connect(
+              config.channels.telegram.token,
+              config.channels.telegram.allowedUsers || []
+            );
             adapters.push(telegram);
           } catch (e) {
              display.log(chalk.red('Failed to initialize Telegram adapter. Continuing...'));
@@ -112,8 +115,21 @@ export const startCommand = new Command('start')
       process.on('SIGINT', () => shutdown('SIGINT'));
       process.on('SIGTERM', () => shutdown('SIGTERM'));
 
+      // Allow ESC to exit
+      if (process.stdin.isTTY) {
+        process.stdin.setRawMode(true);
+        process.stdin.resume();
+        process.stdin.setEncoding('utf8');
+        process.stdin.on('data', (key: string) => {
+          // ESC or Ctrl+C
+          if (key === '\u001B' || key === '\u0003') {
+             shutdown('User Quit');
+          }
+        });
+      }
+
       // Keep process alive (Mock Agent Loop)
-      display.startSpinner('Agent active and listening...');
+      display.startSpinner('Agent active and listening... (Press ESC to stop)');
       
       // Prevent node from exiting
       setInterval(() => {

@@ -15,6 +15,7 @@ export interface LLMConfig {
 export interface TelegramConfig {
   enabled: boolean;
   token?: string;
+  allowedUsers: string[];
 }
 
 export interface ChannelConfig {
@@ -50,7 +51,7 @@ export const DEFAULT_CONFIG: MorpheusConfig = {
     temperature: 0.7,
   },
   channels: {
-    telegram: { enabled: false },
+    telegram: { enabled: false, allowedUsers: [] },
     discord: { enabled: false },
   },
   ui: {

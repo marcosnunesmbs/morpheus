@@ -7,6 +7,8 @@ Auto-generated from all feature plans. Last updated: 2026-01-29
 - File System (`~/.morpheus`) (001-cli-structure)
 - [if applicable, e.g., PostgreSQL, CoreData, files or N/A] (002-telegram-adapter)
 - Node.js >= 18, TypeScript + `ora`, `chalk` (003-terminal-ui-manager)
+- TypeScript 5.3 (Node.js 18+) + `telegraf` (Telegram API), `@inquirer/prompts` (CLI UI), `fs-extra` (Config IO) (006-agent-interaction-flow)
+- JSON file (`morpheus.json`) for configuration. (006-agent-interaction-flow)
 
 - [e.g., Python 3.11, Swift 5.9, Rust 1.75 or NEEDS CLARIFICATION] + [e.g., FastAPI, UIKit, LLVM or NEEDS CLARIFICATION] (001-cli-structure)
 
@@ -27,8 +29,9 @@ cd src; pytest; ruff check .
 [e.g., Python 3.11, Swift 5.9, Rust 1.75 or NEEDS CLARIFICATION]: Follow standard conventions
 
 ## Recent Changes
+- 006-agent-interaction-flow: Added TypeScript 5.3 (Node.js 18+) + `telegraf` (Telegram API), `@inquirer/prompts` (CLI UI), `fs-extra` (Config IO)
+- 006-agent-interaction-flow: Added [e.g., Python 3.11, Swift 5.9, Rust 1.75 or NEEDS CLARIFICATION] + [e.g., FastAPI, UIKit, LLVM or NEEDS CLARIFICATION]
 - 004-langchain-core-agent: Added [e.g., Python 3.11, Swift 5.9, Rust 1.75 or NEEDS CLARIFICATION] + [e.g., FastAPI, UIKit, LLVM or NEEDS CLARIFICATION]
-- 003-terminal-ui-manager: Added Node.js >= 18, TypeScript + `ora`, `chalk`
 
 
 <!-- MANUAL ADDITIONS START -->
