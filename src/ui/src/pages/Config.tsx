@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useConfig, saveConfig } from '@/lib/api';
 import { Save, AlertCircle, CheckCircle } from 'lucide-react';
+import { motion } from 'framer-motion';
 
 export function Config() {
   const { data: config, mutate } = useConfig();
@@ -28,7 +29,12 @@ export function Config() {
   };
 
   return (
-    <div className="h-full flex flex-col space-y-4">
+    <motion.div 
+      className="h-full flex flex-col space-y-4"
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.3 }}
+    >
        <div className="flex justify-between items-center">
          <div>
             <h2 className="text-2xl font-bold text-matrix-highlight">CONFIGURATION</h2>
@@ -65,6 +71,6 @@ export function Config() {
            spellCheck={false}
          />
        </div>
-    </div>
+    </motion.div>
   );
 }

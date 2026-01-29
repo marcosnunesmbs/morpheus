@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { Terminal, Settings, Activity, LayoutDashboard, Sun, Moon } from 'lucide-react';
 import { Footer } from './Footer';
+import { motion } from 'framer-motion';
 
 export function Layout({ children }: { children: React.ReactNode }) {
   const location = useLocation();
@@ -36,7 +37,12 @@ export function Layout({ children }: { children: React.ReactNode }) {
     <div className="flex flex-col h-screen bg-gray-50 dark:bg-black text-gray-900 dark:text-matrix-secondary font-mono overflow-hidden transition-colors duration-300">
       <div className="flex flex-1 overflow-hidden">
         {/* Sidebar */}
-        <div className="w-64 border-r border-gray-200 dark:border-matrix-primary bg-white dark:bg-zinc-950 flex flex-col shrink-0 transition-colors duration-300">
+        <motion.div 
+          className="w-64 border-r border-gray-200 dark:border-matrix-primary bg-white dark:bg-zinc-950 flex flex-col shrink-0 transition-colors duration-300"
+          initial={{ x: -64, opacity: 0 }}
+          animate={{ x: 0, opacity: 1 }}
+          transition={{ duration: 0.9, type: 'spring' }}
+        >
           <div className="p-4 border-b border-gray-200 dark:border-matrix-primary flex justify-between items-center">
             <h1 className="text-xl font-bold text-green-700 dark:text-matrix-highlight flex items-center gap-2">
               <Activity className="w-6 h-6" />
@@ -68,7 +74,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
               );
             })}
           </nav>
-        </div>
+        </motion.div>
 
         {/* Main Content */}
         <main className="flex-1 overflow-auto p-8 relative flex flex-col">
