@@ -14,7 +14,8 @@ const mockConfig: MorpheusConfig = {
     telegram: { enabled: false, allowedUsers: [] },
     discord: { enabled: false }
   },
-  ui: { enabled: false, port: 3333 }
+  ui: { enabled: false, port: 3333 },
+  logging: { enabled: false, level: 'info', retention: '1d' }
 };
 
 const run = async () => {
