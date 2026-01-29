@@ -32,6 +32,11 @@ const ConfigSchema = z.object({
     enabled: z.boolean().default(DEFAULT_CONFIG.ui.enabled),
     port: z.number().default(DEFAULT_CONFIG.ui.port),
   }).default(DEFAULT_CONFIG.ui),
+  logging: z.object({
+    enabled: z.boolean().default(DEFAULT_CONFIG.logging.enabled),
+    level: z.enum(['debug', 'info', 'warn', 'error']).default(DEFAULT_CONFIG.logging.level),
+    retention: z.string().default(DEFAULT_CONFIG.logging.retention),
+  }).default(DEFAULT_CONFIG.logging),
 });
 
 export class ConfigManager {

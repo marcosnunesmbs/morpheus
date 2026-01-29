@@ -33,17 +33,29 @@ export interface UIConfig {
   port: number;
 }
 
+export interface LogConfig {
+  enabled: boolean;
+  level: 'debug' | 'info' | 'warn' | 'error';
+  retention: string;
+}
+
 export interface MorpheusConfig {
   agent: AgentConfig;
   llm: LLMConfig;
   channels: ChannelsConfig;
   ui: UIConfig;
+  logging: LogConfig;
 }
 
 export const DEFAULT_CONFIG: MorpheusConfig = {
   agent: {
     name: 'morpheus',
     personality: 'helpful_dev',
+  },
+  logging: {
+    enabled: true,
+    level: 'info',
+    retention: '14d',
   },
   llm: {
     provider: 'openai',

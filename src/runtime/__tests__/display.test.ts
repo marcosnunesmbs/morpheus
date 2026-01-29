@@ -1,5 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { DisplayManager } from '../display.js';
+import winston from 'winston';
+import DailyRotateFile from 'winston-daily-rotate-file';
 
 // Hoisted mocks to ensure they are available for the module mock factory
 const mocks = vi.hoisted(() => {
@@ -8,6 +10,7 @@ const mocks = vi.hoisted(() => {
     stop: vi.fn(),
     succeed: vi.fn(),
     fail: vi.fn(),
+    loggerLog: vi.fn(),
   };
 });
 
@@ -30,6 +33,28 @@ vi.mock('ora', () => {
       set text(val: string) {},
       get text() { return 'loading...'; }
     }))
+  };
+});
+
+vi.mock('winston', () => ({
+  default: {
+    createLogger: vi.fn(() => ({
+      log: mocks.loggerLog,
+    })),
+    format: {
+      combine: vi.fn(),
+      timestamp: vi.fn(),
+      printf: vi.fn(),
+    },
+    transports: {
+      DailyRotateFile: vi.fn(),
+    }
+  }
+}));
+
+vi.mock('winston-daily-rotate-file', () => {
+  return {
+    default: vi.fn()
   };
 });
 
@@ -111,5 +136,27 @@ describe('DisplayManager', () => {
      expect(mocks.stop).not.toHaveBeenCalled();
      expect(mocks.start).not.toHaveBeenCalled();
      expect(consoleSpy).toHaveBeenCalledWith('hello world');
+  });
+
+  it('should initialize logger with config', async () => {
+    const dm = DisplayManager.getInstance();
+    await dm.initialize({ enabled: true, level: 'info', retention: '14d' });
+    
+    expect(winston.createLogger).toHaveBeenCalled();
+    // Check DailyRotateFile instantiation
+    expect(DailyRotateFile).toHaveBeenCalledWith(expect.objectContaining({
+       maxFiles: '14d'
+    }));
+  });
+
+  it('should log to logger if initialized', async () => {
+    const dm = DisplayManager.getInstance();
+    await dm.initialize({ enabled: true, level: 'info', retention: '14d' });
+    
+    dm.log('test message', { level: 'info' });
+    expect(mocks.loggerLog).toHaveBeenCalledWith(expect.objectContaining({
+      level: 'info',
+      message: 'test message'
+    }));
   });
 });

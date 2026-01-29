@@ -48,6 +48,18 @@ export const doctorCommand = new Command('doctor')
       allPassed = false;
     }
 
+    // 4. Check Logs Permissions
+    try {
+      await fs.ensureDir(PATHS.logs);
+      const testLogFile = path.join(PATHS.logs, '.perm-test');
+      await fs.writeFile(testLogFile, 'test');
+      await fs.remove(testLogFile);
+      console.log(chalk.green('✓') + ` Logs: Write access to ${PATHS.logs}`);
+    } catch (error: any) {
+      console.log(chalk.red('✗') + ` Logs: Cannot write to ${PATHS.logs}`);
+      allPassed = false;
+    }
+
     console.log(chalk.gray('================'));
     if (allPassed) {
       console.log(chalk.green('Diagnostics Passed. You are ready to run Morpheus!'));

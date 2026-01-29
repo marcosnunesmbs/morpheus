@@ -45,6 +45,9 @@ export const startCommand = new Command('start')
       
       const configManager = ConfigManager.getInstance();
       const config = await configManager.load();
+
+      // Initialize persistent logging
+      await display.initialize(config.logging);
       
       display.log(chalk.green(`Morpheus Agent (${config.agent.name}) starting...`));
       display.log(chalk.gray(`PID: ${process.pid}`));
