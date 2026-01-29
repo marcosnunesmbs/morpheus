@@ -1,9 +1,8 @@
 <!-- Sync Impact Report
-Version: 1.0.0 -> 1.0.1
+Version: 1.0.1 -> 1.0.2
 Modified Principles: None
 Modified Standards:
-- Core Stack: Removed "LangChain.js" (Not currently installed/used)
-- Core Stack: Specified "Telegraf" for Telegram
+- Core Stack: Adopted "LangChain" for AI/Orchestration (Ratified by Feature 005)
 Templates requiring updates:
 - .specify/templates/plan-template.md: ✅
 - .specify/templates/spec-template.md: ✅
@@ -11,7 +10,6 @@ Templates requiring updates:
 - .specify/templates/commands/*.md: ⚠ (Folder missing)
 Follow-up TODOs:
 - Create .specify/templates/commands/ folder and docs.
-- Define AI/Orchestration stack in future phases.
 -->
 # Morpheus Constitution
 
@@ -51,7 +49,7 @@ Users must be able to see what Morpheus is doing. Operations, especially those m
 ### Core Stack
 - **Runtime**: Node.js >= 18
 - **Language**: TypeScript (Strict Mode)
-- **AI/Orchestration**: Native / Custom (TBD)
+- **AI/Orchestration**: LangChain (Node.js)
 - **UI**: React + TailwindCSS (Vite)
 - **Communication**: WebSocket (Real-time updates), Telegram (Telegraf) / Discord
 
@@ -70,4 +68,4 @@ Users must be able to see what Morpheus is doing. Operations, especially those m
 - **Compliance**: All PRs must be reviewed against these principles. If a feature violates "Local-First", it will be rejected unless heavily justified and opt-in.
 - **Versioning**: Principles are versioned. Breaking changes to principles require a Major version bump of the Constitution.
 
-**Version**: 1.0.1 | **Ratified**: 2026-01-29 | **Last Amended**: 2026-01-29
+**Version**: 1.0.2 | **Ratified**: 2026-01-29 | **Last Amended**: 2026-01-29

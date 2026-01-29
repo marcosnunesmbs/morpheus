@@ -55,8 +55,12 @@ export const startCommand = new Command('start')
       // Initialize Agent
       const agent = new Agent(config);
       try {
+        display.startSpinner(`Initializing ${config.llm.provider} agent...`);
         await agent.initialize();
+        display.stopSpinner();
+        display.log(chalk.green('✓ Agent initialized'));
       } catch (err: any) {
+        display.stopSpinner();
         if (err instanceof ProviderError) {
           display.log(chalk.red(`\nProvider Error (${err.provider}):`));
           display.log(chalk.white(err.message));
@@ -66,6 +70,10 @@ export const startCommand = new Command('start')
         } else {
           display.log(chalk.red('\nAgent initialization failed:'));
           display.log(chalk.white(err.message));
+          
+          if (err.message.includes('API Key')) {
+             display.log(chalk.yellow('Tip: Check your API key in configuration or environment variables.'));
+          }
         }
         await clearPid();
         process.exit(1);

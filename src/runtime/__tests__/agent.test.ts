@@ -54,4 +54,22 @@ describe('Agent', () => {
     expect(agent.getHistory()[2].content).toBe('How are you?');
     expect(agent.getHistory()[3].content).toBe('I am fine');
   });
+
+  describe('Configuration Validation', () => {
+    it('should throw if llm provider is missing', async () => {
+        const invalidConfig = JSON.parse(JSON.stringify(DEFAULT_CONFIG));
+        delete invalidConfig.llm.provider; // Invalid
+        
+        const badAgent = new Agent(invalidConfig);
+        await expect(badAgent.initialize()).rejects.toThrow('LLM provider not specified');
+    });
+
+    it('should propagate ProviderError during initialization', async () => {
+        const mockError = new Error("Mock Factory Error");
+        vi.mocked(ProviderFactory.create).mockImplementation(() => { throw mockError });
+        
+        // ProviderError constructs message as: "Provider {provider} failed: {originalError.message}"
+        await expect(agent.initialize()).rejects.toThrow('Provider openai failed: Mock Factory Error');
+    });
+ });
 });

@@ -29,7 +29,6 @@ cd src; pytest; ruff check .
 ## Recent Changes
 - 004-langchain-core-agent: Added [e.g., Python 3.11, Swift 5.9, Rust 1.75 or NEEDS CLARIFICATION] + [e.g., FastAPI, UIKit, LLVM or NEEDS CLARIFICATION]
 - 003-terminal-ui-manager: Added Node.js >= 18, TypeScript + `ora`, `chalk`
-- 003-terminal-ui-manager: Added [e.g., Python 3.11, Swift 5.9, Rust 1.75 or NEEDS CLARIFICATION] + [e.g., FastAPI, UIKit, LLVM or NEEDS CLARIFICATION]
 
 
 <!-- MANUAL ADDITIONS START -->
