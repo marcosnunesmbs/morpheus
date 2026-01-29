@@ -1,9 +1,12 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { Agent } from '../agent.js';
 import { ProviderFactory } from '../providers/factory.js';
 import { DEFAULT_CONFIG } from '../../types/config.js';
 import { BaseChatModel } from '@langchain/core/language_models/chat_models';
 import { AIMessage } from '@langchain/core/messages';
+import * as fs from 'fs-extra';
+import * as path from 'path';
+import { homedir } from 'os';
 
 vi.mock('../providers/factory.js');
 
@@ -13,11 +16,36 @@ describe('Agent', () => {
     invoke: vi.fn(),
   } as unknown as BaseChatModel;
 
-  beforeEach(() => {
+  beforeEach(async () => {
     vi.resetAllMocks();
+    
+    // Clean up any existing test database
+    const defaultDbPath = path.join(homedir(), ".morpheus", "memory", "short-memory.db");
+    if (fs.existsSync(defaultDbPath)) {
+      try {
+        const Database = (await import("better-sqlite3")).default;
+        const db = new Database(defaultDbPath);
+        db.exec("DELETE FROM messages");
+        db.close();
+      } catch (err) {
+        // Ignore errors if database doesn't exist or is corrupted
+      }
+    }
+    
     (mockProvider.invoke as any).mockResolvedValue(new AIMessage('Hello world'));
     vi.mocked(ProviderFactory.create).mockReturnValue(mockProvider);
     agent = new Agent(DEFAULT_CONFIG);
+  });
+
+  afterEach(async () => {
+    // Clean up after each test
+    if (agent) {
+      try {
+        await agent.clearMemory();
+      } catch (err) {
+        // Ignore cleanup errors
+      }
+    }
   });
 
   it('should initialize successfully', async () => {
@@ -39,20 +67,25 @@ describe('Agent', () => {
   it('should maintain history', async () => {
     await agent.initialize();
     
+    // Clear any residual history from previous tests
+    await agent.clearMemory();
+    
     // First turn
     await agent.chat('Hi');
-    expect(agent.getHistory()).toHaveLength(2);
-    expect(agent.getHistory()[0].content).toBe('Hi'); // User
-    expect(agent.getHistory()[1].content).toBe('Hello world'); // AI
+    const history1 = await agent.getHistory();
+    expect(history1).toHaveLength(2);
+    expect(history1[0].content).toBe('Hi'); // User
+    expect(history1[1].content).toBe('Hello world'); // AI
 
     // Second turn
     // Update mock return value for next call
     (mockProvider.invoke as any).mockResolvedValue(new AIMessage('I am fine'));
     
     await agent.chat('How are you?');
-    expect(agent.getHistory()).toHaveLength(4);
-    expect(agent.getHistory()[2].content).toBe('How are you?');
-    expect(agent.getHistory()[3].content).toBe('I am fine');
+    const history2 = await agent.getHistory();
+    expect(history2).toHaveLength(4);
+    expect(history2[2].content).toBe('How are you?');
+    expect(history2[3].content).toBe('I am fine');
   });
 
   describe('Configuration Validation', () => {

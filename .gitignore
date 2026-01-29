@@ -3,6 +3,11 @@ dist/
 build/
 *.log
 .env
+.env*
 .DS_Store
+Thumbs.db
+*.tmp
+*.swp
 coverage/
 .morpheus/
+.vscode/
