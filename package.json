@@ -1,0 +1,35 @@
+{
+  "name": "morpheus-cli",
+  "version": "0.1.0",
+  "description": "Morpheus CLI Agent",
+  "bin": {
+    "morpheus": "./bin/morpheus.js"
+  },
+  "type": "module",
+  "scripts": {
+    "build": "tsc",
+    "start": "node bin/morpheus.js",
+    "test": "vitest"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "chalk": "^5.6.2",
+    "commander": "^14.0.2",
+    "figlet": "^1.10.0",
+    "fs-extra": "^11.3.3",
+    "js-yaml": "^4.1.1",
+    "open": "^11.0.0",
+    "ora": "^9.1.0",
+    "zod": "^4.3.6"
+  },
+  "devDependencies": {
+    "@types/figlet": "^1.7.0",
+    "@types/fs-extra": "^11.0.4",
+    "@types/js-yaml": "^4.0.9",
+    "@types/node": "^25.1.0",
+    "typescript": "^5.9.3",
+    "vitest": "^4.0.18"
+  }
+}
