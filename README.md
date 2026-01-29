@@ -4,214 +4,126 @@
 
 # Morpheus
 
-> **Morpheus is a local AI operator that bridges developers and machines.**
+> **Morpheus is a local-first AI operator that bridges developers and machines.**
 
-Morpheus é um agente de IA **local-first** para desenvolvedores, executado via CLI, que se conecta a **LLMs**, **ferramentas locais** e **MCPs**, permitindo interação por **Terminal, Telegram e Discord**. Inspirado no personagem Morpheus de *Matrix*, o projeto atua como um **orquestrador inteligente**, abrindo a ponte entre o desenvolvedor e sistemas complexos.
+Morpheus is a local AI agent for developers, running as a CLI daemon that connects to **LLMs**, **local tools**, and **MCPs**, enabling interaction via **Terminal, Telegram, and Discord**. Inspired by the character Morpheus from *The Matrix*, the project acts as an **intelligent orchestrator**, bridging the gap between the developer and complex systems.
 
----
+## Technical Overview
 
-## 🧠 Why Morpheus?
+Morpheus is built with **Node.js** and **TypeScript**, using **LangChain** as the orchestration engine. It runs as a background daemon process, managing connections to LLM providers (OpenAI, Anthropic, Ollama) and external channels (Telegram, Discord).
 
-Na *Matrix*, Morpheus não é o mais forte, nem o mais rápido — ele é quem **entende o sistema**.
+### Core Components
 
-Ele conecta pessoas a realidades complexas, faz a ponte entre mundos e oferece contexto antes da ação. Ele não executa tudo por você — ele **te dá consciência e controle**.
+- **Runtime (`src/runtime/`)**: The heart of the application. Manages the agent lifecycle, provider instantiation, and command execution.
+- **CLI (`src/cli/`)**: Built with `commander`, handles user interaction, configuration, and daemon control (`start`, `stop`, `status`).
+- **Configuration (`src/config/`)**: Singleton-based configuration manager using `zod` for validation and `js-yaml` for persistence (`~/.morpheus/config.yaml`).
+- **Channels (`src/channels/`)**: Adapters for external communication. Currently supports Telegram (`telegraf`) with strict user whitelisting.
 
-O **Morpheus** nasce exatamente desse arquétipo.
+## Prerequisites
 
-No mundo moderno de desenvolvimento:
+- **Node.js**: >= 18.x
+- **npm**: >= 9.x
+- **TypeScript**: >= 5.x
 
-* LLMs são a Matrix
-* Ferramentas, scripts e MCPs são sistemas internos
-* O desenvolvedor precisa de **contexto, orquestração e clareza**
+## Getting Started (Development)
 
-Morpheus é o operador local que fica entre você e as máquinas:
+This guide is for developers contributing to the Morpheus codebase.
 
-> 💊 *You don’t need another chatbot.*
-> 💊 *You need someone who understands the system.*
-
-Ele não substitui o desenvolvedor.
-Ele **aumenta sua consciência sobre o sistema**.
-
----
-
-## ✨ Principais Características
-
-* 🧠 Orquestração com **LangChain (JS)**
-* 🏠 **Local-first** (seus dados, suas chaves)
-* 💬 Integração com **Telegram** e **Discord**
-* 🧩 Extensível via **commands em Markdown**
-* 🔌 Integração declarativa com **MCPs**
-* 🖥️ Painel Web local (localhost)
-* ⚙️ Configuração via **CLI + UI**
-
----
-
-## 📦 Instalação
-
-O Morpheus é distribuído como um pacote npm com escopo oficial.
+### 1. Clone & Install
 
 ```bash
-npm install -g @morpheus-ai/cli
+git clone https://github.com/your-org/morpheus.git
+cd morpheus
+npm install
 ```
 
-> Requisitos:
->
-> * Node.js >= 18
+### 2. Build
 
----
-
-## 🚀 Uso Rápido
-
-### Iniciar o Morpheus
+Compile TypeScript source to `dist/`.
 
 ```bash
-morpheus start
+npm run build
 ```
 
-### Ver status
+### 3. Run the CLI
+
+You can run the CLI directly from the source using `npm start`.
 
 ```bash
-morpheus status
+# Initialize configuration (creates ~/.morpheus)
+npm start -- init
+
+# Start the daemon
+npm start -- start
+
+# Check status
+npm start -- status
 ```
 
-### Configurar
+### 4. Configuration
+
+The configuration file is located at `~/.morpheus/config.yaml`. You can edit it manually or use the CLI.
+
+```yaml
+agent:
+  name: "Morpheus"
+  personality: "stoic, wise, and helpful"
+llm:
+  provider: "openai" # options: openai, anthropic, ollama
+  model: "gpt-4-turbo"
+  temperature: 0.7
+  api_key: "sk-..."
+channels:
+  telegram:
+    enabled: true
+    token: "YOUR_TELEGRAM_BOT_TOKEN"
+    allowedUsers: ["123456789"] # Your Telegram User ID
+```
+
+## Testing
+
+We use **Vitest** for testing.
 
 ```bash
-morpheus config
+# Run unit tests
+npm test
+
+# Run tests in watch mode
+npm run test:watch
 ```
 
----
-
-## 🗂️ Estrutura Local
-
-Ao iniciar, o Morpheus cria o diretório:
+## Project Structure
 
 ```text
-~/.morpheus/
-├── config.yaml
-├── mcps.json
-├── commands/
-│   ├── resumir.md
-│   └── revisar-codigo.md
-├── memory/
-├── logs/
-└── cache/
+.
+├── assets/          # Static assets
+├── bin/             # CLI entry point (morpheus.js)
+├── specs/           # Technical specifications & documentation
+├── src/
+│   ├── channels/    # Communication adapters (Telegram, etc.)
+│   ├── cli/         # CLI commands and logic
+│   ├── config/      # Configuration management
+│   ├── runtime/     # Core agent logic, lifecycle, and providers
+│   ├── types/       # Shared TypeScript definitions
+│   └── index.ts
+└── package.json
 ```
 
----
+## Roadmap
 
-## 📄 Commands (Markdown-based)
+- [ ] **MCP Support**: Full integration with Model Context Protocol.
+- [ ] **Discord Adapter**: Support for Discord interactions.
+- [ ] **Web Dashboard**: Local UI for management and logs.
+- [ ] **Plugin System**: Extend functionality via external modules.
 
-Commands permitem criar **slash commands customizados** sem escrever código.
+## Contributing
 
-### Exemplo: `commands/resumir.md`
+1.  Fork the repository.
+2.  Create a feature branch (`git checkout -b feature/amazing-feature`).
+3.  Commit your changes (`git commit -m 'feat: Add amazing feature'`).
+4.  Push to the branch (`git push origin feature/amazing-feature`).
+5.  Open a Pull Request.
 
-```md
----
-name: Resumir Texto
-command: /resumir
-description: Resume um texto longo de forma clara e objetiva
-model: gpt-4.1
-temperature: 0.3
----
-
-Você é um especialista em síntese de informações.
-
-Resuma o texto abaixo mantendo os pontos principais.
-
-Texto do usuário:
-{{input}}
-```
-
-Uso no Telegram ou Discord:
-
-```text
-/resumir Texto longo aqui...
-```
-
----
-
-## 🔌 MCPs (Model Context Protocol)
-
-O Morpheus suporta MCPs declarativos via `mcps.json`.
-
-### Exemplo
-
-```json
-{
-  "version": "1.0",
-  "mcps": [
-    {
-      "name": "desktop-capture",
-      "transport": "http",
-      "endpoint": "http://localhost:9000",
-      "enabled": true
-    }
-  ]
-}
-```
-
-MCPs são carregados automaticamente e expostos como **tools no LangChain**.
-
----
-
-## 💬 Canais Suportados
-
-* ✅ Terminal (CLI)
-* ✅ Telegram
-* 🚧 Discord (em breve)
-
----
-
-## 🖥️ Painel Web
-
-Ao iniciar, o Morpheus disponibiliza um painel web local:
-
-```
-http://localhost:3333
-```
-
-Funcionalidades:
-
-* Status do runtime
-* Configuração de LLMs
-* Gerenciamento de MCPs
-* Visualização de commands
-* Logs e traces
-
----
-
-## 🔐 Segurança
-
-* Tokens via variáveis de ambiente
-* Segredos mascarados no painel
-* Execução local de tools
-* Controle explícito de permissões
-
----
-
-## 🛣️ Roadmap
-
-* [ ] CLI base
-* [ ] Commands em Markdown
-* [ ] Integração Telegram
-* [ ] Painel Web
-* [ ] Discord
-* [ ] Sistema de plugins
-
----
-
-## 🤝 Contribuindo
-
-Contribuições são bem-vindas!
-
-* Issues
-* Pull Requests
-* Ideias de commands
-* Novos MCPs
-
----
-
-## 📜 Licença
+## License
 
 MIT
