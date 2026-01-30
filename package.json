@@ -1,6 +1,6 @@
 {
   "name": "morpheus-cli",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Morpheus CLI Agent",
   "bin": {
     "morpheus": "./bin/morpheus.js"
@@ -58,5 +58,13 @@
     "supertest": "^7.2.2",
     "typescript": "^5.9.3",
     "vitest": "^4.0.18"
-  }
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/marcosnunesmbs/morpheus.git"
+  },
+  "bugs": {
+    "url": "https://github.com/marcosnunesmbs/morpheus/issues"
+  },
+  "homepage": "https://github.com/marcosnunesmbs/morpheus#readme"
 }
