@@ -2,6 +2,7 @@
 import { Router } from 'express';
 import { ConfigManager } from '../config/manager.js';
 import { PATHS } from '../config/paths.js';
+import { DisplayManager } from '../runtime/display.js';
 import fs from 'fs-extra';
 import path from 'path';
 
@@ -43,13 +44,69 @@ export function createApiRouter() {
     res.json(configManager.get());
   });
 
-  router.put('/config', async (req, res) => {
-    try {
-      await configManager.save(req.body);
-      res.json(configManager.get());
-    } catch (error: any) {
-      res.status(400).json({ error: error.message });
+  // Calculate diff between two objects
+  const getDiff = (obj1: any, obj2: any, prefix = ''): string[] => {
+    const changes: string[] = [];
+    const keys = new Set([...Object.keys(obj1 || {}), ...Object.keys(obj2 || {})]);
+
+    for (const key of keys) {
+        const val1 = obj1?.[key];
+        const val2 = obj2?.[key];
+        const currentPath = prefix ? `${prefix}.${key}` : key;
+
+        // Skip if identical
+        if (JSON.stringify(val1) === JSON.stringify(val2)) continue;
+
+        if (
+            typeof val1 === 'object' && val1 !== null &&
+            typeof val2 === 'object' && val2 !== null &&
+            !Array.isArray(val1) && !Array.isArray(val2)
+        ) {
+            changes.push(...getDiff(val1, val2, currentPath));
+        } else {
+            // Mask secrets in logs
+            const isSecret = currentPath.includes('key') || currentPath.includes('token');
+            const v1Display = isSecret ? '***' : JSON.stringify(val1);
+            const v2Display = isSecret ? '***' : JSON.stringify(val2);
+            changes.push(`${currentPath}: ${v1Display} -> ${v2Display}`);
+        }
     }
+    return changes;
+  };
+
+  router.post('/config', async (req, res) => {
+    try {
+      const oldConfig = JSON.parse(JSON.stringify(configManager.get()));
+      
+      // Save will validate against Zod schema
+      await configManager.save(req.body);
+      
+      const newConfig = configManager.get();
+      const changes = getDiff(oldConfig, newConfig);
+
+      if (changes.length > 0) {
+        const display = DisplayManager.getInstance();
+        display.log(`Configuration updated via UI:\n  - ${changes.join('\n  - ')}`, { 
+            source: 'Config', 
+            level: 'info' 
+        });
+      }
+
+      res.json(newConfig);
+    } catch (error: any) {
+      if (error.name === 'ZodError') {
+          res.status(400).json({ error: 'Validation failed', details: error.errors });
+      } else {
+          res.status(400).json({ error: error.message });
+      }
+    }
+  });
+
+  // Keep PUT for backward compatibility if needed, or remove. 
+  // Tasks says Implement POST. I'll remove PUT to avoid confusion or redirect it.
+  router.put('/config', async (req, res) => {
+      // Redirect to POST logic or just reuse
+      res.status(307).redirect(307, '/api/config');
   });
 
   router.get('/logs', async (req, res) => {
@@ -90,7 +147,7 @@ export function createApiRouter() {
     }
 
     const lines = await readLastLines(filePath, limit);
-    res.json({ lines });
+    res.json({ lines: lines.reverse() });
   });
 
   return router;
