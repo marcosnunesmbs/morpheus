@@ -15,6 +15,7 @@ Auto-generated from all feature plans. Last updated: 2026-01-29
 - SQLite (`better-sqlite3`) (008-sqlite-memory-persistence)
 - TypeScript 5.9 (shared), Node.js (backend), React 19 (frontend) (010-settings-form-ui)
 - `config.yaml` (via existing `ConfigManager`) (010-settings-form-ui)
+- Node.js 18+ (ESM) + Commander, Express, React (UI) (011-npm-publish-setup)
 
 - [e.g., Python 3.11, Swift 5.9, Rust 1.75 or NEEDS CLARIFICATION] + [e.g., FastAPI, UIKit, LLVM or NEEDS CLARIFICATION] (001-cli-structure)
 
@@ -35,9 +36,9 @@ cd src; pytest; ruff check .
 [e.g., Python 3.11, Swift 5.9, Rust 1.75 or NEEDS CLARIFICATION]: Follow standard conventions
 
 ## Recent Changes
+- 011-npm-publish-setup: Added Node.js 18+ (ESM) + Commander, Express, React (UI)
 - 010-settings-form-ui: Added TypeScript 5.9 (shared), Node.js (backend), React 19 (frontend)
 - 008-sqlite-memory-persistence: Added TypeScript 5.x / Node.js >= 18 + `better-sqlite3`, `@langchain/core`
-- 008-sqlite-memory-persistence: Added [e.g., Python 3.11, Swift 5.9, Rust 1.75 or NEEDS CLARIFICATION] + [e.g., FastAPI, UIKit, LLVM or NEEDS CLARIFICATION]
 
 
 <!-- MANUAL ADDITIONS START -->
