@@ -1,66 +1,68 @@
 # Morpheus Copilot Instructions
 
 ## 🧠 Project Context
-**Morpheus** is a local-first AI operator/agent for developers. It runs as a CLI daemon, bridging LLMs (via LangChain) to external channels (Telegram, Discord) and local tools.
+**Morpheus** is a local-first AI operator/agent for developers. It runs as a background daemon (CLI + HTTP Server), bridging LLMs (LangChain) to external channels (Telegram, Discord), a Web UI, and local tools.
 
 ## 🏗 Architecture & Core Components
 
 ### Entry Point & CLI
 - **Entry:** `bin/morpheus.js` (executes built `src/cli/index.ts`).
-- **Framework:** Uses `commander` for command parsing (`src/cli/commands/*.ts`).
-- **Commands:** `start`, `stop`, `status`, `config`, `doctor`, `init`.
-- **Lifecycle:** `src/runtime/lifecycle.ts` manages the daemon process, including PID file handling (`~/.morpheus/morpheus.pid`).
+- **Framework:** `commander` for command parsing (`src/cli/commands/*.ts`).
+- **Daemon:** `src/runtime/lifecycle.ts` manages the process & PID file (`~/.morpheus/morpheus.pid`). Controls `HttpServer` lifecycle.
 
-### Runtime & Agent
-- **Agent Core:** `src/runtime/agent.ts` is the central brain.
-  - Implements `IAgent` interface.
-  - Orchestrates LLMs using `@langchain/core` interfaces (`BaseChatModel`, `BaseMessage`).
-  - Manages conversation history in-memory (currently).
-- **Providers:** `src/runtime/providers/factory.ts` instantiates LLM providers (OpenAI, Anthropic, Ollama) based on config.
-- **Display:** `src/runtime/display.ts` (`DisplayManager`) handles centralized logging/output, likely supporting both CLI output and log files.
+### Runtime & Agent (The brain)
+- **Agent:** `src/runtime/agent.ts` implements `IAgent`.
+  - Orchestrates LLMs via `@langchain/core`.
+  - **Memory:** Persisted via `SQLiteChatMessageHistory` (`src/runtime/memory/sqlite.ts`) using `better-sqlite3`.
+- **Providers:** `src/runtime/providers/factory.ts` instantiates LLMs (OpenAI, Anthropic, Ollama).
+- **Display:** `src/runtime/display.ts` handles centralized logging/output.
+
+### HTTP Server & Web UI
+- **Server:** `src/http/server.ts` (Express).
+  - Serves API (`/api/*` defined in `src/http/api.ts`).
+  - Serves compiled React UI static files.
+- **UI:** Located in `src/ui/`.
+  - **Stack:** React 19, Vite, TailwindCSS, SWR.
+  - **Theme:** "Matrix" aesthetic (Green/Black).
+  - **Communication:** Consumes API via `src/ui/src/services/` or `lib/`.
 
 ### Configuration
 - **Manager:** `src/config/manager.ts` (`ConfigManager` singleton).
-- **Schema:** Defined in `src/types/config.ts` and validated via `zod` in `manager.ts`.
-- **Storage:** Persisted as YAML in `~/.morpheus/config.yaml`.
-- **Paths:** `src/config/paths.ts` abstracts file system locations.
-
-### Channels
-- **Telegram:** `src/channels/telegram.ts` uses `telegraf`.
-  - **Auth:** Strict `allowedUsers` whitelist check.
-  - **Flow:** Receives message -> Calls `agent.chat()` -> Replies with response.
+- **Schema:** Shared Zod schemas in `src/config/schemas.ts`.
+- **Storage:** YAML at `~/.morpheus/config.yaml`.
+- **Paths:** `src/config/paths.ts` abstracts OS paths.
 
 ## 🛠 Developer Patterns & Conventions
 
-### Singleton Pattern
-We use singletons for infrastructure components. Always access them via `getInstance()`:
-- `ConfigManager.getInstance()`
-- `DisplayManager.getInstance()`
+### TypeScript & ESM
+- **Strict Imports:** This project is native ESM. **Relative imports MUST include the `.js` extension**.
+  - ✅ `import { Foo } from './foo.js';`
+  - ❌ `import { Foo } from './foo';`
+- **Verbatim Module Syntax is enabled.** Use `import type` for type-only imports to avoid build errors.
 
-### Error Handling
-- Use specific error classes like `ProviderError` (`src/runtime/errors.ts`).
-- Wrap external API calls (LLM, Telegram) in try/catch blocks that log to `DisplayManager` rather than `console.error`.
+### Infrastructure Patterns
+- **Singletons:** Access infrastructure via `getInstance()`:
+  - `ConfigManager.getInstance()`
+  - `DisplayManager.getInstance()`
+- **Error Handling:** Catch errors and log to `DisplayManager` (with context), not `console.error`.
 
 ### Validation
-- **Config:** ALWAYS update the Zod schema in `src/config/manager.ts` when adding new configuration properties.
-- **Inputs:** Validate user inputs at the CLI boundary using `inquirer` or `commander` validators.
-
-### Testing
-- **Framework:** `vitest`.
-- **Location:** `__tests__` directories adjacent to the source files (e.g., `src/channels/__tests__/`).
-- **Mocking:** Mock `fs-extra`, `telegraf`, and `langchain` modules for unit tests. Use `vi.mock()`.
+- **Shared Schemas:** Define Zod schemas in `src/config/schemas.ts` to share validation logic between Backend and Frontend.
+- **Input:** Validate prompt inputs at CLI boundary (`commander`/`inquirer`).
 
 ## 🚀 Workflows
 
 ### Building & Running
-- **Build:** `npm run build` (runs `tsc`).
-- **Run Dev:** `npm start -- [command]` (e.g., `npm start -- start`).
-- **Daemon Mode:** `morpheus start` runs the long-lived process. `morpheus stop` kills it via PID.
+- **Full Build:** `npm run build` (compiles Backend `tsc` && Frontend `vite build`).
+- **Run Daemon:** `npm start -- start` (starts CLI daemon + HTTP server).
+- **UI Dev:** `npm run dev --prefix src/ui` (runs Vite dev server).
 
-### Adding a New Command
-1. Create `src/cli/commands/new-command.ts`.
-2. Register it in `src/cli/index.ts`.
+### Key Commands
+- `npm start -- init` - Scaffolds configuration.
+- `npm start -- doctor` - Diagnoses issues.
+- `npm test` - Runs Vitest suite.
 
-### Adding a New LLM Provider
-1. Update `MorpheusConfig` interface/schema.
-2. Implement provider logic in `src/runtime/providers/factory.ts`.
+### Adding Features
+1. **New Command:** Add to `src/cli/commands/`, register in `src/cli/index.ts`.
+2. **New API Endpoint:** Add to `src/http/api.ts`.
+3. **New UI Page:** Add route in `src/ui/src/App.tsx`, create page in `src/ui/src/pages/`.
