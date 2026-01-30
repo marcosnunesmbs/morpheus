@@ -8,6 +8,61 @@
 
 Morpheus is a local AI agent for developers, running as a CLI daemon that connects to **LLMs**, **local tools**, and **MCPs**, enabling interaction via **Terminal, Telegram, and Discord**. Inspired by the character Morpheus from *The Matrix*, the project acts as an **intelligent orchestrator**, bridging the gap between the developer and complex systems.
 
+## Installation
+
+Install Morpheus globally via npm:
+
+```bash
+npm install -g morpheus-cli
+```
+
+## Quick Start
+
+### 1. Initialize
+
+Set up your configuration (API keys, preferences):
+
+```bash
+morpheus init
+```
+
+### 2. Start the Agent
+
+Run the background daemon and Web UI:
+
+```bash
+morpheus start
+```
+
+This will:
+- Start the agent process
+- Launch the Web UI at http://localhost:3333
+
+### Other Commands
+
+```bash
+# Check if Morpheus is running
+morpheus status
+
+# Stop the agent
+morpheus stop
+
+# Diagnose issues
+morpheus doctor
+```
+
+## Troubleshooting
+
+### Command not found
+
+If you installed successfully but can't run the `morpheus` command:
+
+1.  **Check your PATH**: Ensure your global npm bin directory is in your system PATH.
+    -   Run `npm bin -g` to see the folder.
+    -   On Windows, this is usually `%APPDATA%\npm`.
+    -   On Linux/Mac, verify `echo $PATH`.
+2.  **Restart Terminal**: New installations might not be visible until you restart your shell.
+
 ## Technical Overview
 
 Morpheus is built with **Node.js** and **TypeScript**, using **LangChain** as the orchestration engine. It runs as a background daemon process, managing connections to LLM providers (OpenAI, Anthropic, Ollama) and external channels (Telegram, Discord).
@@ -19,15 +74,15 @@ Morpheus is built with **Node.js** and **TypeScript**, using **LangChain** as th
 - **Configuration (`src/config/`)**: Singleton-based configuration manager using `zod` for validation and `js-yaml` for persistence (`~/.morpheus/config.yaml`).
 - **Channels (`src/channels/`)**: Adapters for external communication. Currently supports Telegram (`telegraf`) with strict user whitelisting.
 
-## Prerequisites
+## Development Setup
+
+This guide is for developers contributing to the Morpheus codebase.
+
+### Prerequisites
 
 - **Node.js**: >= 18.x
 - **npm**: >= 9.x
 - **TypeScript**: >= 5.x
-
-## Getting Started (Development)
-
-This guide is for developers contributing to the Morpheus codebase.
 
 ### 1. Clone & Install
 
@@ -62,7 +117,7 @@ npm start -- status
 
 ### 4. Configuration
 
-The configuration file is located at `~/.morpheus/config.yaml`. You can edit it manually or use the CLI.
+The configuration file is located at `~/.morpheus/config.yaml`. You can edit it manually or use the `morpheus config` command.
 
 ```yaml
 agent:
