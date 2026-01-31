@@ -63,6 +63,17 @@ If you installed successfully but can't run the `morpheus` command:
     -   On Linux/Mac, verify `echo $PATH`.
 2.  **Restart Terminal**: New installations might not be visible until you restart your shell.
 
+## Using NPX
+You can run Morpheus without installing it globally using `npx`:
+
+```bash
+
+npx morpheus-cli init
+
+npx morpheus-cli start
+
+```
+
 ## Technical Overview
 
 Morpheus is built with **Node.js** and **TypeScript**, using **LangChain** as the orchestration engine. It runs as a background daemon process, managing connections to LLM providers (OpenAI, Anthropic, Ollama) and external channels (Telegram, Discord).
