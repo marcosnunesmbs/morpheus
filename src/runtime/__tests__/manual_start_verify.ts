@@ -20,6 +20,9 @@ const mockConfig: MorpheusConfig = {
     enabled: false,
     maxDurationSeconds: 60,
     supportedMimeTypes: ['audio/ogg']
+  },
+  memory: {
+    limit: 100
   }
 };
 

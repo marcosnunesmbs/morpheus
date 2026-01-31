@@ -3,6 +3,7 @@ import { BaseMessage, HumanMessage, SystemMessage, AIMessage } from "@langchain/
 import { BaseListChatMessageHistory } from "@langchain/core/chat_history";
 import { IAgent } from "./types.js";
 import { ProviderFactory } from "./providers/factory.js";
+import { ToolsFactory } from "./tools/factory.js";
 import { MorpheusConfig } from "../types/config.js";
 import { ConfigManager } from "../config/manager.js";
 import { ProviderError } from "./errors.js";
@@ -34,7 +35,8 @@ export class Agent implements IAgent {
     // to allow for Environment Variable fallback supported by LangChain.
     
     try {
-      this.provider = await ProviderFactory.create(this.config.llm);
+      const tools = await ToolsFactory.create();
+      this.provider = await ProviderFactory.create(this.config.llm, tools);
       if (!this.provider) {
         throw new Error("Provider factory returned undefined");
       }
@@ -42,7 +44,7 @@ export class Agent implements IAgent {
       // Initialize persistent memory with SQLite
       this.history = new SQLiteChatMessageHistory({
         sessionId: "default",
-        limit: 15,
+        limit: this.config.memory?.limit || 100, // Fallback purely defensive if config type allows optional
       });
     } catch (err) {
        if (err instanceof ProviderError) throw err; // Re-throw known errors
@@ -82,7 +84,7 @@ export class Agent implements IAgent {
 
       const response = await this.provider.invoke({ messages});
 
-      console.log('Agent response:', response);
+      // console.log('Agent response:', response);
             
       // Persist messages to database
       await this.history.addMessage(userMessage);

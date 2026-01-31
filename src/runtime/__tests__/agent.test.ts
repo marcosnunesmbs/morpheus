@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { Agent } from '../agent.js';
 import { ProviderFactory } from '../providers/factory.js';
+import { ToolsFactory } from '../tools/factory.js';
 import { DEFAULT_CONFIG } from '../../types/config.js';
 import { BaseChatModel } from '@langchain/core/language_models/chat_models';
 import { AIMessage } from '@langchain/core/messages';
@@ -10,6 +11,7 @@ import { homedir } from 'os';
 import { ReactAgent } from 'langchain';
 
 vi.mock('../providers/factory.js');
+vi.mock('../tools/factory.js');
 
 describe('Agent', () => {
   let agent: Agent;
@@ -33,8 +35,9 @@ describe('Agent', () => {
       }
     }
     
-    (mockProvider.invoke as any).mockResolvedValue(new AIMessage('Hello world'));
+    (mockProvider.invoke as any).mockResolvedValue({ messages: [new AIMessage('Hello world')] });
     vi.mocked(ProviderFactory.create).mockResolvedValue(mockProvider);
+    vi.mocked(ToolsFactory.create).mockResolvedValue([]);
     agent = new Agent(DEFAULT_CONFIG);
   });
 
@@ -51,7 +54,8 @@ describe('Agent', () => {
 
   it('should initialize successfully', async () => {
     await agent.initialize();
-    expect(ProviderFactory.create).toHaveBeenCalledWith(DEFAULT_CONFIG.llm);
+    expect(ToolsFactory.create).toHaveBeenCalled();
+    expect(ProviderFactory.create).toHaveBeenCalledWith(DEFAULT_CONFIG.llm, []);
   });
 
   it('should chat successfully', async () => {
@@ -80,7 +84,7 @@ describe('Agent', () => {
 
     // Second turn
     // Update mock return value for next call
-    (mockProvider.invoke as any).mockResolvedValue(new AIMessage('I am fine'));
+    (mockProvider.invoke as any).mockResolvedValue({ messages: [new AIMessage('I am fine')] });
     
     await agent.chat('How are you?');
     const history2 = await agent.getHistory();

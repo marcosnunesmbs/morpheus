@@ -57,7 +57,7 @@ export function Logs() {
               <RefreshCw className="w-4 h-4" />
             </button>
           </div>
-          <div className="flex-1 overflow-auto p-4 font-mono text-xs whitespace-pre-wrap text-green-500/80">
+          <div className="flex-1 overflow-auto p-4 font-mono text-xs whitespace-pre-wrap text-white">
             {content ? content.lines.join('\n') : 'Select a log file to view content...'}
           </div>
         </div>

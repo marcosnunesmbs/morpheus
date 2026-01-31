@@ -6,12 +6,13 @@ import { ChatGoogleGenerativeAI } from "@langchain/google-genai";
 import { LLMConfig } from "../../types/config.js";
 import { ProviderError } from "../errors.js";
 import { createAgent, ReactAgent, toolCallLimitMiddleware } from "langchain";
-import { MultiServerMCPClient, } from "@langchain/mcp-adapters";
+// import { MultiServerMCPClient, } from "@langchain/mcp-adapters"; // REMOVED
 import { z } from "zod";
 import { DisplayManager } from "../display.js";
+import { StructuredTool } from "@langchain/core/tools";
 
 export class ProviderFactory {
-  static async create(config: LLMConfig): Promise<ReactAgent> {
+  static async create(config: LLMConfig, tools: StructuredTool[] = []): Promise<ReactAgent> {
 
     let display = DisplayManager.getInstance();
 
@@ -21,26 +22,8 @@ export class ProviderFactory {
       content: z.string().describe("The main response content from the agent"),
     });
 
-    const client = new MultiServerMCPClient({
-      mcpServers: {
-        coingecko: {
-          transport: "stdio",
-          command: "npx",
-          args: ["-y", "mcp_coingecko_price_ts"],
-        },
-      },
-      // log the MCP client's internal events
-      beforeToolCall: ({ serverName, name, args }) => {
-        display.log(`MCP Tool Call - Server: ${serverName}, Tool: ${name}, Args: ${JSON.stringify(args)}`);
-        return;
-      },
-      // log the results of tool calls
-      afterToolCall: (res) => {
-        display.log(`MCP Tool Result - ${JSON.stringify(res)}`);
-        return;
-      }
-    });
-
+    // Removed direct MCP client instantiation
+    
     try {
       switch (config.provider) {
         case 'openai':
@@ -76,11 +59,11 @@ export class ProviderFactory {
           throw new Error(`Unsupported provider: ${config.provider}`);
       }
 
-      const tools = await client.getTools();
+      const toolsForAgent = tools;
 
       return createAgent({
         model: model,
-        tools: tools,
+        tools: toolsForAgent,
       });
 
 
