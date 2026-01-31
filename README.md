@@ -149,6 +149,8 @@ llm:
   model: "gpt-4-turbo"
   temperature: 0.7
   api_key: "sk-..."
+memory:
+  limit: 100 # Number of messages to retain in context
 channels:
   telegram:
     enabled: true
