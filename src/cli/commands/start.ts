@@ -150,7 +150,7 @@ export const startCommand = new Command('start')
       }
 
       // Keep process alive (Mock Agent Loop)
-      display.startSpinner('Agent active and listening... (Press ESC to stop)');
+      display.startSpinner('Agent active and listening... (Press ctrl+c to stop)');
       
       // Prevent node from exiting
       setInterval(() => {
