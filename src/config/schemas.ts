@@ -21,6 +21,9 @@ export const ConfigSchema = z.object({
     api_key: z.string().optional(),
   }).default(DEFAULT_CONFIG.llm),
   audio: AudioConfigSchema.default(DEFAULT_CONFIG.audio),
+  memory: z.object({
+    limit: z.number().int().positive().default(DEFAULT_CONFIG.memory.limit),
+  }).default(DEFAULT_CONFIG.memory),
   channels: z.object({
     telegram: z.object({
       enabled: z.boolean().default(false),

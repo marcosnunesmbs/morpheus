@@ -46,6 +46,10 @@ export interface AudioConfig {
   supportedMimeTypes: string[];
 }
 
+export interface MemoryConfig {
+  limit: number;
+}
+
 export interface MorpheusConfig {
   agent: AgentConfig;
   llm: LLMConfig;
@@ -53,6 +57,7 @@ export interface MorpheusConfig {
   ui: UIConfig;
   logging: LogConfig;
   audio: AudioConfig;
+  memory: MemoryConfig;
 }
 
 export const DEFAULT_CONFIG: MorpheusConfig = {
@@ -69,6 +74,9 @@ export const DEFAULT_CONFIG: MorpheusConfig = {
     enabled: true,
     maxDurationSeconds: 300,
     supportedMimeTypes: ['audio/ogg', 'audio/mp3', 'audio/mpeg', 'audio/wav'],
+  },
+  memory: {
+    limit: 100
   },
   llm: {
     provider: 'openai',
