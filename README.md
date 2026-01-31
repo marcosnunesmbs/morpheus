@@ -85,6 +85,16 @@ Morpheus is built with **Node.js** and **TypeScript**, using **LangChain** as th
 - **Configuration (`src/config/`)**: Singleton-based configuration manager using `zod` for validation and `js-yaml` for persistence (`~/.morpheus/config.yaml`).
 - **Channels (`src/channels/`)**: Adapters for external communication. Currently supports Telegram (`telegraf`) with strict user whitelisting.
 
+## Features
+
+### 🎙️ Audio Transcription (Telegram)
+Send voice messages directly to the Telegram bot. Morpheus will:
+1. Transcribe the audio using **Google Gemini**.
+2. Process the text as a standard prompt.
+3. Reply with the answer.
+
+*Requires a Google Gemini API Key.*
+
 ## Development Setup
 
 This guide is for developers contributing to the Morpheus codebase.
@@ -144,6 +154,12 @@ channels:
     enabled: true
     token: "YOUR_TELEGRAM_BOT_TOKEN"
     allowedUsers: ["123456789"] # Your Telegram User ID
+
+# Audio Transcription Support
+audio:
+  enabled: true
+  apiKey: "YOUR_GEMINI_API_KEY" # Optional if llm.provider is 'gemini'
+  maxDurationSeconds: 300
 ```
 
 ## Testing
