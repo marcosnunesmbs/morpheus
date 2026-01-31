@@ -7,6 +7,7 @@ import { AIMessage } from '@langchain/core/messages';
 import * as fs from 'fs-extra';
 import * as path from 'path';
 import { homedir } from 'os';
+import { ReactAgent } from 'langchain';
 
 vi.mock('../providers/factory.js');
 
@@ -14,7 +15,7 @@ describe('Agent', () => {
   let agent: Agent;
   const mockProvider = {
     invoke: vi.fn(),
-  } as unknown as BaseChatModel;
+  } as unknown as ReactAgent;
 
   beforeEach(async () => {
     vi.resetAllMocks();
@@ -33,7 +34,7 @@ describe('Agent', () => {
     }
     
     (mockProvider.invoke as any).mockResolvedValue(new AIMessage('Hello world'));
-    vi.mocked(ProviderFactory.create).mockReturnValue(mockProvider);
+    vi.mocked(ProviderFactory.create).mockResolvedValue(mockProvider);
     agent = new Agent(DEFAULT_CONFIG);
   });
 

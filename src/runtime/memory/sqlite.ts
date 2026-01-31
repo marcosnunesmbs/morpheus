@@ -8,6 +8,7 @@ import { homedir } from "os";
 export interface SQLiteChatMessageHistoryInput {
   sessionId: string;
   databasePath?: string;
+  limit?: number;
   config?: Database.Options;
 }
 
@@ -16,10 +17,12 @@ export class SQLiteChatMessageHistory extends BaseListChatMessageHistory {
   
   private db: Database.Database;
   private sessionId: string;
+  private limit?: number;
 
   constructor(fields: SQLiteChatMessageHistoryInput) {
     super();
     this.sessionId = fields.sessionId;
+    this.limit = fields.limit ? fields.limit : 20;
     
     // Default path: ~/.morpheus/memory/short-memory.db
     const dbPath = fields.databasePath || path.join(homedir(), ".morpheus", "memory", "short-memory.db");
@@ -113,10 +116,11 @@ export class SQLiteChatMessageHistory extends BaseListChatMessageHistory {
    */
   async getMessages(): Promise<BaseMessage[]> {
     try {
+      // Esta query é válida para SQLite: seleciona os campos type e content da tabela messages filtrando por session_id, ordenando por id e limitando o número de resultados.
       const stmt = this.db.prepare(
-        "SELECT type, content FROM messages WHERE session_id = ? ORDER BY id ASC"
+        "SELECT type, content FROM messages WHERE session_id = ? ORDER BY id ASC LIMIT ?"
       );
-      const rows = stmt.all(this.sessionId) as Array<{ type: string; content: string }>;
+      const rows = stmt.all(this.sessionId, this.limit) as Array<{ type: string; content: string }>;
 
       return rows.map((row) => {
         switch (row.type) {

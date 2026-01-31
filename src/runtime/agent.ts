@@ -8,10 +8,10 @@ import { ConfigManager } from "../config/manager.js";
 import { ProviderError } from "./errors.js";
 import { DisplayManager } from "./display.js";
 import { SQLiteChatMessageHistory } from "./memory/sqlite.js";
-
+import { ReactAgent } from "langchain";
 
 export class Agent implements IAgent {
-  private provider?: BaseChatModel;
+  private provider?: ReactAgent;
   private config: MorpheusConfig;
   private history?: BaseListChatMessageHistory;
   private display = DisplayManager.getInstance();
@@ -34,7 +34,7 @@ export class Agent implements IAgent {
     // to allow for Environment Variable fallback supported by LangChain.
     
     try {
-      this.provider = ProviderFactory.create(this.config.llm);
+      this.provider = await ProviderFactory.create(this.config.llm);
       if (!this.provider) {
         throw new Error("Provider factory returned undefined");
       }
@@ -42,6 +42,7 @@ export class Agent implements IAgent {
       // Initialize persistent memory with SQLite
       this.history = new SQLiteChatMessageHistory({
         sessionId: "default",
+        limit: 15,
       });
     } catch (err) {
        if (err instanceof ProviderError) throw err; // Re-throw known errors
@@ -66,6 +67,7 @@ export class Agent implements IAgent {
 
     try {
       this.display.log('Processing message...', { source: 'Agent' });
+
       const userMessage = new HumanMessage(message);
       const systemMessage = new SystemMessage(`You are ${this.config.agent.name}, ${this.config.agent.personality}. You are a personal dev assistent.`);
       
@@ -78,16 +80,15 @@ export class Agent implements IAgent {
         userMessage
       ];
 
-      const response = await this.provider.invoke(messages);
-      
-      const content = typeof response.content === 'string' ? response.content : JSON.stringify(response.content);
-      
+      const response = await this.provider.invoke({ messages});
+
+      console.log('Agent response:', response);
+            
       // Persist messages to database
       await this.history.addMessage(userMessage);
-      await this.history.addMessage(new AIMessage(content));
-
+      await this.history.addMessage(new AIMessage(response.messages[response.messages.length - 1].text));
       this.display.log('Response generated.', { source: 'Agent' });
-      return content;
+      return response.messages[response.messages.length - 1].text;
     } catch (err) {
       throw new ProviderError(this.config.llm.provider, err, "Chat request failed");
     }
