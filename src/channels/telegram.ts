@@ -104,9 +104,11 @@ export class TelegramAdapter {
         this.display.log(`Receiving voice message from @${user} (${duration}s)...`, { source: 'AgentAudio' });
 
         let filePath: string | null = null;
+        let listeningMsg: any = null;
 
         try {
-          await ctx.sendChatAction('typing');
+
+          listeningMsg = await ctx.reply("Escutando...");
 
           // Download
           this.display.log(`Downloading audio for @${user}...`, { source: 'AgentAudio' });
@@ -124,11 +126,20 @@ export class TelegramAdapter {
           // "Transcribe them... and process the resulting text as a standard user prompt."
           
           // So I should treat 'text' as if it was a text message.
-          await ctx.reply(`🎤 *Transcription*: _"${text}"_`, { parse_mode: 'Markdown' });
+          // await ctx.reply(`🎤 *Transcription*: _"${text}"_`, { parse_mode: 'Markdown' });
           await ctx.sendChatAction('typing');
 
           // Process with Agent
           const response = await this.agent.chat(text);
+
+          if (listeningMsg) {
+            try {
+              await ctx.telegram.deleteMessage(ctx.chat.id, listeningMsg.message_id);
+            } catch (e) {
+              // Ignore delete error
+            }
+          }
+
           if (response) {
             await ctx.reply(response);
             this.display.log(`Responded to @${user} (via audio)`, { source: 'Telegram' });
