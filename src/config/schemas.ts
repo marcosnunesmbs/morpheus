@@ -1,6 +1,13 @@
 import { z } from 'zod';
 import { DEFAULT_CONFIG } from '../types/config.js';
 
+export const AudioConfigSchema = z.object({
+  enabled: z.boolean().default(DEFAULT_CONFIG.audio.enabled),
+  apiKey: z.string().optional(),
+  maxDurationSeconds: z.number().default(DEFAULT_CONFIG.audio.maxDurationSeconds),
+  supportedMimeTypes: z.array(z.string()).default(DEFAULT_CONFIG.audio.supportedMimeTypes),
+});
+
 // Zod Schema matching MorpheusConfig interface
 export const ConfigSchema = z.object({
   agent: z.object({
@@ -13,6 +20,7 @@ export const ConfigSchema = z.object({
     temperature: z.number().min(0).max(1).default(DEFAULT_CONFIG.llm.temperature),
     api_key: z.string().optional(),
   }).default(DEFAULT_CONFIG.llm),
+  audio: AudioConfigSchema.default(DEFAULT_CONFIG.audio),
   channels: z.object({
     telegram: z.object({
       enabled: z.boolean().default(false),

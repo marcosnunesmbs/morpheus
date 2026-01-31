@@ -39,12 +39,20 @@ export interface LogConfig {
   retention: string;
 }
 
+export interface AudioConfig {
+  enabled: boolean;
+  apiKey?: string;
+  maxDurationSeconds: number;
+  supportedMimeTypes: string[];
+}
+
 export interface MorpheusConfig {
   agent: AgentConfig;
   llm: LLMConfig;
   channels: ChannelsConfig;
   ui: UIConfig;
   logging: LogConfig;
+  audio: AudioConfig;
 }
 
 export const DEFAULT_CONFIG: MorpheusConfig = {
@@ -56,6 +64,11 @@ export const DEFAULT_CONFIG: MorpheusConfig = {
     enabled: true,
     level: 'info',
     retention: '14d',
+  },
+  audio: {
+    enabled: true,
+    maxDurationSeconds: 300,
+    supportedMimeTypes: ['audio/ogg', 'audio/mp3', 'audio/mpeg', 'audio/wav'],
   },
   llm: {
     provider: 'openai',
