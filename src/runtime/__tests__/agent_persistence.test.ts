@@ -8,6 +8,7 @@ import * as fs from "fs-extra";
 import * as path from "path";
 import { tmpdir } from "os";
 import { homedir } from "os";
+import { ReactAgent } from "langchain";
 
 vi.mock("../providers/factory.js");
 
@@ -16,7 +17,7 @@ describe("Agent Persistence Integration", () => {
   let testDbPath: string;
   const mockProvider = {
     invoke: vi.fn(),
-  } as unknown as BaseChatModel;
+  } as unknown as ReactAgent;
 
   beforeEach(async () => {
     vi.resetAllMocks();
@@ -42,7 +43,7 @@ describe("Agent Persistence Integration", () => {
     // We'll use the default ~/.morpheus path for this test
     
     (mockProvider.invoke as any).mockResolvedValue(new AIMessage("Test response"));
-    vi.mocked(ProviderFactory.create).mockReturnValue(mockProvider);
+    vi.mocked(ProviderFactory.create).mockResolvedValue(mockProvider);
     
     agent = new Agent(DEFAULT_CONFIG);
   });
