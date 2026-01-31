@@ -38,9 +38,9 @@ cd src; pytest; ruff check .
 [e.g., Python 3.11, Swift 5.9, Rust 1.75 or NEEDS CLARIFICATION]: Follow standard conventions
 
 ## Recent Changes
+- 013-improve-init-flow: Added [e.g., Python 3.11, Swift 5.9, Rust 1.75 or NEEDS CLARIFICATION] + [e.g., FastAPI, UIKit, LLVM or NEEDS CLARIFICATION]
 - 012-audio-transcription: Added TypeScript 5.x / Node.js >= 18 + `@google/genai` (Google's official SDK for Gemini)
 - 011-npm-publish-setup: Added Node.js 18+ (ESM) + Commander, Express, React (UI)
-- 010-settings-form-ui: Added TypeScript 5.9 (shared), Node.js (backend), React 19 (frontend)
 
 
 <!-- MANUAL ADDITIONS START -->
