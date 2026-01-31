@@ -15,7 +15,12 @@ const mockConfig: MorpheusConfig = {
     discord: { enabled: false }
   },
   ui: { enabled: false, port: 3333 },
-  logging: { enabled: false, level: 'info', retention: '1d' }
+  logging: { enabled: false, level: 'info', retention: '1d' },
+  audio: {
+    enabled: false,
+    maxDurationSeconds: 60,
+    supportedMimeTypes: ['audio/ogg']
+  }
 };
 
 const run = async () => {

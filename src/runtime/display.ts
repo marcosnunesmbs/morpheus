@@ -95,6 +95,9 @@ export class DisplayManager implements IDisplayManager {
       } else if (options.source === 'Agent') {
         color = chalk.hex('#FFA500');
       }
+      else if (options.source === 'AgentAudio') {
+        color = chalk.hex('#b902b9');
+      }
       prefix = color(`[${options.source}] `);
     }
 
