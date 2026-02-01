@@ -47,3 +47,20 @@ export const ConfigSchema = z.object({
     retention: z.string().default(DEFAULT_CONFIG.logging.retention),
   }).default(DEFAULT_CONFIG.logging),
 });
+
+export const MCPServerConfigSchema = z.object({
+  transport: z.enum(['stdio', 'http']),
+  command: z.string().min(1, 'Command is required'),
+  args: z.array(z.string()).optional().default([]),
+  env: z.record(z.string(), z.string()).optional().default({}),
+  _comment: z.string().optional(),
+});
+
+export const MCPConfigFileSchema = z.record(
+  z.string(),
+  z.union([
+    MCPServerConfigSchema,
+    z.string(),
+  ])
+);
+

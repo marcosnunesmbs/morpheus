@@ -4,7 +4,7 @@ import chalk from 'chalk';
 import { ConfigManager } from '../../config/manager.js';
 import { renderBanner } from '../utils/render.js';
 import { DisplayManager } from '../../runtime/display.js';
-import { scaffold } from '../../runtime/scaffold.js';
+// import { scaffold } from '../../runtime/scaffold.js';
 
 export const initCommand = new Command('init')
   .description('Initialize Morpheus configuration')
@@ -15,8 +15,8 @@ export const initCommand = new Command('init')
     const configManager = ConfigManager.getInstance();
     const currentConfig = await configManager.load();
     
-    // Ensure directory exists
-    await scaffold();
+    // Ensure directory exists - Handled by preAction hook
+    // await scaffold();
 
     display.log(chalk.blue('Let\'s set up your Morpheus agent!'));
     

@@ -24,8 +24,8 @@
 
 **Purpose**: Create new files and type definitions needed by all stories
 
-- [ ] T001 [P] Create MCP types and template in `src/types/mcp.ts`
-- [ ] T002 [P] Add MCPServerConfigSchema to `src/config/schemas.ts`
+- [x] T001 [P] Create MCP types and template in `src/types/mcp.ts`
+- [x] T002 [P] Add MCPServerConfigSchema to `src/config/schemas.ts`
 
 ---
 
@@ -35,10 +35,10 @@
 
 **⚠️ CRITICAL**: User story work cannot begin until this phase is complete
 
-- [ ] T003 Create MCP config loader module in `src/config/mcp-loader.ts`
-- [ ] T004 Implement `loadMCPConfig()` function with JSON parsing in `src/config/mcp-loader.ts`
-- [ ] T005 Implement entry validation loop with Zod schema and log each loaded/failed server (FR-009) in `src/config/mcp-loader.ts`
-- [ ] T006 Add metadata key filtering (skip `_` and `$` prefixed keys) in `src/config/mcp-loader.ts`
+- [x] T003 Create MCP config loader module in `src/config/mcp-loader.ts`
+- [x] T004 Implement `loadMCPConfig()` function with JSON parsing in `src/config/mcp-loader.ts`
+- [x] T005 Implement entry validation loop with Zod schema and log each loaded/failed server (FR-009) in `src/config/mcp-loader.ts`
+- [x] T006 Add metadata key filtering (skip `_` and `$` prefixed keys) in `src/config/mcp-loader.ts`
 
 **Checkpoint**: MCP loader ready - user story implementation can now begin
 
@@ -52,9 +52,9 @@
 
 ### Implementation for User Story 1
 
-- [ ] T007 [US1] Import DEFAULT_MCP_TEMPLATE in `src/runtime/scaffold.ts`
-- [ ] T008 [US1] Add `mcps.json` creation check (if not exists) in `src/runtime/scaffold.ts`
-- [ ] T009 [US1] Write template JSON with `fs.writeJson()` and pretty print in `src/runtime/scaffold.ts`
+- [x] T007 [US1] Import DEFAULT_MCP_TEMPLATE in `src/runtime/scaffold.ts`
+- [x] T008 [US1] Add `mcps.json` creation check (if not exists) in `src/runtime/scaffold.ts`
+- [x] T009 [US1] Write template JSON with `fs.writeJson()` and pretty print in `src/runtime/scaffold.ts`
 
 **Checkpoint**: User Story 1 complete - `morpheus init` creates template file
 
@@ -68,11 +68,11 @@
 
 ### Implementation for User Story 2
 
-- [ ] T010 [US2] Import `loadMCPConfig` in `src/runtime/tools/factory.ts`
-- [ ] T011 [US2] Replace hardcoded `mcpServers` object with `await loadMCPConfig()` call in `src/runtime/tools/factory.ts`
-- [ ] T012 [US2] Add early return with info log when no servers configured in `src/runtime/tools/factory.ts`
-- [ ] T013 [US2] Remove hardcoded MCP entries (coingecko, coolify, context7) from `src/runtime/tools/factory.ts`
-- [ ] T014 [US2] Keep existing `beforeToolCall` and `afterToolCall` hooks in `src/runtime/tools/factory.ts`
+- [x] T010 [US2] Import `loadMCPConfig` in `src/runtime/tools/factory.ts`
+- [x] T011 [US2] Replace hardcoded `mcpServers` object with `await loadMCPConfig()` call in `src/runtime/tools/factory.ts`
+- [x] T012 [US2] Add early return with info log when no servers configured in `src/runtime/tools/factory.ts`
+- [x] T013 [US2] Remove hardcoded MCP entries (coingecko, coolify, context7) from `src/runtime/tools/factory.ts`
+- [x] T014 [US2] Keep existing `beforeToolCall` and `afterToolCall` hooks in `src/runtime/tools/factory.ts`
 
 **Checkpoint**: User Story 2 complete - agent loads MCPs from config file
 
@@ -89,8 +89,8 @@
 > Note: This story requires no code changes - it's enabled by US1 + US2.
 > Tasks here ensure the workflow is documented and validated.
 
-- [ ] T015 [US3] Add example MCP entries to template showing different configurations in `src/types/mcp.ts`
-- [ ] T016 [US3] Verify template includes `_docs` field with usage instructions in `src/types/mcp.ts`
+- [x] T015 [US3] Add example MCP entries to template showing different configurations in `src/types/mcp.ts`
+- [x] T016 [US3] Verify template includes `_docs` field with usage instructions in `src/types/mcp.ts`
 
 **Checkpoint**: User Story 3 complete - users have clear documentation for adding MCPs
 
@@ -104,9 +104,9 @@
 
 ### Implementation for User Story 4
 
-- [ ] T017 [US4] Import `scaffold` function in `src/cli/index.ts`
-- [ ] T018 [US4] Add Commander.js `preAction` hook calling `scaffold()` in `src/cli/index.ts`
-- [ ] T019 [US4] Remove redundant `scaffold()` call from `initCommand` in `src/cli/commands/init.ts` (now handled by hook)
+- [x] T017 [US4] Import `scaffold` function in `src/cli/index.ts`
+- [x] T018 [US4] Add Commander.js `preAction` hook calling `scaffold()` in `src/cli/index.ts`
+- [x] T019 [US4] Remove redundant `scaffold()` call from `initCommand` in `src/cli/commands/init.ts` (now handled by hook)
 
 **Checkpoint**: User Story 4 complete - all commands ensure config files exist
 
@@ -122,10 +122,10 @@
 
 > Note: These tasks extend the core loader created in Phase 2 for robust error handling.
 
-- [ ] T020 [US5] Add try-catch for JSON.parse with user-friendly error logging in `src/config/mcp-loader.ts`
-- [ ] T021 [US5] Log validation errors for individual entries with server name in `src/config/mcp-loader.ts`
-- [ ] T022 [US5] Ensure empty object return on parse failure (agent starts without MCPs) in `src/config/mcp-loader.ts`
-- [ ] T023 [US5] Handle empty file (0 bytes) as valid empty config in `src/config/mcp-loader.ts`
+- [x] T020 [US5] Add try-catch for JSON.parse with user-friendly error logging in `src/config/mcp-loader.ts`
+- [x] T021 [US5] Log validation errors for individual entries with server name in `src/config/mcp-loader.ts`
+- [x] T022 [US5] Ensure empty object return on parse failure (agent starts without MCPs) in `src/config/mcp-loader.ts`
+- [x] T023 [US5] Handle empty file (0 bytes) as valid empty config in `src/config/mcp-loader.ts`
 
 **Checkpoint**: User Story 5 complete - robust error handling implemented
 
@@ -135,10 +135,10 @@
 
 **Purpose**: Final validation and cleanup
 
-- [ ] T024 [P] Remove any unused imports from modified files
-- [ ] T025 [P] Verify all imports use `.js` extension (ESM requirement)
-- [ ] T026 Run `npm run build` to verify TypeScript compilation
-- [ ] T027 Run quickstart.md validation checklist manually
+- [x] T024 [P] Remove any unused imports from modified files
+- [x] T025 [P] Verify all imports use `.js` extension (ESM requirement)
+- [x] T026 Run `npm run build` to verify TypeScript compilation
+- [x] T027 Run quickstart.md validation checklist manually
 
 ---
 

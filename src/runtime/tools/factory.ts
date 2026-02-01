@@ -1,6 +1,8 @@
 import { MultiServerMCPClient } from "@langchain/mcp-adapters";
 import { DisplayManager } from "../display.js";
 import { StructuredTool } from "@langchain/core/tools";
+import { loadMCPConfig } from "../../config/mcp-loader.js";
+
 const display = DisplayManager.getInstance();
 
 // Fields not supported by Google Gemini API
@@ -53,37 +55,16 @@ export class ToolsFactory {
   static async create(): Promise<StructuredTool[]> { // LangChain Tools type
     const display = DisplayManager.getInstance();
 
+    const mcpServers = await loadMCPConfig();
+    const serverCount = Object.keys(mcpServers).length;
+
+    if (serverCount === 0) {
+        display.log('No MCP servers configured in mcps.json', { level: 'info', source: 'ToolsFactory' });
+        return [];
+    }
+
     const client = new MultiServerMCPClient({
-      mcpServers: {
-        coingecko: {
-          transport: "stdio",
-          command: "npx",
-          args: ["-y", "mcp_coingecko_price_ts"],
-        },
-        coolify: {
-          transport: "stdio",
-          command: "npx",
-          args: [
-            "-y",
-            "coolify-mcp-server",
-          ],
-          env: {
-            "COOLIFY_TOKEN": "1|ZNXPvMUYq4dnNPaMZ0XuWiZFhZS702y5bQq79tVh6c9dd8af",
-            "COOLIFY_BASE_URL": "https://vps.mnunes.xyz",
-            "COOLIFY_READONLY": "true"
-          }
-        },
-        context7: {
-          transport: "stdio",
-          command: "npx",
-          args: [
-            "-y",
-            "@upstash/context7-mcp",
-            "--api-key",
-            "ctx7sk-506b040a-f4d0-48cf-a84d-e71113521994"
-          ]
-        }
-      },
+      mcpServers: mcpServers as any,
       onConnectionError: "ignore",
       // log the MCP client's internal events
       beforeToolCall: ({ serverName, name, args }) => {

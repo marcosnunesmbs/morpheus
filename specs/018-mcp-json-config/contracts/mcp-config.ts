@@ -17,8 +17,8 @@ import { z } from 'zod';
  * Matches the structure expected by @langchain/mcp-adapters MultiServerMCPClient.
  */
 export const MCPServerConfigSchema = z.object({
-  /** Transport protocol - stdio for command-line tools, sse for HTTP servers */
-  transport: z.enum(['stdio', 'sse']),
+  /** Transport protocol - stdio for command-line tools, http for HTTP servers */
+  transport: z.enum(['stdio', 'http']),
   
   /** Command to execute (e.g., "npx", "node", "python") */
   command: z.string().min(1, 'Command is required'),
