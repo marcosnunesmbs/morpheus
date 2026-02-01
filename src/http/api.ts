@@ -5,6 +5,7 @@ import { PATHS } from '../config/paths.js';
 import { DisplayManager } from '../runtime/display.js';
 import fs from 'fs-extra';
 import path from 'path';
+import { SQLiteChatMessageHistory } from '../runtime/memory/sqlite.js';
 
 async function readLastLines(filePath: string, n: number): Promise<string[]> {
   try {
@@ -42,6 +43,17 @@ export function createApiRouter() {
 
   router.get('/config', (req, res) => {
     res.json(configManager.get());
+  });
+
+  router.get('/stats/usage', async (req, res) => {
+    try {
+      const history = new SQLiteChatMessageHistory({ sessionId: 'api-reader' });
+      const stats = await history.getGlobalUsageStats();
+      history.close();
+      res.json(stats);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
   });
 
   // Calculate diff between two objects

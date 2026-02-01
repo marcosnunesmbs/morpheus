@@ -20,6 +20,8 @@ Auto-generated from all feature plans. Last updated: 2026-01-29
 - Temporary memory buffers for audio handling; no persistent local storage of audio files. (012-audio-transcription)
 - TypeScript 5.x (Node.js >= 18) + `langchain`, `@langchain/mcp-adapters`, `zod`, `better-sqlite3` (014-tools-factory-memory-limit)
 - SQLite (existing) (014-tools-factory-memory-limit)
+- Node.js >= 18, TypeScript (Strict) + React 19 (Vite), TailwindCSS, express (API), better-sqlite3 (DB), zod (Validation) (016-ui-config-stats)
+- SQLite (`~/.morpheus/memory/short-memory.db`), YAML (`~/.morpheus/config.yaml`) (016-ui-config-stats)
 
 - [e.g., Python 3.11, Swift 5.9, Rust 1.75 or NEEDS CLARIFICATION] + [e.g., FastAPI, UIKit, LLVM or NEEDS CLARIFICATION] (001-cli-structure)
 
@@ -40,8 +42,9 @@ cd src; pytest; ruff check .
 [e.g., Python 3.11, Swift 5.9, Rust 1.75 or NEEDS CLARIFICATION]: Follow standard conventions
 
 ## Recent Changes
-- 014-tools-factory-memory-limit: Added TypeScript 5.x (Node.js >= 18) + `langchain`, `@langchain/mcp-adapters`, `zod`, `better-sqlite3`
-- 013-improve-init-flow: Added [e.g., Python 3.11, Swift 5.9, Rust 1.75 or NEEDS CLARIFICATION] + [e.g., FastAPI, UIKit, LLVM or NEEDS CLARIFICATION]
+- 016-ui-config-stats: Added Node.js >= 18, TypeScript (Strict) + React 19 (Vite), TailwindCSS, express (API), better-sqlite3 (DB), zod (Validation)
+- 016-ui-config-stats: Added Node.js >= 18, TypeScript (Strict) + React 19 (Vite), TailwindCSS, express (API), better-sqlite3 (DB), zod (Validation)
+- 016-ui-config-stats: Added Node.js >= 18, TypeScript (Strict) + React 19 (Vite), TailwindCSS, express (API), better-sqlite3 (DB), zod (Validation)
 
 
 <!-- MANUAL ADDITIONS START -->

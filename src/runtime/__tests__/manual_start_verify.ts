@@ -17,6 +17,7 @@ const mockConfig: MorpheusConfig = {
   ui: { enabled: false, port: 3333 },
   logging: { enabled: false, level: 'info', retention: '1d' },
   audio: {
+    provider: 'google',
     enabled: false,
     maxDurationSeconds: 60,
     supportedMimeTypes: ['audio/ogg']

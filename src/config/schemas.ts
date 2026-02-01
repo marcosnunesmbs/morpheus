@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { DEFAULT_CONFIG } from '../types/config.js';
 
 export const AudioConfigSchema = z.object({
+  provider: z.enum(['google']).default(DEFAULT_CONFIG.audio.provider),
   enabled: z.boolean().default(DEFAULT_CONFIG.audio.enabled),
   apiKey: z.string().optional(),
   maxDurationSeconds: z.number().default(DEFAULT_CONFIG.audio.maxDurationSeconds),
@@ -18,6 +19,7 @@ export const ConfigSchema = z.object({
     provider: z.enum(['openai', 'anthropic', 'ollama', 'gemini']).default(DEFAULT_CONFIG.llm.provider),
     model: z.string().min(1).default(DEFAULT_CONFIG.llm.model),
     temperature: z.number().min(0).max(1).default(DEFAULT_CONFIG.llm.temperature),
+    max_tokens: z.number().int().positive().optional(),
     api_key: z.string().optional(),
   }).default(DEFAULT_CONFIG.llm),
   audio: AudioConfigSchema.default(DEFAULT_CONFIG.audio),

@@ -312,6 +312,24 @@ export class SQLiteChatMessageHistory extends BaseListChatMessageHistory {
   }
 
   /**
+   * Retrieves aggregated usage statistics for all messages in the database.
+   */
+  async getGlobalUsageStats(): Promise<{ totalInputTokens: number; totalOutputTokens: number }> {
+    try {
+      const stmt = this.db.prepare(
+        "SELECT SUM(input_tokens) as totalInput, SUM(output_tokens) as totalOutput FROM messages"
+      );
+      const row = stmt.get() as { totalInput: number; totalOutput: number };
+      return {
+        totalInputTokens: row.totalInput || 0,
+        totalOutputTokens: row.totalOutput || 0
+      };
+    } catch (error) {
+       throw new Error(`Failed to get usage stats: ${error}`);
+    }
+  }
+
+  /**
    * Clears all messages for the current session from the database.
    */
   async clear(): Promise<void> {
