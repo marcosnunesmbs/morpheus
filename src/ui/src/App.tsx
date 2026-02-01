@@ -3,18 +3,30 @@ import { Layout } from './components/Layout';
 import { Dashboard } from './pages/Dashboard';
 import Settings from './pages/Settings';
 import { Logs } from './pages/Logs';
+import { Login } from './pages/Login';
+import { AuthGuard } from './components/AuthGuard';
 
 function App() {
   return (
     <BrowserRouter>
-      <Layout>
-        <Routes>
-          <Route path="/" element={<Dashboard />} />
-          <Route path="/config" element={<Settings />} />
-          <Route path="/logs" element={<Logs />} />
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
-      </Layout>
+      <Routes>
+        <Route path="/login" element={<Login />} />
+        <Route
+          path="/*"
+          element={
+            <AuthGuard>
+              <Layout>
+                <Routes>
+                  <Route path="/" element={<Dashboard />} />
+                  <Route path="/config" element={<Settings />} />
+                  <Route path="/logs" element={<Logs />} />
+                  <Route path="*" element={<Navigate to="/" replace />} />
+                </Routes>
+              </Layout>
+            </AuthGuard>
+          }
+        />
+      </Routes>
     </BrowserRouter>
   );
 }

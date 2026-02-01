@@ -1,0 +1,30 @@
+import { Request, Response, NextFunction } from 'express';
+import { AUTH_HEADER } from '../../types/auth.js';
+import { DisplayManager } from '../../runtime/display.js';
+
+/**
+ * Middleware to protect API routes with a password from THE_ARCHITECT_PASS env var.
+ * If the env var is not set, authentication is skipped (open mode).
+ */
+export const authMiddleware = (req: Request, res: Response, next: NextFunction) => {
+  const architectPass = process.env.THE_ARCHITECT_PASS;
+
+  // If password is not configured, allow all requests
+  if (!architectPass || architectPass.trim() === '') {
+    return next();
+  }
+
+  const providedPass = req.headers[AUTH_HEADER];
+
+  if (providedPass === architectPass) {
+    return next();
+  }
+
+  const display = DisplayManager.getInstance();
+  display.log(`Unauthorized access attempt to ${req.path}`, { source: 'http', level: 'warning' });
+
+  return res.status(401).json({
+    error: 'Unauthorized',
+    code: 'UNAUTHORIZED'
+  });
+};

@@ -1,12 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { Terminal, Settings, Activity, LayoutDashboard, Sun, Moon } from 'lucide-react';
+import { Terminal, Settings, Activity, LayoutDashboard, Sun, Moon, LogOut } from 'lucide-react';
 import { Footer } from './Footer';
 import { motion } from 'framer-motion';
+import { useAuth } from '../hooks/useAuth';
 
 export function Layout({ children }: { children: React.ReactNode }) {
   const location = useLocation();
   const [isDark, setIsDark] = useState(true);
+  const { logout } = useAuth();
 
   useEffect(() => {
     const saved = localStorage.getItem('theme');
@@ -74,6 +76,17 @@ export function Layout({ children }: { children: React.ReactNode }) {
               );
             })}
           </nav>
+          
+          {/* Logout Button */}
+          <div className="p-4 border-t border-gray-200 dark:border-matrix-primary">
+            <button
+              onClick={logout}
+              className="flex items-center gap-3 px-4 py-3 rounded w-full text-left hover:bg-red-50 dark:hover:bg-red-900/20 text-gray-600 dark:text-matrix-secondary hover:text-red-600 transition-colors"
+            >
+              <LogOut className="w-5 h-5" />
+              <span>Logout</span>
+            </button>
+          </div>
         </motion.div>
 
         {/* Main Content */}
