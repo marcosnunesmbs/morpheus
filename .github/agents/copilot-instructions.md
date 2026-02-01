@@ -42,7 +42,6 @@ cd src; pytest; ruff check .
 ## Recent Changes
 - 014-tools-factory-memory-limit: Added TypeScript 5.x (Node.js >= 18) + `langchain`, `@langchain/mcp-adapters`, `zod`, `better-sqlite3`
 - 013-improve-init-flow: Added [e.g., Python 3.11, Swift 5.9, Rust 1.75 or NEEDS CLARIFICATION] + [e.g., FastAPI, UIKit, LLVM or NEEDS CLARIFICATION]
-- 012-audio-transcription: Added TypeScript 5.x / Node.js >= 18 + `@google/genai` (Google's official SDK for Gemini)
 
 
 <!-- MANUAL ADDITIONS START -->
