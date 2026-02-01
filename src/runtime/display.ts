@@ -98,6 +98,12 @@ export class DisplayManager implements IDisplayManager {
       else if (options.source === 'AgentAudio') {
         color = chalk.hex('#b902b9');
       }
+      else if (options.source === 'ToolsFactory') {
+        color = chalk.hex('#806d00');
+      }
+      else if (options.source === 'MCPServer') {
+        color = chalk.hex('#be4b1d');
+      }
       prefix = color(`[${options.source}] `);
     }
 

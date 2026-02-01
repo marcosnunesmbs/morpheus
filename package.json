@@ -17,6 +17,7 @@
     "build:ui": "npm install --prefix src/ui && npm run build --prefix src/ui",
     "prepublishOnly": "npm run build",
     "start": "node bin/morpheus.js",
+    "dev": "npx tsx watch src/cli/index.ts -- start",
     "test": "vitest"
   },
   "keywords": [],
