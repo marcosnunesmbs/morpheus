@@ -25,15 +25,15 @@ export class Agent implements IAgent {
     if (!this.config.llm) {
       throw new Error("LLM configuration missing in config object.");
     }
-    
+
     // Basic validation before provider creation
     if (!this.config.llm.provider) {
-        throw new Error("LLM provider not specified in configuration.");
+      throw new Error("LLM provider not specified in configuration.");
     }
 
     // Note: API Key validation is delegated to ProviderFactory or the Provider itself 
     // to allow for Environment Variable fallback supported by LangChain.
-    
+
     try {
       const tools = await ToolsFactory.create();
       this.provider = await ProviderFactory.create(this.config.llm, tools);
@@ -47,14 +47,14 @@ export class Agent implements IAgent {
         limit: this.config.memory?.limit || 100, // Fallback purely defensive if config type allows optional
       });
     } catch (err) {
-       if (err instanceof ProviderError) throw err; // Re-throw known errors
-       
-       // Wrap unknown errors
-       throw new ProviderError(
-         this.config.llm.provider || 'unknown',
-         err, 
-         "Agent initialization failed"
-       );
+      if (err instanceof ProviderError) throw err; // Re-throw known errors
+
+      // Wrap unknown errors
+      throw new ProviderError(
+        this.config.llm.provider || 'unknown',
+        err,
+        "Agent initialization failed"
+      );
     }
   }
 
@@ -71,21 +71,81 @@ export class Agent implements IAgent {
       this.display.log('Processing message...', { source: 'Agent' });
 
       const userMessage = new HumanMessage(message);
-      const systemMessage = new SystemMessage(`You are ${this.config.agent.name}, ${this.config.agent.personality}. You are a personal dev assistent.`);
-      
+      const systemMessage = new SystemMessage(
+          `You are ${this.config.agent.name}, ${this.config.agent.personality},a local AI operator responsible for orchestrating tools, MCPs, and language models to solve the user’s request accurately and reliably.
+
+          Your primary responsibility is NOT to answer from memory when external tools are available.
+
+          You must follow these rules strictly:
+
+          1. Tool Evaluation First
+          Before generating a final answer, always evaluate whether any available tool or MCP is capable of providing a more accurate, up-to-date, or authoritative response.
+
+          If a tool can provide the answer, you MUST call the tool.
+
+          2. No Historical Assumptions for Dynamic Data
+          If the user asks something that:
+          - may change over time
+          - depends on system state
+          - depends on filesystem
+          - depends on external APIs
+          - was previously asked in the conversation
+
+          You MUST NOT reuse previous outputs as final truth.
+
+          Instead:
+          - Re-evaluate available tools
+          - Re-execute the relevant tool
+          - Provide a fresh result
+
+          Even if the user already asked the same question before, you must treat the request as requiring a new verification.
+
+          3. History Is Context, Not Source of Truth
+          Conversation history may help with context, but it must not replace real-time verification via tools when tools are available.
+
+          Never assume:
+          - System state
+          - File contents
+          - Database values
+          - API responses
+          based only on previous messages.
+
+          4. Tool Priority Over Language Guessing
+          If a tool can compute, fetch, inspect, or verify something, prefer tool usage over generating a speculative answer.
+
+          Never hallucinate values that could be retrieved through a tool.
+
+          5. Freshness Principle
+          Repeated user queries require fresh validation.
+          Do not respond with:
+          "As I said before..."
+          Instead, perform a new tool check if applicable.
+
+          6. Final Answer Policy
+          Only provide a direct natural language answer if:
+          - No tool is relevant
+          - Tools are unavailable
+          - The question is conceptual or explanatory
+
+          Otherwise, use tools first.
+
+          You are an operator, not a guesser.
+          Accuracy is more important than speed.
+      `);
+
       // Load existing history from database
       const previousMessages = await this.history.getMessages();
-      
+
       const messages = [
         systemMessage,
         ...previousMessages,
         userMessage
       ];
 
-      const response = await this.provider.invoke({ messages});
+      const response = await this.provider.invoke({ messages });
 
       // console.log('Agent response:', response);
-            
+
       // Persist messages to database
       await this.history.addMessage(userMessage);
       await this.history.addMessage(new AIMessage(response.messages[response.messages.length - 1].text));
