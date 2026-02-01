@@ -1,6 +1,7 @@
 import fs from 'fs-extra';
 import { PATHS } from '../config/paths.js';
 import { ConfigManager } from '../config/manager.js';
+import { DEFAULT_MCP_TEMPLATE } from '../types/mcp.js';
 import chalk from 'chalk';
 import ora from 'ora';
 
@@ -24,6 +25,12 @@ export async function scaffold(): Promise<void> {
     } else {
         await configManager.load(); // Load if exists (although load handles existence check too)
     }
+
+    // Create mcps.json if not exists
+    if (!(await fs.pathExists(PATHS.mcps))) {
+      await fs.writeJson(PATHS.mcps, DEFAULT_MCP_TEMPLATE, { spaces: 2 });
+    }
+
 
     spinner.succeed('Morpheus environment ready at ' + chalk.cyan(PATHS.root));
   } catch (error) {

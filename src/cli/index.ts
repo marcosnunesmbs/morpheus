@@ -8,6 +8,7 @@ import { statusCommand } from './commands/status.js';
 import { configCommand } from './commands/config.js';
 import { doctorCommand } from './commands/doctor.js';
 import { initCommand } from './commands/init.js';
+import { scaffold } from '../runtime/scaffold.js';
 
 // Helper to read package.json version
 const getVersion = () => {
@@ -30,6 +31,10 @@ export async function cli() {
     .name('morpheus')
     .description('Morpheus CLI Agent')
     .version(getVersion());
+
+  program.hook('preAction', async () => {
+    await scaffold();
+  });
 
   program.addCommand(initCommand);
   program.addCommand(startCommand);
