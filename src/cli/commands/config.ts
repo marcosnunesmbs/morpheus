@@ -24,16 +24,31 @@ export const configCommand = new Command('config')
       await scaffold(); // Ensure config exits
 
       if (options.edit) {
-        console.log(chalk.cyan(`Opening config file: ${PATHS.config}`));
+        console.log(chalk.cyan(`Opening configuration files...`));
         await open(PATHS.config);
+        if (await fs.pathExists(PATHS.mcps)) {
+          await open(PATHS.mcps);
+        }
       } else {
-        console.log(chalk.bold('Configuration File:'), chalk.cyan(PATHS.config));
+        // Show config.yaml
+        console.log(chalk.bold('Main Configuration:'), chalk.cyan(PATHS.config));
         console.log(chalk.gray('---'));
         if (await fs.pathExists(PATHS.config)) {
             const content = await fs.readFile(PATHS.config, 'utf8');
             console.log(content);
         } else {
-            console.log(chalk.yellow('Config file not found (scaffold should have created it).'));
+            console.log(chalk.yellow('Config file not found.'));
+        }
+        console.log(chalk.gray('---\n'));
+
+        // Show mcps.json
+        console.log(chalk.bold('MCP Configuration:'), chalk.cyan(PATHS.mcps));
+        console.log(chalk.gray('---'));
+        if (await fs.pathExists(PATHS.mcps)) {
+            const content = await fs.readFile(PATHS.mcps, 'utf8');
+            console.log(content);
+        } else {
+            console.log(chalk.yellow('MCP config file not found (create it to add tools).'));
         }
         console.log(chalk.gray('---'));
       }
