@@ -1,0 +1,11 @@
+node_modules/
+*.log
+.env
+.env*
+.DS_Store
+src/
+specs/
+.specify/
+.github/
+.vscode/
+tsconfig.json

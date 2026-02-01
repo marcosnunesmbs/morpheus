@@ -15,6 +15,7 @@ import { ZodError } from 'zod';
 const TABS = [
   { id: 'general', label: 'General' },
   { id: 'llm', label: 'LLM' },
+  { id: 'audio', label: 'Audio' },
   { id: 'channels', label: 'Channels' },
   { id: 'ui', label: 'Interface' },
   { id: 'logging', label: 'Logging' },
@@ -182,6 +183,14 @@ export default function Settings() {
                     max={1}
                     error={errors['llm.temperature']}
                 />
+                <NumberInput
+                    label="Memory Limit (Max Tokens)"
+                    value={localConfig.llm.max_tokens ?? ''}
+                    onChange={(e: any) => handleUpdate(['llm', 'max_tokens'], e.target.value ? parseInt(e.target.value) : undefined)}
+                    min={1}
+                    error={errors['llm.max_tokens']}
+                    helperText="Limit the context window size. Leave empty for model default."
+                />
                 <TextInput
                     label="API Key"
                     type="password"
@@ -189,6 +198,49 @@ export default function Settings() {
                     onChange={e => handleUpdate(['llm', 'api_key'], e.target.value)}
                     placeholder="sk-..."
                     helperText="Stored locally."
+                />
+            </Section>
+        )}
+
+        {activeTab === 'audio' && (
+            <Section title="Audio Transcription">
+                <Switch
+                    label="Enable Audio"
+                    checked={localConfig.audio.enabled}
+                    onChange={(checked: boolean) => handleUpdate(['audio', 'enabled'], checked)}
+                />
+                
+                <SelectInput
+                    label="Provider"
+                    value={localConfig.audio.provider || 'google'}
+                    onChange={(e: any) => handleUpdate(['audio', 'provider'], e.target.value)}
+                    options={[
+                        { label: 'Google Gemini', value: 'google' },
+                    ]}
+                    error={errors['audio.provider']}
+                />
+                
+                <TextInput
+                    label="API Key"
+                    type="password"
+                    value={localConfig.audio.apiKey || ''}
+                    onChange={(e: any) => handleUpdate(['audio', 'apiKey'], e.target.value)}
+                    placeholder="If different from LLM key..."
+                    helperText="Leave empty to use LLM API key if using same provider."
+                />
+
+                <NumberInput
+                    label="Max Duration (Seconds)"
+                    value={localConfig.audio.maxDurationSeconds}
+                    onChange={(e: any) => handleUpdate(['audio', 'maxDurationSeconds'], parseInt(e.target.value))}
+                    min={1}
+                />
+
+                <TextInput
+                    label="Supported Mime Types"
+                    value={localConfig.audio.supportedMimeTypes.join(', ')}
+                    onChange={(e: any) => handleUpdate(['audio', 'supportedMimeTypes'], e.target.value.split(',').map((s: string) => s.trim()).filter(Boolean))}
+                    helperText="Comma separated list (e.g. audio/ogg, audio/mp3)"
                 />
             </Section>
         )}

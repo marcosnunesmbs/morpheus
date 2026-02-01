@@ -9,6 +9,7 @@ export interface LLMConfig {
   provider: LLMProvider;
   model: string;
   temperature: number;
+  max_tokens?: number;
   api_key?: string;
 }
 
@@ -39,7 +40,10 @@ export interface LogConfig {
   retention: string;
 }
 
+export type AudioProvider = 'google';
+
 export interface AudioConfig {
+  provider: AudioProvider;
   enabled: boolean;
   apiKey?: string;
   maxDurationSeconds: number;
@@ -71,6 +75,7 @@ export const DEFAULT_CONFIG: MorpheusConfig = {
     retention: '14d',
   },
   audio: {
+    provider: 'google',
     enabled: true,
     maxDurationSeconds: 300,
     supportedMimeTypes: ['audio/ogg', 'audio/mp3', 'audio/mpeg', 'audio/wav'],
