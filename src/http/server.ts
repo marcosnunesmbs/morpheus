@@ -6,6 +6,7 @@ import { fileURLToPath } from 'url';
 import { ConfigManager } from '../config/manager.js';
 import { DisplayManager } from '../runtime/display.js';
 import { createApiRouter } from './api.js';
+import { authMiddleware } from './middleware/auth.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -26,7 +27,7 @@ export class HttpServer {
   }
 
   private setupRoutes() {
-    this.app.use('/api', createApiRouter());
+    this.app.use('/api', authMiddleware, createApiRouter());
 
     // Serve static frontend from compiled output
     const uiPath = path.resolve(__dirname, '../ui');

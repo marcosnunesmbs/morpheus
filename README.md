@@ -90,6 +90,28 @@ Morpheus is built with **Node.js** and **TypeScript**, using **LangChain** as th
 ### 🖥️ Web Dashboard
 Local React-based UI to manage recordings, chat history, and system status across your agent instances.
 
+#### 🔒 UI Authentication
+To protect your Web UI, use the `THE_ARCHITECT_PASS` environment variable. This ensures only authorized users can access the dashboard and API.
+
+**Option 1: Using a `.env` file**
+Create a `.env` file in the root of your project:
+
+```env
+THE_ARCHITECT_PASS="your-secure-password"
+```
+
+**Option 2: Using Shell export**
+
+```bash
+export THE_ARCHITECT_PASS="your-secure-password"
+morpheus start
+```
+
+When enabled:
+- The Web UI will redirect to a Login page.
+- API requests require the `x-architect-pass` header.
+- The session is persisted locally in your browser.
+
 ### 🧩 MCP Support (Model Context Protocol)
 Full integration with [Model Context Protocol](https://modelcontextprotocol.io/), allowing Morpheus to use standardized tools from any MCP-compatible server.
 

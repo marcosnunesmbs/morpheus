@@ -25,6 +25,8 @@ Auto-generated from all feature plans. Last updated: 2026-01-29
 - `config.yaml` (via ConfigManager) (017-chat-memory-config)
 - TypeScript 5.x (Node.js >= 18) + `fs-extra` (file operations), `zod` (validation), `@langchain/mcp-adapters` (MCP client) (018-mcp-json-config)
 - JSON file at `~/.morpheus/mcps.json` (018-mcp-json-config)
+- Node.js >= 18 (Backend), TypeScript (strict). (019-ui-auth-password)
+- `localStorage` (Browser-side session), `process.env` / Config (Backend-side secret). (019-ui-auth-password)
 
 - [e.g., Python 3.11, Swift 5.9, Rust 1.75 or NEEDS CLARIFICATION] + [e.g., FastAPI, UIKit, LLVM or NEEDS CLARIFICATION] (001-cli-structure)
 
@@ -45,9 +47,9 @@ cd src; pytest; ruff check .
 [e.g., Python 3.11, Swift 5.9, Rust 1.75 or NEEDS CLARIFICATION]: Follow standard conventions
 
 ## Recent Changes
+- 019-ui-auth-password: Added Node.js >= 18 (Backend), TypeScript (strict).
+- 019-ui-auth-password: Added Node.js >= 18 (Backend), TypeScript (strict).
 - 018-mcp-json-config: Added TypeScript 5.x (Node.js >= 18) + `fs-extra` (file operations), `zod` (validation), `@langchain/mcp-adapters` (MCP client)
-- 017-chat-memory-config: Added Node.js >= 18, TypeScript (Strict) + React 19 (Vite)
-- 016-ui-config-stats: Added Node.js >= 18, TypeScript (Strict) + React 19 (Vite), TailwindCSS, express (API), better-sqlite3 (DB), zod (Validation)
 
 
 <!-- MANUAL ADDITIONS START -->

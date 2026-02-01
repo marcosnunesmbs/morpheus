@@ -1,8 +1,13 @@
 import useSWR from 'swr';
+import { httpClient } from '../services/httpClient';
 
 export const API_BASE = '/api';
 
-export const fetcher = (url: string) => fetch(url).then(r => r.json());
+export const fetcher = (url: string) => {
+  // httpClient adds /api, so we strip it if present to avoid /api/api/...
+  const path = url.startsWith(API_BASE) ? url.substring(API_BASE.length) : url;
+  return httpClient.get<any>(path);
+};
 
 export interface ServerStatus {
   status: string;
@@ -24,16 +29,7 @@ export function useConfig() {
 }
 
 export async function saveConfig(newConfig: any) {
-  const res = await fetch(`${API_BASE}/config`, {
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(newConfig)
-  });
-  if (!res.ok) {
-     const err = await res.json();
-     throw new Error(err.error || 'Failed to save config');
-  }
-  return res.json();
+  return httpClient.post('/config', newConfig);
 }
 
 export interface LogFile {
