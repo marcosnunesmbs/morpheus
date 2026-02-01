@@ -155,6 +155,7 @@ export default function Settings() {
         )}
 
         {activeTab === 'llm' && (
+            <>
             <Section title="LLM Provider">
                 <SelectInput
                     label="Provider"
@@ -200,6 +201,22 @@ export default function Settings() {
                     helperText="Stored locally."
                 />
             </Section>
+
+            <Section title="Chat Memory">
+                <div className="text-sm text-matrix-secondary mb-4">
+                    Control how much conversation history is retained and sent to the LLM.
+                </div>
+                <NumberInput
+                    label="History Limit (Messages)"
+                    value={localConfig.memory.limit}
+                    onChange={(e: any) => handleUpdate(['memory', 'limit'], parseInt(e.target.value))}
+                    min={1}
+                    step={1}
+                    error={errors['memory.limit']}
+                    helperText="Number of past interactions to load into context (e.g., 10)."
+                />
+            </Section>
+        </>
         )}
 
         {activeTab === 'audio' && (
