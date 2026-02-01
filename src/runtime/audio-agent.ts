@@ -1,4 +1,10 @@
 import { GoogleGenAI } from '@google/genai';
+import { UsageMetadata } from '../types/usage.js';
+
+export interface AudioTranscriptionResult {
+  text: string;
+  usage: UsageMetadata;
+}
 
 export interface IAudioAgent {
   /**
@@ -7,14 +13,14 @@ export interface IAudioAgent {
    * @param filePath - The absolute path of the audio file to transcribe.
    * @param mimeType - The MIME type of the audio file (e.g. 'audio/ogg').
    * @param apiKey - The Gemini API key to use for the transaction.
-   * @returns A Promise resolving to the transcribed text string.
+   * @returns A Promise resolving to result with text and usage.
    * @throws Error if upload or transcription fails.
    */
-  transcribe(filePath: string, mimeType: string, apiKey: string): Promise<string>;
+  transcribe(filePath: string, mimeType: string, apiKey: string): Promise<AudioTranscriptionResult>;
 }
 
 export class AudioAgent implements IAudioAgent {
-  async transcribe(filePath: string, mimeType: string, apiKey: string): Promise<string> {
+  async transcribe(filePath: string, mimeType: string, apiKey: string): Promise<AudioTranscriptionResult> {
     try {
       const ai = new GoogleGenAI({ apiKey });
 
@@ -50,7 +56,19 @@ export class AudioAgent implements IAudioAgent {
         throw new Error('No transcription generated');
       }
 
-      return text;
+      // Extract usage metadata
+      const usage = response.usageMetadata;
+      
+      const usageMetadata: UsageMetadata = {
+        input_tokens: usage?.promptTokenCount ?? 0,
+        output_tokens: usage?.candidatesTokenCount ?? 0,
+        total_tokens: usage?.totalTokenCount ?? 0,
+        input_token_details: {
+            cache_read: usage?.cachedContentTokenCount ?? 0
+        }
+      };
+
+      return { text, usage: usageMetadata };
     } catch (error) {
       // Wrap error for clarity
       if (error instanceof Error) {

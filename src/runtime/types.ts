@@ -1,4 +1,5 @@
 import { BaseMessage } from "@langchain/core/messages";
+import { UsageMetadata } from "../types/usage.js";
 
 export interface IAgent {
   /**
@@ -10,8 +11,10 @@ export interface IAgent {
   /**
    * Process a user message and return the AI response.
    * Maintains internal session state.
+   * @param message - The user's input text
+   * @param extraUsage - Optional usage metadata to attribute to this message (e.g. from Audio transcription)
    */
-  chat(message: string): Promise<string>;
+  chat(message: string, extraUsage?: UsageMetadata): Promise<string>;
 
   /**
    * Get the current conversation history.

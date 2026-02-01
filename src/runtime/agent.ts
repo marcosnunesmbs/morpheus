@@ -10,6 +10,7 @@ import { ProviderError } from "./errors.js";
 import { DisplayManager } from "./display.js";
 import { SQLiteChatMessageHistory } from "./memory/sqlite.js";
 import { ReactAgent } from "langchain";
+import { UsageMetadata } from "../types/usage.js";
 
 export class Agent implements IAgent {
   private provider?: ReactAgent;
@@ -58,7 +59,7 @@ export class Agent implements IAgent {
     }
   }
 
-  async chat(message: string): Promise<string> {
+  async chat(message: string, extraUsage?: UsageMetadata): Promise<string> {
     if (!this.provider) {
       throw new Error("Agent not initialized. Call initialize() first.");
     }
@@ -71,6 +72,12 @@ export class Agent implements IAgent {
       this.display.log('Processing message...', { source: 'Agent' });
 
       const userMessage = new HumanMessage(message);
+      
+      // Attach extra usage (e.g. from Audio) to the user message to be persisted
+      if (extraUsage) {
+        (userMessage as any).usage_metadata = extraUsage;
+      }
+
       const systemMessage = new SystemMessage(
           `You are ${this.config.agent.name}, ${this.config.agent.personality},a local AI operator responsible for orchestrating tools, MCPs, and language models to solve the user’s request accurately and reliably.
 
@@ -144,13 +151,25 @@ export class Agent implements IAgent {
 
       const response = await this.provider.invoke({ messages });
 
-      // console.log('Agent response:', response);
+      // Identify new messages generated during the interaction
+      // The `messages` array passed to invoke had length `messages.length`
+      // The `response.messages` contains the full state.
+      // New messages start after the inputs.
+      const startNewMessagesIndex = messages.length;
+      const newGeneratedMessages = response.messages.slice(startNewMessagesIndex);
 
-      // Persist messages to database
+      // Persist User Message first
       await this.history.addMessage(userMessage);
-      await this.history.addMessage(new AIMessage(response.messages[response.messages.length - 1].text));
+
+      // Persist all new intermediate tool calls and responses
+      for (const msg of newGeneratedMessages) {
+        await this.history.addMessage(msg);
+      }
+
       this.display.log('Response generated.', { source: 'Agent' });
-      return response.messages[response.messages.length - 1].text;
+      
+      const lastMessage = response.messages[response.messages.length - 1];
+      return (typeof lastMessage.content === 'string') ? lastMessage.content : JSON.stringify(lastMessage.content);
     } catch (err) {
       throw new ProviderError(this.config.llm.provider, err, "Chat request failed");
     }

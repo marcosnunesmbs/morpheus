@@ -1,5 +1,5 @@
 import { BaseListChatMessageHistory } from "@langchain/core/chat_history";
-import { BaseMessage, HumanMessage, AIMessage, SystemMessage } from "@langchain/core/messages";
+import { BaseMessage, HumanMessage, AIMessage, SystemMessage, ToolMessage } from "@langchain/core/messages";
 import Database from "better-sqlite3";
 import * as fs from "fs-extra";
 import * as path from "path";
@@ -99,14 +99,50 @@ export class SQLiteChatMessageHistory extends BaseListChatMessageHistory {
           session_id TEXT NOT NULL,
           type TEXT NOT NULL,
           content TEXT NOT NULL,
-          created_at INTEGER NOT NULL
+          created_at INTEGER NOT NULL,
+          input_tokens INTEGER,
+          output_tokens INTEGER,
+          total_tokens INTEGER,
+          cache_read_tokens INTEGER
         );
         
         CREATE INDEX IF NOT EXISTS idx_messages_session_id 
         ON messages(session_id);
       `);
+
+      this.migrateTable();
     } catch (error) {
       throw new Error(`Failed to create messages table: ${error}`);
+    }
+  }
+
+  /**
+   * Checks for missing columns and adds them if necessary.
+   */
+  private migrateTable(): void {
+    try {
+      const tableInfo = this.db.pragma('table_info(messages)') as Array<{ name: string }>;
+      const columns = new Set(tableInfo.map(c => c.name));
+      
+      const newColumns = [
+        'input_tokens',
+        'output_tokens',
+        'total_tokens',
+        'cache_read_tokens'
+      ];
+      
+      for (const col of newColumns) {
+        if (!columns.has(col)) {
+          try {
+            this.db.exec(`ALTER TABLE messages ADD COLUMN ${col} INTEGER`);
+          } catch (e) {
+            // Ignore error if column already exists (race condition or check failed)
+            console.warn(`[SQLite] Failed to add column ${col}: ${e}`);
+          }
+        }
+      }
+    } catch (error) {
+       console.warn(`[SQLite] Migration check failed: ${error}`);
     }
   }
 
@@ -116,23 +152,75 @@ export class SQLiteChatMessageHistory extends BaseListChatMessageHistory {
    */
   async getMessages(): Promise<BaseMessage[]> {
     try {
-      // Esta query é válida para SQLite: seleciona os campos type e content da tabela messages filtrando por session_id, ordenando por id e limitando o número de resultados.
+      // Fetch new columns
       const stmt = this.db.prepare(
-        "SELECT type, content FROM messages WHERE session_id = ? ORDER BY id ASC LIMIT ?"
+        "SELECT type, content, input_tokens, output_tokens, total_tokens, cache_read_tokens FROM messages WHERE session_id = ? ORDER BY id ASC LIMIT ?"
       );
-      const rows = stmt.all(this.sessionId, this.limit) as Array<{ type: string; content: string }>;
+      const rows = stmt.all(this.sessionId, this.limit) as Array<{ 
+        type: string; 
+        content: string;
+        input_tokens?: number;
+        output_tokens?: number;
+        total_tokens?: number;
+        cache_read_tokens?: number;
+      }>;
 
       return rows.map((row) => {
+        let msg: BaseMessage;
+        
+        // Reconstruct usage metadata if present
+        const usage_metadata = row.total_tokens != null ? {
+            input_tokens: row.input_tokens || 0,
+            output_tokens: row.output_tokens || 0,
+            total_tokens: row.total_tokens || 0,
+            input_token_details: row.cache_read_tokens ? { cache_read: row.cache_read_tokens } : undefined
+        } : undefined;
+
         switch (row.type) {
           case "human":
-            return new HumanMessage(row.content);
+            msg = new HumanMessage(row.content);
+            break;
           case "ai":
-            return new AIMessage(row.content);
+             try {
+               // Attempt to parse structured content (for tool calls)
+                const parsed = JSON.parse(row.content);
+                if (parsed && typeof parsed === 'object' && Array.isArray(parsed.tool_calls)) {
+                  msg = new AIMessage({
+                    content: parsed.text || "",
+                    tool_calls: parsed.tool_calls
+                  });
+                } else {
+                  msg = new AIMessage(row.content);
+                }
+             } catch {
+                // Fallback for legacy text-only messages
+                msg = new AIMessage(row.content);
+             }
+             break;
           case "system":
-            return new SystemMessage(row.content);
+            msg = new SystemMessage(row.content);
+            break;
+          case "tool":
+             try {
+                const parsed = JSON.parse(row.content);
+                msg = new ToolMessage({
+                    content: parsed.content,
+                    tool_call_id: parsed.tool_call_id || 'unknown',
+                    name: parsed.name
+                });
+             } catch {
+                msg = new ToolMessage({ content: row.content, tool_call_id: 'unknown' });
+             }
+             break;
           default:
             throw new Error(`Unknown message type: ${row.type}`);
         }
+        
+        if (usage_metadata) {
+            (msg as any).usage_metadata = usage_metadata;
+        }
+        
+        return msg;
       });
     } catch (error) {
       // Check if it's a database lock error
@@ -156,6 +244,8 @@ export class SQLiteChatMessageHistory extends BaseListChatMessageHistory {
         type = "ai";
       } else if (message instanceof SystemMessage) {
         type = "system";
+      } else if (message instanceof ToolMessage) {
+        type = "tool";
       } else {
         throw new Error(`Unsupported message type: ${message.constructor.name}`);
       }
@@ -164,10 +254,46 @@ export class SQLiteChatMessageHistory extends BaseListChatMessageHistory {
         ? message.content 
         : JSON.stringify(message.content);
 
+      // Extract usage metadata
+      // 1. Try generic usage_metadata (LangChain standard)
+      // 2. Try extraUsage (passed via some adapters) - attached to additional_kwargs usually, but we might pass it differently
+      // The Spec says we might pass it to chat(), but addMessage receives a BaseMessage. 
+      // So we should expect usage to be on the message object properties.
+      
+      const anyMsg = message as any;
+      const usage = anyMsg.usage_metadata || anyMsg.response_metadata?.usage || anyMsg.response_metadata?.tokenUsage || anyMsg.usage;
+      
+      const inputTokens = usage?.input_tokens ?? null;
+      const outputTokens = usage?.output_tokens ?? null;
+      const totalTokens = usage?.total_tokens ?? null;
+      const cacheReadTokens = usage?.input_token_details?.cache_read ?? usage?.cache_read_tokens ?? null;
+
+      // Handle special content serialization for Tools
+      let finalContent = "";
+      
+      if (type === 'ai' && ((message as AIMessage).tool_calls?.length ?? 0) > 0) {
+        // Serialize tool calls with content
+        finalContent = JSON.stringify({
+          text: message.content,
+          tool_calls: (message as AIMessage).tool_calls
+        });
+      } else if (type === 'tool') {
+        const tm = message as ToolMessage;
+        finalContent = JSON.stringify({
+          content: tm.content,
+          tool_call_id: tm.tool_call_id,
+          name: tm.name
+        });
+      } else {
+         finalContent = typeof message.content === "string" 
+           ? message.content 
+           : JSON.stringify(message.content);
+      }
+
       const stmt = this.db.prepare(
-        "INSERT INTO messages (session_id, type, content, created_at) VALUES (?, ?, ?, ?)"
+        "INSERT INTO messages (session_id, type, content, created_at, input_tokens, output_tokens, total_tokens, cache_read_tokens) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
       );
-      stmt.run(this.sessionId, type, content, Date.now());
+      stmt.run(this.sessionId, type, finalContent, Date.now(), inputTokens, outputTokens, totalTokens, cacheReadTokens);
     } catch (error) {
       // Check for specific SQLite errors
       if (error instanceof Error) {

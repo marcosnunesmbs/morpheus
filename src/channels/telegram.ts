@@ -117,7 +117,7 @@ export class TelegramAdapter {
 
           // Transcribe
           this.display.log(`Transcribing audio for @${user}...`, { source: 'AgentAudio' });
-          const text = await this.audioAgent.transcribe(filePath, 'audio/ogg', apiKey);
+          const { text, usage } = await this.audioAgent.transcribe(filePath, 'audio/ogg', apiKey);
           
           this.display.log(`Transcription success for @${user}: "${text}"`, { source: 'AgentAudio', level: 'success' });
           
@@ -130,7 +130,7 @@ export class TelegramAdapter {
           await ctx.sendChatAction('typing');
 
           // Process with Agent
-          const response = await this.agent.chat(text);
+          const response = await this.agent.chat(text, usage);
 
           // if (listeningMsg) {
           //   try {
