@@ -87,6 +87,12 @@ Morpheus is built with **Node.js** and **TypeScript**, using **LangChain** as th
 
 ## Features
 
+### 🖥️ Web Dashboard
+Local React-based UI to manage recordings, chat history, and system status across your agent instances.
+
+### 🧩 MCP Support (Model Context Protocol)
+Full integration with [Model Context Protocol](https://modelcontextprotocol.io/), allowing Morpheus to use standardized tools from any MCP-compatible server.
+
 ### 🎙️ Audio Transcription (Telegram)
 Send voice messages directly to the Telegram bot. Morpheus will:
 1. Transcribe the audio using **Google Gemini**.
@@ -115,7 +121,7 @@ npm install
 
 ### 2. Build
 
-Compile TypeScript source to `dist/`.
+Compile TypeScript source to `dist/` and build the Web UI.
 
 ```bash
 npm run build
@@ -145,7 +151,7 @@ agent:
   name: "Morpheus"
   personality: "stoic, wise, and helpful"
 llm:
-  provider: "openai" # options: openai, anthropic, ollama
+  provider: "openai" # options: openai, anthropic, ollama, gemini
   model: "gpt-4-turbo"
   temperature: 0.7
   api_key: "sk-..."
@@ -156,12 +162,37 @@ channels:
     enabled: true
     token: "YOUR_TELEGRAM_BOT_TOKEN"
     allowedUsers: ["123456789"] # Your Telegram User ID
+  discord:
+    enabled: false # Coming soon
+
+# Web UI Dashboard
+ui:
+  enabled: true
+  port: 3333
 
 # Audio Transcription Support
 audio:
   enabled: true
   apiKey: "YOUR_GEMINI_API_KEY" # Optional if llm.provider is 'gemini'
   maxDurationSeconds: 300
+```
+
+### 5. MCP Configuration
+
+Morpheus supports external tools via **MCP (Model Context Protocol)**. Configure your MCP servers in `~/.morpheus/mcps.json`:
+
+```json
+{
+  "coolify": {
+    "transport": "stdio",
+    "command": "npx",
+    "args": ["-y", "@coolify/mcp-server"],
+    "env": {
+      "COOLIFY_URL": "https://app.coolify.io",
+      "COOLIFY_TOKEN": "your-token"
+    }
+  }
+}
 ```
 
 ## Testing
@@ -189,15 +220,15 @@ npm run test:watch
 │   ├── config/      # Configuration management
 │   ├── runtime/     # Core agent logic, lifecycle, and providers
 │   ├── types/       # Shared TypeScript definitions
-│   └── index.ts
+│   └── ui/          # React Web UI Dashboard
 └── package.json
 ```
 
 ## Roadmap
 
-- [ ] **MCP Support**: Full integration with Model Context Protocol.
+- [x] **Web Dashboard**: Local UI for management and logs.
+- [x] **MCP Support**: Full integration with Model Context Protocol.
 - [ ] **Discord Adapter**: Support for Discord interactions.
-- [ ] **Web Dashboard**: Local UI for management and logs.
 - [ ] **Plugin System**: Extend functionality via external modules.
 
 ## Contributing
