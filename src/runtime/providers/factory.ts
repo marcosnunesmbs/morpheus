@@ -5,16 +5,39 @@ import { ChatOllama } from "@langchain/ollama";
 import { ChatGoogleGenerativeAI } from "@langchain/google-genai";
 import { LLMConfig } from "../../types/config.js";
 import { ProviderError } from "../errors.js";
-import { createAgent, ReactAgent, toolCallLimitMiddleware } from "langchain";
+import { createAgent, createMiddleware, ReactAgent, toolCallLimitMiddleware } from "langchain";
 // import { MultiServerMCPClient, } from "@langchain/mcp-adapters"; // REMOVED
 import { z } from "zod";
 import { DisplayManager } from "../display.js";
-import { StructuredTool } from "@langchain/core/tools";
+import { StructuredTool, tool } from "@langchain/core/tools";
+import {
+  ConfigQueryTool,
+  ConfigUpdateTool,
+  DiagnosticTool,
+  MessageCountTool,
+  TokenUsageTool
+} from "../tools/index.js";
 
 export class ProviderFactory {
   static async create(config: LLMConfig, tools: StructuredTool[] = []): Promise<ReactAgent> {
 
     let display = DisplayManager.getInstance();
+
+    const toolMonitoringMiddleware = createMiddleware({
+      name: "ToolMonitoringMiddleware",
+      wrapToolCall: (request, handler) => {
+        display.log(`Executing tool: ${request.toolCall.name}`, { level: "warning", source: 'ToolCall' });
+        display.log(`Arguments: ${JSON.stringify(request.toolCall.args)}`, { level: "info", source: 'ToolCall' });
+        try {
+          const result = handler(request);
+          display.log("Tool completed successfully", { level: "info", source: 'ToolCall' });
+          return result;
+        } catch (e) {
+          display.log(`Tool failed: ${e}`, { level: "error", source: 'ToolCall' });
+          throw e;
+        }
+      },
+    });
 
     let model: BaseChatModel;
 
@@ -23,7 +46,7 @@ export class ProviderFactory {
     });
 
     // Removed direct MCP client instantiation
-    
+
     try {
       switch (config.provider) {
         case 'openai':
@@ -59,11 +82,19 @@ export class ProviderFactory {
           throw new Error(`Unsupported provider: ${config.provider}`);
       }
 
-      const toolsForAgent = tools;
+      const toolsForAgent = [
+        ...tools,
+        ConfigQueryTool,
+        ConfigUpdateTool,
+        DiagnosticTool,
+        MessageCountTool,
+        TokenUsageTool
+      ];
 
       return createAgent({
         model: model,
         tools: toolsForAgent,
+        middleware: [toolMonitoringMiddleware]
       });
 
 

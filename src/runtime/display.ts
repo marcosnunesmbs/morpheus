@@ -104,6 +104,12 @@ export class DisplayManager implements IDisplayManager {
       else if (options.source === 'MCPServer') {
         color = chalk.hex('#be4b1d');
       }
+      else if (options.source === 'ToolCall') {
+        color = chalk.hex('#e5ff00');
+      }
+      else if (options.source === 'Config') {
+        color = chalk.hex('#00c3ff');
+      }
       prefix = color(`[${options.source}] `);
     }
 
