@@ -48,13 +48,22 @@ export const ConfigSchema = z.object({
   }).default(DEFAULT_CONFIG.logging),
 });
 
-export const MCPServerConfigSchema = z.object({
-  transport: z.enum(['stdio', 'http']),
-  command: z.string().min(1, 'Command is required'),
-  args: z.array(z.string()).optional().default([]),
-  env: z.record(z.string(), z.string()).optional().default({}),
-  _comment: z.string().optional(),
-});
+export const MCPServerConfigSchema = z.discriminatedUnion('transport', [
+  z.object({
+    transport: z.literal('stdio'),
+    command: z.string().min(1, 'Command is required for stdio transport'),
+    args: z.array(z.string()).optional().default([]),
+    env: z.record(z.string(), z.string()).optional().default({}),
+    _comment: z.string().optional(),
+  }),
+  z.object({
+    transport: z.literal('http'),
+    url: z.string().url('Valid URL is required for http transport'),
+    args: z.array(z.string()).optional().default([]),
+    env: z.record(z.string(), z.string()).optional().default({}),
+    _comment: z.string().optional(),
+  }),
+]);
 
 export const MCPConfigFileSchema = z.record(
   z.string(),

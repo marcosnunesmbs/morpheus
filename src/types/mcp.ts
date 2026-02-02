@@ -1,10 +1,18 @@
-export interface MCPServerConfig {
-  transport: 'stdio' | 'http';
-  command: string;
-  args: string[];
-  env: Record<string, string>;
-  _comment?: string;
-}
+export type MCPServerConfig =
+  | {
+      transport: 'stdio';
+      command: string;
+      args?: string[];
+      env?: Record<string, string>;
+      _comment?: string;
+    }
+  | {
+      transport: 'http';
+      url: string;
+      args?: string[];
+      env?: Record<string, string>;
+      _comment?: string;
+    };
 
 export type MCPServersConfig = Record<string, MCPServerConfig>;
 

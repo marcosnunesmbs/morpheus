@@ -213,6 +213,10 @@ Morpheus supports external tools via **MCP (Model Context Protocol)**. Configure
       "COOLIFY_URL": "https://app.coolify.io",
       "COOLIFY_TOKEN": "your-token"
     }
+  },
+  "coingecko": {
+    "transport": "http",
+    "url": "https://mcps.mnunes.xyz/coingecko/mcp"
   }
 }
 ```
