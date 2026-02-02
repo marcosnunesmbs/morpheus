@@ -12,6 +12,14 @@ export interface SQLiteChatMessageHistoryInput {
   config?: Database.Options;
 }
 
+/**
+ * Metadata for tracking which provider and model generated a message.
+ */
+export interface MessageProviderMetadata {
+  provider: string;
+  model: string;
+}
+
 export class SQLiteChatMessageHistory extends BaseListChatMessageHistory {
   lc_namespace = ["langchain", "stores", "message", "sqlite"];
   
@@ -103,7 +111,9 @@ export class SQLiteChatMessageHistory extends BaseListChatMessageHistory {
           input_tokens INTEGER,
           output_tokens INTEGER,
           total_tokens INTEGER,
-          cache_read_tokens INTEGER
+          cache_read_tokens INTEGER,
+          provider TEXT,
+          model TEXT
         );
         
         CREATE INDEX IF NOT EXISTS idx_messages_session_id 
@@ -128,13 +138,18 @@ export class SQLiteChatMessageHistory extends BaseListChatMessageHistory {
         'input_tokens',
         'output_tokens',
         'total_tokens',
-        'cache_read_tokens'
+        'cache_read_tokens',
+        'provider',
+        'model'
       ];
       
+      const integerColumns = new Set(['input_tokens', 'output_tokens', 'total_tokens', 'cache_read_tokens']);
+
       for (const col of newColumns) {
         if (!columns.has(col)) {
           try {
-            this.db.exec(`ALTER TABLE messages ADD COLUMN ${col} INTEGER`);
+            const type = integerColumns.has(col) ? 'INTEGER' : 'TEXT';
+            this.db.exec(`ALTER TABLE messages ADD COLUMN ${col} ${type}`);
           } catch (e) {
             // Ignore error if column already exists (race condition or check failed)
             console.warn(`[SQLite] Failed to add column ${col}: ${e}`);
@@ -154,7 +169,7 @@ export class SQLiteChatMessageHistory extends BaseListChatMessageHistory {
     try {
       // Fetch new columns
       const stmt = this.db.prepare(
-        "SELECT type, content, input_tokens, output_tokens, total_tokens, cache_read_tokens FROM messages WHERE session_id = ? ORDER BY id ASC LIMIT ?"
+        "SELECT type, content, input_tokens, output_tokens, total_tokens, cache_read_tokens, provider, model FROM messages WHERE session_id = ? ORDER BY id ASC LIMIT ?"
       );
       const rows = stmt.all(this.sessionId, this.limit) as Array<{ 
         type: string; 
@@ -163,6 +178,8 @@ export class SQLiteChatMessageHistory extends BaseListChatMessageHistory {
         output_tokens?: number;
         total_tokens?: number;
         cache_read_tokens?: number;
+        provider?: string;
+        model?: string;
       }>;
 
       return rows.map((row) => {
@@ -174,6 +191,12 @@ export class SQLiteChatMessageHistory extends BaseListChatMessageHistory {
             output_tokens: row.output_tokens || 0,
             total_tokens: row.total_tokens || 0,
             input_token_details: row.cache_read_tokens ? { cache_read: row.cache_read_tokens } : undefined
+        } : undefined;
+
+        // Reconstruct provider metadata
+        const provider_metadata: MessageProviderMetadata | undefined = row.provider ? {
+          provider: row.provider,
+          model: row.model || "unknown"
         } : undefined;
 
         switch (row.type) {
@@ -218,6 +241,10 @@ export class SQLiteChatMessageHistory extends BaseListChatMessageHistory {
         
         if (usage_metadata) {
             (msg as any).usage_metadata = usage_metadata;
+        }
+
+        if (provider_metadata) {
+          (msg as any).provider_metadata = provider_metadata;
         }
         
         return msg;
@@ -268,6 +295,10 @@ export class SQLiteChatMessageHistory extends BaseListChatMessageHistory {
       const totalTokens = usage?.total_tokens ?? null;
       const cacheReadTokens = usage?.input_token_details?.cache_read ?? usage?.cache_read_tokens ?? null;
 
+      // Extract provider metadata
+      const provider = anyMsg.provider_metadata?.provider ?? null;
+      const model = anyMsg.provider_metadata?.model ?? null;
+
       // Handle special content serialization for Tools
       let finalContent = "";
       
@@ -291,9 +322,9 @@ export class SQLiteChatMessageHistory extends BaseListChatMessageHistory {
       }
 
       const stmt = this.db.prepare(
-        "INSERT INTO messages (session_id, type, content, created_at, input_tokens, output_tokens, total_tokens, cache_read_tokens) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
+        "INSERT INTO messages (session_id, type, content, created_at, input_tokens, output_tokens, total_tokens, cache_read_tokens, provider, model) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
       );
-      stmt.run(this.sessionId, type, finalContent, Date.now(), inputTokens, outputTokens, totalTokens, cacheReadTokens);
+      stmt.run(this.sessionId, type, finalContent, Date.now(), inputTokens, outputTokens, totalTokens, cacheReadTokens, provider, model);
     } catch (error) {
       // Check for specific SQLite errors
       if (error instanceof Error) {

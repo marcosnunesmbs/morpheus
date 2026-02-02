@@ -7,34 +7,34 @@
 
 *Project verification and preparation.*
 
-- [ ] T001 Verify `src/runtime/memory/sqlite.ts` and `src/runtime/agent.ts` structure matches expectations
+- [x] T001 Verify `src/runtime/memory/sqlite.ts` and `src/runtime/agent.ts` structure matches expectations
 
 ## Phase 2: Foundational
 
 *Blocking prerequisites for all user stories.*
 
-- [ ] T002 Define `MessageProviderMetadata` interface or type strategy in `src/runtime/memory/sqlite.ts` comments for reference
+- [x] T002 Define `MessageProviderMetadata` interface or type strategy in `src/runtime/memory/sqlite.ts` comments for reference
 
 ## Phase 3: User Story 2 - Database Schema Migration
 
 *As a system administrator, I want the database schema to automatically update...*
 
-- [ ] T003 [US2] Update `migrateTable` in `src/runtime/memory/sqlite.ts` to add `provider` and `model` columns (TEXT)
-- [ ] T004 [US2] Verify `ensureTable` call flow ensures migration runs after table creation in `src/runtime/memory/sqlite.ts`
+- [x] T003 [US2] Update `migrateTable` in `src/runtime/memory/sqlite.ts` to add `provider` and `model` columns (TEXT)
+- [x] T004 [US2] Verify `ensureTable` call flow ensures migration runs after table creation in `src/runtime/memory/sqlite.ts`
 
 ## Phase 4: User Story 1 - Message Metadata Persistence
 
 *As a developer/analyst, I want new chat messages to be stored with the AI provider...*
 
-- [ ] T005 [US1] Update `addMessage` signature or logic in `src/runtime/memory/sqlite.ts` to extract `provider`/`model` from message object and INSERT into DB
-- [ ] T006 [US1] Update `getMessages` in `src/runtime/memory/sqlite.ts` to SELECT `provider`/`model` and attach to returned BaseMessage objects
-- [ ] T007 [US1] Update `Agent.chat` in `src/runtime/agent.ts` to inject `this.config.llm.provider` and `model` metadata into user and AI messages before saving
+- [x] T005 [US1] Update `addMessage` signature or logic in `src/runtime/memory/sqlite.ts` to extract `provider`/`model` from message object and INSERT into DB
+- [x] T006 [US1] Update `getMessages` in `src/runtime/memory/sqlite.ts` to SELECT `provider`/`model` and attach to returned BaseMessage objects
+- [x] T007 [US1] Update `Agent.chat` in `src/runtime/agent.ts` to inject `this.config.llm.provider` and `model` metadata into user and AI messages before saving
 
 ## Phase 5: Polish & Cross-Cutting Concerns
 
 *Final validation and cleanup.*
 
-- [ ] T008 Manual verification: Start app, send message, query SQLite DB to verify columns are populated
+- [x] T008 Manual verification: Start app, send message, query SQLite DB to verify columns are populated
 
 ## Dependencies
 

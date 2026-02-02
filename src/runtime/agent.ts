@@ -17,9 +17,11 @@ export class Agent implements IAgent {
   private config: MorpheusConfig;
   private history?: BaseListChatMessageHistory;
   private display = DisplayManager.getInstance();
+  private databasePath?: string;
 
-  constructor(config?: MorpheusConfig) {
+  constructor(config?: MorpheusConfig, overrides?: { databasePath?: string }) {
     this.config = config || ConfigManager.getInstance().get();
+    this.databasePath = overrides?.databasePath;
   }
 
   async initialize(): Promise<void> {
@@ -45,6 +47,7 @@ export class Agent implements IAgent {
       // Initialize persistent memory with SQLite
       this.history = new SQLiteChatMessageHistory({
         sessionId: "default",
+        databasePath: this.databasePath,
         limit: this.config.memory?.limit || 100, // Fallback purely defensive if config type allows optional
       });
     } catch (err) {
@@ -73,6 +76,12 @@ export class Agent implements IAgent {
 
       const userMessage = new HumanMessage(message);
       
+      // Inject provider/model metadata for persistence
+      (userMessage as any).provider_metadata = {
+        provider: this.config.llm.provider,
+        model: this.config.llm.model
+      };
+
       // Attach extra usage (e.g. from Audio) to the user message to be persisted
       if (extraUsage) {
         (userMessage as any).usage_metadata = extraUsage;
@@ -163,6 +172,11 @@ export class Agent implements IAgent {
 
       // Persist all new intermediate tool calls and responses
       for (const msg of newGeneratedMessages) {
+        // Inject provider/model metadata search interactors
+        (msg as any).provider_metadata = {
+          provider: this.config.llm.provider,
+          model: this.config.llm.model
+        };
         await this.history.addMessage(msg);
       }
 
