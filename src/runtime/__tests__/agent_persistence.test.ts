@@ -9,12 +9,15 @@ import * as path from "path";
 import { tmpdir } from "os";
 import { homedir } from "os";
 import { ReactAgent } from "langchain";
+import { ToolsFactory } from "../tools/factory.js";
 
 vi.mock("../providers/factory.js");
+vi.mock("../tools/factory.js");
 
 describe("Agent Persistence Integration", () => {
   let agent: Agent;
   let testDbPath: string;
+  let tempDir: string;
   const mockProvider = {
     invoke: vi.fn(),
   } as unknown as ReactAgent;
@@ -22,47 +25,36 @@ describe("Agent Persistence Integration", () => {
   beforeEach(async () => {
     vi.resetAllMocks();
     
-    // Clean up by clearing all data from the database (safer than deleting the locked file)
-    const defaultDbPath = path.join(homedir(), ".morpheus", "memory", "short-memory.db");
-    if (fs.existsSync(defaultDbPath)) {
-      try {
-        const Database = (await import("better-sqlite3")).default;
-        const db = new Database(defaultDbPath);
-        db.exec("DELETE FROM messages");
-        db.close();
-      } catch (err) {
-        // Ignore errors if database doesn't exist or is corrupted
-      }
-    }
-    
-    // Create a temporary test database path
-    const tempDir = path.join(tmpdir(), "morpheus-test-agent", Date.now().toString());
+    // Create a unique temporary test database path for each test to avoid interference
+    tempDir = path.join(tmpdir(), "morpheus-test-agent", Date.now().toString() + Math.random().toString(36).substring(7));
     testDbPath = path.join(tempDir, "short-memory.db");
     
-    // Mock the SQLiteChatMessageHistory to use test path
-    // We'll use the default ~/.morpheus path for this test
-    
-    (mockProvider.invoke as any).mockResolvedValue(new AIMessage("Test response"));
+    (mockProvider.invoke as any).mockImplementation(async ({ messages }: { messages: any[] }) => {
+      return { 
+        messages: [...messages, new AIMessage("Test response")] 
+      };
+    });
     vi.mocked(ProviderFactory.create).mockResolvedValue(mockProvider);
+    vi.mocked(ToolsFactory.create).mockResolvedValue([]);
     
-    agent = new Agent(DEFAULT_CONFIG);
+    agent = new Agent(DEFAULT_CONFIG, { databasePath: testDbPath });
   });
 
   afterEach(async () => {
-    // Clean up test database
-    const defaultDbPath = path.join(homedir(), ".morpheus", "memory", "short-memory.db");
-    if (fs.existsSync(defaultDbPath)) {
-      // We can't delete it if it's open, so we'll just clear it
-      // The agent should have closed the connection
+    // Clean up temporary test directory
+    if (fs.existsSync(tempDir)) {
+      try {
+        fs.removeSync(tempDir);
+      } catch (err) {
+        // Ignore removal errors if file is locked
+      }
     }
   });
 
   describe("Database File Creation", () => {
     it("should create database file on initialization", async () => {
       await agent.initialize();
-      
-      const defaultDbPath = path.join(homedir(), ".morpheus", "memory", "short-memory.db");
-      expect(fs.existsSync(defaultDbPath)).toBe(true);
+      expect(fs.existsSync(testDbPath)).toBe(true);
     });
   });
 
@@ -87,8 +79,8 @@ describe("Agent Persistence Integration", () => {
       const firstHistory = await agent.getHistory();
       expect(firstHistory).toHaveLength(2);
       
-      // Simulate restart: create new agent instance
-      const agent2 = new Agent(DEFAULT_CONFIG);
+      // Simulate restart: create new agent instance with SAME database path
+      const agent2 = new Agent(DEFAULT_CONFIG, { databasePath: testDbPath });
       await agent2.initialize();
       
       // Verify history was restored
@@ -108,7 +100,11 @@ describe("Agent Persistence Integration", () => {
       await agent.chat("First message");
       
       // Second conversation
-      (mockProvider.invoke as any).mockResolvedValue(new AIMessage("Second response"));
+    (mockProvider.invoke as any).mockImplementation(async ({ messages }: { messages: any[] }) => {
+      return { 
+        messages: [...messages, new AIMessage("Second response")] 
+      };
+    });
       await agent.chat("Second message");
       
       // Verify all messages are persisted
@@ -149,7 +145,11 @@ describe("Agent Persistence Integration", () => {
       await agent.clearMemory();
       
       // Add new message
-      (mockProvider.invoke as any).mockResolvedValue(new AIMessage("New response"));
+    (mockProvider.invoke as any).mockImplementation(async ({ messages }: { messages: any[] }) => {
+      return { 
+        messages: [...messages, new AIMessage("New response")] 
+      };
+    });
       await agent.chat("New message");
       
       // Verify only new messages exist
@@ -167,13 +167,17 @@ describe("Agent Persistence Integration", () => {
       // First message
       await agent.chat("My name is Alice");
       
-      // Second message (should have context)
-      (mockProvider.invoke as any).mockResolvedValue(new AIMessage("Hello Alice!"));
-      await agent.chat("What is my name?");
+    // Second message (should have context)
+    (mockProvider.invoke as any).mockImplementation(async ({ messages }: { messages: any[] }) => {
+      return { 
+        messages: [...messages, new AIMessage("Hello Alice!")] 
+      };
+    });
+    await agent.chat("What is my name?");
       
       // Verify the provider was called with full history
       const lastCall = (mockProvider.invoke as any).mock.calls[1];
-      const messagesPassedToLLM = lastCall[0];
+      const messagesPassedToLLM = lastCall[0].messages;
       
       // Should include: system message, previous user message, previous AI response, new user message
       expect(messagesPassedToLLM.length).toBeGreaterThanOrEqual(4);

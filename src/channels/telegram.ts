@@ -58,7 +58,8 @@ export class TelegramAdapter {
           const response = await this.agent.chat(text);
           
           if (response) {
-            await ctx.reply(response);
+            
+            await ctx.reply(response.replaceAll('?','').trim(), {parse_mode: 'Markdown'});
             this.display.log(`Responded to @${user}`, { source: 'Telegram' });
           }
         } catch (error: any) {
