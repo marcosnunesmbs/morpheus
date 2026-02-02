@@ -8,6 +8,7 @@ import { ConfigManager } from '../config/manager.js';
 import { DisplayManager } from '../runtime/display.js';
 import { Agent } from '../runtime/agent.js';
 import { AudioAgent } from '../runtime/audio-agent.js';
+import { convert } from 'telegram-markdown-v2';
 
 export class TelegramAdapter {
   private bot: Telegraf | null = null;
@@ -26,6 +27,11 @@ export class TelegramAdapter {
       this.display.log('Telegram adapter already connected.', { source: 'Telegram', level: 'warning' });
       return;
     }
+
+    const escapeMarkdownV2 = (text: string): string => {
+      // Regex matches all special characters requiring escaping
+      return convert(text);
+    };
 
     try {
       this.display.log('Connecting to Telegram...', { source: 'Telegram' });
@@ -56,18 +62,18 @@ export class TelegramAdapter {
 
           // Process with Agent
           const response = await this.agent.chat(text);
-          
+
           if (response) {
-            
-            await ctx.reply(response.replaceAll('?','').trim(), {parse_mode: 'Markdown'});
+
+            await ctx.reply(response, { parse_mode: 'Markdown' });
             this.display.log(`Responded to @${user}`, { source: 'Telegram' });
           }
         } catch (error: any) {
           this.display.log(`Error processing message for @${user}: ${error.message}`, { source: 'Telegram', level: 'error' });
           try {
-             await ctx.reply("Sorry, I encountered an error while processing your request.");
+            await ctx.reply("Sorry, I encountered an error while processing your request.");
           } catch (e) {
-             // Ignore reply error
+            // Ignore reply error
           }
         }
       });
@@ -91,15 +97,15 @@ export class TelegramAdapter {
 
         const apiKey = config.audio.apiKey || (config.llm.provider === 'gemini' ? config.llm.api_key : undefined);
         if (!apiKey) {
-           this.display.log(`Audio transcription failed: No Gemini API key available`, { source: 'AgentAudio', level: 'error' });
-           await ctx.reply("Audio transcription requires a Gemini API key. Please configure `audio.apiKey` or set LLM provider to Gemini.");
-           return;
+          this.display.log(`Audio transcription failed: No Gemini API key available`, { source: 'AgentAudio', level: 'error' });
+          await ctx.reply("Audio transcription requires a Gemini API key. Please configure `audio.apiKey` or set LLM provider to Gemini.");
+          return;
         }
 
         const duration = ctx.message.voice.duration;
         if (duration > config.audio.maxDurationSeconds) {
-           await ctx.reply(`Voice message too long. Max duration is ${config.audio.maxDurationSeconds}s.`);
-           return;
+          await ctx.reply(`Voice message too long. Max duration is ${config.audio.maxDurationSeconds}s.`);
+          return;
         }
 
         this.display.log(`Receiving voice message from @${user} (${duration}s)...`, { source: 'AgentAudio' });
@@ -119,13 +125,13 @@ export class TelegramAdapter {
           // Transcribe
           this.display.log(`Transcribing audio for @${user}...`, { source: 'AgentAudio' });
           const { text, usage } = await this.audioAgent.transcribe(filePath, 'audio/ogg', apiKey);
-          
+
           this.display.log(`Transcription success for @${user}: "${text}"`, { source: 'AgentAudio', level: 'success' });
-          
+
           // Reply with transcription (optional, maybe just process it?)
           // The prompt says "reply with the answer".
           // "Transcribe them... and process the resulting text as a standard user prompt."
-          
+
           // So I should treat 'text' as if it was a text message.
           await ctx.reply(`🎤 *Transcription*: _"${text}"_`, { parse_mode: 'Markdown' });
           await ctx.sendChatAction('typing');
@@ -147,22 +153,22 @@ export class TelegramAdapter {
           }
 
         } catch (error: any) {
-           this.display.log(`Audio processing error for @${user}: ${error.message}`, { source: 'AgentAudio', level: 'error' });
-           await ctx.reply("Sorry, I failed to process your audio message.");
+          this.display.log(`Audio processing error for @${user}: ${error.message}`, { source: 'AgentAudio', level: 'error' });
+          await ctx.reply("Sorry, I failed to process your audio message.");
         } finally {
-           // Cleanup
-           if (filePath && await fs.pathExists(filePath)) {
-               await fs.unlink(filePath).catch(() => {});
-           }
+          // Cleanup
+          if (filePath && await fs.pathExists(filePath)) {
+            await fs.unlink(filePath).catch(() => { });
+          }
         }
       });
-      
+
       this.bot.launch().catch((err) => {
-          if (this.isConnected) {
-             this.display.log(`Telegram bot error: ${err}`, { source: 'Telegram', level: 'error' });
-          }
+        if (this.isConnected) {
+          this.display.log(`Telegram bot error: ${err}`, { source: 'Telegram', level: 'error' });
+        }
       });
-      
+
       this.isConnected = true;
 
       process.once('SIGINT', () => this.disconnect());
@@ -183,14 +189,14 @@ export class TelegramAdapter {
   private async downloadToTemp(url: URL, extension: string = '.ogg'): Promise<string> {
     const response = await fetch(url);
     if (!response.ok) throw new Error(`Failed to download audio: ${response.statusText}`);
-    
+
     const tmpDir = os.tmpdir();
     const fileName = `morpheus-audio-${Date.now()}${extension}`;
     const filePath = path.join(tmpDir, fileName);
-    
+
     const buffer = Buffer.from(await response.arrayBuffer());
     await fs.writeFile(filePath, buffer);
-    
+
     return filePath;
   }
 
@@ -201,9 +207,9 @@ export class TelegramAdapter {
 
     this.display.log('Disconnecting Telegram...', { source: 'Telegram', level: 'warning' });
     try {
-        this.bot.stop();
+      this.bot.stop();
     } catch (e) {
-        // Ignore stop errors
+      // Ignore stop errors
     }
     this.isConnected = false;
     this.bot = null;

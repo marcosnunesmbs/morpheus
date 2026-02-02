@@ -45,3 +45,8 @@ export async function cli() {
 
   program.parse(process.argv);
 }
+
+// Support direct execution via tsx
+if (import.meta.url.startsWith('file:') && (process.argv[1]?.endsWith('index.ts') || process.argv[1]?.endsWith('cli/index.js'))) {
+  cli();
+}
