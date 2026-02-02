@@ -67,15 +67,15 @@ export class ToolsFactory {
       mcpServers: mcpServers as any,
       onConnectionError: "ignore",
       // log the MCP client's internal events
-      beforeToolCall: ({ serverName, name, args }) => {
-        display.log(`MCP Tool Call - Server: ${serverName}, Tool: ${name}, Args: ${JSON.stringify(args)}`, { source: 'MCPServer' });
-        return;
-      },
-      // log the results of tool calls
-      afterToolCall: (res) => {
-        display.log(`MCP Tool Result - ${JSON.stringify(res)}`, { source: 'MCPServer' });
-        return;
-      }
+      // beforeToolCall: ({ serverName, name, args }) => {
+      //   display.log(`MCP Tool Call - Server: ${serverName}, Tool: ${name}, Args: ${JSON.stringify(args)}`, { source: 'MCPServer' });
+      //   return;
+      // },
+      // // log the results of tool calls
+      // afterToolCall: (res) => {
+      //   display.log(`MCP Tool Result - ${JSON.stringify(res)}`, { source: 'MCPServer' });
+      //   return;
+      // }
     });
 
     try {
