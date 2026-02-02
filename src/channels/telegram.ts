@@ -65,7 +65,7 @@ export class TelegramAdapter {
 
           if (response) {
 
-            await ctx.reply(response, { parse_mode: 'Markdown' });
+            await ctx.reply(response);
             this.display.log(`Responded to @${user}`, { source: 'Telegram' });
           }
         } catch (error: any) {
