@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { Terminal, Settings, Activity, LayoutDashboard, Sun, Moon, LogOut } from 'lucide-react';
+import { Terminal, Settings, Activity, LayoutDashboard, Sun, Moon, LogOut, BarChart3 } from 'lucide-react';
 import { Footer } from './Footer';
 import { motion } from 'framer-motion';
 import { useAuth } from '../hooks/useAuth';
@@ -32,6 +32,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
   const navItems = [
     { icon: LayoutDashboard, label: 'Dashboard', path: '/' },
     { icon: Settings, label: 'Configuration', path: '/config' },
+    { icon: BarChart3, label: 'Usage Stats', path: '/stats' },
     { icon: Terminal, label: 'Logs', path: '/logs' },
   ];
 

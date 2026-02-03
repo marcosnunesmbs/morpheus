@@ -4,6 +4,7 @@ import Database from "better-sqlite3";
 import * as fs from "fs-extra";
 import * as path from "path";
 import { homedir } from "os";
+import type { ProviderModelUsageStats } from "../../types/stats.js";
 
 export interface SQLiteChatMessageHistoryInput {
   sessionId: string;
@@ -357,6 +358,47 @@ export class SQLiteChatMessageHistory extends BaseListChatMessageHistory {
       };
     } catch (error) {
        throw new Error(`Failed to get usage stats: ${error}`);
+    }
+  }
+
+  /**
+   * Retrieves aggregated usage statistics grouped by provider and model.
+   */
+  async getUsageStatsByProviderAndModel(): Promise<ProviderModelUsageStats[]> {
+    try {
+      const stmt = this.db.prepare(
+        `SELECT 
+          provider,
+          COALESCE(model, 'unknown') as model,
+          SUM(input_tokens) as totalInputTokens,
+          SUM(output_tokens) as totalOutputTokens,
+          SUM(total_tokens) as totalTokens,
+          COUNT(*) as messageCount
+        FROM messages
+        WHERE provider IS NOT NULL
+        GROUP BY provider, COALESCE(model, 'unknown')
+        ORDER BY provider, model`
+      );
+
+      const rows = stmt.all() as Array<{
+        provider: string;
+        model: string;
+        totalInputTokens: number | null;
+        totalOutputTokens: number | null;
+        totalTokens: number | null;
+        messageCount: number | null;
+      }>;
+
+      return rows.map((row) => ({
+        provider: row.provider,
+        model: row.model,
+        totalInputTokens: row.totalInputTokens || 0,
+        totalOutputTokens: row.totalOutputTokens || 0,
+        totalTokens: row.totalTokens || 0,
+        messageCount: row.messageCount || 0
+      }));
+    } catch (error) {
+      throw new Error(`Failed to get grouped usage stats: ${error}`);
     }
   }
 
