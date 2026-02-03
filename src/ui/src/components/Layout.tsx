@@ -37,23 +37,23 @@ export function Layout({ children }: { children: React.ReactNode }) {
   ];
 
   return (
-    <div className="flex flex-col h-screen bg-gray-50 dark:bg-black text-gray-900 dark:text-matrix-secondary font-mono overflow-hidden transition-colors duration-300">
+    <div className="flex flex-col h-screen bg-azure-bg dark:bg-black text-azure-text-primary dark:text-matrix-secondary font-mono overflow-hidden transition-colors duration-300">
       <div className="flex flex-1 overflow-hidden">
         {/* Sidebar */}
         <motion.div 
-          className="w-64 border-r border-gray-200 dark:border-matrix-primary bg-white dark:bg-zinc-950 flex flex-col shrink-0 transition-colors duration-300"
+          className="w-64 border-r border-azure-border dark:border-matrix-primary bg-azure-surface dark:bg-zinc-950 flex flex-col shrink-0 transition-colors duration-300"
           initial={{ x: -64, opacity: 0 }}
           animate={{ x: 0, opacity: 1 }}
           transition={{ duration: 0.9, type: 'spring' }}
         >
-          <div className="p-4 border-b border-gray-200 dark:border-matrix-primary flex justify-between items-center">
-            <h1 className="text-xl font-bold text-green-700 dark:text-matrix-highlight flex items-center gap-2">
+          <div className="p-4 border-b border-azure-border dark:border-matrix-primary flex justify-between items-center">
+            <h1 className="text-xl font-bold text-azure-primary dark:text-matrix-highlight flex items-center gap-2">
               <Activity className="w-6 h-6" />
               MORPHEUS
             </h1>
             <button 
               onClick={() => setIsDark(!isDark)}
-              className="p-1 rounded hover:bg-gray-200 dark:hover:bg-matrix-primary/50 text-gray-500 dark:text-matrix-secondary transition-colors"
+              className="p-1 rounded hover:bg-azure-hover dark:hover:bg-matrix-primary/50 text-azure-text-muted dark:text-matrix-secondary transition-colors"
             >
               {isDark ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
             </button>
@@ -67,8 +67,8 @@ export function Layout({ children }: { children: React.ReactNode }) {
                   to={item.path}
                   className={`flex items-center gap-3 px-4 py-3 rounded transition-colors ${
                     isActive 
-                      ? 'bg-green-100 text-green-800 dark:bg-matrix-primary dark:text-matrix-highlight' 
-                      : 'hover:bg-gray-100 dark:hover:bg-matrix-primary/50 text-gray-600 dark:text-matrix-secondary'
+                      ? 'bg-azure-active text-azure-primary dark:bg-matrix-primary dark:text-matrix-highlight' 
+                      : 'hover:bg-azure-hover dark:hover:bg-matrix-primary/50 text-azure-text-secondary dark:text-matrix-secondary'
                   }`}
                 >
                   <item.icon className="w-5 h-5" />
@@ -79,10 +79,10 @@ export function Layout({ children }: { children: React.ReactNode }) {
           </nav>
           
           {/* Logout Button */}
-          <div className="p-4 border-t border-gray-200 dark:border-matrix-primary">
+          <div className="p-4 border-t border-azure-border dark:border-matrix-primary">
             <button
               onClick={logout}
-              className="flex items-center gap-3 px-4 py-3 rounded w-full text-left hover:bg-red-50 dark:hover:bg-red-900/20 text-gray-600 dark:text-matrix-secondary hover:text-red-600 transition-colors"
+              className="flex items-center gap-3 px-4 py-3 rounded w-full text-left hover:bg-red-50 dark:hover:bg-red-900/20 text-azure-text-secondary dark:text-matrix-secondary hover:text-red-600 transition-colors"
             >
               <LogOut className="w-5 h-5" />
               <span>Logout</span>

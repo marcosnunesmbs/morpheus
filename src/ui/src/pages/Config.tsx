@@ -37,12 +37,12 @@ export function Config() {
     >
        <div className="flex justify-between items-center">
          <div>
-            <h2 className="text-2xl font-bold text-matrix-highlight">CONFIGURATION</h2>
-            <p className="text-matrix-secondary opacity-80">Edit agent settings (JSON).</p>
+            <h2 className="text-2xl font-bold text-azure-primary dark:text-matrix-highlight">CONFIGURATION</h2>
+            <p className="text-azure-text-secondary dark:text-matrix-secondary opacity-80">Edit agent settings (JSON).</p>
          </div>
          <button 
            onClick={handleSave}
-           className="bg-matrix-primary hover:bg-matrix-secondary text-matrix-highlight px-4 py-2 rounded flex items-center gap-2 font-bold transition-colors"
+           className="bg-azure-primary hover:bg-azure-secondary text-white dark:bg-matrix-primary dark:hover:bg-matrix-secondary dark:text-matrix-highlight px-4 py-2 rounded flex items-center gap-2 font-bold transition-colors"
          >
            <Save className="w-5 h-5" />
            SAVE CHANGES
@@ -57,17 +57,17 @@ export function Config() {
        )}
 
        {success && (
-        <div className="bg-green-900/20 border border-green-500 text-green-500 p-3 rounded flex items-center gap-2">
+        <div className="bg-azure-hover border border-azure-border text-azure-primary dark:bg-matrix-primary/20 dark:border-matrix-secondary dark:text-matrix-highlight p-3 rounded flex items-center gap-2">
           <CheckCircle className="w-5 h-5" />
           {success}
         </div>
        )}
 
-       <div className="flex-1 bg-zinc-950 border border-matrix-primary rounded p-0 overflow-hidden">
+       <div className="flex-1 bg-azure-surface dark:bg-zinc-950 border border-azure-border dark:border-matrix-primary rounded p-0 overflow-hidden">
          <textarea
            value={jsonStr}
            onChange={(e) => setJsonStr(e.target.value)}
-           className="w-full h-full bg-zinc-950 text-matrix-highlight font-mono p-4 outline-none resize-none"
+           className="w-full h-full bg-azure-surface dark:bg-zinc-950 text-azure-text-primary dark:text-matrix-highlight font-mono p-4 outline-none resize-none"
            spellCheck={false}
          />
        </div>

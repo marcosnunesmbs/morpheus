@@ -91,19 +91,19 @@ export default function Settings() {
   };
 
   if (error) return <div className="p-8 text-red-500">Failed to load configuration</div>;
-  if (!localConfig) return <div className="p-8 text-matrix-highlight">Loading settings...</div>;
+  if (!localConfig) return <div className="p-8 text-azure-primary dark:text-matrix-highlight">Loading settings...</div>;
 
   return (
     <div className="max-w-4xl mx-auto p-6 space-y-6">
       <div className="flex justify-between items-center">
-        <h1 className="text-2xl font-bold text-matrix-highlight">Settings</h1>
+        <h1 className="text-2xl font-bold text-azure-primary dark:text-matrix-highlight">Settings</h1>
         <button
             onClick={handleSave}
             disabled={!isDirty || Object.keys(errors).length > 0 || saving}
             className={`px-4 py-2 rounded font-medium transition-colors ${
                 isDirty && Object.keys(errors).length === 0
-                ? 'bg-matrix-highlight text-black hover:bg-matrix-highlight/90' 
-                : 'bg-matrix-primary/50 text-matrix-highlight/50 cursor-not-allowed'
+                ? 'bg-azure-primary text-white hover:bg-azure-active dark:bg-matrix-highlight dark:text-black dark:hover:bg-matrix-highlight/90' 
+                : 'bg-azure-border text-azure-text-secondary cursor-not-allowed dark:bg-matrix-primary/50 dark:text-matrix-highlight/50'
             }`}
         >
             {saving ? 'Saving...' : 'Save Changes'}
@@ -112,22 +112,22 @@ export default function Settings() {
 
       {notification && (
           <div className={`p-4 rounded border ${
-              notification.type === 'success' ? 'border-matrix-highlight text-matrix-highlight bg-matrix-highlight/10' : 'border-red-500 text-red-500 bg-red-900/10'
+              notification.type === 'success' ? 'border-azure-primary text-azure-primary bg-azure-primary/10 dark:border-matrix-highlight dark:text-matrix-highlight dark:bg-matrix-highlight/10' : 'border-red-500 text-red-500 bg-red-900/10'
           }`}>
               {notification.message}
           </div>
       )}
 
       {/* Tabs */}
-      <div className="flex space-x-1 border-b border-matrix-primary pb-px">
+      <div className="flex space-x-1 border-b border-azure-border dark:border-matrix-primary pb-px">
         {TABS.map(tab => (
             <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
                 className={`px-4 py-2 text-sm font-medium rounded-t-md transition-colors ${
                     activeTab === tab.id 
-                    ? 'bg-matrix-primary/20 text-matrix-highlight border-t border-x border-matrix-primary' 
-                    : 'text-matrix-secondary hover:text-matrix-highlight'
+                    ? 'bg-azure-surface/50 text-azure-primary border-t border-x border-azure-border dark:bg-matrix-primary/20 dark:text-matrix-highlight dark:border-t dark:border-x dark:border-matrix-primary' 
+                    : 'text-azure-text-secondary hover:text-azure-primary dark:text-matrix-secondary dark:hover:text-matrix-highlight'
                 }`}
             >
                 {tab.label}

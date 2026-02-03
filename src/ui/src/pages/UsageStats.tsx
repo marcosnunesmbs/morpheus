@@ -33,7 +33,7 @@ export function UsageStats() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-64 text-green-500 font-mono animate-pulse">
+      <div className="flex items-center justify-center h-64 text-azure-accent dark:text-matrix-highlight font-mono animate-pulse">
         LOADING_DATA_STREAM...
       </div>
     );
@@ -69,49 +69,49 @@ export function UsageStats() {
       animate="show"
       className="space-y-6"
     >
-      <div className="flex items-center justify-between border-b border-gray-200 dark:border-matrix-primary pb-4">
+      <div className="flex items-center justify-between border-b border-azure-border dark:border-matrix-primary pb-4">
         <div>
-          <h2 className="text-2xl font-bold text-gray-900 dark:text-matrix-highlight font-mono flex items-center gap-2">
+          <h2 className="text-2xl font-bold text-azure-primary dark:text-matrix-highlight font-mono flex items-center gap-2">
             <BarChart3 className="w-6 h-6" />
             USAGE_ANALYTICS
           </h2>
-          <p className="text-gray-500 dark:text-matrix-secondary mt-1 font-mono text-sm">
+          <p className="text-azure-text-muted dark:text-matrix-secondary mt-1 font-mono text-sm">
             Resource consumption tracking and metrics
           </p>
         </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <motion.div variants={item} className="p-6 bg-white dark:bg-black/40 border border-gray-200 dark:border-matrix-primary rounded-lg shadow-sm backdrop-blur-sm">
-          <div className="flex items-center gap-3 mb-2 text-gray-500 dark:text-matrix-secondary">
+        <motion.div variants={item} className="p-6 bg-azure-surface dark:bg-black/40 border border-azure-border dark:border-matrix-primary rounded-lg shadow-sm backdrop-blur-sm">
+          <div className="flex items-center gap-3 mb-2 text-azure-text-muted dark:text-matrix-secondary">
             <MessageSquare className="w-5 h-5" />
             <h3 className="font-mono text-sm font-bold uppercase">Total Input Tokens</h3>
           </div>
-          <p className="text-3xl font-bold text-gray-900 dark:text-matrix-highlight font-mono">
+          <p className="text-3xl font-bold text-azure-text-primary dark:text-matrix-highlight font-mono">
             {globalStats?.totalInputTokens.toLocaleString() ?? 0}
           </p>
         </motion.div>
 
-        <motion.div variants={item} className="p-6 bg-white dark:bg-black/40 border border-gray-200 dark:border-matrix-primary rounded-lg shadow-sm backdrop-blur-sm">
-          <div className="flex items-center gap-3 mb-2 text-gray-500 dark:text-matrix-secondary">
+        <motion.div variants={item} className="p-6 bg-azure-surface dark:bg-black/40 border border-azure-border dark:border-matrix-primary rounded-lg shadow-sm backdrop-blur-sm">
+          <div className="flex items-center gap-3 mb-2 text-azure-text-muted dark:text-matrix-secondary">
             <Database className="w-5 h-5" />
             <h3 className="font-mono text-sm font-bold uppercase">Total Output Tokens</h3>
           </div>
-          <p className="text-3xl font-bold text-gray-900 dark:text-matrix-highlight font-mono">
+          <p className="text-3xl font-bold text-azure-text-primary dark:text-matrix-highlight font-mono">
             {globalStats?.totalOutputTokens.toLocaleString() ?? 0}
           </p>
         </motion.div>
       </div>
 
-      <motion.div variants={item} className="bg-white dark:bg-black/40 border border-gray-200 dark:border-matrix-primary rounded-lg overflow-hidden backdrop-blur-sm">
-        <div className="p-4 border-b border-gray-200 dark:border-matrix-primary bg-gray-50 dark:bg-zinc-900/50">
-          <h3 className="text-lg font-bold text-gray-900 dark:text-matrix-highlight font-mono uppercase">
+      <motion.div variants={item} className="bg-azure-surface dark:bg-black/40 border border-azure-border dark:border-matrix-primary rounded-lg overflow-hidden backdrop-blur-sm">
+        <div className="p-4 border-b border-azure-border dark:border-matrix-primary bg-azure-bg dark:bg-zinc-900/50">
+          <h3 className="text-lg font-bold text-azure-text-primary dark:text-matrix-highlight font-mono uppercase">
             Usage Breakdown by Model
           </h3>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-left font-mono text-sm">
-            <thead className="bg-gray-50 dark:bg-zinc-900/50 text-gray-600 dark:text-matrix-secondary border-b border-gray-200 dark:border-matrix-primary">
+            <thead className="bg-azure-bg dark:bg-zinc-900/50 text-azure-text-secondary dark:text-matrix-secondary border-b border-azure-border dark:border-matrix-primary">
               <tr>
                 <th className="p-4">Provider</th>
                 <th className="p-4">Model</th>
@@ -121,22 +121,22 @@ export function UsageStats() {
                 <th className="p-4 text-right">Total Tokens</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-200 dark:divide-matrix-primary/30">
+            <tbody className="divide-y divide-azure-border dark:divide-matrix-primary/30">
               {groupedStats.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="p-8 text-center text-gray-500 dark:text-matrix-secondary italic">
+                  <td colSpan={6} className="p-8 text-center text-azure-text-muted dark:text-matrix-secondary italic">
                     NO_DATA_AVAILABLE
                   </td>
                 </tr>
               ) : (
                 groupedStats.map((stat, idx) => (
-                  <tr key={`${stat.provider}-${stat.model}-${idx}`} className="hover:bg-gray-50 dark:hover:bg-matrix-primary/10 transition-colors">
-                    <td className="p-4 font-bold text-gray-700 dark:text-matrix-highlight">{stat.provider}</td>
-                    <td className="p-4 text-gray-600 dark:text-matrix-secondary">{stat.model}</td>
-                    <td className="p-4 text-right text-gray-800 dark:text-gray-300">{stat.messageCount.toLocaleString()}</td>
-                    <td className="p-4 text-right text-gray-800 dark:text-gray-300">{stat.totalInputTokens.toLocaleString()}</td>
-                    <td className="p-4 text-right text-gray-800 dark:text-gray-300">{stat.totalOutputTokens.toLocaleString()}</td>
-                    <td className="p-4 text-right font-bold text-gray-800 dark:text-matrix-highlight">{stat.totalTokens.toLocaleString()}</td>
+                  <tr key={`${stat.provider}-${stat.model}-${idx}`} className="hover:bg-azure-hover dark:hover:bg-matrix-primary/10 transition-colors">
+                    <td className="p-4 font-bold text-azure-text-primary dark:text-matrix-highlight">{stat.provider}</td>
+                    <td className="p-4 text-azure-text-secondary dark:text-matrix-secondary">{stat.model}</td>
+                    <td className="p-4 text-right text-azure-text-primary dark:text-gray-300">{stat.messageCount.toLocaleString()}</td>
+                    <td className="p-4 text-right text-azure-text-primary dark:text-gray-300">{stat.totalInputTokens.toLocaleString()}</td>
+                    <td className="p-4 text-right text-azure-text-primary dark:text-gray-300">{stat.totalOutputTokens.toLocaleString()}</td>
+                    <td className="p-4 text-right font-bold text-azure-text-primary dark:text-matrix-highlight">{stat.totalTokens.toLocaleString()}</td>
                   </tr>
                 ))
               )}

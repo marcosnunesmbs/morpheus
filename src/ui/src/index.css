@@ -4,7 +4,7 @@
 
 @layer base {
   body {
-    @apply bg-white text-black font-mono dark:bg-black dark:text-matrix-secondary transition-colors duration-300;
+    @apply bg-azure-bg text-azure-text-primary font-mono dark:bg-black dark:text-matrix-secondary transition-colors duration-300;
   }
   
   /* Custom Scrollbar */
@@ -13,13 +13,13 @@
     height: 8px;
   }
   ::-webkit-scrollbar-track {
-    @apply bg-gray-100 dark:bg-black; 
+    @apply bg-azure-bg dark:bg-black; 
   }
   ::-webkit-scrollbar-thumb {
-    @apply bg-gray-400 dark:bg-matrix-primary; 
+    @apply bg-azure-border dark:bg-matrix-primary; 
   }
   ::-webkit-scrollbar-thumb:hover {
-    @apply bg-gray-600 dark:bg-matrix-secondary; 
+    @apply bg-azure-secondary dark:bg-matrix-secondary; 
   }
 }
 
