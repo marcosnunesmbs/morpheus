@@ -37,20 +37,20 @@ export const Login: React.FC = () => {
   };
 
   return (
-    <div className="flex items-center justify-center min-h-screen bg-black text-green-500 font-mono">
-      <div className="max-w-md w-full p-8 border border-green-500 shadow-[0_0_15px_rgba(34,197,94,0.3)]">
-        <h1 className="text-2xl font-bold mb-6 text-center tracking-widest uppercase">
+    <div className="flex items-center justify-center min-h-screen bg-azure-bg dark:bg-black text-azure-primary dark:text-green-500 font-mono">
+      <div className="max-w-md w-full p-8 border border-azure-primary dark:border-green-500 shadow-xl dark:shadow-[0_0_15px_rgba(34,197,94,0.3)] bg-white dark:bg-black rounded-lg dark:rounded-none">
+        <h1 className="text-2xl font-bold mb-6 text-center tracking-widest uppercase text-azure-primary dark:text-green-500">
           &gt; The Architect Login
         </h1>
         
         <form onSubmit={handleLogin} className="space-y-6">
           <div>
-            <label className="block text-sm mb-2 opacity-70">ACCESS_PASS:</label>
+            <label className="block text-sm mb-2 opacity-70 text-azure-text-secondary dark:text-green-500">ACCESS_PASS:</label>
             <input
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="w-full bg-black border border-green-800 p-2 focus:outline-none focus:border-green-500 placeholder-green-900"
+              className="w-full bg-azure-bg dark:bg-black border border-azure-border dark:border-green-800 p-2 focus:outline-none focus:border-azure-primary dark:focus:border-green-500 text-azure-text-primary dark:text-green-500 placeholder-azure-text-secondary/50 dark:placeholder-green-900 rounded dark:rounded-none"
               placeholder="••••••••"
               autoFocus
             />
@@ -64,13 +64,13 @@ export const Login: React.FC = () => {
 
           <button
             type="submit"
-            className="w-full bg-green-900 hover:bg-green-700 text-black font-bold py-2 transition-colors duration-200 uppercase tracking-wider"
+            className="w-full bg-azure-primary hover:bg-azure-active dark:bg-green-900 dark:hover:bg-green-700 text-white dark:text-black font-bold py-2 transition-colors duration-200 uppercase tracking-wider rounded dark:rounded-none"
           >
             Authenticate
           </button>
         </form>
 
-        <div className="mt-8 text-[10px] opacity-30 text-center uppercase">
+        <div className="mt-8 text-[10px] opacity-30 text-center uppercase text-azure-text-secondary dark:text-green-500">
           Morpheus OS v0.1.5 | Unauthorized access is logged.
         </div>
       </div>

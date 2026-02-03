@@ -8,6 +8,21 @@ export default {
   theme: {
     extend: {
       colors: {
+        azure: {
+          bg: '#F0F4F8',
+          surface: '#FFFFFF',
+          primary: '#0066CC',
+          secondary: '#4A90E2',
+          accent: '#2196F3',
+          border: '#B3D4FC',
+          hover: '#E3F2FD',
+          active: '#BBDEFB',
+          text: {
+            primary: '#1A1A1A',
+            secondary: '#5C6B7D',
+            muted: '#8899A8',
+          },
+        },
         matrix: {
           bg: '#000000',
           base: '#0D0208',

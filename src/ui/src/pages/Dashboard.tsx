@@ -30,8 +30,8 @@ export function Dashboard() {
       animate="show"
     >
       <motion.div variants={item}>
-        <h2 className="text-2xl font-bold text-matrix-highlight mb-2">SYSTEM STATUS</h2>
-        <p className="text-matrix-secondary opacity-80">Overview of the Morpheus agent runtime.</p>
+        <h2 className="text-2xl font-bold text-azure-primary dark:text-matrix-highlight mb-2">SYSTEM STATUS</h2>
+        <p className="text-azure-text-secondary dark:text-matrix-secondary opacity-80">Overview of the Morpheus agent runtime.</p>
       </motion.div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
