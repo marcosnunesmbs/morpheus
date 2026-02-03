@@ -15,7 +15,8 @@ import {
   ConfigUpdateTool,
   DiagnosticTool,
   MessageCountTool,
-  TokenUsageTool
+  TokenUsageTool,
+  ProviderModelUsageTool
 } from "../tools/index.js";
 
 export class ProviderFactory {
@@ -88,7 +89,8 @@ export class ProviderFactory {
         ConfigUpdateTool,
         DiagnosticTool,
         MessageCountTool,
-        TokenUsageTool
+        TokenUsageTool,
+        ProviderModelUsageTool
       ];
 
       return createAgent({

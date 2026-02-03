@@ -56,6 +56,17 @@ export function createApiRouter() {
     }
   });
 
+  router.get('/stats/usage/grouped', async (req, res) => {
+    try {
+      const history = new SQLiteChatMessageHistory({ sessionId: 'api-reader' });
+      const stats = await history.getUsageStatsByProviderAndModel();
+      history.close();
+      res.json(stats);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   // Calculate diff between two objects
   const getDiff = (obj1: any, obj2: any, prefix = ''): string[] => {
     const changes: string[] = [];

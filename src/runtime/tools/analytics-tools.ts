@@ -45,6 +45,42 @@ export const MessageCountTool = tool(
   }
 );
 
+// Tool for querying token usage grouped by provider and model
+export const ProviderModelUsageTool = tool(
+  async () => {
+    try {
+      const db = new Database(dbPath);
+
+      const query = `
+        SELECT 
+          provider,
+          COALESCE(model, 'unknown') as model,
+          SUM(input_tokens) as totalInputTokens,
+          SUM(output_tokens) as totalOutputTokens,
+          SUM(total_tokens) as totalTokens,
+          COUNT(*) as messageCount
+        FROM messages
+        WHERE provider IS NOT NULL
+        GROUP BY provider, COALESCE(model, 'unknown')
+        ORDER BY provider, model
+      `;
+
+      const results = db.prepare(query).all();
+      db.close();
+
+      return JSON.stringify(results);
+    } catch (error) {
+      console.error("Error in ProviderModelUsageTool:", error);
+      return JSON.stringify({ error: `Failed to get provider usage stats: ${(error as Error).message}` });
+    }
+  },
+  {
+    name: "provider_model_usage",
+    description: "Returns token usage statistics grouped by provider and model.",
+    schema: z.object({}),
+  }
+);
+
 // Tool for querying token usage statistics from the database
 export const TokenUsageTool = tool(
   async ({ timeRange }) => {
