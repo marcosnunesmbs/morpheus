@@ -8,7 +8,6 @@ import { ConfigManager } from '../config/manager.js';
 import { DisplayManager } from '../runtime/display.js';
 import { Agent } from '../runtime/agent.js';
 import { AudioAgent } from '../runtime/audio-agent.js';
-import { convert } from 'telegram-markdown-v2';
 
 export class TelegramAdapter {
   private bot: Telegraf | null = null;
@@ -27,11 +26,6 @@ export class TelegramAdapter {
       this.display.log('Telegram adapter already connected.', { source: 'Telegram', level: 'warning' });
       return;
     }
-
-    const escapeMarkdownV2 = (text: string): string => {
-      // Regex matches all special characters requiring escaping
-      return convert(text);
-    };
 
     try {
       this.display.log('Connecting to Telegram...', { source: 'Telegram' });
