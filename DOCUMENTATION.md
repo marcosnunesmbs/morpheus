@@ -82,6 +82,7 @@ O projeto resolve o problema de fragmentação de ferramentas de IA, oferecendo 
 * **Suporte a MCP:** Capacidade de conectar servidores MCP (Model Context Protocol) via `stdio` ou `http`.
 * **Processamento de Áudio:** Transcrição e processamento de mensagens de voz (via Google GenAI).
 * **Web UI Dashboard:** Interface React moderna (tema Matrix) para monitoramento e configuração.
+* **Analytics Completo:** Dashboard dedicado para visualização de consumo de tokens granular (por modelo/provedor).
 * **Gerenciamento via CLI:** Comandos para iniciar, parar, verificar status e diagnosticar o sistema.
 * **Configuração Centralizada:** Arquivo YAML único com validação Zod.
 
@@ -286,6 +287,9 @@ Atualiza a configuração dinamicamente.
 ### GET `/api/stats/usage`
 Retorna estatísticas globais de uso de tokens e mensagens.
 
+### GET `/api/stats/usage/grouped`
+Retorna estatísticas de uso detalhadas, agrupadas por provedor e modelo (Input/Output/Total Tokens e contagem de mensagens).
+
 ## 🏗 Padrões e Decisões Técnicas
 
 *   **Singleton Pattern:** Utilizado para gerenciadores globais como `ConfigManager` e `DisplayManager` para garantir estado consistente.
@@ -304,6 +308,7 @@ Retorna estatísticas globais de uso de tokens e mensagens.
 ## 🗺 Roadmap
 
 Com base nas especificações (`specs/`), o roadmap inclui:
+*   [x] Visualização de estatísticas de uso e configuração (Spec 016 - MNU-6).
 *   [ ] Integração aprimorada de áudio e fluxo de voz (Spec 012).
 *   [ ] Melhorias no fluxo de inicialização (Spec 013).
 *   [ ] Limites de memória configuráveis para ferramentas (Spec 014).

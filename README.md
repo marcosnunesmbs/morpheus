@@ -115,6 +115,9 @@ When enabled:
 ### 🧩 MCP Support (Model Context Protocol)
 Full integration with [Model Context Protocol](https://modelcontextprotocol.io/), allowing Morpheus to use standardized tools from any MCP-compatible server.
 
+### 📊 Usage Analytics
+Track your token usage across different providers and models directly from the Web UI. View detailed breakdowns of input/output tokens and message counts to monitor costs and activity.
+
 ### 🎙️ Audio Transcription (Telegram)
 Send voice messages directly to the Telegram bot. Morpheus will:
 1. Transcribe the audio using **Google Gemini**.
