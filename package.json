@@ -1,6 +1,6 @@
 {
   "name": "morpheus-cli",
-  "version": "0.1.8",
+  "version": "0.1.9",
   "description": "Morpheus CLI Agent",
   "bin": {
     "morpheus": "./bin/morpheus.js"
@@ -47,7 +47,6 @@
     "open": "^11.0.0",
     "ora": "^9.1.0",
     "telegraf": "^4.16.3",
-    "telegram-markdown-v2": "^0.0.4",
     "winston": "^3.19.0",
     "winston-daily-rotate-file": "^5.0.0",
     "zod": "^4.3.6"
