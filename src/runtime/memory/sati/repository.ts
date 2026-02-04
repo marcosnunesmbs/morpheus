@@ -152,7 +152,7 @@ export class SatiRepository {
         const safeQuery = query.replace(/[^a-zA-Z0-9 ]/g, "");
         if (!safeQuery.trim()) return [];
 
-        const rows = stmt.all(safeQuery, limit) as any[];
+        const rows = stmt.all(safeQuery, 100) as any[];
         return rows.map(this.mapRowToRecord);
 
     } catch (e) {

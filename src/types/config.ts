@@ -50,6 +50,10 @@ export interface AudioConfig {
   supportedMimeTypes: string[];
 }
 
+export interface SantiConfig extends LLMConfig {
+  memory_limit?: number;
+}
+
 export interface MemoryConfig {
   limit: number;
 }
@@ -57,6 +61,7 @@ export interface MemoryConfig {
 export interface MorpheusConfig {
   agent: AgentConfig;
   llm: LLMConfig;
+  santi?: SantiConfig;
   channels: ChannelsConfig;
   ui: UIConfig;
   logging: LogConfig;
