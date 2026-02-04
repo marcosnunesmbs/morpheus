@@ -60,6 +60,18 @@ export const doctorCommand = new Command('doctor')
       allPassed = false;
     }
 
+    // 5. Check Sati Memory DB
+    try {
+        const satiDbPath = path.join(PATHS.memory, 'santi-memory.db');
+        if (await fs.pathExists(satiDbPath)) {
+            console.log(chalk.green('✓') + ' Sati Memory: Database exists');
+        } else {
+            console.log(chalk.yellow('!') + ' Sati Memory: Database not initialized (will be created on start)');
+        }
+    } catch (error: any) {
+        console.log(chalk.red('✗') + ` Sati Memory: Check failed (${error.message})`);
+    }
+
     console.log(chalk.gray('================'));
     if (allPassed) {
       console.log(chalk.green('Diagnostics Passed. You are ready to run Morpheus!'));

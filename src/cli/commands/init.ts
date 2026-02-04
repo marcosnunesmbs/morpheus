@@ -4,6 +4,7 @@ import chalk from 'chalk';
 import { ConfigManager } from '../../config/manager.js';
 import { renderBanner } from '../utils/render.js';
 import { DisplayManager } from '../../runtime/display.js';
+import { SatiRepository } from '../../runtime/memory/sati/repository.js';
 // import { scaffold } from '../../runtime/scaffold.js';
 
 export const initCommand = new Command('init')
@@ -168,6 +169,14 @@ export const initCommand = new Command('init')
           }
           await configManager.set('channels.telegram.allowedUsers', allowedUsers);
         }
+      }
+
+      // Initialize Sati Memory (Long-term memory)
+      try {
+        SatiRepository.getInstance().initialize();
+        display.log(chalk.green('Long-term memory initialized.'));
+      } catch (e: any) {
+        display.log(chalk.yellow(`Warning: Could not initialize long-term memory: ${e.message}`));
       }
 
       display.log(chalk.green('\nConfiguration saved successfully!'));
