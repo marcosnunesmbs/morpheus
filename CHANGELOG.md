@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **Sati Agent UI Configuration**: Added dedicated UI section for configuring the Sati memory agent independently from Oracle
+  - New "Sati Agent" section in Settings page (LLM tab) below "Oracle Agent"
+  - Toggle to use same configuration as Oracle Agent for easy setup
+  - Separate LLM provider, model, API key, and context window settings for Sati
+  - API endpoints: GET/POST/DELETE `/api/config/sati` for managing Sati configuration
+  - Sati config persists to `santi` key in config file, falls back to Oracle config when not set
+
 ### Changed
 - **BREAKING**: Renamed `memory.limit` configuration to `llm.context_window` for semantic clarity
   - This field controls how many messages from history are sent to the LLM, not memory storage limits
@@ -15,6 +23,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Web UI updated: field moved to "LLM Configuration" section with label "Context Window (Messages)"
   - Init command now prompts for "Context Window Size" instead of "Memory Limit"
   - Doctor command validates `llm.context_window` and detects deprecated `memory.limit` usage
+- Renamed "LLM Configuration" to "Oracle Agent" in UI for clarity
 
 ### Migration Guide
 If you're upgrading from a previous version:

@@ -125,6 +125,55 @@ export function createApiRouter() {
     }
   });
 
+  // Sati config endpoints
+  router.get('/config/sati', (req, res) => {
+    try {
+      const satiConfig = configManager.getSantiConfig();
+      res.json(satiConfig);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  router.post('/config/sati', async (req, res) => {
+    try {
+      const config = configManager.get();
+      await configManager.save({ ...config, santi: req.body });
+      
+      const display = DisplayManager.getInstance();
+      display.log('Sati configuration updated via UI', { 
+        source: 'Zaion', 
+        level: 'info' 
+      });
+
+      res.json({ success: true });
+    } catch (error: any) {
+      if (error.name === 'ZodError') {
+        res.status(400).json({ error: 'Validation failed', details: error.errors });
+      } else {
+        res.status(500).json({ error: error.message });
+      }
+    }
+  });
+
+  router.delete('/config/sati', async (req, res) => {
+    try {
+      const config = configManager.get();
+      const { santi, ...restConfig } = config;
+      await configManager.save(restConfig);
+      
+      const display = DisplayManager.getInstance();
+      display.log('Sati configuration removed via UI (falling back to Oracle config)', { 
+        source: 'Zaion', 
+        level: 'info' 
+      });
+
+      res.json({ success: true });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   // Keep PUT for backward compatibility if needed, or remove. 
   // Tasks says Implement POST. I'll remove PUT to avoid confusion or redirect it.
   router.put('/config', async (req, res) => {
