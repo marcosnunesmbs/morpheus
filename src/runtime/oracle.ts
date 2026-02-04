@@ -213,7 +213,7 @@ You maintain intent until resolution.
       const previousMessages = await this.history.getMessages();
 
       // Sati Middleware: Retrieval
-      let memoryMessage: SystemMessage | null = null;
+      let memoryMessage: AIMessage | null = null;
       try {
         memoryMessage = await this.satiMiddleware.beforeAgent(message, previousMessages);
         if (memoryMessage) {
