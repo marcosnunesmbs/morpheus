@@ -1,6 +1,6 @@
 import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { TelegramAdapter } from '../telegram.js';
-import { Agent } from '../../runtime/agent.js';
+import { Oracle } from '../../runtime/oracle.js';
 
 // Mock dependencies
 vi.mock('telegraf', () => {
@@ -32,14 +32,14 @@ vi.mock('../../runtime/display.js', () => ({
 
 describe('TelegramAdapter', () => {
   let adapter: TelegramAdapter;
-  let mockAgent: Agent;
+    let mockOracle: Oracle;
 
-  beforeEach(() => {
-    mockAgent = {
-      chat: vi.fn(),
-    } as unknown as Agent;
-    adapter = new TelegramAdapter(mockAgent);
-  });
+    beforeEach(() => {
+        mockOracle = {
+            chat: vi.fn(),
+        } as unknown as Oracle;
+        adapter = new TelegramAdapter(mockOracle);
+    });
 
   afterEach(() => {
     vi.clearAllMocks();

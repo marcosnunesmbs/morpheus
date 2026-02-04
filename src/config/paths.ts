@@ -7,7 +7,8 @@ export const LOGS_DIR = path.join(MORPHEUS_ROOT, 'logs');
 
 export const PATHS = {
   root: MORPHEUS_ROOT,
-  config: path.join(MORPHEUS_ROOT, 'config.yaml'),
+  config: path.join(MORPHEUS_ROOT, 'zaion.yaml'),
+  legacyConfig: path.join(MORPHEUS_ROOT, 'config.yaml'),
   pid: path.join(MORPHEUS_ROOT, 'morpheus.pid'),
   logs: LOGS_DIR,
   memory: path.join(MORPHEUS_ROOT, 'memory'),

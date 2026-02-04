@@ -1,9 +1,9 @@
 import { BaseChatModel } from "@langchain/core/language_models/chat_models";
 import { BaseMessage, HumanMessage, SystemMessage, AIMessage } from "@langchain/core/messages";
 import { BaseListChatMessageHistory } from "@langchain/core/chat_history";
-import { IAgent } from "./types.js";
+import { IOracle } from "./types.js";
 import { ProviderFactory } from "./providers/factory.js";
-import { ToolsFactory } from "./tools/factory.js";
+import { Construtor } from "./tools/factory.js";
 import { MorpheusConfig } from "../types/config.js";
 import { ConfigManager } from "../config/manager.js";
 import { ProviderError } from "./errors.js";
@@ -12,7 +12,7 @@ import { SQLiteChatMessageHistory } from "./memory/sqlite.js";
 import { ReactAgent } from "langchain";
 import { UsageMetadata } from "../types/usage.js";
 
-export class Agent implements IAgent {
+export class Oracle implements IOracle {
   private provider?: ReactAgent;
   private config: MorpheusConfig;
   private history?: BaseListChatMessageHistory;
@@ -38,7 +38,7 @@ export class Agent implements IAgent {
     // to allow for Environment Variable fallback supported by LangChain.
 
     try {
-      const tools = await ToolsFactory.create();
+      const tools = await Construtor.create();
       this.provider = await ProviderFactory.create(this.config.llm, tools);
       if (!this.provider) {
         throw new Error("Provider factory returned undefined");
@@ -57,14 +57,14 @@ export class Agent implements IAgent {
       throw new ProviderError(
         this.config.llm.provider || 'unknown',
         err,
-        "Agent initialization failed"
+        "Oracle initialization failed"
       );
     }
   }
 
   async chat(message: string, extraUsage?: UsageMetadata): Promise<string> {
     if (!this.provider) {
-      throw new Error("Agent not initialized. Call initialize() first.");
+      throw new Error("Oracle not initialized. Call initialize() first.");
     }
 
     if (!this.history) {
@@ -72,7 +72,7 @@ export class Agent implements IAgent {
     }
 
     try {
-      this.display.log('Processing message...', { source: 'Agent' });
+      this.display.log('Processing message...', { source: 'Oracle' });
 
       const userMessage = new HumanMessage(message);
       
@@ -180,7 +180,7 @@ export class Agent implements IAgent {
         await this.history.addMessage(msg);
       }
 
-      this.display.log('Response generated.', { source: 'Agent' });
+      this.display.log('Response generated.', { source: 'Oracle' });
       
       const lastMessage = response.messages[response.messages.length - 1];
       return (typeof lastMessage.content === 'string') ? lastMessage.content : JSON.stringify(lastMessage.content);

@@ -1,9 +1,9 @@
 import { BaseMessage } from "@langchain/core/messages";
 import { UsageMetadata } from "../types/usage.js";
 
-export interface IAgent {
+export interface IOracle {
   /**
-   * Initialize the agent with configuration.
+   * Initialize the oracle with configuration.
    * Throws error if validation fails.
    */
   initialize(): Promise<void>;

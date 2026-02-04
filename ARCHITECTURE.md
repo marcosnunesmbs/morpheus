@@ -12,17 +12,17 @@ The application runs as a cohesive Node.js process managed by a CLI entry point.
 
 ### 1. The Runtime Core (`src/runtime/`)
 The Runtime is the central nervous system of Morpheus.
--   **Agent Orchestrator (`agent.ts`)**: Implements the `IAgent` interface. It manages the conversation loop using LangChain, handling prompt construction, tool execution, and context management.
+-   **Oracle Engine (`oracle.ts`)**: Implements the `IOracle` interface. It manages the conversation loop using LangChain, handling prompt construction, tool execution, and context management.
 -   **Memory System (`memory/`)**: Conversation history is persisted locally using `SQLiteChatMessageHistory` (via `better-sqlite3`). This ensures data privacy and persistence across restarts.
 -   **LLM Providers (`providers/`)**: A factory pattern (`ProvidersFactory`) abstracts specific LLM implementations (OpenAI, Ollama, etc.), allowing the user to switch models via configuration.
 
 ### 2. Channel Adapters (`src/channels/`)
-Channels serve as the sensory input and output for the Agent.
+Channels serve as the sensory input and output for the Oracle.
 -   **Adapter Pattern**: Each channel (e.g., `TelegramAdapter`) implements a common interface to:
     -   Receive external events (messages, voice notes).
     -   Normalize them into internal standard objects.
-    -   Pass them to the Agent.
-    -   Route the Agent's response back to the external platform.
+    -   Pass them to the Oracle.
+    -   Route the Oracle's response back to the external platform.
 -   **Security**: Channels enforce strict authorization (allow-lists) to prevents unauthorized access to the local agent.
 
 ### 3. Interfaces (CLI & HTTP)
@@ -40,13 +40,13 @@ A React-based Single Page Application (SPA) built with Vite and TailwindCSS.
 
 1.  **Input**: User sends a message via Telegram.
 2.  **Ingest**: `TelegramAdapter` receives the webhook/poll update.
-3.  **Authorize**: Adapter verifies the User ID against `config.yaml`.
-4.  **Dispatch**: Valid message is sent to `Agent.process()`.
+3.  **Authorize**: Adapter verifies the User ID against `zaion.yaml`.
+4.  **Dispatch**: Valid message is sent to `Oracle.chat()`.
 5.  **Think**:
-    -   Agent retrieves context from `SQLite`.
-    -   Agent queries LLM (via `LangChain`).
-    -   Agent may execute **Tools** (e.g., search docs, save file).
-6.  **Respond**: Agent generates a final text response.
+    -   Oracle retrieves context from `SQLite`.
+    -   Oracle queries LLM (via `LangChain`).
+    -   Oracle may execute **Tools** (e.g., search docs, save file).
+6.  **Respond**: Oracle generates a final text response.
 7.  **Output**: `TelegramAdapter` sends the text back to the user's chat.
 
 ## 📂 Directory Structure Map

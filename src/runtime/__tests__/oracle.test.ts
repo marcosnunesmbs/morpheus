@@ -1,20 +1,21 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { Agent } from '../agent.js';
+import { Oracle } from '../oracle.js';
 import { ProviderFactory } from '../providers/factory.js';
-import { ToolsFactory } from '../tools/factory.js';
+import { Construtor } from '../tools/factory.js';
 import { DEFAULT_CONFIG } from '../../types/config.js';
 import { BaseChatModel } from '@langchain/core/language_models/chat_models';
 import { AIMessage } from '@langchain/core/messages';
 import * as fs from 'fs-extra';
 import * as path from 'path';
-import { homedir } from 'os';
+import { homedir, tmpdir } from 'os';
 import { ReactAgent } from 'langchain';
 
 vi.mock('../providers/factory.js');
 vi.mock('../tools/factory.js');
 
-describe('Agent', () => {
-  let agent: Agent;
+describe('Oracle', () => {
+  let oracle: Oracle;
+  let testDbPath: string;
   const mockProvider = {
     invoke: vi.fn(),
   } as unknown as ReactAgent;
@@ -22,30 +23,24 @@ describe('Agent', () => {
   beforeEach(async () => {
     vi.resetAllMocks();
     
-    // Clean up any existing test database
-    const defaultDbPath = path.join(homedir(), ".morpheus", "memory", "short-memory.db");
-    if (fs.existsSync(defaultDbPath)) {
-      try {
-        const Database = (await import("better-sqlite3")).default;
-        const db = new Database(defaultDbPath);
-        db.exec("DELETE FROM messages");
-        db.close();
-      } catch (err) {
-        // Ignore errors if database doesn't exist or is corrupted
-      }
-    }
+    // Use temp DB
+    testDbPath = path.join(tmpdir(), `test-oracle-${Date.now()}.db`);
     
-    (mockProvider.invoke as any).mockResolvedValue({ messages: [new AIMessage('Hello world')] });
+    (mockProvider.invoke as any).mockImplementation(async ({ messages }: { messages: any[] }) => {
+      return { 
+        messages: [...messages, new AIMessage('Hello world')]
+      };
+    });
     vi.mocked(ProviderFactory.create).mockResolvedValue(mockProvider);
-    vi.mocked(ToolsFactory.create).mockResolvedValue([]);
-    agent = new Agent(DEFAULT_CONFIG);
+    vi.mocked(Construtor.create).mockResolvedValue([]);
+    oracle = new Oracle(DEFAULT_CONFIG, { databasePath: testDbPath });
   });
 
   afterEach(async () => {
     // Clean up after each test
-    if (agent) {
+    if (oracle) {
       try {
-        await agent.clearMemory();
+        await oracle.clearMemory();
       } catch (err) {
         // Ignore cleanup errors
       }
@@ -53,41 +48,45 @@ describe('Agent', () => {
   });
 
   it('should initialize successfully', async () => {
-    await agent.initialize();
-    expect(ToolsFactory.create).toHaveBeenCalled();
+    await oracle.initialize();
+    expect(Construtor.create).toHaveBeenCalled();
     expect(ProviderFactory.create).toHaveBeenCalledWith(DEFAULT_CONFIG.llm, []);
   });
 
   it('should chat successfully', async () => {
-    await agent.initialize();
-    const response = await agent.chat('Hi');
+    await oracle.initialize();
+    const response = await oracle.chat('Hi');
     expect(response).toBe('Hello world');
     expect(mockProvider.invoke).toHaveBeenCalled();
   });
 
   it('should throw if not initialized', async () => {
-    await expect(agent.chat('Hi')).rejects.toThrow('initialize() first');
+    await expect(oracle.chat('Hi')).rejects.toThrow('initialize() first');
   });
 
   it('should maintain history', async () => {
-    await agent.initialize();
+    await oracle.initialize();
     
     // Clear any residual history from previous tests
-    await agent.clearMemory();
+    await oracle.clearMemory();
     
     // First turn
-    await agent.chat('Hi');
-    const history1 = await agent.getHistory();
+    await oracle.chat('Hi');
+    const history1 = await oracle.getHistory();
     expect(history1).toHaveLength(2);
     expect(history1[0].content).toBe('Hi'); // User
     expect(history1[1].content).toBe('Hello world'); // AI
 
     // Second turn
     // Update mock return value for next call
-    (mockProvider.invoke as any).mockResolvedValue({ messages: [new AIMessage('I am fine')] });
+    (mockProvider.invoke as any).mockImplementation(async ({ messages }: { messages: any[] }) => {
+      return { 
+        messages: [...messages, new AIMessage('I am fine')]
+      };
+    });
     
-    await agent.chat('How are you?');
-    const history2 = await agent.getHistory();
+    await oracle.chat('How are you?');
+    const history2 = await oracle.getHistory();
     expect(history2).toHaveLength(4);
     expect(history2[2].content).toBe('How are you?');
     expect(history2[3].content).toBe('I am fine');
@@ -98,8 +97,8 @@ describe('Agent', () => {
         const invalidConfig = JSON.parse(JSON.stringify(DEFAULT_CONFIG));
         delete invalidConfig.llm.provider; // Invalid
         
-        const badAgent = new Agent(invalidConfig);
-        await expect(badAgent.initialize()).rejects.toThrow('LLM provider not specified');
+        const badOracle = new Oracle(invalidConfig);
+        await expect(badOracle.initialize()).rejects.toThrow('LLM provider not specified');
     });
 
     it('should propagate ProviderError during initialization', async () => {
@@ -107,7 +106,7 @@ describe('Agent', () => {
         vi.mocked(ProviderFactory.create).mockImplementation(() => { throw mockError });
         
         // ProviderError constructs message as: "Provider {provider} failed: {originalError.message}"
-        await expect(agent.initialize()).rejects.toThrow('Provider openai failed: Mock Factory Error');
+        await expect(oracle.initialize()).rejects.toThrow('Provider openai failed: Mock Factory Error');
     });
  });
 });

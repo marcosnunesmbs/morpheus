@@ -8,7 +8,7 @@ import { ConfigManager } from '../../config/manager.js';
 import { renderBanner } from '../utils/render.js';
 import { TelegramAdapter } from '../../channels/telegram.js';
 import { PATHS } from '../../config/paths.js';
-import { Agent } from '../../runtime/agent.js';
+import { Oracle } from '../../runtime/oracle.js';
 import { ProviderError } from '../../runtime/errors.js';
 import { HttpServer } from '../../http/server.js';
 
@@ -56,13 +56,13 @@ export const startCommand = new Command('start')
          display.log(chalk.blue(`Web UI enabled to port ${options.port}`));
       }
 
-      // Initialize Agent
-      const agent = new Agent(config);
+      // Initialize Oracle
+      const oracle = new Oracle(config);
       try {
-        display.startSpinner(`Initializing ${config.llm.provider} agent...`);
-        await agent.initialize();
+        display.startSpinner(`Initializing ${config.llm.provider} oracle...`);
+        await oracle.initialize();
         display.stopSpinner();
-        display.log(chalk.green('✓ Agent initialized'), { source: 'Agent' });
+        display.log(chalk.green('✓ Oracle initialized'), { source: 'Oracle' });
       } catch (err: any) {
         display.stopSpinner();
         if (err instanceof ProviderError) {
@@ -72,7 +72,7 @@ export const startCommand = new Command('start')
              display.log(chalk.yellow(`Tip: ${err.suggestion}`));
           }
         } else {
-          display.log(chalk.red('\nAgent initialization failed:'));
+          display.log(chalk.red('\nOracle initialization failed:'));
           display.log(chalk.white(err.message));
           
           if (err.message.includes('API Key')) {
@@ -101,7 +101,7 @@ export const startCommand = new Command('start')
       // Initialize Telegram
       if (config.channels.telegram.enabled) {
         if (config.channels.telegram.token) {
-          const telegram = new TelegramAdapter(agent);
+          const telegram = new TelegramAdapter(oracle);
           try {
             await telegram.connect(
               config.channels.telegram.token,

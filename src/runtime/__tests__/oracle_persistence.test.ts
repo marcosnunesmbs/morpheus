@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { Agent } from "../agent.js";
+import { Oracle } from "../oracle.js";
 import { ProviderFactory } from "../providers/factory.js";
 import { DEFAULT_CONFIG } from "../../types/config.js";
 import { BaseChatModel } from "@langchain/core/language_models/chat_models";
@@ -9,13 +9,13 @@ import * as path from "path";
 import { tmpdir } from "os";
 import { homedir } from "os";
 import { ReactAgent } from "langchain";
-import { ToolsFactory } from "../tools/factory.js";
+import { Construtor } from "../tools/factory.js";
 
 vi.mock("../providers/factory.js");
 vi.mock("../tools/factory.js");
 
-describe("Agent Persistence Integration", () => {
-  let agent: Agent;
+describe("Oracle Persistence Integration", () => {
+  let oracle: Oracle;
   let testDbPath: string;
   let tempDir: string;
   const mockProvider = {
@@ -35,9 +35,9 @@ describe("Agent Persistence Integration", () => {
       };
     });
     vi.mocked(ProviderFactory.create).mockResolvedValue(mockProvider);
-    vi.mocked(ToolsFactory.create).mockResolvedValue([]);
+    vi.mocked(Construtor.create).mockResolvedValue([]);
     
-    agent = new Agent(DEFAULT_CONFIG, { databasePath: testDbPath });
+    oracle = new Oracle(DEFAULT_CONFIG, { databasePath: testDbPath });
   });
 
   afterEach(async () => {
@@ -53,38 +53,38 @@ describe("Agent Persistence Integration", () => {
 
   describe("Database File Creation", () => {
     it("should create database file on initialization", async () => {
-      await agent.initialize();
+      await oracle.initialize();
       expect(fs.existsSync(testDbPath)).toBe(true);
     });
   });
 
   describe("Message Persistence", () => {
     it("should persist messages to database", async () => {
-      await agent.initialize();
+      await oracle.initialize();
       
       // Send a message
-      await agent.chat("Hello, Agent!");
+      await oracle.chat("Hello, Oracle!");
       
       // Verify history contains the message
-      const history = await agent.getHistory();
+      const history = await oracle.getHistory();
       expect(history).toHaveLength(2); // User message + AI response
-      expect(history[0].content).toBe("Hello, Agent!");
+      expect(history[0].content).toBe("Hello, Oracle!");
       expect(history[1].content).toBe("Test response");
     });
 
     it("should restore conversation history on restart", async () => {
       // First session: send a message
-      await agent.initialize();
-      await agent.chat("Remember this message");
-      const firstHistory = await agent.getHistory();
+      await oracle.initialize();
+      await oracle.chat("Remember this message");
+      const firstHistory = await oracle.getHistory();
       expect(firstHistory).toHaveLength(2);
       
-      // Simulate restart: create new agent instance with SAME database path
-      const agent2 = new Agent(DEFAULT_CONFIG, { databasePath: testDbPath });
-      await agent2.initialize();
+      // Simulate restart: create new oracle instance with SAME database path
+      const oracle2 = new Oracle(DEFAULT_CONFIG, { databasePath: testDbPath });
+      await oracle2.initialize();
       
       // Verify history was restored
-      const restoredHistory = await agent2.getHistory();
+      const restoredHistory = await oracle2.getHistory();
       expect(restoredHistory.length).toBeGreaterThanOrEqual(2);
       
       // Check that the old messages are present
@@ -94,10 +94,10 @@ describe("Agent Persistence Integration", () => {
     });
 
     it("should accumulate messages across multiple conversations", async () => {
-      await agent.initialize();
+      await oracle.initialize();
       
       // First conversation
-      await agent.chat("First message");
+      await oracle.chat("First message");
       
       // Second conversation
     (mockProvider.invoke as any).mockImplementation(async ({ messages }: { messages: any[] }) => {
@@ -105,10 +105,10 @@ describe("Agent Persistence Integration", () => {
         messages: [...messages, new AIMessage("Second response")] 
       };
     });
-      await agent.chat("Second message");
+      await oracle.chat("Second message");
       
       // Verify all messages are persisted
-      const history = await agent.getHistory();
+      const history = await oracle.getHistory();
       expect(history).toHaveLength(4);
       expect(history[0].content).toBe("First message");
       expect(history[1].content).toBe("Test response");
@@ -119,30 +119,30 @@ describe("Agent Persistence Integration", () => {
 
   describe("Memory Clearing", () => {
     it("should clear all persisted messages", async () => {
-      await agent.initialize();
+      await oracle.initialize();
       
       // Add some messages
-      await agent.chat("Message 1");
-      await agent.chat("Message 2");
+      await oracle.chat("Message 1");
+      await oracle.chat("Message 2");
       
       // Verify messages exist
-      let history = await agent.getHistory();
+      let history = await oracle.getHistory();
       expect(history.length).toBeGreaterThan(0);
       
       // Clear memory
-      await agent.clearMemory();
+      await oracle.clearMemory();
       
       // Verify messages are cleared
-      history = await agent.getHistory();
+      history = await oracle.getHistory();
       expect(history).toEqual([]);
     });
 
     it("should start fresh after clearing memory", async () => {
-      await agent.initialize();
+      await oracle.initialize();
       
       // Add and clear messages
-      await agent.chat("Old message");
-      await agent.clearMemory();
+      await oracle.chat("Old message");
+      await oracle.clearMemory();
       
       // Add new message
     (mockProvider.invoke as any).mockImplementation(async ({ messages }: { messages: any[] }) => {
@@ -150,10 +150,10 @@ describe("Agent Persistence Integration", () => {
         messages: [...messages, new AIMessage("New response")] 
       };
     });
-      await agent.chat("New message");
+      await oracle.chat("New message");
       
       // Verify only new messages exist
-      const history = await agent.getHistory();
+      const history = await oracle.getHistory();
       expect(history).toHaveLength(2);
       expect(history[0].content).toBe("New message");
       expect(history[1].content).toBe("New response");
@@ -162,10 +162,10 @@ describe("Agent Persistence Integration", () => {
 
   describe("Context Preservation", () => {
     it("should include history in conversation context", async () => {
-      await agent.initialize();
+      await oracle.initialize();
       
       // First message
-      await agent.chat("My name is Alice");
+      await oracle.chat("My name is Alice");
       
     // Second message (should have context)
     (mockProvider.invoke as any).mockImplementation(async ({ messages }: { messages: any[] }) => {
@@ -173,7 +173,7 @@ describe("Agent Persistence Integration", () => {
         messages: [...messages, new AIMessage("Hello Alice!")] 
       };
     });
-    await agent.chat("What is my name?");
+    await oracle.chat("What is my name?");
       
       // Verify the provider was called with full history
       const lastCall = (mockProvider.invoke as any).mock.calls[1];

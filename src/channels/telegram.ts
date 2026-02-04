@@ -6,19 +6,19 @@ import path from 'path';
 import os from 'os';
 import { ConfigManager } from '../config/manager.js';
 import { DisplayManager } from '../runtime/display.js';
-import { Agent } from '../runtime/agent.js';
-import { AudioAgent } from '../runtime/audio-agent.js';
+import { Oracle } from '../runtime/oracle.js';
+import { Telephonist } from '../runtime/telephonist.js';
 
 export class TelegramAdapter {
   private bot: Telegraf | null = null;
   private isConnected = false;
   private display = DisplayManager.getInstance();
   private config = ConfigManager.getInstance();
-  private agent: Agent;
-  private audioAgent = new AudioAgent();
+  private oracle: Oracle;
+  private telephonist = new Telephonist();
 
-  constructor(agent: Agent) {
-    this.agent = agent;
+  constructor(oracle: Oracle) {
+    this.oracle = oracle;
   }
 
   public async connect(token: string, allowedUsers: string[]): Promise<void> {
@@ -55,7 +55,7 @@ export class TelegramAdapter {
           await ctx.sendChatAction('typing');
 
           // Process with Agent
-          const response = await this.agent.chat(text);
+          const response = await this.oracle.chat(text);
 
           if (response) {
 
@@ -91,7 +91,7 @@ export class TelegramAdapter {
 
         const apiKey = config.audio.apiKey || (config.llm.provider === 'gemini' ? config.llm.api_key : undefined);
         if (!apiKey) {
-          this.display.log(`Audio transcription failed: No Gemini API key available`, { source: 'AgentAudio', level: 'error' });
+          this.display.log(`Audio transcription failed: No Gemini API key available`, { source: 'Telephonist', level: 'error' });
           await ctx.reply("Audio transcription requires a Gemini API key. Please configure `audio.apiKey` or set LLM provider to Gemini.");
           return;
         }
@@ -102,7 +102,7 @@ export class TelegramAdapter {
           return;
         }
 
-        this.display.log(`Receiving voice message from @${user} (${duration}s)...`, { source: 'AgentAudio' });
+        this.display.log(`Receiving voice message from @${user} (${duration}s)...`, { source: 'Telephonist' });
 
         let filePath: string | null = null;
         let listeningMsg: any = null;
@@ -112,15 +112,15 @@ export class TelegramAdapter {
           listeningMsg = await ctx.reply("🎧Escutando...");
 
           // Download
-          this.display.log(`Downloading audio for @${user}...`, { source: 'AgentAudio' });
+          this.display.log(`Downloading audio for @${user}...`, { source: 'Telephonist' });
           const fileLink = await ctx.telegram.getFileLink(ctx.message.voice.file_id);
           filePath = await this.downloadToTemp(fileLink);
 
           // Transcribe
-          this.display.log(`Transcribing audio for @${user}...`, { source: 'AgentAudio' });
-          const { text, usage } = await this.audioAgent.transcribe(filePath, 'audio/ogg', apiKey);
+          this.display.log(`Transcribing audio for @${user}...`, { source: 'Telephonist' });
+          const { text, usage } = await this.telephonist.transcribe(filePath, 'audio/ogg', apiKey);
 
-          this.display.log(`Transcription success for @${user}: "${text}"`, { source: 'AgentAudio', level: 'success' });
+          this.display.log(`Transcription success for @${user}: "${text}"`, { source: 'Telephonist', level: 'success' });
 
           // Reply with transcription (optional, maybe just process it?)
           // The prompt says "reply with the answer".
@@ -131,7 +131,7 @@ export class TelegramAdapter {
           await ctx.sendChatAction('typing');
 
           // Process with Agent
-          const response = await this.agent.chat(text, usage);
+          const response = await this.oracle.chat(text, usage);
 
           // if (listeningMsg) {
           //   try {
@@ -147,7 +147,7 @@ export class TelegramAdapter {
           }
 
         } catch (error: any) {
-          this.display.log(`Audio processing error for @${user}: ${error.message}`, { source: 'AgentAudio', level: 'error' });
+          this.display.log(`Audio processing error for @${user}: ${error.message}`, { source: 'Telephonist', level: 'error' });
           await ctx.reply("Sorry, I failed to process your audio message.");
         } finally {
           // Cleanup

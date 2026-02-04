@@ -1,4 +1,4 @@
-import { Agent } from '../agent.js';
+import { Oracle } from '../oracle.js';
 import { MorpheusConfig, DEFAULT_CONFIG } from '../../types/config.js';
 
 // Verify environment requirements
@@ -18,13 +18,13 @@ const manualConfig: MorpheusConfig = {
 };
 
 async function run() {
-  console.log("Initializing Agent...");
-  const agent = new Agent(manualConfig);
-  await agent.initialize();
+  console.log("Initializing Oracle...");
+  const oracle = new Oracle(manualConfig);
+  await oracle.initialize();
 
   console.log("Sending message: 'Hello, are you there?'");
   try {
-    const response = await agent.chat("Hello, are you there?");
+    const response = await oracle.chat("Hello, are you there?");
     console.log("Response received:");
     console.log("---------------------------------------------------");
     console.log(response);

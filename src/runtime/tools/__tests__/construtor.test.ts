@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { ToolsFactory } from '../factory.js';
+import { Construtor } from '../factory.js';
 import { MultiServerMCPClient } from "@langchain/mcp-adapters";
 
 vi.mock("@langchain/mcp-adapters", () => {
@@ -15,7 +15,7 @@ vi.mock("../../display.js", () => ({
   }
 }));
 
-describe('ToolsFactory', () => {
+describe('Construtor', () => {
     beforeEach(() => {
         vi.resetAllMocks();
     });
@@ -30,8 +30,8 @@ describe('ToolsFactory', () => {
              };
         });
 
-        const tools = await ToolsFactory.create();
-        
+        const tools = await Construtor.create();
+
         expect(MultiServerMCPClient).toHaveBeenCalled();
         expect(mockGetTools).toHaveBeenCalled();
         expect(tools).toEqual(['tool1', 'tool2']);
@@ -44,7 +44,7 @@ describe('ToolsFactory', () => {
             };
         });
 
-        const tools = await ToolsFactory.create();
+        const tools = await Construtor.create();
         expect(tools).toEqual([]);
     });
 });
