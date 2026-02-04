@@ -557,7 +557,7 @@ export class Construtor {
     const serverCount = Object.keys(mcpServers).length;
 
     if (serverCount === 0) {
-        display.log('No MCP servers configured in mcps.json', { level: 'info', source: 'Construtor' });
+        // display.log('No MCP servers configured in mcps.json', { level: 'info', source: 'Construtor' });
         return [];
     }
 
@@ -578,6 +578,9 @@ export class Construtor {
 
     try {
       const tools = await client.getTools();
+      tools.map(tool => {
+        display.log(`Loaded MCP tool: ${tool.name} from server ${tool.serverName}`, { level: 'info', source: 'Construtor' });
+      });
       
       // Sanitize tool schemas to remove fields not supported by Gemini
       const sanitizedTools = tools.map(tool => wrapToolWithSanitizedSchema(tool));

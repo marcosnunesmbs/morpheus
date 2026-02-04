@@ -41,6 +41,7 @@ specs/022-sati-memory-middleware/
 ├── research.md          # Technical decisions
 ├── data-model.md        # Database schema
 ├── quickstart.md        # Usage guide
+├── implementation.md    # Implementation report
 ├── contracts/           # TypeScript interfaces
 └── tasks.md             # Implementation tasks
 ```

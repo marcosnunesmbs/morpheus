@@ -68,16 +68,18 @@ export THE_ARCHITECT_PASS="sua-senha-secreta"
 O projeto resolve o problema de fragmentação de ferramentas de IA, oferecendo uma interface unificada e programável que roda inteiramente na sua máquina, mantendo o controle e o contexto localmente.
 
 ### Principais Diferenciais
-* **Local-first:** Dados e contexto residem na máquina do usuário (SQLite).
-* **Extensível:** Suporte nativo ao protocolo MCP para adicionar novas ferramentas.
-* **Multi-Provider:** Suporte agnóstico a LLMs (OpenAI, Anthropic, Google Gemini, Ollama).
-* **Interface Dupla:** CLI robusta para gerenciamento e Web UI moderna para configuração e visualização.
+*   **Local-first:** Dados e contexto residem na máquina do usuário (SQLite).
+*   **Memória Evolutiva:** O sistema Sati aprende com o tempo, lembrando de suas preferências.
+*   **Extensível:** Suporte nativo ao protocolo MCP para adicionar novas ferramentas.
+*   **Multi-Provider:** Suporte agnóstico a LLMs (OpenAI, Anthropic, Google Gemini, Ollama).
+*   **Interface Dupla:** CLI robusta para gerenciamento e Web UI moderna para configuração e visualização.
 
 ## ✨ Features
 
 * **Agente Persistente:** Executa como um serviço de fundo (daemon).
 * **Suporte Multi-LLM:** Compatível com OpenAI, Anthropic, Google Gemini e Ollama.
-* **Memória de Longo Prazo:** Histórico de conversas armazenado em SQLite local via `better-sqlite3`.
+*   **Memória de Longo Prazo (Sati):** Middleware de "Mindfulness" que armazena fatos e preferências do usuário de forma persistente e independente do histórico da sessão (`santi-memory.db`).
+*   **Historico de Sessão:** Histórico de conversas armazenado em SQLite local via `better-sqlite3`.
 * **Integração com Telegram:** Bot interativo para conversar com o agente de qualquer lugar.
 * **Suporte a MCP:** Capacidade de conectar servidores MCP (Model Context Protocol) via `stdio` ou `http`.
 * **Processamento de Áudio:** Transcrição e processamento de mensagens de voz (via Google GenAI).

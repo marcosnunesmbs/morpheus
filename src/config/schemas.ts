@@ -59,6 +59,7 @@ export const MCPServerConfigSchema = z.discriminatedUnion('transport', [
   z.object({
     transport: z.literal('http'),
     url: z.string().url('Valid URL is required for http transport'),
+    headers: z.record(z.string(), z.string()).optional().default({}),
     args: z.array(z.string()).optional().default([]),
     env: z.record(z.string(), z.string()).optional().default({}),
     _comment: z.string().optional(),
