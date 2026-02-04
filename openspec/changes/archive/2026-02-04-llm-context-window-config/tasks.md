@@ -17,14 +17,14 @@
 - [x] 3.2 Implement backup creation before migration (`.backup-<timestamp>`)
 - [x] 3.3 Add error handling with fail-open behavior (log errors, continue startup)
 - [x] 3.4 Make migration idempotent (check if already migrated)
-- [ ] 3.5 Test migration with various config states (only old field, only new field, both fields, neither field)
+- [x] 3.5 Test migration with various config states (only old field, only new field, both fields, neither field)
 
 ## 4. Update Oracle Implementation
 
 - [x] 4.1 Update Oracle.initialize() to read `llm.context_window` with fallback to `memory.limit` then 100
 - [x] 4.2 Change SQLiteChatMessageHistory constructor call to use new fallback chain
 - [x] 4.3 Add DisplayManager log message showing which config value is being used
-- [ ] 4.4 Test Oracle initialization with various config states
+- [x] 4.4 Test Oracle initialization with various config states
 
 ## 5. Update Init Command
 
@@ -32,7 +32,7 @@
 - [x] 5.2 Change prompt text to clarify it's for LLM context (not memory storage)
 - [x] 5.3 Update config save to write to `llm.context_window` instead of `memory.limit`
 - [x] 5.4 Add input validation for positive integers
-- [ ] 5.5 Test init command flow end-to-end
+- [x] 5.5 Test init command flow end-to-end
 
 ## 6. Update Doctor Command
 
@@ -40,7 +40,7 @@
 - [x] 6.2 Show warning when field is missing with default value message
 - [x] 6.3 Detect deprecated `memory.limit` usage and suggest migration
 - [x] 6.4 Show warning when both fields present
-- [ ] 6.5 Test doctor command with various config states
+- [x] 6.5 Test doctor command with various config states
 
 ## 7. Update UI Settings Component
 
@@ -49,17 +49,17 @@
 - [x] 7.3 Update helper text to "Number of past interactions to load into LLM context (e.g., 100)"
 - [x] 7.4 Change form path from `['memory', 'limit']` to `['llm', 'context_window']`
 - [x] 7.5 Update error key from `errors['memory.limit']` to `errors['llm.context_window']`
-- [ ] 7.6 Test UI form load, edit, and save with new field path
+- [x] 7.6 Test UI form load, edit, and save with new field path
 
 ## 8. Testing & Validation
 
-- [ ] 8.1 Test fresh install with `morpheus init` creates config with `llm.context_window`
-- [ ] 8.2 Test upgrade scenario: old config auto-migrates on first start
-- [ ] 8.3 Test `morpheus doctor` detects missing field and reports default
-- [ ] 8.4 Test UI Settings page shows field in correct section with correct label
-- [ ] 8.5 Test Oracle loads correct context window value from config
-- [ ] 8.6 Verify backup file created during migration
-- [ ] 8.7 Test rollback by restoring backup file
+- [x] 8.1 Test fresh install with `morpheus init` creates config with `llm.context_window`
+- [x] 8.2 Test upgrade scenario: old config auto-migrates on first start
+- [x] 8.3 Test `morpheus doctor` detects missing field and reports default
+- [x] 8.4 Test UI Settings page shows field in correct section with correct label
+- [x] 8.5 Test Oracle loads correct context window value from config
+- [x] 8.6 Verify backup file created during migration
+- [x] 8.7 Test rollback by restoring backup file
 
 ## 9. Documentation
 
@@ -71,5 +71,5 @@
 
 - [x] 10.1 Remove console.log statements used during testing
 - [x] 10.2 Verify all DisplayManager logging uses correct source names
-- [ ] 10.3 Run `npm test` to ensure no regressions
+- [x] 10.3 Run `npm test` to ensure no regressions
 - [x] 10.4 Run `npm run build` to verify production build works
