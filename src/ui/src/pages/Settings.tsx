@@ -9,7 +9,7 @@ import { configService } from '../services/config';
 // @ts-ignore
 import { ConfigSchema } from '../../../config/schemas';
 // @ts-ignore
-import type { MorpheusConfig } from '../../../types/config';
+import type { MorpheusConfig, LLMConfig } from '../../../types/config';
 import { ZodError } from 'zod';
 
 const TABS = [
@@ -23,7 +23,10 @@ const TABS = [
 
 export default function Settings() {
   const { data: serverConfig, error } = useSWR('/api/config', configService.fetchConfig);
+  const { data: satiServerConfig } = useSWR('/api/config/sati', configService.getSatiConfig);
   const [localConfig, setLocalConfig] = useState<MorpheusConfig | null>(null);
+  const [localSatiConfig, setLocalSatiConfig] = useState<LLMConfig | null>(null);
+  const [useSameAsOracle, setUseSameAsOracle] = useState(true);
   const [activeTab, setActiveTab] = useState('general');
   const [saving, setSaving] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -33,10 +36,20 @@ export default function Settings() {
   useEffect(() => {
     if (serverConfig && !localConfig) {
       setLocalConfig(serverConfig);
+      // Set toggle state: if serverConfig has santi config, toggle should be unchecked
+      setUseSameAsOracle(!serverConfig.santi);
     }
   }, [serverConfig]);
 
-  const isDirty = JSON.stringify(serverConfig) !== JSON.stringify(localConfig);
+  // Initialize Sati config
+  useEffect(() => {
+    if (satiServerConfig && !localSatiConfig) {
+      setLocalSatiConfig(satiServerConfig);
+    }
+  }, [satiServerConfig]);
+
+  const isDirty = JSON.stringify(serverConfig) !== JSON.stringify(localConfig) || 
+                   JSON.stringify(satiServerConfig) !== JSON.stringify(localSatiConfig);
 
   const handleUpdate = (path: string[], value: any) => {
     if (!localConfig) return;
@@ -67,14 +80,44 @@ export default function Settings() {
     }
   };
 
+  const handleSatiUpdate = (field: keyof LLMConfig, value: any) => {
+    if (!localSatiConfig) return;
+    setLocalSatiConfig({ ...localSatiConfig, [field]: value });
+  };
+
+  const handleToggleSameAsOracle = (checked: boolean) => {
+    setUseSameAsOracle(checked);
+    if (checked && localConfig) {
+      // Copy Oracle config to Sati fields
+      setLocalSatiConfig({
+        provider: localConfig.llm.provider,
+        model: localConfig.llm.model,
+        temperature: localConfig.llm.temperature,
+        max_tokens: localConfig.llm.max_tokens,
+        api_key: localConfig.llm.api_key,
+        context_window: localConfig.llm.context_window,
+      });
+    }
+  };
+
   const handleSave = async () => {
     if (!localConfig) return;
     setSaving(true);
     setNotification(null);
     try {
+        // Save main config
         await configService.updateConfig(localConfig);
+        
+        // Save or delete Sati config based on toggle
+        if (useSameAsOracle) {
+          await configService.deleteSatiConfig();
+        } else if (localSatiConfig) {
+          await configService.updateSatiConfig(localSatiConfig);
+        }
+        
         mutate('/api/config'); // Refresh SWR
-        setNotification({ type: 'success', message: 'Settings saved successfully' });
+        mutate('/api/config/sati');
+        setNotification({ type: 'success', message: 'Settings saved successfully. Restart Morpheus daemon for changes to take effect.' });
     } catch (err: any) {
         setNotification({ type: 'error', message: err.message });
         if (err.details && Array.isArray(err.details)) {
@@ -156,7 +199,7 @@ export default function Settings() {
 
         {activeTab === 'llm' && (
             <>
-            <Section title="LLM Provider">
+            <Section title="Oracle Agent">
                 <SelectInput
                     label="Provider"
                     value={localConfig.llm.provider}
@@ -209,6 +252,66 @@ export default function Settings() {
                     placeholder="sk-..."
                     helperText="Stored locally."
                 />
+            </Section>
+
+            <Section title="Sati Agent">
+                <p className="text-sm text-azure-text-secondary dark:text-matrix-secondary mb-4">
+                    Configure the LLM used for memory consolidation
+                </p>
+                
+                <div className="mb-4">
+                    <label className="flex items-center space-x-2 cursor-pointer">
+                        <input
+                            type="checkbox"
+                            checked={useSameAsOracle}
+                            onChange={(e) => handleToggleSameAsOracle(e.target.checked)}
+                            className="w-4 h-4 text-azure-primary bg-azure-surface border-azure-border rounded focus:ring-azure-primary dark:bg-matrix-primary dark:border-matrix-highlight dark:text-matrix-highlight dark:focus:ring-matrix-highlight"
+                        />
+                        <span className="text-sm text-azure-primary dark:text-matrix-highlight">
+                            Use same configuration as Oracle Agent
+                        </span>
+                    </label>
+                </div>
+
+                {localSatiConfig && !useSameAsOracle && (
+                    <>
+                        <SelectInput
+                            label="Provider"
+                            value={localSatiConfig.provider}
+                            onChange={e => handleSatiUpdate('provider', e.target.value)}
+                            options={[
+                                { label: 'OpenAI', value: 'openai' },
+                                { label: 'Anthropic', value: 'anthropic' },
+                                { label: 'Ollama', value: 'ollama' },
+                                { label: 'Google Gemini', value: 'gemini' },
+                            ]}
+                        />
+                        <TextInput
+                            label="Model Name"
+                            value={localSatiConfig.model}
+                            onChange={e => handleSatiUpdate('model', e.target.value)}
+                        />
+                        <TextInput
+                            label="API Key"
+                            type="password"
+                            value={localSatiConfig.api_key || ''}
+                            onChange={e => handleSatiUpdate('api_key', e.target.value)}
+                            placeholder="sk-..."
+                            helperText="Stored locally."
+                        />
+                    </>
+                )}
+                
+                {localSatiConfig && (
+                    <NumberInput
+                        label="Memory Limit"
+                        value={(localSatiConfig as any).memory_limit ?? 10}
+                        onChange={(e: any) => handleSatiUpdate('memory_limit' as any, parseInt(e.target.value))}
+                        min={1}
+                        step={1}
+                        helperText="Number of memory items to retrieve from long-term storage."
+                    />
+                )}
             </Section>
         </>
         )}
