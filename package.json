@@ -1,6 +1,6 @@
 {
   "name": "morpheus-cli",
-  "version": "0.1.10",
+  "version": "0.1.11",
   "description": "Morpheus CLI Agent",
   "bin": {
     "morpheus": "./bin/morpheus.js"
