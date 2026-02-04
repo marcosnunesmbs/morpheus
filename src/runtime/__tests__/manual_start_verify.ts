@@ -1,5 +1,5 @@
 
-import { Agent } from '../agent.js';
+import { Oracle } from '../oracle.js';
 import { MorpheusConfig } from '../../types/config.js';
 import chalk from 'chalk';
 
@@ -29,14 +29,14 @@ const mockConfig: MorpheusConfig = {
 
 const run = async () => {
     try {
-        console.log(chalk.gray('1. Instantiating Agent...'));
-        const agent = new Agent(mockConfig);
+        console.log(chalk.gray('1. Instantiating Oracle...'));
+        const oracle = new Oracle(mockConfig);
 
-        console.log(chalk.gray('2. Initializing Agent...'));
-        await agent.initialize();
+        console.log(chalk.gray('2. Initializing Oracle...'));
+        await oracle.initialize();
 
         const duration = (Date.now() - start) / 1000;
-        console.log(chalk.green(`✓ Agent initialized successfully in ${duration}s`));
+        console.log(chalk.green(`✓ Oracle initialized successfully in ${duration}s`));
         
         if (duration > 5) {
             console.log(chalk.red(`✗ Startup took too long (> 5s)`));
@@ -45,7 +45,7 @@ const run = async () => {
 
         console.log(chalk.gray('3. Testing Initialization Check...'));
         try {
-            await agent.chat('Hello');
+            await oracle.chat('Hello');
             // This might fail if using real network, but we just want to ensure it tries
         } catch (e: any) {
             console.log(chalk.yellow(`Chat check: ${e.message}`)); 

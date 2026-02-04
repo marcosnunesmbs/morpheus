@@ -23,7 +23,7 @@
 - [x] T005 [US1] Add `bot.on(message('voice'))` handler in `src/channels/telegram.ts` to capture voice messages
 - [x] T006 [US1] Implement audio file download to temporary path in `src/channels/telegram.ts`
 - [x] T007 [US1] Integrate `AudioAgent` to transcribe downloaded file and pass text to main agent in `src/channels/telegram.ts`
-- [x] T010 [US1] Implement structured logging via `DisplayManager` using source `'AgentAudio'` for all audio events (received, downloading, transcribing, success) in `src/channels/telegram.ts`
+- [x] T010 [US1] Implement structured logging via `DisplayManager` using source `'Telephonist'` for all audio events (received, downloading, transcribing, success) in `src/channels/telegram.ts`
 
 ## Phase 4: User Story 2 - Unsupported Provider Handling
 *Goal: Gracefully handle cases where Gemini is not available.*

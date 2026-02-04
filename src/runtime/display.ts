@@ -92,22 +92,22 @@ export class DisplayManager implements IDisplayManager {
       let color = chalk.blue;
       if (options.source === 'Telegram') {
         color = chalk.green;
-      } else if (options.source === 'Agent') {
+      } else if (options.source === 'Oracle') {
         color = chalk.hex('#FFA500');
       }
-      else if (options.source === 'AgentAudio') {
+      else if (options.source === 'Telephonist') {
         color = chalk.hex('#b902b9');
       }
-      else if (options.source === 'ToolsFactory') {
+      else if (options.source === 'Construtor') {
         color = chalk.hex('#806d00');
       }
       else if (options.source === 'MCPServer') {
         color = chalk.hex('#be4b1d');
       }
-      else if (options.source === 'ToolCall') {
+      else if (options.source === 'ConstructLoad') {
         color = chalk.hex('#e5ff00');
       }
-      else if (options.source === 'Config') {
+      else if (options.source === 'Zaion') {
         color = chalk.hex('#00c3ff');
       }
       prefix = color(`[${options.source}] `);

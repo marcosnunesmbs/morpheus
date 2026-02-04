@@ -110,7 +110,7 @@ export function createApiRouter() {
       if (changes.length > 0) {
         const display = DisplayManager.getInstance();
         display.log(`Configuration updated via UI:\n  - ${changes.join('\n  - ')}`, { 
-            source: 'Config', 
+            source: 'Zaion', 
             level: 'info' 
         });
       }

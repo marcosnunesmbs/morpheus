@@ -37,7 +37,7 @@ function sanitizeSchema(obj: unknown): unknown {
  */
 function wrapToolWithSanitizedSchema(tool: StructuredTool): StructuredTool {
 
-  display.log('Tool loaded: - '+ tool.name, { source: 'ToolsFactory' });
+  display.log('Tool loaded: - '+ tool.name, { source: 'Construtor' });
   // The MCP tools have a schema property that returns JSON Schema
   // We need to intercept and sanitize it
   const originalSchema = (tool as any).schema;
@@ -51,7 +51,7 @@ function wrapToolWithSanitizedSchema(tool: StructuredTool): StructuredTool {
   return tool;
 }
 
-export class ToolsFactory {
+export class Construtor {
   static async create(): Promise<StructuredTool[]> { // LangChain Tools type
     const display = DisplayManager.getInstance();
 
@@ -59,7 +59,7 @@ export class ToolsFactory {
     const serverCount = Object.keys(mcpServers).length;
 
     if (serverCount === 0) {
-        display.log('No MCP servers configured in mcps.json', { level: 'info', source: 'ToolsFactory' });
+        display.log('No MCP servers configured in mcps.json', { level: 'info', source: 'Construtor' });
         return [];
     }
 
@@ -84,11 +84,11 @@ export class ToolsFactory {
       // Sanitize tool schemas to remove fields not supported by Gemini
       const sanitizedTools = tools.map(tool => wrapToolWithSanitizedSchema(tool));
       
-      display.log(`Loaded ${sanitizedTools.length} MCP tools (schemas sanitized for Gemini compatibility)`, { level: 'info', source: 'ToolsFactory' });
+      display.log(`Loaded ${sanitizedTools.length} MCP tools (schemas sanitized for Gemini compatibility)`, { level: 'info', source: 'Construtor' });
       
       return sanitizedTools;
     } catch (error) {
-      display.log(`Failed to initialize MCP tools: ${error}`, { level: 'warning', source: 'ToolsFactory' });
+      display.log(`Failed to initialize MCP tools: ${error}`, { level: 'warning', source: 'Construtor' });
       return []; // Return empty tools on failure to allow agent to start
     }
   }

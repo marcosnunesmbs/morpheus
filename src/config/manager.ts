@@ -5,6 +5,7 @@ import { MorpheusConfig, DEFAULT_CONFIG } from '../types/config.js';
 import { PATHS } from './paths.js';
 import { setByPath } from './utils.js';
 import { ConfigSchema } from './schemas.js';
+import { migrateConfigFile } from '../runtime/migration.js';
 
 export class ConfigManager {
   private static instance: ConfigManager;
@@ -21,6 +22,8 @@ export class ConfigManager {
 
   public async load(): Promise<MorpheusConfig> {
     try {
+      await migrateConfigFile();
+
       if (await fs.pathExists(PATHS.config)) {
         const raw = await fs.readFile(PATHS.config, 'utf8');
         const parsed = yaml.load(raw);

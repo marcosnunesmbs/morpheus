@@ -4,6 +4,7 @@ import { ConfigManager } from '../config/manager.js';
 import { DEFAULT_MCP_TEMPLATE } from '../types/mcp.js';
 import chalk from 'chalk';
 import ora from 'ora';
+import { migrateConfigFile } from './migration.js';
 
 export async function scaffold(): Promise<void> {
   const spinner = ora('Ensuring Morpheus environment...').start();
@@ -18,6 +19,9 @@ export async function scaffold(): Promise<void> {
       fs.ensureDir(PATHS.commands),
     ]);
 
+    // Migrate config.yaml -> zaion.yaml if needed
+    await migrateConfigFile();
+
     // Create config if not exists
     const configManager = ConfigManager.getInstance();
     if (!(await fs.pathExists(PATHS.config))) {
@@ -30,7 +34,6 @@ export async function scaffold(): Promise<void> {
     if (!(await fs.pathExists(PATHS.mcps))) {
       await fs.writeJson(PATHS.mcps, DEFAULT_MCP_TEMPLATE, { spaces: 2 });
     }
-
 
     spinner.succeed('Morpheus environment ready at ' + chalk.cyan(PATHS.root));
   } catch (error) {

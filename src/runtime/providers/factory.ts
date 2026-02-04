@@ -27,14 +27,14 @@ export class ProviderFactory {
     const toolMonitoringMiddleware = createMiddleware({
       name: "ToolMonitoringMiddleware",
       wrapToolCall: (request, handler) => {
-        display.log(`Executing tool: ${request.toolCall.name}`, { level: "warning", source: 'ToolCall' });
-        display.log(`Arguments: ${JSON.stringify(request.toolCall.args)}`, { level: "info", source: 'ToolCall' });
+        display.log(`Executing tool: ${request.toolCall.name}`, { level: "warning", source: 'ConstructLoad' });
+        display.log(`Arguments: ${JSON.stringify(request.toolCall.args)}`, { level: "info", source: 'ConstructLoad' });
         try {
           const result = handler(request);
-          display.log("Tool completed successfully", { level: "info", source: 'ToolCall' });
+          display.log("Tool completed successfully", { level: "info", source: 'ConstructLoad' });
           return result;
         } catch (e) {
-          display.log(`Tool failed: ${e}`, { level: "error", source: 'ToolCall' });
+          display.log(`Tool failed: ${e}`, { level: "error", source: 'ConstructLoad' });
           throw e;
         }
       },

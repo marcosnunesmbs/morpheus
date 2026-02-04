@@ -19,7 +19,7 @@ export async function loadMCPConfig(): Promise<MCPServersConfig> {
      if (!content.trim()) return servers; // Handle empty file
      rawConfig = JSON.parse(content);
   } catch (err: any) {
-    display.log(`Failed to parse mcps.json: ${err.message}`, { level: 'error', source: 'Config' });
+    display.log(`Failed to parse mcps.json: ${err.message}`, { level: 'error', source: 'Zaion' });
     return servers;
   }
 
@@ -30,13 +30,13 @@ export async function loadMCPConfig(): Promise<MCPServersConfig> {
     try {
         const validated = MCPServerConfigSchema.parse(config);
         servers[name] = validated;
-        display.log(`Loaded MCP server: ${name}`, { level: 'debug', source: 'Config' });
+        display.log(`Loaded MCP server: ${name}`, { level: 'debug', source: 'Zaion' });
     } catch (err: any) {
         if (err instanceof z.ZodError) {
              const issues = err.issues.map(i => i.message).join(', ');
-             display.log(`Invalid MCP server '${name}': ${issues}`, { level: 'warning', source: 'Config' });
+             display.log(`Invalid MCP server '${name}': ${issues}`, { level: 'warning', source: 'Zaion' });
         } else {
-             display.log(`Invalid MCP server '${name}': ${err.message}`, { level: 'warning', source: 'Config' });
+             display.log(`Invalid MCP server '${name}': ${err.message}`, { level: 'warning', source: 'Zaion' });
         }
     }
   }

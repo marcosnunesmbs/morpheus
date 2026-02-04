@@ -6,7 +6,7 @@ export interface AudioTranscriptionResult {
   usage: UsageMetadata;
 }
 
-export interface IAudioAgent {
+export interface ITelephonist {
   /**
    * Transcribes an audio file on disk to text.
    * 
@@ -19,7 +19,7 @@ export interface IAudioAgent {
   transcribe(filePath: string, mimeType: string, apiKey: string): Promise<AudioTranscriptionResult>;
 }
 
-export class AudioAgent implements IAudioAgent {
+export class Telephonist implements ITelephonist {
   async transcribe(filePath: string, mimeType: string, apiKey: string): Promise<AudioTranscriptionResult> {
     try {
       const ai = new GoogleGenAI({ apiKey });
