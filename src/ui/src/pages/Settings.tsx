@@ -185,12 +185,21 @@ export default function Settings() {
                     error={errors['llm.temperature']}
                 />
                 <NumberInput
-                    label="Memory Limit (Max Tokens)"
+                    label="Max Tokens"
                     value={localConfig.llm.max_tokens ?? ''}
                     onChange={(e: any) => handleUpdate(['llm', 'max_tokens'], e.target.value ? parseInt(e.target.value) : undefined)}
                     min={1}
                     error={errors['llm.max_tokens']}
-                    helperText="Limit the context window size. Leave empty for model default."
+                    helperText="Maximum tokens per response. Leave empty for model default."
+                />
+                <NumberInput
+                    label="Context Window (Messages)"
+                    value={localConfig.llm.context_window ?? 100}
+                    onChange={(e: any) => handleUpdate(['llm', 'context_window'], parseInt(e.target.value))}
+                    min={1}
+                    step={1}
+                    error={errors['llm.context_window']}
+                    helperText="Number of past interactions to load into LLM context (e.g., 100)."
                 />
                 <TextInput
                     label="API Key"
@@ -199,21 +208,6 @@ export default function Settings() {
                     onChange={e => handleUpdate(['llm', 'api_key'], e.target.value)}
                     placeholder="sk-..."
                     helperText="Stored locally."
-                />
-            </Section>
-
-            <Section title="Chat Memory">
-                <div className="text-sm text-matrix-secondary mb-4">
-                    Control how much conversation history is retained and sent to the LLM.
-                </div>
-                <NumberInput
-                    label="History Limit (Messages)"
-                    value={localConfig.memory.limit}
-                    onChange={(e: any) => handleUpdate(['memory', 'limit'], parseInt(e.target.value))}
-                    min={1}
-                    step={1}
-                    error={errors['memory.limit']}
-                    helperText="Number of past interactions to load into context (e.g., 10)."
                 />
             </Section>
         </>

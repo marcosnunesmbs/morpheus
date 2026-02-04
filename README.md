@@ -185,13 +185,12 @@ llm:
   provider: "openai" # options: openai, anthropic, ollama, gemini
   model: "gpt-4-turbo"
   temperature: 0.7
+  context_window: 100 # Number of messages to load into LLM context
   api_key: "sk-..."
 santi: # Optional: Sati (Long-Term Memory) specific settings
   provider: "openai" # defaults to llm.provider
   model: "gpt-4o"
   memory_limit: 1000 # Number of messages/items to retrieve
-memory:
-  limit: 100 # Number of messages to retain in context
 channels:
   telegram:
     enabled: true
