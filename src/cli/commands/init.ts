@@ -148,7 +148,7 @@ export const initCommand = new Command('init')
 
       const memoryLimit = await input({
           message: 'Sati Memory Retrieval Limit (messages):',
-          default: currentConfig.santi?.memory_limit?.toString() || '10',
+          default: currentConfig.santi?.memory_limit?.toString() || '1000',
           validate: (val) => !isNaN(Number(val)) && Number(val) > 0 || 'Must be a positive number'
       });
 

@@ -22,6 +22,7 @@ Classify any new memory into one of these types:
 - **professional_profile**: Job title, industry, skills.
 
 ### CRITICAL RULES
+0. **USE USER LANGUAGE**: Always use the user's own words for the summary. Do not rephrase or interpret. If user say in portguese "Eu gosto de café", the summary should be exactly "Eu gosto de café", not "User likes coffee".
 1. **NO SECRETS**: NEVER store API keys, passwords, credit cards, or private tokens. If found, ignore them explicitly.
 2. **NO DUPLICATES**: If the information is already covered by the \`existing_memory_summaries\`, DO NOT store it again.
 3. **NO CHIT-CHAT**: Do not store trivial conversation like "Hello", "Thanks", "How are you?".

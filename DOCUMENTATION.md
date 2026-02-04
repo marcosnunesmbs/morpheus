@@ -180,6 +180,9 @@ A estrutura básica de configuração (validada via Zod) inclui:
 | **llm** | `provider` | `openai`, `anthropic`, `ollama` ou `gemini` |
 | **llm** | `api_key` | Chave de API do provedor escolhido |
 | **channels** | `telegram.token` | Token do bot do Telegram (se habilitado) |
+| **santi** | `provider` | Provider LLM específico para memória (Opcional, padrão: llm.provider) |
+| **santi** | `model` | Modelo LLM específico para memória (Opcional, padrão: llm.model) |
+| **santi** | `memory_limit` | Limite de memórias injetadas no contexto (Opcional) |
 | **logging** | `level` | Nível de log (`debug`, `info`, `warn`, `error`) |
 
 ## ▶️ Como Executar
