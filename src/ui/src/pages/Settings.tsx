@@ -9,7 +9,7 @@ import { configService } from '../services/config';
 // @ts-ignore
 import { ConfigSchema } from '../../../config/schemas';
 // @ts-ignore
-import type { MorpheusConfig, LLMConfig } from '../../../types/config';
+import type { MorpheusConfig, LLMConfig, SantiConfig } from '../../../types/config';
 import { ZodError } from 'zod';
 
 const TABS = [
@@ -25,8 +25,7 @@ export default function Settings() {
   const { data: serverConfig, error } = useSWR('/api/config', configService.fetchConfig);
   const { data: satiServerConfig } = useSWR('/api/config/sati', configService.getSatiConfig);
   const [localConfig, setLocalConfig] = useState<MorpheusConfig | null>(null);
-  const [localSatiConfig, setLocalSatiConfig] = useState<LLMConfig | null>(null);
-  const [useSameAsOracle, setUseSameAsOracle] = useState(true);
+  const [localSatiConfig, setLocalSatiConfig] = useState<SantiConfig | null>(null);
   const [activeTab, setActiveTab] = useState('general');
   const [saving, setSaving] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -36,8 +35,6 @@ export default function Settings() {
   useEffect(() => {
     if (serverConfig && !localConfig) {
       setLocalConfig(serverConfig);
-      // Set toggle state: if serverConfig has santi config, toggle should be unchecked
-      setUseSameAsOracle(!serverConfig.santi);
     }
   }, [serverConfig]);
 
@@ -80,24 +77,20 @@ export default function Settings() {
     }
   };
 
-  const handleSatiUpdate = (field: keyof LLMConfig, value: any) => {
+  const handleSatiUpdate = (field: keyof SantiConfig, value: any) => {
     if (!localSatiConfig) return;
     setLocalSatiConfig({ ...localSatiConfig, [field]: value });
   };
 
-  const handleToggleSameAsOracle = (checked: boolean) => {
-    setUseSameAsOracle(checked);
-    if (checked && localConfig) {
-      // Copy Oracle config to Sati fields
-      setLocalSatiConfig({
-        provider: localConfig.llm.provider,
-        model: localConfig.llm.model,
-        temperature: localConfig.llm.temperature,
-        max_tokens: localConfig.llm.max_tokens,
-        api_key: localConfig.llm.api_key,
-        context_window: localConfig.llm.context_window,
-      });
-    }
+  const handleCopyFromOracle = () => {
+    if (!localConfig || !localSatiConfig) return;
+    // Copy only provider, model, and api_key from Oracle - NEVER copy memory_limit
+    setLocalSatiConfig({
+      ...localSatiConfig,
+      provider: localConfig.llm.provider,
+      model: localConfig.llm.model,
+      api_key: localConfig.llm.api_key,
+    });
   };
 
   const handleSave = async () => {
@@ -108,10 +101,8 @@ export default function Settings() {
         // Save main config
         await configService.updateConfig(localConfig);
         
-        // Save or delete Sati config based on toggle
-        if (useSameAsOracle) {
-          await configService.deleteSatiConfig();
-        } else if (localSatiConfig) {
+        // Save Sati config if it exists
+        if (localSatiConfig) {
           await configService.updateSatiConfig(localSatiConfig);
         }
         
@@ -260,20 +251,19 @@ export default function Settings() {
                 </p>
                 
                 <div className="mb-4">
-                    <label className="flex items-center space-x-2 cursor-pointer">
-                        <input
-                            type="checkbox"
-                            checked={useSameAsOracle}
-                            onChange={(e) => handleToggleSameAsOracle(e.target.checked)}
-                            className="w-4 h-4 text-azure-primary bg-azure-surface border-azure-border rounded focus:ring-azure-primary dark:bg-matrix-primary dark:border-matrix-highlight dark:text-matrix-highlight dark:focus:ring-matrix-highlight"
-                        />
-                        <span className="text-sm text-azure-primary dark:text-matrix-highlight">
-                            Use same configuration as Oracle Agent
-                        </span>
-                    </label>
+                    <button
+                        type="button"
+                        onClick={handleCopyFromOracle}
+                        className="px-3 py-1.5 text-sm bg-azure-surface border border-azure-border rounded hover:bg-azure-primary/10 dark:bg-matrix-primary/20 dark:border-matrix-primary dark:hover:bg-matrix-highlight/10 text-azure-primary dark:text-matrix-highlight transition-colors"
+                    >
+                        Copy from Oracle Agent
+                    </button>
+                    <p className="text-xs text-azure-text-secondary dark:text-matrix-secondary mt-1">
+                        Copy Provider, Model, and API Key from Oracle Agent configuration
+                    </p>
                 </div>
 
-                {localSatiConfig && !useSameAsOracle && (
+                {localSatiConfig && (
                     <>
                         <SelectInput
                             label="Provider"
@@ -299,18 +289,15 @@ export default function Settings() {
                             placeholder="sk-..."
                             helperText="Stored locally."
                         />
+                        <NumberInput
+                            label="Memory Limit"
+                            value={(localSatiConfig as any).memory_limit ?? 10}
+                            onChange={(e: any) => handleSatiUpdate('memory_limit' as any, parseInt(e.target.value))}
+                            min={1}
+                            step={1}
+                            helperText="Number of memory items to retrieve from long-term storage."
+                        />
                     </>
-                )}
-                
-                {localSatiConfig && (
-                    <NumberInput
-                        label="Memory Limit"
-                        value={(localSatiConfig as any).memory_limit ?? 10}
-                        onChange={(e: any) => handleSatiUpdate('memory_limit' as any, parseInt(e.target.value))}
-                        min={1}
-                        step={1}
-                        helperText="Number of memory items to retrieve from long-term storage."
-                    />
                 )}
             </Section>
         </>

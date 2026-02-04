@@ -79,14 +79,18 @@ O projeto resolve o problema de fragmentação de ferramentas de IA, oferecendo 
 * **Agente Persistente:** Executa como um serviço de fundo (daemon).
 * **Suporte Multi-LLM:** Compatível com OpenAI, Anthropic, Google Gemini e Ollama.
 *   **Memória de Longo Prazo (Sati):** Middleware de "Mindfulness" que armazena fatos e preferências do usuário de forma persistente e independente do histórico da sessão (`santi-memory.db`).
+    *   **Configuração Independente via UI:** Configure o agente Sati separadamente do Oracle através da interface Web, escolhendo provider, model e memory limit específicos.
+    *   **Sincronização Opcional:** Use a mesma configuração do Oracle Agent com um simples toggle.
 *   **Historico de Sessão:** Histórico de conversas armazenado em SQLite local via `better-sqlite3`.
 * **Integração com Telegram:** Bot interativo para conversar com o agente de qualquer lugar.
 * **Suporte a MCP:** Capacidade de conectar servidores MCP (Model Context Protocol) via `stdio` ou `http`.
 * **Processamento de Áudio:** Transcrição e processamento de mensagens de voz (via Google GenAI).
 * **Web UI Dashboard:** Interface React moderna (tema Matrix) para monitoramento e configuração.
+    *   **Configuração Visual:** Gerencie todas as configurações do Oracle Agent e Sati Agent através de formulários intuitivos.
+    *   **Seções Organizadas:** Oracle Agent (LLM principal) e Sati Agent (memória de longo prazo) claramente separados na interface.
 * **Analytics Completo:** Dashboard dedicado para visualização de consumo de tokens granular (por modelo/provedor).
 * **Gerenciamento via CLI:** Comandos para iniciar, parar, verificar status e diagnosticar o sistema.
-* **Configuração Centralizada:** Arquivo YAML único com validação Zod.
+* **Configuração Centralizada:** Arquivo YAML único com validação Zod, editável via UI ou manualmente.
 
 ## 🧠 Arquitetura
 
@@ -177,13 +181,31 @@ A estrutura básica de configuração (validada via Zod) inclui:
 | Seção | Campo | Descrição |
 |-------|-------|-----------|
 | **agent** | `name` | Nome do assistente (default: Morpheus) |
-| **llm** | `provider` | `openai`, `anthropic`, `ollama` ou `gemini` |
-| **llm** | `api_key` | Chave de API do provedor escolhido |
+| **llm** | `provider` | `openai`, `anthropic`, `ollama` ou `gemini` - Configurável via UI (Oracle Agent) |
+| **llm** | `context_window` | Número de mensagens enviadas ao LLM (padrão: 100) - Configurável via UI |
+| **llm** | `api_key` | Chave de API do provedor escolhido - Configurável via UI |
 | **channels** | `telegram.token` | Token do bot do Telegram (se habilitado) |
-| **santi** | `provider` | Provider LLM específico para memória (Opcional, padrão: llm.provider) |
-| **santi** | `model` | Modelo LLM específico para memória (Opcional, padrão: llm.model) |
-| **santi** | `memory_limit` | Limite de memórias injetadas no contexto (Opcional) |
+| **santi** | `provider` | Provider LLM específico para memória - Configurável via UI (Sati Agent) |
+| **santi** | `model` | Modelo LLM específico para memória - Configurável via UI (Sati Agent) |
+| **santi** | `memory_limit` | Limite de memórias injetadas no contexto - Configurável via UI (Sati Agent) |
 | **logging** | `level` | Nível de log (`debug`, `info`, `warn`, `error`) |
+
+### Configuração via Web UI
+
+A partir da interface Web (Settings), você pode configurar:
+
+**Oracle Agent (LLM Principal):**
+- Provider (OpenAI, Anthropic, Google Gemini, Ollama)
+- Model Name
+- Temperature
+- Max Tokens
+- Context Window (número de mensagens no contexto)
+- API Key
+
+**Sati Agent (Memória de Longo Prazo):**
+- Toggle "Use same configuration as Oracle Agent" para sincronizar automaticamente
+- Provider, Model e API Key independentes (quando toggle desmarcado)
+- Memory Limit (número de itens de memória recuperados)
 
 ## ▶️ Como Executar
 
@@ -289,6 +311,22 @@ Atualiza a configuração dinamicamente.
 *   **Body:** JSON parcial com as chaves a serem atualizadas.
 *   **Comportamento:** Valida contra o schema Zod, salva no disco e detecta alterações.
 
+### GET `/api/config/sati`
+Retorna a configuração atual do Sati Agent (memória de longo prazo).
+
+*   **Resposta:** Configuração do Sati ou fallback para configuração do Oracle se não houver configuração específica.
+
+### POST `/api/config/sati`
+Atualiza a configuração do Sati Agent separadamente.
+
+*   **Body:** JSON com provider, model, api_key, memory_limit.
+*   **Comportamento:** Salva configuração independente do Sati no campo `santi` do arquivo de configuração.
+
+### DELETE `/api/config/sati`
+Remove a configuração independente do Sati Agent, fazendo com que o sistema use a configuração do Oracle Agent como fallback.
+
+*   **Comportamento:** Remove o campo `santi` do arquivo de configuração.
+
 ### GET `/api/stats/usage`
 Retorna estatísticas globais de uso de tokens e mensagens.
 
@@ -314,11 +352,13 @@ Retorna estatísticas de uso detalhadas, agrupadas por provedor e modelo (Input/
 
 Com base nas especificações (`specs/`), o roadmap inclui:
 *   [x] Visualização de estatísticas de uso e configuração (Spec 016 - MNU-6).
+*   [x] Configuração do Sati Agent via UI (MNU-12) - Permite configurar o agente de memória independentemente.
+*   [x] Renomeação de campos de configuração para maior clareza (llm.context_window).
+*   [x] Autenticação por senha na Web UI (Spec 019).
 *   [ ] Integração aprimorada de áudio e fluxo de voz (Spec 012).
 *   [ ] Melhorias no fluxo de inicialização (Spec 013).
 *   [ ] Limites de memória configuráveis para ferramentas (Spec 014).
 *   [ ] Persistência de estatísticas de uso de ferramentas (Spec 015).
-*   [ ] Autenticação por senha na Web UI (Spec 019).
 
 ## 📄 Licença
 
