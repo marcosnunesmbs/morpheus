@@ -88,12 +88,12 @@ O projeto resolve o problema de fragmentação de ferramentas de IA, oferecendo 
 
 ## 🧠 Arquitetura
 
-O Morpheus segue uma arquitetura modular baseada em eventos e adaptadores. O núcleo é o `Runtime`, que gerencia o ciclo de vida do agente LangChain e a orquestração de ferramentas.
+O Morpheus segue uma arquitetura modular baseada em eventos e adaptadores. O núcleo é o `Runtime`, que gerencia o ciclo de vida do **Oracle** (Agente) e a orquestração de ferramentas.
 
 ### Componentes Principais
 1.  **Daemon/CLI:** Responsável pelo ciclo de vida do processo (início/parada/PID).
 2.  **HTTP Server:** Expõe APIs para a UI e health-checks.
-3.  **Core Agent:** O cérebro que processa inputs usando LangChain.
+3.  **Oracle (Core):** O cérebro que processa inputs usando LangChain.
 4.  **Adapters (Channels):** Traduzem eventos externos (ex: mensagem Telegram) para o formato interno do agente.
 5.  **Memory & Storage:** Persistência local em SQLite.
 
@@ -106,16 +106,16 @@ graph TD
   subgraph "Morpheus Process"
     CLI -->|Control| Lifecycle[Lifecycle Manager]
     WebUI -->|API| Server[Express Server]
-    Telegram -->|Events| Agent[LangChain Agent]
+    Telegram -->|Events| Oracle[Oracle (Agent)]
     
-    Agent <--> Memory[(SQLite DB)]
-    Agent <--> Config[Config Manager]
+    Oracle <--> Memory[(SQLite DB)]
+    Oracle <--> Config[Config Manager]
     
-    Agent -->|Call| Tools[Tool Factory]
+    Oracle -->|Call| Tools[Construtor (Tools)]
   end
   
   Tools -->|MCP Protocol| MCP[MCP Servers]
-  Agent -->|API| LLM["LLM Provider (OpenAI/Ollama/etc)"]
+  Oracle -->|API| LLM["LLM Provider (OpenAI/Ollama/etc)"]
 ```
 
 ## 📂 Estrutura de Pastas
@@ -131,7 +131,7 @@ A estrutura do projeto separa claramente responsabilidades entre execução, int
 │   ├── cli/             # Implementação dos comandos da CLI (commander)
 │   ├── config/          # Gerenciador de configuração e schemas Zod
 │   ├── http/            # Servidor API Express e rotas
-│   ├── runtime/         # Núcleo do agente (Agent, Memory, Tools, Providers)
+│   ├── runtime/         # Núcleo do Oracle (Agent, Memory, Tools, Providers)
 │   ├── ui/              # Possui o código fonte do Frontend (React/Vite)
 │   └── types/           # Definições de tipos TypeScript compartilhados
 └── assets/              # Recursos estáticos
@@ -164,7 +164,7 @@ npm run build
 
 ### Configuração
 
-O Morpheus utiliza um arquivo de configuração centralizado em `~/.morpheus/config.yaml`. Você pode inicializá-lo com o comando:
+O Morpheus utiliza um arquivo de configuração centralizado em `~/.morpheus/zaion.yaml`. Você pode inicializá-lo com o comando:
 
 ```bash
 npm start -- init
@@ -242,18 +242,18 @@ Exemplo de configuração MCP:
 }
 ```
 
-O `ToolFactory` (`src/runtime/tools/factory.ts`) lê este arquivo na inicialização e converte os servidores MCP em ferramentas executáveis pelo LangChain.
+O `Construtor` (`src/runtime/tools/factory.ts`) lê este arquivo na inicialização e converte os servidores MCP em ferramentas executáveis pelo LangChain.
 
 ## 🧩 Como Funciona Internamente
 
 1.  **Entrada:** Uma mensagem chega via um canal (ex: Telegram) ou API.
 2.  **Adaptação:** O adaptador converte a mensagem bruta em um objeto de evento interno.
 3.  **Processamento:**
-    *   O `Agent` recebe o evento.
+    *   O `Oracle` recebe o evento.
     *   Recupera o histórico da conversa do `SQLiteChatMessageHistory`.
     *   Envia o contexto + prompt do sistema para o LLM.
 4.  **Decisão (Reasoning):** O LLM decide se precisa chamar uma ferramenta (Tool Call).
-5.  **Execução de Ferramenta:** Se necessário, o agente executa a ferramenta (nativa ou MCP) e alimenta o resultado de volta ao LLM.
+5.  **Execução de Ferramenta:** Se necessário, o `Oracle` executa a ferramenta (nativa ou MCP) e alimenta o resultado de volta ao LLM.
 6.  **Resposta:** O LLM gera a resposta final em texto.
 7.  **Saída:** O adaptador envia a resposta de volta ao canal de origem (ex: mensagem no Telegram).
 

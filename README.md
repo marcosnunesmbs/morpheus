@@ -80,9 +80,9 @@ Morpheus is built with **Node.js** and **TypeScript**, using **LangChain** as th
 
 ### Core Components
 
-- **Runtime (`src/runtime/`)**: The heart of the application. Manages the agent lifecycle, provider instantiation, and command execution.
+- **Runtime (`src/runtime/`)**: The heart of the application. Manages the Oracle (agent) lifecycle, provider instantiation, and command execution.
 - **CLI (`src/cli/`)**: Built with `commander`, handles user interaction, configuration, and daemon control (`start`, `stop`, `status`).
-- **Configuration (`src/config/`)**: Singleton-based configuration manager using `zod` for validation and `js-yaml` for persistence (`~/.morpheus/config.yaml`).
+- **Configuration (`src/config/`)**: Singleton-based configuration manager using `zod` for validation and `js-yaml` for persistence (`~/.morpheus/zaion.yaml`).
 - **Channels (`src/channels/`)**: Adapters for external communication. Currently supports Telegram (`telegraf`) with strict user whitelisting.
 
 ## Features
@@ -169,7 +169,7 @@ npm start -- status
 
 ### 4. Configuration
 
-The configuration file is located at `~/.morpheus/config.yaml`. You can edit it manually or use the `morpheus config` command.
+The configuration file is located at `~/.morpheus/zaion.yaml`. You can edit it manually or use the `morpheus config` command.
 
 ```yaml
 agent:
