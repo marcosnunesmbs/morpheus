@@ -11,6 +11,7 @@ import { DisplayManager } from "./display.js";
 import { SQLiteChatMessageHistory } from "./memory/sqlite.js";
 import { ReactAgent } from "langchain";
 import { UsageMetadata } from "../types/usage.js";
+import { SatiMemoryMiddleware } from "./memory/sati/index.js";
 
 export class Oracle implements IOracle {
   private provider?: ReactAgent;
@@ -18,6 +19,7 @@ export class Oracle implements IOracle {
   private history?: BaseListChatMessageHistory;
   private display = DisplayManager.getInstance();
   private databasePath?: string;
+  private satiMiddleware = SatiMemoryMiddleware.getInstance();
 
   constructor(config?: MorpheusConfig, overrides?: { databasePath?: string }) {
     this.config = config || ConfigManager.getInstance().get();
@@ -210,11 +212,28 @@ You maintain intent until resolution.
       // Load existing history from database
       const previousMessages = await this.history.getMessages();
 
-      const messages = [
-        systemMessage,
-        ...previousMessages,
-        userMessage
+      // Sati Middleware: Retrieval
+      let memoryMessage: SystemMessage | null = null;
+      try {
+        memoryMessage = await this.satiMiddleware.beforeAgent(message, previousMessages);
+        if (memoryMessage) {
+            this.display.log('Sati memory retrieved.', { source: 'Sati' });
+        }
+      } catch (e: any) {
+         // Fail open - do not disrupt main flow
+         this.display.log(`Sati memory retrieval failed: ${e.message}`, { source: 'Sati' });
+      }
+
+      const messages: BaseMessage[] = [
+        systemMessage
       ];
+
+      if (memoryMessage) {
+          messages.push(memoryMessage);
+      }
+
+      messages.push(...previousMessages);
+      messages.push(userMessage);
 
       const response = await this.provider.invoke({ messages });
 
@@ -241,7 +260,13 @@ You maintain intent until resolution.
       this.display.log('Response generated.', { source: 'Oracle' });
       
       const lastMessage = response.messages[response.messages.length - 1];
-      return (typeof lastMessage.content === 'string') ? lastMessage.content : JSON.stringify(lastMessage.content);
+      const responseContent = (typeof lastMessage.content === 'string') ? lastMessage.content : JSON.stringify(lastMessage.content);
+
+      // Sati Middleware: Evaluation (Fire and forget)
+      this.satiMiddleware.afterAgent(responseContent, [...previousMessages, userMessage])
+        .catch((e: any) => this.display.log(`Sati memory evaluation failed: ${e.message}`, { source: 'Sati' }));
+
+      return responseContent;
     } catch (err) {
       throw new ProviderError(this.config.llm.provider, err, "Chat request failed");
     }

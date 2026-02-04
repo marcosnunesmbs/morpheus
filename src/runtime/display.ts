@@ -92,8 +92,12 @@ export class DisplayManager implements IDisplayManager {
       let color = chalk.blue;
       if (options.source === 'Telegram') {
         color = chalk.green;
-      } else if (options.source === 'Oracle') {
+      } 
+      else if (options.source === 'Oracle') {
         color = chalk.hex('#FFA500');
+      } 
+      else if (options.source === 'Sati') {
+        color = chalk.hex('#00ff22');
       }
       else if (options.source === 'Telephonist') {
         color = chalk.hex('#b902b9');

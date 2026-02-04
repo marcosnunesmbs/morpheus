@@ -29,6 +29,8 @@ Auto-generated from all feature plans. Last updated: 2026-01-29
 - `localStorage` (Browser-side session), `process.env` / Config (Backend-side secret). (019-ui-auth-password)
 - TypeScript 5.x (Node.js >= 18) + `better-sqlite3`, `@langchain/core` (021-db-msg-provider-model)
 - SQLite (`src/runtime/memory/sqlite.ts`) (021-db-msg-provider-model)
+- TypeScript 5.x (Node.js >= 18) + `langchain` (Middleware), `@langchain/core` (Messages), `better-sqlite3` (Storage), `zod` (Validation) (022-sati-memory-middleware)
+- SQLite (`.morpheus/memory/santi-memory.db`) (022-sati-memory-middleware)
 
 - [e.g., Python 3.11, Swift 5.9, Rust 1.75 or NEEDS CLARIFICATION] + [e.g., FastAPI, UIKit, LLVM or NEEDS CLARIFICATION] (001-cli-structure)
 
@@ -49,9 +51,9 @@ cd src; pytest; ruff check .
 [e.g., Python 3.11, Swift 5.9, Rust 1.75 or NEEDS CLARIFICATION]: Follow standard conventions
 
 ## Recent Changes
+- 022-sati-memory-middleware: Added TypeScript 5.x (Node.js >= 18) + `langchain` (Middleware), `@langchain/core` (Messages), `better-sqlite3` (Storage), `zod` (Validation)
+- 022-sati-memory-middleware: Added [e.g., Python 3.11, Swift 5.9, Rust 1.75 or NEEDS CLARIFICATION] + [e.g., FastAPI, UIKit, LLVM or NEEDS CLARIFICATION]
 - 021-db-msg-provider-model: Added TypeScript 5.x (Node.js >= 18) + `better-sqlite3`, `@langchain/core`
-- 021-db-msg-provider-model: Added TypeScript 5.x (Node.js >= 18) + `better-sqlite3`, `@langchain/core`
-- 019-ui-auth-password: Added Node.js >= 18 (Backend), TypeScript (strict).
 
 
 <!-- MANUAL ADDITIONS START -->
