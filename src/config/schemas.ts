@@ -15,6 +15,7 @@ export const LLMConfigSchema = z.object({
     temperature: z.number().min(0).max(1).default(DEFAULT_CONFIG.llm.temperature),
     max_tokens: z.number().int().positive().optional(),
     api_key: z.string().optional(),
+    context_window: z.number().int().positive().optional(),
 });
 
 export const SantiConfigSchema = LLMConfigSchema.extend({
@@ -31,7 +32,7 @@ export const ConfigSchema = z.object({
   santi: SantiConfigSchema.optional(),
   audio: AudioConfigSchema.default(DEFAULT_CONFIG.audio),
   memory: z.object({
-    limit: z.number().int().positive().default(DEFAULT_CONFIG.memory.limit),
+    limit: z.number().int().positive().optional(),
   }).default(DEFAULT_CONFIG.memory),
   channels: z.object({
     telegram: z.object({

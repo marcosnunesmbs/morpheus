@@ -11,6 +11,7 @@ export interface LLMConfig {
   temperature: number;
   max_tokens?: number;
   api_key?: string;
+  context_window?: number;
 }
 
 export interface TelegramConfig {
@@ -55,6 +56,9 @@ export interface SantiConfig extends LLMConfig {
 }
 
 export interface MemoryConfig {
+  /**
+   * @deprecated Use llm.context_window instead. This field is kept for backward compatibility.
+   */
   limit: number;
 }
 
@@ -92,6 +96,7 @@ export const DEFAULT_CONFIG: MorpheusConfig = {
     provider: 'openai',
     model: 'gpt-4',
     temperature: 0.7,
+    context_window: 100,
   },
   channels: {
     telegram: { enabled: false, allowedUsers: [] },

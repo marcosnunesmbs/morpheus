@@ -47,10 +47,14 @@ export class Oracle implements IOracle {
       }
 
       // Initialize persistent memory with SQLite
+      const contextWindow = this.config.llm?.context_window ?? this.config.memory?.limit ?? 100;
+      
+      this.display.log(`Using context window: ${contextWindow} messages`, { source: 'Oracle' });
+      
       this.history = new SQLiteChatMessageHistory({
         sessionId: "default",
         databasePath: this.databasePath,
-        limit: this.config.memory?.limit || 100, // Fallback purely defensive if config type allows optional
+        limit: contextWindow,
       });
     } catch (err) {
       if (err instanceof ProviderError) throw err; // Re-throw known errors

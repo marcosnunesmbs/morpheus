@@ -26,8 +26,30 @@ export const doctorCommand = new Command('doctor')
     // 2. Check Configuration
     try {
       if (await fs.pathExists(PATHS.config)) {
-        await ConfigManager.getInstance().load();
+        const config = await ConfigManager.getInstance().load();
         console.log(chalk.green('✓') + ' Configuration: Valid');
+        
+        // Check context window configuration
+        const contextWindow = config.llm?.context_window;
+        const deprecatedLimit = config.memory?.limit;
+        
+        if (contextWindow !== undefined) {
+          if (typeof contextWindow === 'number' && contextWindow > 0) {
+            console.log(chalk.green('✓') + ` LLM context window: ${contextWindow} messages`);
+          } else {
+            console.log(chalk.red('✗') + ` LLM context window has invalid value, using default: 100 messages`);
+            allPassed = false;
+          }
+        } else {
+          console.log(chalk.yellow('⚠') + ' LLM context window not configured, using default: 100 messages');
+        }
+        
+        // Check for deprecated field
+        if (deprecatedLimit !== undefined && contextWindow === undefined) {
+          console.log(chalk.yellow('⚠') + ' Deprecated config detected: \'memory.limit\' should be migrated to \'llm.context_window\'. Will auto-migrate on next start.');
+        } else if (deprecatedLimit !== undefined && contextWindow !== undefined) {
+          console.log(chalk.yellow('⚠') + ' Found both \'memory.limit\' and \'llm.context_window\'. Remove \'memory.limit\' from config.');
+        }
       } else {
         console.log(chalk.yellow('!') + ' Configuration: Missing (will be created on start)');
       }

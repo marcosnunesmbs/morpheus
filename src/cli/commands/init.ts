@@ -82,6 +82,15 @@ export const initCommand = new Command('init')
         await configManager.set('llm.api_key', apiKey);
       }
 
+      // Context Window Configuration
+      const contextWindow = await input({
+        message: 'Context Window Size (number of messages to send to LLM):',
+        default: currentConfig.llm.context_window?.toString() || '100',
+        validate: (val) => (!isNaN(Number(val)) && Number(val) > 0) || 'Must be a positive number'
+      });
+
+      await configManager.set('llm.context_window', Number(contextWindow));
+
       // Santi (Memory Agent) Configuration
       display.log(chalk.blue('\nSati (Memory Agent) Configuration'));
       const configureSanti = await select({

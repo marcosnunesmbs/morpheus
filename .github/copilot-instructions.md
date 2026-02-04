@@ -21,6 +21,7 @@
       - **Architecture Rule:** Sati is an *independent sub-agent* invoked by middleware, NOT part of Oracle's main flow
       - **Middleware:** `SatiMemoryMiddleware` (`src/runtime/memory/sati/index.ts`) hooks into `beforeAgent` (retrieval) and `afterAgent` (consolidation)
       - **Storage:** Dedicated `santi-memory.db` (separate from chat history)
+    - **Context Window:** Configurable via `llm.context_window` (default: 100 messages) - controls how many messages from history are loaded into LLM context
   - **Providers:** `src/runtime/providers/factory.ts` creates LLMs (OpenAI, Anthropic, Google Gemini, Ollama)
   - **Tools:** `src/runtime/tools/factory.ts` loads MCP servers from `~/.morpheus/mcps.json`
     - **Schema Sanitization:** `wrapToolWithSanitizedSchema()` removes fields unsupported by Google Gemini (`examples`, `additionalInfo`, `$schema`, etc.)
