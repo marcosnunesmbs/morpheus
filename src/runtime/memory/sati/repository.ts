@@ -134,31 +134,82 @@ export class SatiRepository {
   public search(query: string, limit: number = 5): IMemoryRecord[] {
     if (!this.db) this.initialize();
 
-    // Use FTS match
-    // Simple query parser: escape quotes and use near/AND logic if needed. 
-    // For now simple match
-    try {
-        const stmt = this.db!.prepare(`
-            SELECT m.* 
-            FROM long_term_memory m
-            JOIN memory_fts f ON m.rowid = f.rowid
-            WHERE memory_fts MATCH ? AND m.archived = 0
-            ORDER BY rank
-            LIMIT ?
-        `);
+    // Sanitize query for FTS5: remove characters that break FTS5 syntax
+    // Keep only alphanumeric, spaces, and safe punctuation (comma, period, hyphen)
+    // const safeQuery = query.replace(/[^a-zA-Z0-9\s,.\-]/g, "").trim();
+    
+    // if (!safeQuery) {
+    //     console.warn('[SatiRepository] Empty query after sanitization');
+    //     return this.getFallbackMemories(limit);
+    // }
+
+    // try {
+    //     // Try FTS5 search first
+    //     const stmt = this.db!.prepare(`
+    //         SELECT m.* 
+    //         FROM long_term_memory m
+    //         JOIN memory_fts f ON m.rowid = f.rowid
+    //         WHERE memory_fts MATCH ? AND m.archived = 0
+    //         ORDER BY rank
+    //         LIMIT ?
+    //     `);
         
-        // Sanitize query for FTS5 string
-        // Remove special characters that crash FTS5
-        const safeQuery = query.replace(/[^a-zA-Z0-9 ]/g, "");
-        if (!safeQuery.trim()) return [];
+    //     const rows = stmt.all(safeQuery, limit) as any[];
+        
+    //     if (rows.length > 0) {
+    //         console.log(`[SatiRepository] FTS5 found ${rows.length} memories for: "${safeQuery}"`);
+    //         return rows.map(this.mapRowToRecord);
+    //     }
+        
+    //     // Fallback: try LIKE search
+    //     console.log(`[SatiRepository] FTS5 returned no results, trying LIKE search for: "${safeQuery}"`);
+    //     const likeStmt = this.db!.prepare(`
+    //         SELECT * FROM long_term_memory
+    //         WHERE (summary LIKE ? OR details LIKE ?) 
+    //         AND archived = 0
+    //         ORDER BY importance DESC, access_count DESC
+    //         LIMIT ?
+    //     `);
+        
+    //     const likePattern = `%${safeQuery}%`;
+    //     const likeRows = likeStmt.all(likePattern, likePattern, limit) as any[];
+        
+    //     if (likeRows.length > 0) {
+    //         console.log(`[SatiRepository] LIKE search found ${likeRows.length} memories`);
+    //         return likeRows.map(this.mapRowToRecord);
+    //     }
+        
+    //     // Final fallback: return most important/accessed memories
+    //     console.log('[SatiRepository] No search results, returning most important memories');
+    //     return this.getFallbackMemories(limit);
 
-        const rows = stmt.all(safeQuery, 100) as any[];
-        return rows.map(this.mapRowToRecord);
+    // } catch (e) {
+    //     console.warn(`[SatiRepository] Search failed for query "${query}": ${e}`);
+    //     return this.getFallbackMemories(limit);
+    // }
+        return this.getFallbackMemories(limit);
+  }
 
-    } catch (e) {
-        console.warn(`[SatiRepository] Search failed for query "${query}": ${e}`);
-        return [];
-    }
+  private getFallbackMemories(limit: number): IMemoryRecord[] {
+    if (!this.db) return [];
+    
+    const stmt = this.db.prepare(`
+        SELECT * FROM long_term_memory
+        WHERE archived = 0
+        ORDER BY 
+            CASE importance
+                WHEN 'critical' THEN 1
+                WHEN 'high' THEN 2
+                WHEN 'medium' THEN 3
+                WHEN 'low' THEN 4
+            END,
+            access_count DESC,
+            created_at DESC
+        LIMIT ?
+    `);
+    
+    const rows = stmt.all(limit) as any[];
+    return rows.map(this.mapRowToRecord);
   }
 
   public getAllMemories(): IMemoryRecord[] {
