@@ -1,15 +1,22 @@
 <!-- Sync Impact Report
-Version: 1.0.1 -> 1.0.2
+Version: 1.0.2 -> 1.0.3
 Modified Principles: None
-Modified Standards:
-- Core Stack: Adopted "LangChain" for AI/Orchestration (Ratified by Feature 005)
+Modified Standards: None
+Added Sections: None
+Removed Sections: None
 Templates requiring updates:
-- .specify/templates/plan-template.md: ✅
-- .specify/templates/spec-template.md: ✅
-- .specify/templates/tasks-template.md: ✅
-- .specify/templates/commands/*.md: ⚠ (Folder missing)
-Follow-up TODOs:
-- Create .specify/templates/commands/ folder and docs.
+- .specify/templates/plan-template.md: ✅ (Constitution Check aligned)
+- .specify/templates/spec-template.md: ✅ (User story priorities aligned)
+- .specify/templates/tasks-template.md: ✅ (Task categories aligned with principles)
+- .specify/templates/commands/*.md: ✅ (Created complete command documentation)
+Follow-up TODOs: None (All TODOs from v1.0.2 resolved)
+
+Version Bump Rationale: PATCH increment (1.0.2 -> 1.0.3)
+- Created missing .specify/templates/commands/ directory
+- Added complete command documentation for all speckit commands (constitution, plan, tasks, specify, implement, checklist, clarify, analyze, taskstoissues)
+- Updated Last Amended date to reflect completion of prior TODOs
+- No principle or governance changes
+- Non-semantic improvements (documentation completion)
 -->
 # Morpheus Constitution
 
@@ -68,4 +75,4 @@ Users must be able to see what Morpheus is doing. Operations, especially those m
 - **Compliance**: All PRs must be reviewed against these principles. If a feature violates "Local-First", it will be rejected unless heavily justified and opt-in.
 - **Versioning**: Principles are versioned. Breaking changes to principles require a Major version bump of the Constitution.
 
-**Version**: 1.0.2 | **Ratified**: 2026-01-29 | **Last Amended**: 2026-01-29
+**Version**: 1.0.3 | **Ratified**: 2026-01-29 | **Last Amended**: 2026-02-03
