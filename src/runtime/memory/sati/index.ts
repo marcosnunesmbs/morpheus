@@ -37,7 +37,7 @@ export class SatiMemoryMiddleware {
                 .map(m => `- [${m.category.toUpperCase()}] ${m.summary}`)
                 .join('\n');
 
-            display.log(`[Sati] Retrieved ${result.relevant_memories.length} memories:\n${memoryContext}`, { source: 'Sati' });
+            display.log(`[Sati] Retrieved ${result.relevant_memories.length} memories.`, { source: 'Sati' });
                 
             return new AIMessage(`
                 ### LONG-TERM MEMORY (SATI)

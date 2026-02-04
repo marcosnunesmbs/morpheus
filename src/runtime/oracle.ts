@@ -209,8 +209,9 @@ You maintain intent until resolution.
 
       `);
 
-      // Load existing history from database
-      const previousMessages = await this.history.getMessages();
+      // Load existing history from database in reverse order (most recent first)
+      let previousMessages = await this.history.getMessages();
+      previousMessages = previousMessages.reverse();
 
       // Sati Middleware: Retrieval
       let memoryMessage: AIMessage | null = null;

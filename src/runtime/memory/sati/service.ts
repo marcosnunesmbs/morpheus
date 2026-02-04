@@ -31,7 +31,7 @@ export class SatiService implements ISatiService {
 
   public async recover(currentMessage: string, recentMessages: string[]): Promise<ISatiRetrievalOutput> {
     const santiConfig = ConfigManager.getInstance().getSantiConfig();
-    const memoryLimit = santiConfig.memory_limit || 5;
+    const memoryLimit = santiConfig.memory_limit || 1000;
     
     // Use the current message as the primary search query
     // We could enhance this by extracting keywords from the last few messages
