@@ -29,6 +29,11 @@ npm install
    ```
    *(Windows path may vary, typically `C:\Users\USER\.morpheus\memory\santi-memory.db` or similar)*
 
+   You can also run the doctor command to verify:
+   ```bash
+   npm start -- doctor
+   ```
+
 ## Usage
 
 Interact normally with Morpheus.

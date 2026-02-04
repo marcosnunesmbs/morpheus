@@ -115,6 +115,12 @@ When enabled:
 ### 🧩 MCP Support (Model Context Protocol)
 Full integration with [Model Context Protocol](https://modelcontextprotocol.io/), allowing Morpheus to use standardized tools from any MCP-compatible server.
 
+### 🧠 Sati (Long-Term Memory)
+Morpheus features a dedicated middleware system called **Sati** (Mindfulness) that provides long-term memory capabilities.
+-   **Automated Storage**: Automatically extracts and saves preferences, project details, and facts from conversations.
+-   **Contextual Retrieval**: Injects relevant memories into the context based on your current query.
+-   **Data Privacy**: Stored in a local, independent SQLite database (`santi-memory.db`), ensuring sensitive data is handled securely and reducing context window usage.
+
 ### 📊 Usage Analytics
 Track your token usage across different providers and models directly from the Web UI. View detailed breakdowns of input/output tokens and message counts to monitor costs and activity.
 

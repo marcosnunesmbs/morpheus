@@ -13,7 +13,11 @@ The application runs as a cohesive Node.js process managed by a CLI entry point.
 ### 1. The Runtime Core (`src/runtime/`)
 The Runtime is the central nervous system of Morpheus.
 -   **Oracle Engine (`oracle.ts`)**: Implements the `IOracle` interface. It manages the conversation loop using LangChain, handling prompt construction, tool execution, and context management.
--   **Memory System (`memory/`)**: Conversation history is persisted locally using `SQLiteChatMessageHistory` (via `better-sqlite3`). This ensures data privacy and persistence across restarts.
+-   **Middleware System (`middleware/`)**: A layer that intercepts the agent's execution cycle.
+    -   **Sati (Long-Term Memory)**: A specialized sub-agent that allows Morpheus to "remember" facts, preferences, and context across sessions. It retrieves relevant memories *before* the main agent thinks, and consolidates new information *after* the conversation.
+-   **Memory System (`memory/`)**: 
+    -   **Short-Term**: Conversation history persisted locally using `SQLiteChatMessageHistory` (via `better-sqlite3`).
+    -   **Long-Term (Sati)**: A dedicated `santi-memory.db` stores semantic memories and preferences, separated from the chat logs.
 -   **LLM Providers (`providers/`)**: A factory pattern (`ProvidersFactory`) abstracts specific LLM implementations (OpenAI, Ollama, etc.), allowing the user to switch models via configuration.
 
 ### 2. Channel Adapters (`src/channels/`)
@@ -42,12 +46,14 @@ A React-based Single Page Application (SPA) built with Vite and TailwindCSS.
 2.  **Ingest**: `TelegramAdapter` receives the webhook/poll update.
 3.  **Authorize**: Adapter verifies the User ID against `zaion.yaml`.
 4.  **Dispatch**: Valid message is sent to `Oracle.chat()`.
-5.  **Think**:
-    -   Oracle retrieves context from `SQLite`.
+5.  **Middleware (Pre)**: Sati retrieves relevant long-term memories and injects them into the context.
+6.  **Think**:
+    -   Oracle retrieves context from `SQLite` (Short-term).
     -   Oracle queries LLM (via `LangChain`).
     -   Oracle may execute **Tools** (e.g., search docs, save file).
-6.  **Respond**: Oracle generates a final text response.
-7.  **Output**: `TelegramAdapter` sends the text back to the user's chat.
+7.  **Respond**: Oracle generates a final text response.
+8.  **Middleware (Post)**: Sati analyzes the interaction in the background to extract and store new long-term memories.
+9.  **Output**: `TelegramAdapter` sends the text back to the user's chat.
 
 ## 📂 Directory Structure Map
 

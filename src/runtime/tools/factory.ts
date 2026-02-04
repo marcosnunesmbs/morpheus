@@ -37,7 +37,7 @@ function sanitizeSchema(obj: unknown): unknown {
  */
 function wrapToolWithSanitizedSchema(tool: StructuredTool): StructuredTool {
 
-  display.log('Tool loaded: - '+ tool.name, { source: 'Construtor' });
+  // display.log('Tool loaded: - '+ tool.name, { source: 'Construtor' });
   // The MCP tools have a schema property that returns JSON Schema
   // We need to intercept and sanitize it
   const originalSchema = (tool as any).schema;
@@ -58,38 +58,49 @@ export class Construtor {
     const mcpServers = await loadMCPConfig();
     const serverCount = Object.keys(mcpServers).length;
 
+    // console.log(mcpServers);
+
     if (serverCount === 0) {
-        display.log('No MCP servers configured in mcps.json', { level: 'info', source: 'Construtor' });
-        return [];
+      display.log('No MCP servers configured in mcps.json', { level: 'info', source: 'Construtor' });
+      return [];
     }
 
-    const client = new MultiServerMCPClient({
-      mcpServers: mcpServers as any,
-      onConnectionError: "ignore",
-      // log the MCP client's internal events
-      // beforeToolCall: ({ serverName, name, args }) => {
-      //   display.log(`MCP Tool Call - Server: ${serverName}, Tool: ${name}, Args: ${JSON.stringify(args)}`, { source: 'MCPServer' });
-      //   return;
-      // },
-      // // log the results of tool calls
-      // afterToolCall: (res) => {
-      //   display.log(`MCP Tool Result - ${JSON.stringify(res)}`, { source: 'MCPServer' });
-      //   return;
-      // }
-    });
+    const allTools: StructuredTool[] = [];
 
-    try {
-      const tools = await client.getTools();
-      
-      // Sanitize tool schemas to remove fields not supported by Gemini
-      const sanitizedTools = tools.map(tool => wrapToolWithSanitizedSchema(tool));
-      
-      display.log(`Loaded ${sanitizedTools.length} MCP tools (schemas sanitized for Gemini compatibility)`, { level: 'info', source: 'Construtor' });
-      
-      return sanitizedTools;
-    } catch (error) {
-      display.log(`Failed to initialize MCP tools: ${error}`, { level: 'warning', source: 'Construtor' });
-      return []; // Return empty tools on failure to allow agent to start
+    // Create a client for each server to handle tool naming conflicts
+    for (const [serverName, serverConfig] of Object.entries(mcpServers)) {
+      const client = new MultiServerMCPClient({
+        mcpServers: {
+          [serverName]: serverConfig
+        } as any,
+        onConnectionError: "ignore",
+      });
+
+      try {
+        const tools = await client.getTools();
+        
+        // Rename tools to include server prefix to avoid collisions
+        tools.forEach(tool => {
+          const originalName = tool.name;
+          const newName = `${serverName}_${originalName}`;
+          Object.defineProperty(tool, "name", { value: newName });
+          
+          const shortDesc = tool.description && typeof tool.description === 'string' ? tool.description.slice(0, 100) + '...' : '';
+          display.log(`\nLoaded MCP tool: ${tool.name} (from ${serverName})\n ${shortDesc}`, { level: 'info', source: 'Construtor' });
+        });
+        
+        // Sanitize tool schemas to remove fields not supported by Gemini
+        const sanitizedTools = tools.map(tool => wrapToolWithSanitizedSchema(tool));
+        
+        allTools.push(...sanitizedTools);
+      } catch (error) {
+        display.log(`Failed to initialize MCP tools for server '${serverName}': ${error}`, { level: 'warning', source: 'Construtor' });
+        // Continue to other servers even if one fails
+      }
     }
+      
+    display.log(`Loaded ${allTools.length} total MCP tools (schemas sanitized for Gemini compatibility)`, { level: 'info', source: 'Construtor' });
+      
+    return allTools;
   }
 }

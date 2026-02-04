@@ -2,9 +2,13 @@ import { SatiRepository } from './repository.js';
 import { ISatiService, ISatiRetrievalOutput, ISatiEvaluationInput, ISatiEvaluationOutput } from './types.js';
 import { ConfigManager } from '../../../config/manager.js';
 import { ProviderFactory } from '../../providers/factory.js';
-import { SystemMessage, HumanMessage } from "@langchain/core/messages";
+import { SystemMessage, HumanMessage, ToolMessage } from "@langchain/core/messages";
 import { SATI_EVALUATION_PROMPT } from './system-prompts.js';
 import { createHash } from 'crypto';
+import { DisplayManager } from '../../display.js';
+import { SQLiteChatMessageHistory } from '../sqlite.js';
+
+const display = DisplayManager.getInstance();
 
 export class SatiService implements ISatiService {
   private repository: SatiRepository;
@@ -70,10 +74,50 @@ export class SatiService implements ISatiService {
         new SystemMessage(SATI_EVALUATION_PROMPT),
         new HumanMessage(JSON.stringify(inputPayload, null, 2))
       ];
+      
+      const history = new SQLiteChatMessageHistory({ sessionId: 'sati-evaluation' });
+
+      try {
+        const inputMsg = new ToolMessage({
+            content: JSON.stringify(inputPayload, null, 2),
+            tool_call_id: `sati-input-${Date.now()}`,
+            name: 'sati_evaluation_input' 
+        });
+        
+        (inputMsg as any).provider_metadata = {
+            provider: config.llm.provider,
+            model: config.llm.model
+        };
+
+        await history.addMessage(inputMsg);
+      } catch (e) {
+         console.warn('[SatiService] Failed to persist input log:', e);
+      }
 
       const response = await agent.invoke({ messages });
       const lastMessage = response.messages[response.messages.length - 1];
       let content = lastMessage.content.toString();
+
+      try {
+         const outputToolMsg = new ToolMessage({
+            content: content,
+            tool_call_id: `sati-output-${Date.now()}`,
+            name: 'sati_evaluation_output'
+         });
+         
+         if ((lastMessage as any).usage_metadata) {
+             (outputToolMsg as any).usage_metadata = (lastMessage as any).usage_metadata;
+         }
+
+         (outputToolMsg as any).provider_metadata = {
+            provider: config.llm.provider,
+            model: config.llm.model
+         };
+         
+         await history.addMessage(outputToolMsg);
+      } catch (e) {
+         console.warn('[SatiService] Failed to persist output log:', e);
+      }
 
       // Safe JSON parsing (handle markdown blocks if LLM wraps output)
       content = content.replace(/```json/g, '').replace(/```/g, '').trim();
@@ -87,6 +131,7 @@ export class SatiService implements ISatiService {
       }
 
       if (result.should_store && result.summary && result.category && result.importance) {
+        display.log(`Persisting new memory: [${result.category.toUpperCase()}] ${result.summary}`, { source: 'Sati' });
         try {
             await this.repository.save({
                 summary: result.summary,

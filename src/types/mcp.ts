@@ -9,6 +9,7 @@ export type MCPServerConfig =
   | {
       transport: 'http';
       url: string;
+      headers?: Record<string, string>;
       args?: string[];
       env?: Record<string, string>;
       _comment?: string;
