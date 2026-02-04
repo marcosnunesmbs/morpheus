@@ -243,6 +243,7 @@ You maintain intent until resolution.
       // New messages start after the inputs.
       const startNewMessagesIndex = messages.length;
       const newGeneratedMessages = response.messages.slice(startNewMessagesIndex);
+      // console.log('New generated messages', newGeneratedMessages);
 
       // Persist User Message first
       await this.history.addMessage(userMessage);

@@ -30,7 +30,8 @@ export class SatiService implements ISatiService {
   }
 
   public async recover(currentMessage: string, recentMessages: string[]): Promise<ISatiRetrievalOutput> {
-    const memoryLimit = 5;
+    const santiConfig = ConfigManager.getInstance().getSantiConfig();
+    const memoryLimit = santiConfig.memory_limit || 5;
     
     // Use the current message as the primary search query
     // We could enhance this by extracting keywords from the last few messages
@@ -48,12 +49,12 @@ export class SatiService implements ISatiService {
 
   public async evaluateAndPersist(conversation: { role: string; content: string }[]): Promise<void> {
     try {
-      const config = ConfigManager.getInstance().get();
-      if (!config.llm) return;
+      const santiConfig = ConfigManager.getInstance().getSantiConfig();
+      if (!santiConfig) return;
 
       // Use the main provider factory to get an agent (Reusing Zion configuration)
       // We pass empty tools as Sati is a pure reasoning agent here
-      const agent = await ProviderFactory.create(config.llm, []);
+      const agent = await ProviderFactory.create(santiConfig, []);
 
       // Get existing memories for context (Simulated "Working Memory" or full list if small)
       const allMemories = this.repository.getAllMemories();
@@ -85,8 +86,8 @@ export class SatiService implements ISatiService {
         });
         
         (inputMsg as any).provider_metadata = {
-            provider: config.llm.provider,
-            model: config.llm.model
+            provider: santiConfig.provider,
+            model: santiConfig.model
         };
 
         await history.addMessage(inputMsg);
@@ -110,8 +111,8 @@ export class SatiService implements ISatiService {
          }
 
          (outputToolMsg as any).provider_metadata = {
-            provider: config.llm.provider,
-            model: config.llm.model
+            provider: santiConfig.provider,
+            model: santiConfig.model
          };
          
          await history.addMessage(outputToolMsg);

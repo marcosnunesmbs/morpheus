@@ -9,19 +9,26 @@ export const AudioConfigSchema = z.object({
   supportedMimeTypes: z.array(z.string()).default(DEFAULT_CONFIG.audio.supportedMimeTypes),
 });
 
+export const LLMConfigSchema = z.object({
+    provider: z.enum(['openai', 'anthropic', 'ollama', 'gemini']).default(DEFAULT_CONFIG.llm.provider),
+    model: z.string().min(1).default(DEFAULT_CONFIG.llm.model),
+    temperature: z.number().min(0).max(1).default(DEFAULT_CONFIG.llm.temperature),
+    max_tokens: z.number().int().positive().optional(),
+    api_key: z.string().optional(),
+});
+
+export const SantiConfigSchema = LLMConfigSchema.extend({
+    memory_limit: z.number().int().positive().optional(),
+});
+
 // Zod Schema matching MorpheusConfig interface
 export const ConfigSchema = z.object({
   agent: z.object({
     name: z.string().default(DEFAULT_CONFIG.agent.name),
     personality: z.string().default(DEFAULT_CONFIG.agent.personality),
   }).default(DEFAULT_CONFIG.agent),
-  llm: z.object({
-    provider: z.enum(['openai', 'anthropic', 'ollama', 'gemini']).default(DEFAULT_CONFIG.llm.provider),
-    model: z.string().min(1).default(DEFAULT_CONFIG.llm.model),
-    temperature: z.number().min(0).max(1).default(DEFAULT_CONFIG.llm.temperature),
-    max_tokens: z.number().int().positive().optional(),
-    api_key: z.string().optional(),
-  }).default(DEFAULT_CONFIG.llm),
+  llm: LLMConfigSchema.default(DEFAULT_CONFIG.llm),
+  santi: SantiConfigSchema.optional(),
   audio: AudioConfigSchema.default(DEFAULT_CONFIG.audio),
   memory: z.object({
     limit: z.number().int().positive().default(DEFAULT_CONFIG.memory.limit),

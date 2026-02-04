@@ -1,7 +1,7 @@
 import fs from 'fs-extra';
 import yaml from 'js-yaml';
 import { z } from 'zod';
-import { MorpheusConfig, DEFAULT_CONFIG } from '../types/config.js';
+import { MorpheusConfig, DEFAULT_CONFIG, SantiConfig } from '../types/config.js';
 import { PATHS } from './paths.js';
 import { setByPath } from './utils.js';
 import { ConfigSchema } from './schemas.js';
@@ -61,5 +61,24 @@ export class ConfigManager {
     await fs.ensureDir(PATHS.root);
     await fs.writeFile(PATHS.config, yaml.dump(valid), 'utf8');
     this.config = valid as MorpheusConfig;
+  }
+
+  public getLLMConfig() {
+    return this.config.llm;
+  }
+
+  public getSantiConfig(): SantiConfig {
+    if (this.config.santi) {
+      return {
+        memory_limit: 10, // Default if undefined
+        ...this.config.santi
+      };
+    }
+    
+    // Fallback to main LLM config
+    return {
+      ...this.config.llm,
+      memory_limit: 10 // Default fallback
+    };
   }
 }
