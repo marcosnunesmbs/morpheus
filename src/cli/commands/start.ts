@@ -11,6 +11,7 @@ import { PATHS } from '../../config/paths.js';
 import { Oracle } from '../../runtime/oracle.js';
 import { ProviderError } from '../../runtime/errors.js';
 import { HttpServer } from '../../http/server.js';
+import { getVersion } from '../utils/version.js';
 
 export const startCommand = new Command('start')
   .description('Start the Morpheus agent')
@@ -21,7 +22,7 @@ export const startCommand = new Command('start')
     const display = DisplayManager.getInstance();
 
     try {
-      renderBanner();
+      renderBanner(getVersion());
       
       await scaffold(); // Ensure env exists
       
