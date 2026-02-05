@@ -7,17 +7,11 @@ import { useAuth } from '../hooks/useAuth';
 
 export function Layout({ children }: { children: React.ReactNode }) {
   const location = useLocation();
-  const [isDark, setIsDark] = useState(true);
-  const { logout } = useAuth();
-
-  useEffect(() => {
+  const [isDark, setIsDark] = useState(() => {
     const saved = localStorage.getItem('theme');
-    if (saved) {
-      setIsDark(saved === 'dark');
-    } else {
-      setIsDark(true); // Default to Matrix / Dark
-    }
-  }, []);
+    return saved ? saved === 'dark' : true; // Default to Matrix / Dark
+  });
+  const { logout } = useAuth();
 
   useEffect(() => {
     if (isDark) {
