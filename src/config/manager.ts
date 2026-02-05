@@ -12,7 +12,8 @@ import {
   resolveNumeric, 
   resolveString, 
   resolveBoolean, 
-  resolveProvider 
+  resolveProvider,
+  resolveStringArray
 } from './precedence.js';
 
 export class ConfigManager {
@@ -101,7 +102,7 @@ export class ConfigManager {
       telegram: {
         enabled: resolveBoolean('MORPHEUS_TELEGRAM_ENABLED', config.channels.telegram.enabled, DEFAULT_CONFIG.channels.telegram.enabled),
         token: resolveString('MORPHEUS_TELEGRAM_TOKEN', config.channels.telegram.token, config.channels.telegram.token || ''),
-        allowedUsers: config.channels.telegram.allowedUsers
+        allowedUsers: resolveStringArray('MORPHEUS_TELEGRAM_ALLOWED_USERS', config.channels.telegram.allowedUsers, DEFAULT_CONFIG.channels.telegram.allowedUsers)
       },
       discord: {
         enabled: config.channels.discord.enabled, // Discord doesn't have env var precedence for now

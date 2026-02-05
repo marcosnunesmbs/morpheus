@@ -138,6 +138,7 @@ The system also supports generic environment variables that apply to all provide
 | `MORPHEUS_AUDIO_MAX_DURATION` | Max duration for audio processing | audio.maxDurationSeconds |
 | `MORPHEUS_TELEGRAM_ENABLED` | Enable/disable Telegram channel | channels.telegram.enabled |
 | `MORPHEUS_TELEGRAM_TOKEN` | Telegram bot token | channels.telegram.token |
+| `MORPHEUS_TELEGRAM_ALLOWED_USERS` | Comma-separated list of allowed Telegram user IDs | channels.telegram.allowedUsers |
 | `MORPHEUS_UI_ENABLED` | Enable/disable Web UI | ui.enabled |
 | `MORPHEUS_UI_PORT` | Port for Web UI | ui.port |
 | `MORPHEUS_LOGGING_ENABLED` | Enable/disable logging | logging.enabled |

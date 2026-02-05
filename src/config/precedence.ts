@@ -122,6 +122,26 @@ export function resolveBoolean(genericEnvVar: string, configFileValue: boolean |
 }
 
 /**
+ * Resolve an array of string configuration value
+ * @param genericEnvVar The generic environment variable name
+ * @param configFileValue The value from the config file
+ * @param defaultValue The default value to use if none is found
+ * @returns The resolved array of strings value
+ */
+export function resolveStringArray(genericEnvVar: string, configFileValue: string[] | undefined, defaultValue: string[]): string[] {
+  if (process.env[genericEnvVar]) {
+    // Split the environment variable by commas and trim whitespace
+    return process.env[genericEnvVar]!.split(',').map(item => item.trim()).filter(item => item.length > 0);
+  }
+  
+  if (configFileValue !== undefined) {
+    return configFileValue;
+  }
+  
+  return defaultValue;
+}
+
+/**
  * Resolve a provider configuration value
  * @param genericEnvVar The generic environment variable name
  * @param configFileValue The value from the config file
