@@ -45,6 +45,7 @@ export type AudioProvider = 'google';
 
 export interface AudioConfig {
   provider: AudioProvider;
+  model: string;
   enabled: boolean;
   apiKey?: string;
   maxDurationSeconds: number;
@@ -85,6 +86,7 @@ export const DEFAULT_CONFIG: MorpheusConfig = {
   },
   audio: {
     provider: 'google',
+    model: 'gemini-2.5-flash-lite',
     enabled: true,
     maxDurationSeconds: 300,
     supportedMimeTypes: ['audio/ogg', 'audio/mp3', 'audio/mpeg', 'audio/wav'],

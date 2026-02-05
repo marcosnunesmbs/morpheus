@@ -18,6 +18,7 @@ const mockConfig: MorpheusConfig = {
   logging: { enabled: false, level: 'info', retention: '1d' },
   audio: {
     provider: 'google',
+    model: 'gemini-2.5-flash-lite',
     enabled: false,
     maxDurationSeconds: 60,
     supportedMimeTypes: ['audio/ogg']

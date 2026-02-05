@@ -68,7 +68,7 @@ export class Oracle implements IOracle {
     }
   }
 
-  async chat(message: string, extraUsage?: UsageMetadata): Promise<string> {
+  async chat(message: string, extraUsage?: UsageMetadata, isTelephonist?: boolean): Promise<string> {
     if (!this.provider) {
       throw new Error("Oracle not initialized. Call initialize() first.");
     }
@@ -84,8 +84,8 @@ export class Oracle implements IOracle {
       
       // Inject provider/model metadata for persistence
       (userMessage as any).provider_metadata = {
-        provider: this.config.llm.provider,
-        model: this.config.llm.model
+        provider: isTelephonist ? this.config.audio?.provider : this.config.llm.provider,
+        model: isTelephonist ? this.config.audio?.model :this.config.llm.model
       };
 
       // Attach extra usage (e.g. from Audio) to the user message to be persisted

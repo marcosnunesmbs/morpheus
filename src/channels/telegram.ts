@@ -131,7 +131,7 @@ export class TelegramAdapter {
           await ctx.sendChatAction('typing');
 
           // Process with Agent
-          const response = await this.oracle.chat(text, usage);
+          const response = await this.oracle.chat(text, usage, true);
 
           // if (listeningMsg) {
           //   try {
