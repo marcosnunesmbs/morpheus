@@ -54,7 +54,6 @@ export class SatiMemoryMiddleware {
 
     async afterAgent(generatedResponse: string, history: BaseMessage[]): Promise<void> {
         try {
-            // Phase 4 implementation (T013)
              await this.service.evaluateAndPersist([
                 ...history.slice(-5).map(m => ({ 
                     role: m._getType() === 'human' ? 'user' : 'assistant', 

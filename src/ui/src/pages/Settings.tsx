@@ -9,7 +9,7 @@ import { configService } from '../services/config';
 // @ts-ignore
 import { ConfigSchema } from '../../../config/schemas';
 // @ts-ignore
-import type { MorpheusConfig, LLMConfig, SantiConfig } from '../../../types/config';
+import type { MorpheusConfig, LLMConfig, SatiConfig } from '../../../types/config';
 import { ZodError } from 'zod';
 
 const TABS = [
@@ -25,7 +25,7 @@ export default function Settings() {
   const { data: serverConfig, error } = useSWR('/api/config', configService.fetchConfig);
   const { data: satiServerConfig } = useSWR('/api/config/sati', configService.getSatiConfig);
   const [localConfig, setLocalConfig] = useState<MorpheusConfig | null>(null);
-  const [localSatiConfig, setLocalSatiConfig] = useState<SantiConfig | null>(null);
+  const [localSatiConfig, setLocalSatiConfig] = useState<SatiConfig | null>(null);
   const [activeTab, setActiveTab] = useState('general');
   const [saving, setSaving] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -77,7 +77,7 @@ export default function Settings() {
     }
   };
 
-  const handleSatiUpdate = (field: keyof SantiConfig, value: any) => {
+  const handleSatiUpdate = (field: keyof SatiConfig, value: any) => {
     if (!localSatiConfig) return;
     setLocalSatiConfig({ ...localSatiConfig, [field]: value });
   };

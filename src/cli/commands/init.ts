@@ -91,9 +91,9 @@ export const initCommand = new Command('init')
 
       await configManager.set('llm.context_window', Number(contextWindow));
 
-      // Santi (Memory Agent) Configuration
+      // Sati (Memory Agent) Configuration
       display.log(chalk.blue('\nSati (Memory Agent) Configuration'));
-      const configureSanti = await select({
+      const configureSati = await select({
           message: 'Configure Sati separately?',
           choices: [
               { name: 'No (Use main LLM settings)', value: 'no' },
@@ -107,11 +107,11 @@ export const initCommand = new Command('init')
       let santiApiKey = apiKey;
       
       // If using main settings and no new key provided, use existing if available
-      if (configureSanti === 'no' && !santiApiKey && hasExistingKey) {
+      if (configureSati === 'no' && !santiApiKey && hasExistingKey) {
           santiApiKey = currentConfig.llm.api_key;
       }
 
-      if (configureSanti === 'yes') {
+      if (configureSati === 'yes') {
         santiProvider = await select({
             message: 'Select Sati LLM Provider:',
             choices: [
@@ -123,32 +123,32 @@ export const initCommand = new Command('init')
             default: currentConfig.santi?.provider || provider,
         });
 
-        let defaultSantiModel = 'gpt-3.5-turbo';
+        let defaultSatiModel = 'gpt-3.5-turbo';
         switch(santiProvider) {
-            case 'openai': defaultSantiModel = 'gpt-4o'; break;
-            case 'anthropic': defaultSantiModel = 'claude-3-5-sonnet-20240620'; break;
-            case 'ollama': defaultSantiModel = 'llama3'; break;
-            case 'gemini': defaultSantiModel = 'gemini-pro'; break;
+            case 'openai': defaultSatiModel = 'gpt-4o'; break;
+            case 'anthropic': defaultSatiModel = 'claude-3-5-sonnet-20240620'; break;
+            case 'ollama': defaultSatiModel = 'llama3'; break;
+            case 'gemini': defaultSatiModel = 'gemini-pro'; break;
         }
 
         if (santiProvider === currentConfig.santi?.provider) {
-             defaultSantiModel = currentConfig.santi?.model || defaultSantiModel;
+             defaultSatiModel = currentConfig.santi?.model || defaultSatiModel;
         }
 
         santiModel = await input({
             message: 'Enter Sati Model Name:',
-            default: defaultSantiModel,
+            default: defaultSatiModel,
         });
 
-        const hasExistingSantiKey = !!currentConfig.santi?.api_key;
-        const santiKeyMsg = hasExistingSantiKey 
+        const hasExistingSatiKey = !!currentConfig.santi?.api_key;
+        const santiKeyMsg = hasExistingSatiKey 
           ? 'Enter Sati API Key (leave empty to preserve existing):'
           : 'Enter Sati API Key:';
         
         const keyInput = await password({ message: santiKeyMsg });
         if (keyInput) {
             santiApiKey = keyInput;
-        } else if (hasExistingSantiKey) {
+        } else if (hasExistingSatiKey) {
             santiApiKey = currentConfig.santi?.api_key;
         } else {
              santiApiKey = undefined; // Ensure we don't accidentally carry over invalid state

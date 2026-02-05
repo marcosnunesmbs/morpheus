@@ -1,6 +1,6 @@
 // @ts-ignore - Importing from parent project
 import type { MorpheusConfig, LLMConfig } from '../../../../types/config';
-import type { SantiConfig } from '../../../types/config';
+import type { SatiConfig } from '../../../types/config';
 import { httpClient } from './httpClient';
 
 export const configService = {
@@ -12,11 +12,11 @@ export const configService = {
     return httpClient.post<MorpheusConfig>('/config', config);
   },
 
-  getSatiConfig: async (): Promise<SantiConfig> => {
-    return httpClient.get<SantiConfig>('/config/sati');
+  getSatiConfig: async (): Promise<SatiConfig> => {
+    return httpClient.get<SatiConfig>('/config/sati');
   },
 
-  updateSatiConfig: async (config: SantiConfig): Promise<{ success: boolean }> => {
+  updateSatiConfig: async (config: SatiConfig): Promise<{ success: boolean }> => {
     return httpClient.post<{ success: boolean }>('/config/sati', config);
   },
 

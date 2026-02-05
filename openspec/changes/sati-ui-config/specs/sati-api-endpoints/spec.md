@@ -13,7 +13,7 @@ Backend API endpoints for reading and updating Sati agent configuration, mirrori
 **Acceptance Criteria:**
 - GET `/api/config/sati` returns Sati config object
 - Response includes: `provider`, `model`, `api_key`, `memory_limit`, `context_window`
-- Falls back to Oracle config if no Sati config exists (via `ConfigManager.getSantiConfig()`)
+- Falls back to Oracle config if no Sati config exists (via `ConfigManager.getSatiConfig()`)
 - Requires `THE_ARCHITECT_PASS` header if environment variable is set
 - Returns 200 on success with JSON body
 
@@ -63,7 +63,7 @@ Backend API endpoints for reading and updating Sati agent configuration, mirrori
 - Skip auth check if env var not set
 
 **FR-API-05** MUST use `ConfigManager` singleton for all config operations
-- `ConfigManager.getSantiConfig()` for GET
+- `ConfigManager.getSatiConfig()` for GET
 - `ConfigManager.updateConfig({ santi: {...} })` for POST
 - `ConfigManager.updateConfig({ santi: undefined })` for DELETE
 

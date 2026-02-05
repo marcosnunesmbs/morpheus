@@ -1,12 +1,12 @@
 ## Context
 
-Currently, the Santi memory agent reuses the global `ConfigManager.getLLMConfig()` settings. This forces the memory agent to use the same model as the main conversation agent, which is inefficient. We want to use a cheaper/faster model for memory operations (embedding/retrieval) and control the context window size specifically for memory tasks.
+Currently, the Sati memory agent reuses the global `ConfigManager.getLLMConfig()` settings. This forces the memory agent to use the same model as the main conversation agent, which is inefficient. We want to use a cheaper/faster model for memory operations (embedding/retrieval) and control the context window size specifically for memory tasks.
 
 ## Goals / Non-Goals
 
 **Goals:**
-- Decouple Santi's LLM configuration from the main agent.
-- Allow configuring a specific `memory_limit` for Santi.
+- Decouple Sati's LLM configuration from the main agent.
+- Allow configuring a specific `memory_limit` for Sati.
 - Update the initialization flow to set these values easily.
 
 **Non-Goals:**
@@ -29,14 +29,14 @@ santi:
 
 ### 2. Initialization Flow
 In `src/cli/commands/init.ts`, after the main LLM config is set up, we will prompt:
-> "Compute Santi (Memory) Config?"
+> "Compute Sati (Memory) Config?"
 > [ ] Use same as main LLM
 > [ ] Configure separately
 
 If "Use same" is selected, we copy the provider/model values and ask for `memory_limit` (defaulting to e.g., 5 or 10).
 
 ### 3. Provider Instantiation
-The `SatiService` (in `src/runtime/memory/sati/service.ts`) currently likely calls `ConfigManager.getInstance().getLLMConfig()`. We will add `getSantiConfig()` to `ConfigManager` and update `SatiService` to use it.
+The `SatiService` (in `src/runtime/memory/sati/service.ts`) currently likely calls `ConfigManager.getInstance().getLLMConfig()`. We will add `getSatiConfig()` to `ConfigManager` and update `SatiService` to use it.
 
 ## Risks / Trade-offs
 

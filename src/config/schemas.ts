@@ -18,7 +18,7 @@ export const LLMConfigSchema = z.object({
     context_window: z.number().int().positive().optional(),
 });
 
-export const SantiConfigSchema = LLMConfigSchema.extend({
+export const SatiConfigSchema = LLMConfigSchema.extend({
     memory_limit: z.number().int().positive().optional(),
 });
 
@@ -29,7 +29,7 @@ export const ConfigSchema = z.object({
     personality: z.string().default(DEFAULT_CONFIG.agent.personality),
   }).default(DEFAULT_CONFIG.agent),
   llm: LLMConfigSchema.default(DEFAULT_CONFIG.llm),
-  santi: SantiConfigSchema.optional(),
+  santi: SatiConfigSchema.optional(),
   audio: AudioConfigSchema.default(DEFAULT_CONFIG.audio),
   memory: z.object({
     limit: z.number().int().positive().optional(),

@@ -1,12 +1,12 @@
 ## Why
 
-The Santi memory agent currently relies on the shared LLM configuration. To optimize memory retrieval and agent performance, we need a dedicated configuration section (`santi-config`) that allows specifying a distinct LLM provider/model and a `memory_limit` for context retrieval, independent of the main agent's settings.
+The Sati memory agent currently relies on the shared LLM configuration. To optimize memory retrieval and agent performance, we need a dedicated configuration section (`santi-config`) that allows specifying a distinct LLM provider/model and a `memory_limit` for context retrieval, independent of the main agent's settings.
 
 ## What Changes
 
 - **Schema Update**: Introduce `santi-config` key in the global configuration, mirroring the `llm` structure but adding a `memory_limit` field.
-- **CLI Initialization**: Update `morpheus init` to ask for Santi settings, with a convenience option to copy the default LLM configuration.
-- **Runtime**: Update the Santi provider initialization to consume `santi-config` instead of the generic `llm` config.
+- **CLI Initialization**: Update `morpheus init` to ask for Sati settings, with a convenience option to copy the default LLM configuration.
+- **Runtime**: Update the Sati provider initialization to consume `santi-config` instead of the generic `llm` config.
 
 ## Capabilities
 

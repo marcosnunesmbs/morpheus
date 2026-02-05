@@ -1,7 +1,7 @@
 ## 1. Backend API Endpoints
 
 - [x] 1.1 Add GET `/api/config/sati` endpoint in `src/http/api.ts`
-- [x] 1.2 Implement logic to call `ConfigManager.getSantiConfig()` for fallback behavior
+- [x] 1.2 Implement logic to call `ConfigManager.getSatiConfig()` for fallback behavior
 - [x] 1.3 Add POST `/api/config/sati` endpoint in `src/http/api.ts`
 - [x] 1.4 Add request body validation using `LLMConfigSchema.parse()`
 - [x] 1.5 Implement logic to call `ConfigManager.updateConfig({ santi: {...} })`

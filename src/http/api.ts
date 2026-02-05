@@ -128,7 +128,7 @@ export function createApiRouter() {
   // Sati config endpoints
   router.get('/config/sati', (req, res) => {
     try {
-      const satiConfig = configManager.getSantiConfig();
+      const satiConfig = configManager.getSatiConfig();
       res.json(satiConfig);
     } catch (error: any) {
       res.status(500).json({ error: error.message });

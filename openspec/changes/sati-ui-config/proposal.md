@@ -29,7 +29,7 @@ Currently, the Sati memory agent configuration is hardcoded to use the same LLM 
 **Backend:**
 - `src/config/schemas.ts`: Schema already supports `santi` config (from previous work)
 - `src/http/api.ts`: New endpoints for Sati config GET/POST
-- `src/config/manager.ts`: Already has `getSantiConfig()` method
+- `src/config/manager.ts`: Already has `getSatiConfig()` method
 
 **Configuration:**
 - Config file structure supports independent Sati settings (backward compatible)

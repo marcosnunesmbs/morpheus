@@ -1,10 +1,10 @@
 ## Context
 
-The Sati memory agent currently shares LLM configuration with the Oracle agent. The backend already has infrastructure to support independent Sati configuration (`getSantiConfig()` in ConfigManager, `santi` key in config schema), but the UI provides no way to configure it. This change adds UI controls and API endpoints to expose this existing capability.
+The Sati memory agent currently shares LLM configuration with the Oracle agent. The backend already has infrastructure to support independent Sati configuration (`getSatiConfig()` in ConfigManager, `santi` key in config schema), but the UI provides no way to configure it. This change adds UI controls and API endpoints to expose this existing capability.
 
 **Current State:**
 - Backend config schema supports `santi` configuration block (from spec-022)
-- `ConfigManager.getSantiConfig()` exists with fallback to Oracle config
+- `ConfigManager.getSatiConfig()` exists with fallback to Oracle config
 - UI Settings page has "LLM Configuration" section (Oracle only)
 - No API endpoints for Sati-specific config
 

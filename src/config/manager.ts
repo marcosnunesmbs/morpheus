@@ -1,7 +1,7 @@
 import fs from 'fs-extra';
 import yaml from 'js-yaml';
 import { z } from 'zod';
-import { MorpheusConfig, DEFAULT_CONFIG, SantiConfig } from '../types/config.js';
+import { MorpheusConfig, DEFAULT_CONFIG, SatiConfig } from '../types/config.js';
 import { PATHS } from './paths.js';
 import { setByPath } from './utils.js';
 import { ConfigSchema } from './schemas.js';
@@ -67,7 +67,7 @@ export class ConfigManager {
     return this.config.llm;
   }
 
-  public getSantiConfig(): SantiConfig {
+  public getSatiConfig(): SatiConfig {
     if (this.config.santi) {
       return {
         memory_limit: 10, // Default if undefined

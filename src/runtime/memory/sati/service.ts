@@ -30,7 +30,7 @@ export class SatiService implements ISatiService {
   }
 
   public async recover(currentMessage: string, recentMessages: string[]): Promise<ISatiRetrievalOutput> {
-    const santiConfig = ConfigManager.getInstance().getSantiConfig();
+    const santiConfig = ConfigManager.getInstance().getSatiConfig();
     const memoryLimit = santiConfig.memory_limit || 1000;
     
     // Use the current message as the primary search query
@@ -49,7 +49,7 @@ export class SatiService implements ISatiService {
 
   public async evaluateAndPersist(conversation: { role: string; content: string }[]): Promise<void> {
     try {
-      const santiConfig = ConfigManager.getInstance().getSantiConfig();
+      const santiConfig = ConfigManager.getInstance().getSatiConfig();
       if (!santiConfig) return;
 
       // Use the main provider factory to get an agent (Reusing Zion configuration)
@@ -96,6 +96,7 @@ export class SatiService implements ISatiService {
       }
 
       const response = await agent.invoke({ messages });
+
       const lastMessage = response.messages[response.messages.length - 1];
       let content = lastMessage.content.toString();
 
