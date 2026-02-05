@@ -1,139 +1,140 @@
+
 # Morpheus
 
-## 🚀 Visão Geral
+## 🚀 Overview
 
-**Morpheus** é um operador de IA *local-first* que atua como um elo inteligente entre o desenvolvedor e seus sistemas. Inspirado no conceito de "operador da matrix", ele executa como um daemon persistente em segundo plano, orquestrando interações entre **Grandes Modelos de Linguagem (LLMs)**, **ferramentas locais** e **múltiplos canais de comunicação**.
+**Morpheus** is a *local-first* AI operator that acts as a smart bridge between the developer and their systems. Inspired by the "matrix operator" concept, it runs as a persistent background daemon, orchestrating interactions between **Large Language Models (LLMs)**, **local tools**, and **multiple communication channels**.
 
-O projeto resolve o problema da fragmentação e falta de agência das ferramentas de IA atuais. Diferente de um chat "stateless" no navegador, o Morpheus vive na sua máquina, mantém memória de longo prazo (Sati) e possui capacidade real de execução através de MCPs (Model Context Protocol).
+The project solves the problem of fragmentation and lack of agency in current AI tools. Unlike a stateless browser chat, Morpheus lives on your machine, maintains long-term memory (Sati), and has real execution capability through MCPs (Model Context Protocol).
 
-### Principais Diferenciais
-*   **Soberania de Dados**: Banco de dados e logs locais. Nada sai da sua máquina sem permissão.
-*   **Memória Sati**: Sistema de memória dual (curto/longo prazo) que aprende preferências e fatos organicamente.
-*   **Arquitetura Plugável**: Integração nativa com ferramentas MCP padrão de mercado.
-*   **Presença Omnicanal**: Interaja via Terminal, Web UI ou Telegram (com áudio).
+### Key Differentiators
+*   **Data Sovereignty**: Local database and logs. Nothing leaves your machine without permission.
+*   **Sati Memory**: Dual-layer memory system (short/long term) that organically learns preferences and facts.
+*   **Pluggable Architecture**: Native integration with standard MCP tools.
+*   **Omnichannel Presence**: Interact via Terminal, Web UI, or Telegram (with audio).
 
 ---
 
 ## ✨ Features
 
-*   **Agente Persistente**: Daemon Node.js que mantem estado e contexto entre reinicializações.
-*   **Suporte Multi-LLM**: Integração agnóstica com OpenAI, OpenRouter, Anthropic, Google Gemini e Ollama.
-*   **Memória Sati (Mindfulness)**: 
-    *   Middleware que intercepta conversas para extrair e armazenar fatos importantes em `santi-memory.db`.
-    *   Configuração independente (permite usar um modelo mais inteligente/barato apenas para gerenciar memória).
-*   **Protocolo MCP**: Carregamento dinâmico de ferramentas via arquivo `~/.morpheus/mcps.json`.
-*   **Interface Web "Matrix"**: Dashboard local para monitoramento, configuração e chat, protegido por senha (`THE_ARCHITECT_PASS`).
-*   **Chatbot Telegram/Discord**: Interface móvel com suporte a transcrição de voz via Google GenAI.
-*   **Configuração Hot-Reload**: APIs para ajuste dinâmico de parâmetros do agente sem reiniciar o processo.
-*   **Analytics de Uso**: Monitoramento granular de consumo de tokens por provedor e modelo.
+*   **Persistent Agent**: Node.js daemon that maintains state and context across restarts.
+*   **Multi-LLM Support**: Agnostic integration with OpenAI, OpenRouter, Anthropic, Google Gemini, and Ollama.
+*   **Sati Memory (Mindfulness)**:
+    *   Middleware that intercepts conversations to extract and store important facts in `santi-memory.db`.
+    *   Independent configuration (allows using a smarter/cheaper model just for memory management).
+*   **MCP Protocol**: Dynamic tool loading via the `~/.morpheus/mcps.json` file.
+*   **Matrix Web Interface**: Local dashboard for monitoring, configuration, and chat, password-protected (`THE_ARCHITECT_PASS`).
+*   **Telegram/Discord Chatbot**: Mobile interface with voice transcription support via Google GenAI.
+*   **Hot-Reload Configuration**: APIs for dynamic agent parameter adjustment without restarting the process.
+*   **Usage Analytics**: Granular monitoring of token consumption by provider and model.
 
 ---
 
-## 🧠 Arquitetura
+## 🧠 Architecture
 
-O Morpheus utiliza uma arquitetura de **Monólito Modular** com um fluxo de controle baseado em middlewares.
+Morpheus uses a **Modular Monolith** architecture with a middleware-based control flow.
 
-### Diagrama de Alto Nível
+### High-Level Diagram
 
 ```mermaid
 graph TD
-    User(["Usuário"]) -->|Chat/Voz| Channel["Adaptadores de Canal<br/>(Telegram/Discord/UI)"]
-    Channel -->|Evento Normalizado| Oracle["Oracle Agent<br/>(Runtime Core)"]
+    User(["User"]) -->|Chat/Voice| Channel["Channel Adapters<br/>(Telegram/Discord/UI)"]
+    Channel -->|Normalized Event| Oracle["Oracle Agent<br/>(Runtime Core)"]
     
-    subgraph "Ciclo Cognitivo"
-        Oracle -->|1. Recuperação| Sati["Sati Middleware<br/>(Memória Longa)"]
+    subgraph "Cognitive Cycle"
+        Oracle -->|1. Retrieval| Sati["Sati Middleware<br/>(Long-Term Memory)"]
         Sati <-->|Query| GraphDB[("Sati DB")]
         
-        Oracle -->|2. Contexto| ShortMem[("Session DB")]
+        Oracle -->|2. Context| ShortMem[("Session DB")]
         
-        Oracle -->|3. Inferência| LLM["LLM Provider<br/>(OpenAI/Ollama/etc)"]
+        Oracle -->|3. Inference| LLM["LLM Provider<br/>(OpenAI/Ollama/etc)"]
         
-        Oracle -->|4. Ação Opcional| ToolManager["Tool Manager"]
-        ToolManager <-->|Execução| MCP["Servidores MCP"]
+        Oracle -->|4. Optional Action| ToolManager["Tool Manager"]
+        ToolManager <-->|Execution| MCP["MCP Servers"]
         
-        Oracle -->|5. Consolidação| Sati
+        Oracle -->|5. Consolidation| Sati
     end
     
-    Oracle -->|Resposta| Channel
+    Oracle -->|Response| Channel
 ```
 
-### Decisões Arquiteturais
-*   **Oracle**: O núcleo orquestrador que implementa a interface de pensamento. É agnóstico ao provedor de IA.
-*   **Middleware Sati**: Um "sub-agente" independente que roda antes e depois do ciclo principal para gerir memória sem poluir a lógica de negócio.
-*   **Canais Isolados**: Cada canal (Telegram, CLI, HTTP) é um módulo isolado que apenas emite e recebe eventos padronizados.
+### Architectural Decisions
+*   **Oracle**: The orchestrator core that implements the thinking interface. It is agnostic to the AI provider.
+*   **Sati Middleware**: An independent "sub-agent" that runs before and after the main cycle to manage memory without polluting business logic.
+*   **Isolated Channels**: Each channel (Telegram, CLI, HTTP) is an isolated module that only emits and receives standardized events.
 
 ---
 
-## 📂 Estrutura de Pastas
+## 📂 Folder Structure
 
 ```
 /src
-  /channels     # Adaptadores de entrada/saída (Telegram, Discord)
-  /cli          # Comandos do terminal e gerenciamento do processo daemon
-  /config       # Definições de esquema (Zod) e carregamento de YAML
-  /http         # Servidor API Express e rotas REST
-  /runtime      # Lógica de negócio central
-    /memory     # Implementações de armazenamento (SQLite, Sati)
-    /providers  # Factory para instanciar clientes LLM (OpenAI, etc)
-    /tools      # Cliente MCP e gerenciador de ferramentas locais
-    oracle.ts   # Classe principal do agente
-  /ui           # Código fonte do Frontend (React/Vite)
+  /channels     # Input/output adapters (Telegram, Discord)
+  /cli          # Terminal commands and daemon process management
+  /config       # Schema definitions (Zod) and YAML loading
+  /http         # Express API server and REST routes
+  /runtime      # Core business logic
+    /memory     # Storage implementations (SQLite, Sati)
+    /providers  # Factory for LLM clients (OpenAI, etc)
+    /tools      # MCP client and local tool manager
+    oracle.ts   # Main agent class
+  /ui           # Frontend source code (React/Vite)
 ```
 
 ---
 
-## ⚙️ Instalação
+## ⚙️ Installation
 
-### Pré-requisitos
-*   **Node.js**: v18.0.0 ou superior (Requer suporte a ESM e fetch nativo).
-*   **NPM**: v9.0.0 ou superior.
-*   **Python/Build Tools**: Necessário em alguns SOs para compilar `better-sqlite3`.
+### Prerequisites
+*   **Node.js**: v18.0.0 or higher (Requires ESM and native fetch support).
+*   **NPM**: v9.0.0 or higher.
+*   **Python/Build Tools**: Required on some OSes to compile `better-sqlite3`.
 
-### Instalação Global
-Para uso como ferramenta de sistema:
+### Global Installation
+For use as a system tool:
 
 ```bash
 npm install -g morpheus-cli
 ```
 
-### Variáveis de Ambiente
-Crie um arquivo `.env` na raiz ou configure no seu shell.
+### Environment Variables
+Create a `.env` file at the root or configure in your shell.
 
-| Variável | Descrição | Obrigatória |
-| -------- | --------- | ----------- |
-| `OPENAI_API_KEY` | Chave de API da OpenAI (se usar GPT) | Não |
-| `ANTHROPIC_API_KEY` | Chave de API da Anthropic (se usar Claude) | Não |
-| `GOOGLE_API_KEY` | Chave Google AI (para Gemini e Audio) | Sim (p/ Voz) |
-| `THE_ARCHITECT_PASS` | Senha de acesso ao Dashboard Web | Recomendado |
-| `TELEGRAM_BOT_TOKEN` | Token do BotFather | Não |
+| Variable | Description | Required |
+| -------- | ----------- | -------- |
+| `OPENAI_API_KEY` | OpenAI API key (if using GPT) | No |
+| `ANTHROPIC_API_KEY` | Anthropic API key (if using Claude) | No |
+| `GOOGLE_API_KEY` | Google AI key (for Gemini and Audio) | Yes (for Voice) |
+| `THE_ARCHITECT_PASS` | Web Dashboard access password | Recommended |
+| `TELEGRAM_BOT_TOKEN` | BotFather token | No |
 
 ---
 
-## ▶️ Como Executar
+## ▶️ How to Run
 
-### Configuração Inicial
-Antes de rodar pela primeira vez, gere os arquivos de configuração:
+### Initial Setup
+Before running for the first time, generate the configuration files:
 
 ```bash
 morpheus init
 ```
-Isso criará a pasta `~/.morpheus` contendo `config.yaml` (configuração geral) e `mcps.json` (ferramentas).
+This will create the `~/.morpheus` folder containing `config.yaml` (general config) and `mcps.json` (tools).
 
-### Produção (Daemon)
-Inicia o agente em background e libera o terminal.
+### Production (Daemon)
+Starts the agent in the background and frees the terminal.
 
 ```bash
 morpheus start
 ```
 *   **Dashboard**: `http://localhost:3333`
-*   **Status**: Use `morpheus status` para ver o PID.
-*   **Logs**: Use `morpheus logs` (se implementado) ou verifique `~/.morpheus/logs`.
+*   **Status**: Use `morpheus status` to see the PID.
+*   **Logs**: Use `morpheus logs` (if implemented) or check `~/.morpheus/logs`.
 
-### Desenvolvimento
-Para contribuir com o código:
+### Development
+To contribute to the code:
 
 ```bash
-# Terminal 1: Backend em modo watch
+# Terminal 1: Backend in watch mode
 npm run dev:cli
 
 # Terminal 2: Frontend (UI)
@@ -142,30 +143,30 @@ npm run dev:ui
 
 ---
 
-## 🧪 Testes
+## 🧪 Tests
 
-Os testes são escritos usando **Vitest** e seguem a estratégia de testes unitários e de integração focados em features.
+Tests are written using **Vitest** and follow a unit and integration testing strategy focused on features.
 
 ```bash
-# Rodar suíte completa
+# Run full suite
 npm test
 
-# Rodar testes de um arquivo específico
+# Run tests for a specific file
 npm test oracle
 ```
 
-**Estrutura**: Os testes ficam em pastas `__tests__` próximas ao código que testam (co-location).
+**Structure**: Tests are located in `__tests__` folders near the code they test (co-location).
 
 ---
 
-## 🔌 Integrações / MCPs
+## 🔌 Integrations / MCPs
 
-O Morpheus adota o padrão **Model Context Protocol (MCP)** para ferramentas.
+Morpheus adopts the **Model Context Protocol (MCP)** standard for tools.
 
-### Registro de MCPs
-Edite `~/.morpheus/mcps.json` para adicionar servidores. O sistema suporta transportes `stdio` (execução local) e `http` (remoto).
+### Registering MCPs
+Edit `~/.morpheus/mcps.json` to add servers. The system supports `stdio` (local execution) and `http` (remote) transports.
 
-**Exemplo (`mcps.json`):**
+**Example (`mcps.json`):**
 ```json
 {
   "mcpServers": {
@@ -184,74 +185,74 @@ Edite `~/.morpheus/mcps.json` para adicionar servidores. O sistema suporta trans
 
 ---
 
-## 🧩 Como Funciona Internamente
+## 🧩 How It Works Internally
 
-O fluxo de uma interação segue os seguintes passos:
+The flow of an interaction follows these steps:
 
-1.  **Recepção**: O `TelegramAdapter` recebe um webhook, valida o `chat_id` contra a allowlist definida em configuração.
-2.  **Pré-Processamento (Middleware)**:
-    *   O endpoint `beforeAgent` do Sati é acionado.
-    *   Ele busca no `santi-memory.db` por fatos semanticamente relevantes ao input atual.
-    *   Fatos encontrados são injetados como `SystemMessage` no array de mensagens.
-3.  **Deliberação (Oracle)**:
-    *   O Oracle consulta o LLM configurado.
-    *   Se o LLM solicitar uma ferramenta (ex: `read_file`), o Oracle executa via cliente MCP.
-    *   O processo se repete até o LLM gerar uma resposta final.
-4.  **Pós-Processamento (Middleware)**:
-    *   O endpoint `afterAgent` do Sati é acionado com o histórico completo da interação.
-    *   Um processo paralelo (Fire-and-forget) analisa a conversa para extrair novos fatos.
-    *   Novos fatos são salvos no banco de longo prazo.
-5.  **Entrega**: A resposta final é enviada ao usuário via adaptador Telegram.
+1.  **Reception**: The `TelegramAdapter` receives a webhook, validates the `chat_id` against the allowlist defined in the configuration.
+2.  **Pre-Processing (Middleware)**:
+    *   The Sati `beforeAgent` endpoint is triggered.
+    *   It searches `santi-memory.db` for facts semantically relevant to the current input.
+    *   Found facts are injected as `SystemMessage` in the message array.
+3.  **Deliberation (Oracle)**:
+    *   Oracle queries the configured LLM.
+    *   If the LLM requests a tool (e.g., `read_file`), Oracle executes it via the MCP client.
+    *   The process repeats until the LLM generates a final response.
+4.  **Post-Processing (Middleware)**:
+    *   The Sati `afterAgent` endpoint is triggered with the full interaction history.
+    *   A parallel (fire-and-forget) process analyzes the conversation to extract new facts.
+    *   New facts are saved in the long-term database.
+5.  **Delivery**: The final response is sent to the user via the Telegram adapter.
 
 ---
 
 ## 📡 API
 
-A API REST roda na porta 3333 (configurável) e serve tanto a UI quanto integrações locais.
+The REST API runs on port 3333 (configurable) and serves both the UI and local integrations.
 
 ### GET `/api/agents`
-Retorna o estado de saúde do agente e providers ativos.
+Returns the health status of the agent and active providers.
 
 ### GET `/api/config/sati`
-Recupera a configuração específica do subsistema de memória Sati.
+Retrieves the specific configuration of the Sati memory subsystem.
 
 ### POST `/api/config/sati`
-*   **Descrição**: Atualiza configurações do Sati (Modelo, Provider, Janela).
+*   **Description**: Updates Sati settings (Model, Provider, Window).
 *   **Body**: `{ "provider": "openai", "model": "gpt-4-turbo", ... }`
 
 ### GET `/api/stats/usage`
-Retorna métricas de consumo de tokens (Input/Output) acumuladas.
+Returns accumulated token consumption metrics (Input/Output).
 
 ---
 
-## 🏗 Padrões e Decisões Técnicas
+## 🏗 Patterns and Technical Decisions
 
-*   **Spec-Driven Development**: Nenhuma linha de código é escrita sem uma `spec` aprovada na pasta `specs/`. Isso garante rastreabilidade e clareza arquitetural.
-*   **Fail-Open**: Falhas em subsistemas não críticos (como o Sati Memory) não derrubam o processo principal. O log de erro é gerado, mas o chat continua.
-*   **Zero-Config Defaults**: O comando `init` gera uma configuração funcional padrão para minimizar o atrito inicial.
-*   **Typescript Strict**: Uso rigoroso de tipagem para contratos entre módulos (Frontend <-> Backend <-> Config).
+*   **Spec-Driven Development**: No code is written without an approved `spec` in the `specs/` folder. This ensures traceability and architectural clarity.
+*   **Fail-Open**: Failures in non-critical subsystems (like Sati Memory) do not bring down the main process. An error log is generated, but chat continues.
+*   **Zero-Config Defaults**: The `init` command generates a functional default configuration to minimize initial friction.
+*   **Typescript Strict**: Strict typing for contracts between modules (Frontend <-> Backend <-> Config).
 
 ---
 
-## 🤝 Contribuição
+## 🤝 Contribution
 
-1.  Consulte o [Roadmap](ROADMAP.md) ou Issues abertas.
-2.  Para novas features, crie uma proposta na pasta `specs/` (ver `001-cli-structure` como exemplo).
-3.  Siga o estilo de código (ESLint + Prettier).
-4.  Abra um PR com descrição detalhada e link para a Spec.
+1.  Check the [Roadmap](ROADMAP.md) or open Issues.
+2.  For new features, create a proposal in the `specs/` folder (see `001-cli-structure` as an example).
+3.  Follow the code style (ESLint + Prettier).
+4.  Open a PR with a detailed description and link to the Spec.
 
 ## 🗺 Roadmap
 
-*   [x] MVP com suporte a LLMs básicos.
-*   [x] Integração com Telegram.
+*   [x] MVP with basic LLM support.
+*   [x] Telegram integration.
 *   [x] Web UI Dashboard.
-*   [x] Memória de Longo Prazo (Sati).
-*   [ ] Suport ao Discord
-*   [ ] Ferramentas de Iteração com  Sistema de Arquivos Local.
-*   [ ] Iteração com terminal local.
+*   [x] Long-Term Memory (Sati).
+*   [ ] Discord support
+*   [ ] Iteration tools with Local Filesystem.
+*   [ ] Iteration with local terminal.
 
 ---
 
-## 📄 Licença
+## 📄 License
 
-Este projeto é open-source sob a licença **ISC**. Veja o arquivo `LICENSE` para mais detalhes.
+This project is open-source under the **ISC** license. See the `LICENSE` file for more details.
