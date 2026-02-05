@@ -11,3 +11,4 @@ Thumbs.db
 coverage/
 .morpheus/
 .vscode/
+.qwen/
