@@ -24,6 +24,12 @@ export class HttpServer {
   private setupMiddleware() {
     this.app.use(cors());
     this.app.use(bodyParser.json());
+    
+    // Adicionar cabeçalhos para evitar indexação por motores de busca
+    this.app.use((req, res, next) => {
+      res.setHeader('X-Robots-Tag', 'noindex, nofollow');
+      next();
+    });
   }
 
   private setupRoutes() {

@@ -298,6 +298,14 @@ Returns accumulated token consumption metrics (Input/Output).
 
 ---
 
+## 🕵️ Privacy Protection
+
+The Web UI includes privacy protection headers to prevent indexing by search engines:
+- HTML meta tags: `<meta name="robots" content="noindex, nofollow">`
+- HTTP header: `X-Robots-Tag: noindex, nofollow`
+
+This ensures that your private agent dashboard remains private and is not discoverable by search engines.
+
 ## 🐳 Running with Docker
 
 Morpheus can be easily deployed using Docker and Docker Compose. The container supports all environment variables for configuration.
