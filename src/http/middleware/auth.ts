@@ -4,14 +4,16 @@ import { DisplayManager } from '../../runtime/display.js';
 
 /**
  * Middleware to protect API routes with a password from THE_ARCHITECT_PASS env var.
- * If the env var is not set, authentication is skipped (open mode).
+ * If the env var is not set, uses default password 'iamthearchitect'.
  */
 export const authMiddleware = (req: Request, res: Response, next: NextFunction) => {
-  const architectPass = process.env.THE_ARCHITECT_PASS;
+  // Use environment variable if set, otherwise use default password
+  const architectPass = process.env.THE_ARCHITECT_PASS || 'iamthearchitect';
 
-  // If password is not configured, allow all requests
-  if (!architectPass || architectPass.trim() === '') {
-    return next();
+  // If password is not configured (using default), log a warning
+  if (!process.env.THE_ARCHITECT_PASS) {
+    const display = DisplayManager.getInstance();
+    display.log('Using default password for dashboard access. For security, set THE_ARCHITECT_PASS environment variable.', { source: 'http', level: 'warning' });
   }
 
   const providedPass = req.headers[AUTH_HEADER];

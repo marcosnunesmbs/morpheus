@@ -64,9 +64,20 @@ export const initCommand = new Command('init')
 
       let apiKey: string | undefined;
       const hasExistingKey = !!currentConfig.llm.api_key;
-      const apiKeyMessage = hasExistingKey 
+      let apiKeyMessage = hasExistingKey
         ? 'Enter API Key (leave empty to preserve existing, or if using env vars):'
         : 'Enter API Key (leave empty if using env vars):';
+
+      // Add info about environment variables to the message
+      if (provider === 'openai') {
+        apiKeyMessage = `${apiKeyMessage} (Env var: OPENAI_API_KEY)`;
+      } else if (provider === 'anthropic') {
+        apiKeyMessage = `${apiKeyMessage} (Env var: ANTHROPIC_API_KEY)`;
+      } else if (provider === 'gemini') {
+        apiKeyMessage = `${apiKeyMessage} (Env var: GOOGLE_API_KEY)`;
+      } else if (provider === 'openrouter') {
+        apiKeyMessage = `${apiKeyMessage} (Env var: OPENROUTER_API_KEY)`;
+      }
 
       if (provider !== 'ollama' && provider !== 'openrouter') {
         apiKey = await password({
@@ -154,10 +165,21 @@ export const initCommand = new Command('init')
         });
 
         const hasExistingSatiKey = !!currentConfig.santi?.api_key;
-        const santiKeyMsg = hasExistingSatiKey 
-          ? 'Enter Sati API Key (leave empty to preserve existing):'
-          : 'Enter Sati API Key:';
-        
+        let santiKeyMsg = hasExistingSatiKey
+          ? 'Enter Sati API Key (leave empty to preserve existing, or if using env vars):'
+          : 'Enter Sati API Key (leave empty if using env vars):';
+
+        // Add info about environment variables to the message
+        if (santiProvider === 'openai') {
+          santiKeyMsg = `${santiKeyMsg} (Env var: OPENAI_API_KEY)`;
+        } else if (santiProvider === 'anthropic') {
+          santiKeyMsg = `${santiKeyMsg} (Env var: ANTHROPIC_API_KEY)`;
+        } else if (santiProvider === 'gemini') {
+          santiKeyMsg = `${santiKeyMsg} (Env var: GOOGLE_API_KEY)`;
+        } else if (santiProvider === 'openrouter') {
+          santiKeyMsg = `${santiKeyMsg} (Env var: OPENROUTER_API_KEY)`;
+        }
+
         const keyInput = await password({ message: santiKeyMsg });
         if (keyInput) {
             santiApiKey = keyInput;
@@ -204,10 +226,13 @@ export const initCommand = new Command('init')
               display.log(chalk.gray('Using main Gemini API key for audio.'));
           } else {
               const hasExistingAudioKey = !!currentConfig.audio?.apiKey;
-              const audioKeyMessage = hasExistingAudioKey 
-                ? 'Enter Gemini API Key for Audio (leave empty to preserve existing):'
-                : 'Enter Gemini API Key for Audio:';
+              let audioKeyMessage = hasExistingAudioKey
+                ? 'Enter Gemini API Key for Audio (leave empty to preserve existing, or if using env vars):'
+                : 'Enter Gemini API Key for Audio (leave empty if using env vars):';
               
+              // Add info about environment variables to the message
+              audioKeyMessage = `${audioKeyMessage} (Env var: GOOGLE_API_KEY)`;
+
               audioKey = await password({
                   message: audioKeyMessage,
               });
@@ -251,10 +276,15 @@ export const initCommand = new Command('init')
           display.log(chalk.gray('2. Get your User ID via @userinfobot.\n'));
 
           const hasExistingToken = !!currentConfig.channels.telegram?.token;
-          const token = await password({ 
-            message: hasExistingToken 
-              ? 'Enter Telegram Bot Token (leave empty to preserve existing):' 
-              : 'Enter Telegram Bot Token:',
+          let telegramTokenMessage = hasExistingToken
+            ? 'Enter Telegram Bot Token (leave empty to preserve existing, or if using env vars):'
+            : 'Enter Telegram Bot Token (leave empty if using env vars):';
+            
+          // Add info about environment variables to the message
+          telegramTokenMessage = `${telegramTokenMessage} (Env var: TELEGRAM_BOT_TOKEN)`;
+          
+          const token = await password({
+            message: telegramTokenMessage,
             validate: (value) => {
               if (value.length > 0) return true;
               if (hasExistingToken) return true;

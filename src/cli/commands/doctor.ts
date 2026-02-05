@@ -28,11 +28,11 @@ export const doctorCommand = new Command('doctor')
       if (await fs.pathExists(PATHS.config)) {
         const config = await ConfigManager.getInstance().load();
         console.log(chalk.green('✓') + ' Configuration: Valid');
-        
+
         // Check context window configuration
         const contextWindow = config.llm?.context_window;
         const deprecatedLimit = config.memory?.limit;
-        
+
         if (contextWindow !== undefined) {
           if (typeof contextWindow === 'number' && contextWindow > 0) {
             console.log(chalk.green('✓') + ` LLM context window: ${contextWindow} messages`);
@@ -43,12 +43,77 @@ export const doctorCommand = new Command('doctor')
         } else {
           console.log(chalk.yellow('⚠') + ' LLM context window not configured, using default: 100 messages');
         }
-        
+
         // Check for deprecated field
         if (deprecatedLimit !== undefined && contextWindow === undefined) {
           console.log(chalk.yellow('⚠') + ' Deprecated config detected: \'memory.limit\' should be migrated to \'llm.context_window\'. Will auto-migrate on next start.');
         } else if (deprecatedLimit !== undefined && contextWindow !== undefined) {
           console.log(chalk.yellow('⚠') + ' Found both \'memory.limit\' and \'llm.context_window\'. Remove \'memory.limit\' from config.');
+        }
+
+        // Check API keys availability for active providers
+        const llmProvider = config.llm?.provider;
+        const santiProvider = config.santi?.provider;
+        
+        // Check LLM provider API key
+        if (llmProvider && llmProvider !== 'ollama') {
+          const hasLlmApiKey = config.llm?.api_key || 
+                              (llmProvider === 'openai' && process.env.OPENAI_API_KEY) ||
+                              (llmProvider === 'anthropic' && process.env.ANTHROPIC_API_KEY) ||
+                              (llmProvider === 'gemini' && process.env.GOOGLE_API_KEY) ||
+                              (llmProvider === 'openrouter' && process.env.OPENROUTER_API_KEY);
+          
+          if (hasLlmApiKey) {
+            console.log(chalk.green('✓') + ` LLM API key available for ${llmProvider}`);
+          } else {
+            console.log(chalk.red('✗') + ` LLM API key missing for ${llmProvider}. Either set in config or define environment variable.`);
+            allPassed = false;
+          }
+        }
+
+        // Check Santi provider API key
+        if (santiProvider && santiProvider !== 'ollama') {
+          const hasSantiApiKey = config.santi?.api_key || 
+                                (santiProvider === 'openai' && process.env.OPENAI_API_KEY) ||
+                                (santiProvider === 'anthropic' && process.env.ANTHROPIC_API_KEY) ||
+                                (santiProvider === 'gemini' && process.env.GOOGLE_API_KEY) ||
+                                (santiProvider === 'openrouter' && process.env.OPENROUTER_API_KEY);
+          
+          if (hasSantiApiKey) {
+            console.log(chalk.green('✓') + ` Santi API key available for ${santiProvider}`);
+          } else {
+            console.log(chalk.red('✗') + ` Santi API key missing for ${santiProvider}. Either set in config or define environment variable.`);
+            allPassed = false;
+          }
+        }
+
+        // Check audio API key if enabled
+        if (config.audio?.enabled && config.llm?.provider !== 'gemini') {
+          const hasAudioApiKey = config.audio?.apiKey || process.env.GOOGLE_API_KEY;
+          if (hasAudioApiKey) {
+            console.log(chalk.green('✓') + ' Audio API key available for transcription');
+          } else {
+            console.log(chalk.red('✗') + ' Audio API key missing. Either set in config or define GOOGLE_API_KEY environment variable.');
+            allPassed = false;
+          }
+        }
+
+        // Check Telegram token if enabled
+        if (config.channels?.telegram?.enabled) {
+          const hasTelegramToken = config.channels.telegram?.token || process.env.TELEGRAM_BOT_TOKEN;
+          if (hasTelegramToken) {
+            console.log(chalk.green('✓') + ' Telegram bot token available');
+          } else {
+            console.log(chalk.red('✗') + ' Telegram bot token missing. Either set in config or define TELEGRAM_BOT_TOKEN environment variable.');
+            allPassed = false;
+          }
+        }
+
+        // Check if default password is being used for dashboard
+        if (!process.env.THE_ARCHITECT_PASS) {
+          console.log(chalk.yellow('⚠') + ' Using default password for dashboard (iamthearchitect). For security, set THE_ARCHITECT_PASS environment variable.');
+        } else {
+          console.log(chalk.green('✓') + ' Custom dashboard password set');
         }
       } else {
         console.log(chalk.yellow('!') + ' Configuration: Missing (will be created on start)');

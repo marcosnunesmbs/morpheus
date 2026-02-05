@@ -54,21 +54,21 @@ export class ProviderFactory {
           model = new ChatOpenAI({
             modelName: config.model,
             temperature: config.temperature,
-            apiKey: config.api_key, // LangChain will also check process.env.OPENAI_API_KEY
+            apiKey: process.env.OPENAI_API_KEY || config.api_key, // Check env var first, then config
           });
           break;
         case 'anthropic':
           model = new ChatAnthropic({
             modelName: config.model,
             temperature: config.temperature,
-            apiKey: config.api_key,
+            apiKey: process.env.ANTHROPIC_API_KEY || config.api_key, // Check env var first, then config
           });
           break;
         case 'openrouter':
           model = new ChatOpenAI({
             modelName: config.model,
             temperature: config.temperature,
-            apiKey: config.api_key,
+            apiKey: process.env.OPENROUTER_API_KEY || config.api_key, // Check env var first, then config
             configuration: {
               baseURL: config.base_url || 'https://openrouter.ai/api/v1'
             }
@@ -86,7 +86,7 @@ export class ProviderFactory {
           model = new ChatGoogleGenerativeAI({
             model: config.model,
             temperature: config.temperature,
-            apiKey: config.api_key
+            apiKey: process.env.GOOGLE_API_KEY || config.api_key // Check env var first, then config
           });
           break;
         default:

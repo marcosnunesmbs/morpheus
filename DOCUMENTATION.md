@@ -105,8 +105,11 @@ Create a `.env` file at the root or configure in your shell.
 | `OPENAI_API_KEY` | OpenAI API key (if using GPT) | No |
 | `ANTHROPIC_API_KEY` | Anthropic API key (if using Claude) | No |
 | `GOOGLE_API_KEY` | Google AI key (for Gemini and Audio) | Yes (for Voice) |
+| `OPENROUTER_API_KEY` | OpenRouter API key (if using OpenRouter) | No |
 | `THE_ARCHITECT_PASS` | Web Dashboard access password | Recommended |
 | `TELEGRAM_BOT_TOKEN` | BotFather token | No |
+
+> **Note**: If `THE_ARCHITECT_PASS` is not set, the system will use the default password `iamthearchitect`. This is less secure and it's recommended to set your own password in production environments.
 
 ---
 

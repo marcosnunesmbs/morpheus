@@ -93,17 +93,42 @@ Local React-based UI to manage recordings, chat history, and system status acros
 #### 🔒 UI Authentication
 To protect your Web UI, use the `THE_ARCHITECT_PASS` environment variable. This ensures only authorized users can access the dashboard and API.
 
+Additionally, you can use environment variables for API keys instead of storing them in the configuration file:
+
+| Variable | Description | Required |
+|----------|-------------|----------|
+| `OPENAI_API_KEY` | OpenAI API key (if using GPT) | No |
+| `ANTHROPIC_API_KEY` | Anthropic API key (if using Claude) | No |
+| `GOOGLE_API_KEY` | Google AI key (for Gemini and Audio) | Yes (for audio) |
+| `OPENROUTER_API_KEY` | OpenRouter API key (if using OpenRouter) | No |
+| `THE_ARCHITECT_PASS` | Web Dashboard access password | Recommended |
+| `TELEGRAM_BOT_TOKEN` | Telegram BotFather token | No |
+
+If these environment variables are set, they will take precedence over values stored in the configuration file.
+
+> **Note**: If `THE_ARCHITECT_PASS` is not set, the system will use the default password `iamthearchitect`. This is less secure and it's recommended to set your own password in production environments.
+
 **Option 1: Using a `.env` file**
 Create a `.env` file in the root of your project:
 
 ```env
+OPENAI_API_KEY="your-openai-api-key"
+ANTHROPIC_API_KEY="your-anthropic-api-key"
+GOOGLE_API_KEY="your-google-api-key"
 THE_ARCHITECT_PASS="your-secure-password"
+TELEGRAM_BOT_TOKEN="your-telegram-bot-token"
+OPENROUTER_API_KEY="your-openrouter-api-key"
 ```
 
 **Option 2: Using Shell export**
 
 ```bash
+export OPENAI_API_KEY="your-openai-api-key"
+export ANTHROPIC_API_KEY="your-anthropic-api-key"
+export GOOGLE_API_KEY="your-google-api-key"
+export OPENROUTER_API_KEY="your-openrouter-api-key"
 export THE_ARCHITECT_PASS="your-secure-password"
+export TELEGRAM_BOT_TOKEN="your-telegram-bot-token"
 morpheus start
 ```
 
