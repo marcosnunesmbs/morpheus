@@ -1,11 +1,19 @@
 import fs from 'fs-extra';
 import yaml from 'js-yaml';
 import { z } from 'zod';
-import { MorpheusConfig, DEFAULT_CONFIG, SatiConfig } from '../types/config.js';
+import { MorpheusConfig, DEFAULT_CONFIG, SatiConfig, LLMProvider } from '../types/config.js';
 import { PATHS } from './paths.js';
 import { setByPath } from './utils.js';
 import { ConfigSchema } from './schemas.js';
 import { migrateConfigFile } from '../runtime/migration.js';
+import { 
+  resolveApiKey, 
+  resolveModel, 
+  resolveNumeric, 
+  resolveString, 
+  resolveBoolean, 
+  resolveProvider 
+} from './precedence.js';
 
 export class ConfigManager {
   private static instance: ConfigManager;
@@ -24,21 +32,111 @@ export class ConfigManager {
     try {
       await migrateConfigFile();
 
+      let rawConfig: MorpheusConfig = DEFAULT_CONFIG;
+
       if (await fs.pathExists(PATHS.config)) {
         const raw = await fs.readFile(PATHS.config, 'utf8');
         const parsed = yaml.load(raw);
         // Validate and merge with defaults via Zod
-        this.config = ConfigSchema.parse(parsed) as MorpheusConfig;
-      } else {
-        // File doesn't exist, use defaults
-        this.config = DEFAULT_CONFIG;
+        rawConfig = ConfigSchema.parse(parsed) as MorpheusConfig;
       }
+
+      // Apply environment variable precedence to the loaded config
+      this.config = this.applyEnvironmentVariablePrecedence(rawConfig);
     } catch (error) {
       console.error('Failed to load configuration:', error);
       // Fallback to default if load fails
       this.config = DEFAULT_CONFIG;
     }
     return this.config;
+  }
+
+  private applyEnvironmentVariablePrecedence(config: MorpheusConfig): MorpheusConfig {
+    // Apply precedence to agent config
+    const agentConfig = {
+      name: resolveString('MORPHEUS_AGENT_NAME', config.agent.name, DEFAULT_CONFIG.agent.name),
+      personality: resolveString('MORPHEUS_AGENT_PERSONALITY', config.agent.personality, DEFAULT_CONFIG.agent.personality)
+    };
+
+    // Apply precedence to LLM config
+    const llmProvider = resolveProvider('MORPHEUS_LLM_PROVIDER', config.llm.provider, DEFAULT_CONFIG.llm.provider);
+    const llmConfig = {
+      provider: llmProvider,
+      model: resolveModel(llmProvider, 'MORPHEUS_LLM_MODEL', config.llm.model),
+      temperature: resolveNumeric('MORPHEUS_LLM_TEMPERATURE', config.llm.temperature, DEFAULT_CONFIG.llm.temperature),
+      max_tokens: config.llm.max_tokens !== undefined ? resolveNumeric('MORPHEUS_LLM_MAX_TOKENS', config.llm.max_tokens, config.llm.max_tokens!) : undefined,
+      api_key: resolveApiKey(llmProvider, 'MORPHEUS_LLM_API_KEY', config.llm.api_key),
+      base_url: config.llm.base_url, // base_url doesn't have environment variable precedence for now
+      context_window: config.llm.context_window !== undefined ? resolveNumeric('MORPHEUS_LLM_CONTEXT_WINDOW', config.llm.context_window, DEFAULT_CONFIG.llm.context_window!) : undefined
+    };
+
+    // Apply precedence to Sati config
+    let santiConfig: SatiConfig | undefined;
+    if (config.santi) {
+      const santiProvider = resolveProvider('MORPHEUS_SANTI_PROVIDER', config.santi.provider, llmConfig.provider);
+      santiConfig = {
+        provider: santiProvider,
+        model: resolveModel(santiProvider, 'MORPHEUS_SANTI_MODEL', config.santi.model || llmConfig.model),
+        temperature: resolveNumeric('MORPHEUS_SANTI_TEMPERATURE', config.santi.temperature, llmConfig.temperature),
+        max_tokens: config.santi.max_tokens !== undefined ? resolveNumeric('MORPHEUS_SANTI_MAX_TOKENS', config.santi.max_tokens, config.santi.max_tokens!) : llmConfig.max_tokens,
+        api_key: resolveApiKey(santiProvider, 'MORPHEUS_SANTI_API_KEY', config.santi.api_key || llmConfig.api_key),
+        base_url: config.santi.base_url || config.llm.base_url,
+        context_window: config.santi.context_window !== undefined ? resolveNumeric('MORPHEUS_SANTI_CONTEXT_WINDOW', config.santi.context_window, config.santi.context_window!) : llmConfig.context_window,
+        memory_limit: config.santi.memory_limit !== undefined ? resolveNumeric('MORPHEUS_SANTI_MEMORY_LIMIT', config.santi.memory_limit, config.santi.memory_limit!) : undefined
+      };
+    }
+
+    // Apply precedence to audio config
+    const audioConfig = {
+      provider: config.audio.provider, // Audio provider is fixed as 'google'
+      model: resolveString('MORPHEUS_AUDIO_MODEL', config.audio.model, DEFAULT_CONFIG.audio.model),
+      enabled: resolveBoolean('MORPHEUS_AUDIO_ENABLED', config.audio.enabled, DEFAULT_CONFIG.audio.enabled),
+      apiKey: resolveApiKey('gemini', 'MORPHEUS_AUDIO_API_KEY', config.audio.apiKey),
+      maxDurationSeconds: resolveNumeric('MORPHEUS_AUDIO_MAX_DURATION', config.audio.maxDurationSeconds, DEFAULT_CONFIG.audio.maxDurationSeconds),
+      supportedMimeTypes: config.audio.supportedMimeTypes
+    };
+
+    // Apply precedence to channel configs
+    const channelsConfig = {
+      telegram: {
+        enabled: resolveBoolean('MORPHEUS_TELEGRAM_ENABLED', config.channels.telegram.enabled, DEFAULT_CONFIG.channels.telegram.enabled),
+        token: resolveString('MORPHEUS_TELEGRAM_TOKEN', config.channels.telegram.token, config.channels.telegram.token || ''),
+        allowedUsers: config.channels.telegram.allowedUsers
+      },
+      discord: {
+        enabled: config.channels.discord.enabled, // Discord doesn't have env var precedence for now
+        token: config.channels.discord.token
+      }
+    };
+
+    // Apply precedence to UI config
+    const uiConfig = {
+      enabled: resolveBoolean('MORPHEUS_UI_ENABLED', config.ui.enabled, DEFAULT_CONFIG.ui.enabled),
+      port: resolveNumeric('MORPHEUS_UI_PORT', config.ui.port, DEFAULT_CONFIG.ui.port)
+    };
+
+    // Apply precedence to logging config
+    const loggingConfig = {
+      enabled: resolveBoolean('MORPHEUS_LOGGING_ENABLED', config.logging.enabled, DEFAULT_CONFIG.logging.enabled),
+      level: resolveString('MORPHEUS_LOGGING_LEVEL', config.logging.level, DEFAULT_CONFIG.logging.level) as 'debug' | 'info' | 'warn' | 'error',
+      retention: resolveString('MORPHEUS_LOGGING_RETENTION', config.logging.retention, DEFAULT_CONFIG.logging.retention)
+    };
+
+    // Memory config (deprecated, but keeping for backward compatibility)
+    const memoryConfig = {
+      limit: config.memory.limit // Not applying env var precedence to deprecated field
+    };
+
+    return {
+      agent: agentConfig,
+      llm: llmConfig,
+      santi: santiConfig,
+      audio: audioConfig,
+      channels: channelsConfig,
+      ui: uiConfig,
+      logging: loggingConfig,
+      memory: memoryConfig
+    };
   }
 
   public get(): MorpheusConfig {

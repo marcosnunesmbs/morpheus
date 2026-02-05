@@ -1,4 +1,8 @@
 
+<div align="center">
+  <img src="./assets/logo.png" alt="Morpheus Logo" width="220" />
+</div>
+
 # Morpheus
 
 ## 🚀 Overview
@@ -108,6 +112,43 @@ Create a `.env` file at the root or configure in your shell.
 | `OPENROUTER_API_KEY` | OpenRouter API key (if using OpenRouter) | No |
 | `THE_ARCHITECT_PASS` | Web Dashboard access password | Recommended |
 | `TELEGRAM_BOT_TOKEN` | BotFather token | No |
+
+The system also supports generic environment variables that apply to all providers:
+
+| Variable | Description | Applies To |
+|----------|-------------|------------|
+| `MORPHEUS_AGENT_NAME` | Name of the agent | agent.name |
+| `MORPHEUS_AGENT_PERSONALITY` | Personality of the agent | agent.personality |
+| `MORPHEUS_LLM_PROVIDER` | LLM provider to use | llm.provider |
+| `MORPHEUS_LLM_MODEL` | Model name for LLM | llm.model |
+| `MORPHEUS_LLM_TEMPERATURE` | Temperature setting for LLM | llm.temperature |
+| `MORPHEUS_LLM_MAX_TOKENS` | Maximum tokens for LLM | llm.max_tokens |
+| `MORPHEUS_LLM_CONTEXT_WINDOW` | Context window size for LLM | llm.context_window |
+| `MORPHEUS_LLM_API_KEY` | Generic API key for LLM (lower precedence than provider-specific keys) | llm.api_key |
+| `MORPHEUS_SANTI_PROVIDER` | Sati provider to use | santi.provider |
+| `MORPHEUS_SANTI_MODEL` | Model name for Sati | santi.model |
+| `MORPHEUS_SANTI_TEMPERATURE` | Temperature setting for Sati | santi.temperature |
+| `MORPHEUS_SANTI_MAX_TOKENS` | Maximum tokens for Sati | santi.max_tokens |
+| `MORPHEUS_SANTI_CONTEXT_WINDOW` | Context window size for Sati | santi.context_window |
+| `MORPHEUS_SANTI_API_KEY` | Generic API key for Sati (lower precedence than provider-specific keys) | santi.api_key |
+| `MORPHEUS_SANTI_MEMORY_LIMIT` | Memory retrieval limit for Sati | santi.memory_limit |
+| `MORPHEUS_AUDIO_MODEL` | Model name for audio processing | audio.model |
+| `MORPHEUS_AUDIO_ENABLED` | Enable/disable audio processing | audio.enabled |
+| `MORPHEUS_AUDIO_API_KEY` | Generic API key for audio (lower precedence than provider-specific keys) | audio.apiKey |
+| `MORPHEUS_AUDIO_MAX_DURATION` | Max duration for audio processing | audio.maxDurationSeconds |
+| `MORPHEUS_TELEGRAM_ENABLED` | Enable/disable Telegram channel | channels.telegram.enabled |
+| `MORPHEUS_TELEGRAM_TOKEN` | Telegram bot token | channels.telegram.token |
+| `MORPHEUS_UI_ENABLED` | Enable/disable Web UI | ui.enabled |
+| `MORPHEUS_UI_PORT` | Port for Web UI | ui.port |
+| `MORPHEUS_LOGGING_ENABLED` | Enable/disable logging | logging.enabled |
+| `MORPHEUS_LOGGING_LEVEL` | Logging level | logging.level |
+| `MORPHEUS_LOGGING_RETENTION` | Log retention period | logging.retention |
+
+**Precedence Order**: The system follows this order of precedence when resolving configuration values:
+1. Provider-specific environment variable (e.g., `OPENAI_API_KEY`) - Highest priority
+2. Generic environment variable (e.g., `MORPHEUS_LLM_API_KEY`) - Medium priority
+3. Configuration file value (e.g., `config.llm.api_key`) - Lower priority
+4. Default value - Lowest priority
 
 > **Note**: If `THE_ARCHITECT_PASS` is not set, the system will use the default password `iamthearchitect`. This is less secure and it's recommended to set your own password in production environments.
 
@@ -255,6 +296,82 @@ Returns accumulated token consumption metrics (Input/Output).
 *   [ ] Iteration with local terminal.
 
 ---
+
+## 🐳 Running with Docker
+
+Morpheus can be easily deployed using Docker and Docker Compose. The container supports all environment variables for configuration.
+
+### Prerequisites
+
+- Docker Engine
+- Docker Compose
+
+### Quick Start
+
+1. Create a `.env` file with your configuration:
+
+```bash
+cp .env.example .env
+# Edit .env with your actual API keys and settings
+```
+
+2. Build and start the container:
+
+```bash
+docker-compose up -d
+```
+
+3. Access the Web UI at `http://localhost:3333`
+
+### Using Docker Directly
+
+```bash
+# Build the image
+docker build -t morpheus .
+
+# Run with environment variables
+docker run -d \
+  --name morpheus-agent \
+  -p 3333:3333 \
+  -v morpheus_data:/root/.morpheus \
+  -e MORPHEUS_LLM_PROVIDER=openai \
+  -e OPENAI_API_KEY=your-api-key-here \
+  -e THE_ARCHITECT_PASS=your-password \
+  morpheus
+```
+
+### Environment Variables in Docker
+
+All environment variables described above work in Docker. The precedence order remains the same:
+1. Container environment variables
+2. Configuration file values
+3. Default values
+
+### Persistent Data
+
+The container stores configuration and data in `/root/.morpheus`. Mount a volume to persist data between container restarts:
+
+```yaml
+volumes:
+  - morpheus_data:/root/.morpheus  # Recommended for persistence
+```
+
+### Health Check
+
+The container includes a health check that verifies the health endpoint is accessible. The application exposes a public `/health` endpoint that doesn't require authentication:
+
+```bash
+curl http://localhost:3333/health
+```
+
+Response:
+```json
+{
+  "status": "healthy",
+  "timestamp": "2026-02-05T21:30:00.000Z",
+  "uptime": 123.45
+}
+```
 
 ## 📄 License
 

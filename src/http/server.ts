@@ -27,6 +27,24 @@ export class HttpServer {
   }
 
   private setupRoutes() {
+    // Rota de health check pública (sem autenticação)
+    this.app.get('/health', (req, res) => {
+      res.status(200).json({ 
+        status: 'healthy', 
+        timestamp: new Date().toISOString(),
+        uptime: process.uptime()
+      });
+    });
+
+    // Rota de health check para o Docker (padrão)
+    this.app.get('/api/health', (req, res) => {
+      res.status(200).json({ 
+        status: 'healthy', 
+        timestamp: new Date().toISOString(),
+        uptime: process.uptime()
+      });
+    });
+
     this.app.use('/api', authMiddleware, createApiRouter());
 
     // Serve static frontend from compiled output

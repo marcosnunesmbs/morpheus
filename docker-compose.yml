@@ -1,0 +1,70 @@
+version: '3.8'
+
+services:
+  morpheus:
+    build: .
+    container_name: morpheus-agent
+    ports:
+      - "3333:3333"  # Porta da interface web
+    volumes:
+      # Volume para persistir configurações e dados
+      - morpheus_data:/root/.morpheus
+      # Opcional: montar .env do host se existir
+      - ./env.docker:/app/.env:ro  # Monta arquivo .env como somente leitura
+    environment:
+      # Variáveis de ambiente para configuração
+      # LLM Configuration
+      - MORPHEUS_LLM_PROVIDER=${MORPHEUS_LLM_PROVIDER:-openai}
+      - MORPHEUS_LLM_MODEL=${MORPHEUS_LLM_MODEL:-gpt-4o}
+      - MORPHEUS_LLM_TEMPERATURE=${MORPHEUS_LLM_TEMPERATURE:-0.7}
+      
+      # API Keys - Defina estas variáveis no seu .env
+      # As chaves específicas do provedor têm precedência sobre as genéricas
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - GOOGLE_API_KEY=${GOOGLE_API_KEY}
+      - OPENROUTER_API_KEY=${OPENROUTER_API_KEY}
+      - MORPHEUS_LLM_API_KEY=${MORPHEUS_LLM_API_KEY}
+      
+      # Sati Configuration
+      - MORPHEUS_SANTI_PROVIDER=${MORPHEUS_SANTI_PROVIDER:-$MORPHEUS_LLM_PROVIDER}
+      - MORPHEUS_SANTI_MODEL=${MORPHEUS_SANTI_MODEL:-$MORPHEUS_LLM_MODEL}
+      - MORPHEUS_SANTI_TEMPERATURE=${MORPHEUS_SANTI_TEMPERATURE:-0.3}
+      - MORPHEUS_SANTI_API_KEY=${MORPHEUS_SANTI_API_KEY}
+      - MORPHEUS_SANTI_MEMORY_LIMIT=${MORPHEUS_SANTI_MEMORY_LIMIT:-1000}
+      
+      # Audio Configuration
+      - MORPHEUS_AUDIO_ENABLED=${MORPHEUS_AUDIO_ENABLED:-true}
+      - MORPHEUS_AUDIO_MODEL=${MORPHEUS_AUDIO_MODEL:-gemini-2.5-flash-lite}
+      - MORPHEUS_AUDIO_API_KEY=${MORPHEUS_AUDIO_API_KEY}
+      - MORPHEUS_AUDIO_MAX_DURATION=${MORPHEUS_AUDIO_MAX_DURATION:-300}
+      
+      # UI Configuration
+      - MORPHEUS_UI_ENABLED=true
+      - MORPHEUS_UI_PORT=3333
+      
+      # Security
+      - THE_ARCHITECT_PASS=${THE_ARCHITECT_PASS:-iamthearchitect}
+      
+      # Telegram (opcional)
+      - MORPHEUS_TELEGRAM_ENABLED=${MORPHEUS_TELEGRAM_ENABLED:-false}
+      - MORPHEUS_TELEGRAM_TOKEN=${MORPHEUS_TELEGRAM_TOKEN}
+      
+      # Logging
+      - MORPHEUS_LOGGING_ENABLED=${MORPHEUS_LOGGING_ENABLED:-true}
+      - MORPHEUS_LOGGING_LEVEL=${MORPHEUS_LOGGING_LEVEL:-info}
+      - MORPHEUS_LOGGING_RETENTION=${MORPHEUS_LOGGING_RETENTION:-14d}
+      
+      # Agent Configuration
+      - MORPHEUS_AGENT_NAME=${MORPHEUS_AGENT_NAME:-morpheus}
+      - MORPHEUS_AGENT_PERSONALITY=${MORPHEUS_AGENT_PERSONALITY:-helpful_dev}
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3333/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+volumes:
+  morpheus_data:
