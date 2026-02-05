@@ -11,11 +11,12 @@ export const AudioConfigSchema = z.object({
 });
 
 export const LLMConfigSchema = z.object({
-    provider: z.enum(['openai', 'anthropic', 'ollama', 'gemini']).default(DEFAULT_CONFIG.llm.provider),
+    provider: z.enum(['openai', 'anthropic', 'openrouter', 'ollama', 'gemini']).default(DEFAULT_CONFIG.llm.provider),
     model: z.string().min(1).default(DEFAULT_CONFIG.llm.model),
     temperature: z.number().min(0).max(1).default(DEFAULT_CONFIG.llm.temperature),
     max_tokens: z.number().int().positive().optional(),
     api_key: z.string().optional(),
+    base_url: z.string().optional(),
     context_window: z.number().int().positive().optional(),
 });
 

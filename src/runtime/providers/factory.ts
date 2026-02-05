@@ -64,6 +64,16 @@ export class ProviderFactory {
             apiKey: config.api_key,
           });
           break;
+        case 'openrouter':
+          model = new ChatOpenAI({
+            modelName: config.model,
+            temperature: config.temperature,
+            apiKey: config.api_key,
+            configuration: {
+              baseURL: config.base_url || 'https://openrouter.ai/api/v1'
+            }
+          });
+          break;
         case 'ollama':
           // Ollama usually runs locally, api_key optional
           model = new ChatOllama({
@@ -117,7 +127,7 @@ export class ProviderFactory {
       } else if (msg.includes("model not found") || msg.includes("404")) {
         suggestion = `Model '${config.model}' may not be available. Check provider docs.`;
       } else if (msg.includes("unsupported provider")) {
-        suggestion = "Edit your config file to use a supported provider (openai, anthropic, ollama, gemini).";
+        suggestion = "Edit your config file to use a supported provider (openai, anthropic, openrouter, ollama, gemini).";
       }
 
       throw new ProviderError(

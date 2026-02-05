@@ -200,6 +200,7 @@ export default function Settings() {
                     options={[
                         { label: 'OpenAI', value: 'openai' },
                         { label: 'Anthropic', value: 'anthropic' },
+                        { label: 'OpenRouter', value: 'openrouter' },
                         { label: 'Ollama', value: 'ollama' },
                         { label: 'Google Gemini', value: 'gemini' },
                     ]}
@@ -245,6 +246,15 @@ export default function Settings() {
                     placeholder="sk-..."
                     helperText="Stored locally."
                 />
+                {localConfig.llm.provider === 'openrouter' && (
+                    <TextInput
+                        label="Base URL"
+                        value={localConfig.llm.base_url || 'https://openrouter.ai/api/v1'}
+                        onChange={e => handleUpdate(['llm', 'base_url'], e.target.value)}
+                        placeholder="https://openrouter.ai/api/v1"
+                        helperText="Base URL for OpenRouter API"
+                    />
+                )}
             </Section>
 
             <Section title="Sati Agent">
@@ -274,6 +284,7 @@ export default function Settings() {
                             options={[
                                 { label: 'OpenAI', value: 'openai' },
                                 { label: 'Anthropic', value: 'anthropic' },
+                                { label: 'OpenRouter', value: 'openrouter' },
                                 { label: 'Ollama', value: 'ollama' },
                                 { label: 'Google Gemini', value: 'gemini' },
                             ]}
@@ -291,6 +302,15 @@ export default function Settings() {
                             placeholder="sk-..."
                             helperText="Stored locally."
                         />
+                        {localSatiConfig.provider === 'openrouter' && (
+                            <TextInput
+                                label="Base URL"
+                                value={localSatiConfig.base_url || 'https://openrouter.ai/api/v1'}
+                                onChange={e => handleSatiUpdate('base_url', e.target.value)}
+                                placeholder="https://openrouter.ai/api/v1"
+                                helperText="Base URL for OpenRouter API"
+                            />
+                        )}
                         <NumberInput
                             label="Memory Limit"
                             value={(localSatiConfig as any).memory_limit ?? 10}

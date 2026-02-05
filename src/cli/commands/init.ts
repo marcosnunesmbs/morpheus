@@ -37,6 +37,7 @@ export const initCommand = new Command('init')
         choices: [
           { name: 'OpenAI', value: 'openai' },
           { name: 'Anthropic', value: 'anthropic' },
+          { name: 'OpenRouter', value: 'openrouter' },
           { name: 'Ollama', value: 'ollama' },
           { name: 'Google Gemini', value: 'gemini' },
         ],
@@ -47,6 +48,7 @@ export const initCommand = new Command('init')
       switch(provider) {
           case 'openai': defaultModel = 'gpt-4o'; break;
           case 'anthropic': defaultModel = 'claude-3-5-sonnet-20240620'; break;
+          case 'openrouter': defaultModel = 'openrouter/auto'; break;
           case 'ollama': defaultModel = 'llama3'; break;
           case 'gemini': defaultModel = 'gemini-pro'; break;
       }
@@ -66,7 +68,7 @@ export const initCommand = new Command('init')
         ? 'Enter API Key (leave empty to preserve existing, or if using env vars):'
         : 'Enter API Key (leave empty if using env vars):';
 
-      if (provider !== 'ollama') {
+      if (provider !== 'ollama' && provider !== 'openrouter') {
         apiKey = await password({
           message: apiKeyMessage,
         });
@@ -80,6 +82,15 @@ export const initCommand = new Command('init')
       
       if (apiKey) {
         await configManager.set('llm.api_key', apiKey);
+      }
+
+      // Base URL Configuration for OpenRouter
+      if (provider === 'openrouter') {
+        const baseUrl = await input({
+          message: 'Enter OpenRouter Base URL:',
+          default: currentConfig.llm.base_url || 'https://openrouter.ai/api/v1',
+        });
+        await configManager.set('llm.base_url', baseUrl);
       }
 
       // Context Window Configuration
@@ -117,6 +128,7 @@ export const initCommand = new Command('init')
             choices: [
               { name: 'OpenAI', value: 'openai' },
               { name: 'Anthropic', value: 'anthropic' },
+              { name: 'OpenRouter', value: 'openrouter' },
               { name: 'Ollama', value: 'ollama' },
               { name: 'Google Gemini', value: 'gemini' },
             ],
@@ -127,6 +139,7 @@ export const initCommand = new Command('init')
         switch(santiProvider) {
             case 'openai': defaultSatiModel = 'gpt-4o'; break;
             case 'anthropic': defaultSatiModel = 'claude-3-5-sonnet-20240620'; break;
+            case 'openrouter': defaultSatiModel = 'openrouter/auto'; break;
             case 'ollama': defaultSatiModel = 'llama3'; break;
             case 'gemini': defaultSatiModel = 'gemini-pro'; break;
         }
@@ -152,6 +165,15 @@ export const initCommand = new Command('init')
             santiApiKey = currentConfig.santi?.api_key;
         } else {
              santiApiKey = undefined; // Ensure we don't accidentally carry over invalid state
+        }
+        
+        // Base URL Configuration for Sati OpenRouter
+        if (santiProvider === 'openrouter') {
+            const satiBaseUrl = await input({
+                message: 'Enter Sati OpenRouter Base URL:',
+                default: currentConfig.santi?.base_url || 'https://openrouter.ai/api/v1',
+            });
+            await configManager.set('santi.base_url', satiBaseUrl);
         }
       }
 

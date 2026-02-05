@@ -3,7 +3,7 @@ export interface AgentConfig {
   personality: string;
 }
 
-export type LLMProvider = 'openai' | 'anthropic' | 'ollama' | 'gemini';
+export type LLMProvider = 'openai' | 'anthropic' | 'openrouter' | 'ollama' | 'gemini';
 
 export interface LLMConfig {
   provider: LLMProvider;
@@ -11,6 +11,7 @@ export interface LLMConfig {
   temperature: number;
   max_tokens?: number;
   api_key?: string;
+  base_url?: string;
   context_window?: number;
 }
 
