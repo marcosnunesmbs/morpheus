@@ -128,7 +128,7 @@ export default function Settings() {
   if (!localConfig) return <div className="p-8 text-azure-primary dark:text-matrix-highlight">Loading settings...</div>;
 
   return (
-    <div className="max-w-4xl mx-auto p-6 space-y-6">
+    <div className="max-w-4xl mx-auto p-0 md:p-6 space-y-6">
       <div className="flex justify-between items-center">
         <h1 className="text-2xl font-bold text-azure-primary dark:text-matrix-highlight">Settings</h1>
         <button
@@ -153,20 +153,22 @@ export default function Settings() {
       )}
 
       {/* Tabs */}
-      <div className="flex space-x-1 border-b border-azure-border dark:border-matrix-primary pb-px">
-        {TABS.map(tab => (
-            <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
-                className={`px-4 py-2 text-sm font-medium rounded-t-md transition-colors ${
-                    activeTab === tab.id 
-                    ? 'bg-azure-surface/50 text-azure-primary border-t border-x border-azure-border dark:bg-matrix-primary/20 dark:text-matrix-highlight dark:border-t dark:border-x dark:border-matrix-primary' 
-                    : 'text-azure-text-secondary hover:text-azure-primary dark:text-matrix-secondary dark:hover:text-matrix-highlight'
-                }`}
-            >
-                {tab.label}
-            </button>
-        ))}
+      <div className="overflow-x-auto py-1 hide-scrollbar">
+        <div className="flex space-x-1 border-b border-azure-border dark:border-matrix-primary pb-px min-w-max">
+          {TABS.map(tab => (
+              <button
+                  key={tab.id}
+                  onClick={() => setActiveTab(tab.id)}
+                  className={`px-4 py-2 text-sm font-medium rounded-t-md transition-colors flex-shrink-0 ${
+                      activeTab === tab.id
+                      ? 'bg-azure-surface/50 text-azure-primary border-t border-x border-azure-border dark:bg-matrix-primary/20 dark:text-matrix-highlight dark:border-t dark:border-x dark:border-matrix-primary'
+                      : 'text-azure-text-secondary hover:text-azure-primary dark:text-matrix-secondary dark:hover:text-matrix-highlight'
+                  }`}
+              >
+                  {tab.label}
+              </button>
+          ))}
+        </div>
       </div>
 
       {/* Content */}

@@ -87,7 +87,7 @@ export function UsageStats() {
             <MessageSquare className="w-5 h-5" />
             <h3 className="font-mono text-sm font-bold uppercase">Total Input Tokens</h3>
           </div>
-          <p className="text-3xl font-bold text-azure-text-primary dark:text-matrix-highlight font-mono">
+          <p className="text-3xl font-bold text-azure-primary dark:text-matrix-highlight font-mono">
             {globalStats?.totalInputTokens.toLocaleString() ?? 0}
           </p>
         </motion.div>
@@ -97,7 +97,7 @@ export function UsageStats() {
             <Database className="w-5 h-5" />
             <h3 className="font-mono text-sm font-bold uppercase">Total Output Tokens</h3>
           </div>
-          <p className="text-3xl font-bold text-azure-text-primary dark:text-matrix-highlight font-mono">
+          <p className="text-3xl font-bold text-azure-primary dark:text-matrix-highlight font-mono">
             {globalStats?.totalOutputTokens.toLocaleString() ?? 0}
           </p>
         </motion.div>

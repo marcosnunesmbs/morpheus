@@ -34,14 +34,24 @@ export function Layout({ children }: { children: React.ReactNode }) {
     { icon: LayoutDashboard, label: 'Dashboard', path: '/' },
     { icon: Settings, label: 'Configuration', path: '/config' },
     { icon: BarChart3, label: 'Usage Stats', path: '/stats' },
-    { icon: Terminal, label: 'Logs', path: '/logs' },
+    { icon: Activity, label: 'Sati Memories', path: '/sati-memories' },
+  ];
+
+  const mobileNavItems = [
+    { icon: LayoutDashboard, label: 'Dashboard', path: '/' },
+    { icon: Settings, label: 'Configuration', path: '/config' },
+    { icon: BarChart3, label: 'Usage Stats', path: '/stats' },
     { icon: Activity, label: 'Sati Memories', path: '/sati-memories' },
   ];
 
   return (
     <div className="flex flex-col h-screen bg-azure-bg dark:bg-black text-azure-text-primary dark:text-matrix-secondary font-mono overflow-hidden transition-colors duration-300">
       {/* Mobile Header */}
-      <MobileHeader onMenuClick={() => setIsSidebarOpen(true)} />
+      <MobileHeader 
+        onMenuClick={() => setIsSidebarOpen(true)} 
+        isDark={isDark} 
+        toggleTheme={() => setIsDark(!isDark)} 
+      />
 
       <div className="flex flex-1 overflow-hidden pt-16 lg:pt-0"> {/* Espaço para o header móvel */}
         {/* Sidebar */}
@@ -77,6 +87,18 @@ export function Layout({ children }: { children: React.ReactNode }) {
                 </Link>
               );
             })}
+            <Link
+              key="/logs"
+              to="/logs"
+              className={`flex items-center gap-3 px-4 py-3 rounded transition-colors ${
+                location.pathname === '/logs'
+                  ? 'bg-azure-active text-azure-primary dark:bg-matrix-primary dark:text-matrix-highlight'
+                  : 'hover:bg-azure-hover dark:hover:bg-matrix-primary/50 text-azure-text-secondary dark:text-matrix-secondary'
+              }`}
+            >
+              <Terminal className="w-5 h-5" />
+              <span>Logs</span>
+            </Link>
           </nav>
 
           {/* Logout Button */}
@@ -128,7 +150,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
                 </div>
                 
                 <nav className="flex-1 p-4 space-y-2 overflow-y-auto">
-                  {navItems.map((item) => {
+                  {mobileNavItems.map((item) => {
                     const isActive = location.pathname === item.path;
                     return (
                       <Link
@@ -146,6 +168,15 @@ export function Layout({ children }: { children: React.ReactNode }) {
                       </Link>
                     );
                   })}
+                  {/* Item "Logs" escondido em dispositivos móveis */}
+                  <Link
+                    to="/logs"
+                    className="flex items-center gap-3 px-4 py-3 rounded transition-colors hidden lg:flex hover:bg-azure-hover dark:hover:bg-matrix-primary/50 text-azure-text-secondary dark:text-matrix-secondary"
+                    onClick={() => setIsSidebarOpen(false)}
+                  >
+                    <Terminal className="w-5 h-5" />
+                    <span>Logs</span>
+                  </Link>
                 </nav>
 
                 {/* Logout Button */}
@@ -167,7 +198,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
         </AnimatePresence>
 
         {/* Main Content */}
-        <main className="flex-1 overflow-auto p-8 relative flex flex-col">
+        <main className="flex-1 overflow-auto p-4 md:p-8 relative flex flex-col">
           <div className="max-w-6xl w-full mx-auto flex-1">
             {children}
           </div>

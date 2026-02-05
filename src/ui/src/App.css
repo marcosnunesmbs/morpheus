@@ -40,3 +40,13 @@
 .read-the-docs {
   color: #888;
 }
+
+/* Hide scrollbar for tabs container */
+.hide-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+.hide-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}

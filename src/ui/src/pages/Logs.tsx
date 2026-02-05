@@ -15,8 +15,8 @@ export function Logs() {
   }, [files, selectedFile]);
 
   return (
-    <motion.div 
-      className="h-full flex flex-col space-y-4"
+    <motion.div
+      className="h-full flex flex-col space-y-4 pt-16 md:pt-0" // Adiciona padding superior em dispositivos móveis
       initial={{ opacity: 0, scale: 0.98 }}
       animate={{ opacity: 1, scale: 1 }}
       transition={{ duration: 0.3 }}
@@ -35,8 +35,8 @@ export function Logs() {
               key={f.name}
               onClick={() => setSelectedFile(f.name)}
               className={`text-left px-3 py-2 rounded text-sm truncate flex items-center gap-2 group transition-colors ${
-                selectedFile === f.name 
-                ? 'bg-azure-active text-azure-primary dark:bg-matrix-primary dark:text-matrix-highlight' 
+                selectedFile === f.name
+                ? 'bg-azure-active text-azure-primary dark:bg-matrix-primary dark:text-matrix-highlight'
                 : 'text-azure-text-secondary dark:text-matrix-secondary hover:bg-azure-hover dark:hover:bg-zinc-900 group-hover:text-azure-primary dark:group-hover:text-matrix-highlight'
               }`}
             >

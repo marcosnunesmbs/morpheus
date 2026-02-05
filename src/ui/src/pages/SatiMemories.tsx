@@ -165,17 +165,17 @@ export const SatiMemories: React.FC = () => {
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-azure-text-primary dark:text-matrix-secondary">
+          <h1 className="text-2xl font-bold text-azure-primary dark:text-matrix-highlight">
             Sati Memories
           </h1>
-          <p className="text-azure-text-secondary dark:text-matrix-tertiary mt-1">
+          <p className="text-azure-text-muted dark:text-matrix-secondary mt-1">
             View and manage your long-term memories stored by Sati
           </p>
         </div>
 
         {selectedMemories.length > 0 && (
           <div className="flex items-center gap-2">
-            <span className="text-sm text-azure-text-secondary dark:text-matrix-tertiary">
+            <span className="text-sm text-azure-text-muted dark:text-matrix-secondary">
               {selectedMemories.length} selected
             </span>
             <Button
@@ -200,7 +200,7 @@ export const SatiMemories: React.FC = () => {
       <Card>
         <CardHeader className="border-b border-azure-border dark:border-matrix-primary">
           <div className="flex flex-col lg:flex-row gap-4">
-            <div className="relative flex-1">
+            <div className="flex flex-col relative w-full">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-azure-text-secondary dark:text-matrix-tertiary w-4 h-4" />
               <input
                 type="text"
@@ -211,11 +211,11 @@ export const SatiMemories: React.FC = () => {
               />
             </div>
 
-            <div className="flex gap-2">
+            <div className="flex flex-col sm:flex-row gap-2 w-full">
               <select
                 value={filterCategory}
                 onChange={(e) => setFilterCategory(e.target.value)}
-                className="px-3 py-2 bg-azure-surface dark:bg-zinc-900 border border-azure-border dark:border-matrix-primary rounded-md text-azure-text-primary dark:text-matrix-secondary focus:outline-none focus:ring-2 focus:ring-azure-primary dark:focus:ring-matrix-highlight"
+                className="px-3 py-2 bg-azure-surface dark:bg-zinc-900 border border-azure-border dark:border-matrix-primary rounded-md text-azure-text-primary dark:text-matrix-secondary focus:outline-none focus:ring-2 focus:ring-azure-primary dark:focus:ring-matrix-highlight flex-grow"
               >
                 <option value="all">All Categories</option>
                 {categories.map((cat) => (
@@ -228,7 +228,7 @@ export const SatiMemories: React.FC = () => {
               <select
                 value={filterImportance}
                 onChange={(e) => setFilterImportance(e.target.value)}
-                className="px-3 py-2 bg-azure-surface dark:bg-zinc-900 border border-azure-border dark:border-matrix-primary rounded-md text-azure-text-primary dark:text-matrix-secondary focus:outline-none focus:ring-2 focus:ring-azure-primary dark:focus:ring-matrix-highlight"
+                className="px-3 py-2 bg-azure-surface dark:bg-zinc-900 border border-azure-border dark:border-matrix-primary rounded-md text-azure-text-primary dark:text-matrix-secondary focus:outline-none focus:ring-2 focus:ring-azure-primary dark:focus:ring-matrix-highlight flex-grow"
               >
                 <option value="all">All Importance</option>
                 {importanceLevels.map((level) => (
