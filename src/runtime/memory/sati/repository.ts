@@ -242,4 +242,13 @@ export class SatiRepository {
       this.db = null;
     }
   }
+
+  public archiveMemory(id: string): boolean {
+    if (!this.db) this.initialize();
+
+    const stmt = this.db!.prepare('UPDATE long_term_memory SET archived = 1 WHERE id = ?');
+    const result = stmt.run(id);
+
+    return result.changes > 0;
+  }
 }

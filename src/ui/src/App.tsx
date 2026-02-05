@@ -6,6 +6,7 @@ import { Logs } from './pages/Logs';
 import { UsageStats } from './pages/UsageStats';
 import { Login } from './pages/Login';
 import { AuthGuard } from './components/AuthGuard';
+import { SatiMemories } from './pages/SatiMemories';
 
 function App() {
   return (
@@ -22,6 +23,7 @@ function App() {
                   <Route path="/config" element={<Settings />} />
                   <Route path="/logs" element={<Logs />} />
                   <Route path="/stats" element={<UsageStats />} />
+                  <Route path="/sati-memories" element={<SatiMemories />} />
                   <Route path="*" element={<Navigate to="/" replace />} />
                 </Routes>
               </Layout>

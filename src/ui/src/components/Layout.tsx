@@ -28,6 +28,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
     { icon: Settings, label: 'Configuration', path: '/config' },
     { icon: BarChart3, label: 'Usage Stats', path: '/stats' },
     { icon: Terminal, label: 'Logs', path: '/logs' },
+    { icon: Activity, label: 'Sati Memories', path: '/sati-memories' },
   ];
 
   return (

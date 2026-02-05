@@ -6,6 +6,7 @@ import { DisplayManager } from '../runtime/display.js';
 import fs from 'fs-extra';
 import path from 'path';
 import { SQLiteChatMessageHistory } from '../runtime/memory/sqlite.js';
+import { SatiRepository } from '../runtime/memory/sati/repository.js';
 
 async function readLastLines(filePath: string, n: number): Promise<string[]> {
   try {
@@ -161,14 +162,89 @@ export function createApiRouter() {
       const config = configManager.get();
       const { santi, ...restConfig } = config;
       await configManager.save(restConfig);
-      
+
       const display = DisplayManager.getInstance();
-      display.log('Sati configuration removed via UI (falling back to Oracle config)', { 
-        source: 'Zaion', 
-        level: 'info' 
+      display.log('Sati configuration removed via UI (falling back to Oracle config)', {
+        source: 'Zaion',
+        level: 'info'
       });
 
       res.json({ success: true });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Sati memories endpoints
+  router.get('/sati/memories', async (req, res) => {
+    try {
+      const repository = SatiRepository.getInstance();
+      const memories = repository.getAllMemories();
+
+      // Convert dates to ISO strings for JSON serialization
+      const serializedMemories = memories.map(memory => ({
+        ...memory,
+        created_at: memory.created_at.toISOString(),
+        updated_at: memory.updated_at.toISOString(),
+        last_accessed_at: memory.last_accessed_at ? memory.last_accessed_at.toISOString() : null
+      }));
+
+      res.json(serializedMemories);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  router.delete('/sati/memories/:id', async (req, res) => {
+    try {
+      const { id } = req.params;
+      const repository = SatiRepository.getInstance();
+
+      const success = repository.archiveMemory(id);
+
+      if (!success) {
+        return res.status(404).json({ error: 'Memory not found' });
+      }
+
+      res.json({ success: true, message: 'Memory archived successfully' });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  router.post('/sati/memories/bulk-delete', async (req, res) => {
+    try {
+      const { ids } = req.body;
+
+      if (!ids || !Array.isArray(ids) || ids.length === 0) {
+        return res.status(400).json({ error: 'Ids array is required and cannot be empty' });
+      }
+
+      const repository = SatiRepository.getInstance();
+      let deletedCount = 0;
+
+      // Use a transaction for atomicity, but check if db is not null
+      const db = repository['db'];
+      if (!db) {
+        return res.status(500).json({ error: 'Database connection is not available' });
+      }
+
+      const transaction = db.transaction((memoryIds: string[]) => {
+        for (const id of memoryIds) {
+          const success = repository.archiveMemory(id);
+          if (success) {
+            deletedCount++;
+          }
+        }
+      });
+
+      transaction(ids);
+
+      res.json({
+        success: true,
+        message: `${deletedCount} memories archived successfully`,
+        deletedCount
+      });
     } catch (error: any) {
       res.status(500).json({ error: error.message });
     }
