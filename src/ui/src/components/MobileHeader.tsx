@@ -1,4 +1,3 @@
-import React from 'react';
 import { Activity, Menu, Sun, Moon } from 'lucide-react';
 
 interface MobileHeaderProps {
