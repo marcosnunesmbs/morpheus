@@ -327,6 +327,63 @@ Remove a configuração independente do Sati Agent, fazendo com que o sistema us
 
 *   **Comportamento:** Remove o campo `santi` do arquivo de configuração.
 
+### GET `/api/sati/memories`
+Retorna todas as memórias armazenadas pelo agente Sati (memória de longo prazo).
+
+*   **Autenticação:** Requer cabeçalho `Authorization` com a senha definida em `THE_ARCHITECT_PASS`.
+*   **Resposta:**
+    ```json
+    [
+      {
+        "id": "unique-id",
+        "category": "work",
+        "importance": "high",
+        "summary": "Resumo da memória",
+        "details": "Detalhes adicionais da memória",
+        "hash": "hash-único",
+        "source": "source",
+        "created_at": "2023-01-01T00:00:00.000Z",
+        "updated_at": "2023-01-01T00:00:00.000Z",
+        "last_accessed_at": "2023-01-01T00:00:00.000Z",
+        "access_count": 5,
+        "version": 1,
+        "archived": false
+      }
+    ]
+    ```
+
+### DELETE `/api/sati/memories/:id`
+Arquiva (soft delete) uma memória específica do agente Sati.
+
+*   **Autenticação:** Requer cabeçalho `Authorization` com a senha definida em `THE_ARCHITECT_PASS`.
+*   **Parâmetros:** `id` - ID da memória a ser arquivada.
+*   **Resposta:**
+    ```json
+    {
+      "success": true,
+      "message": "Memory archived successfully"
+    }
+    ```
+
+### POST `/api/sati/memories/bulk-delete`
+Arquiva (soft delete) múltiplas memórias do agente Sati de uma vez.
+
+*   **Autenticação:** Requer cabeçalho `Authorization` com a senha definida em `THE_ARCHITECT_PASS`.
+*   **Body:**
+    ```json
+    {
+      "ids": ["id1", "id2", "id3"]
+    }
+    ```
+*   **Resposta:**
+    ```json
+    {
+      "success": true,
+      "message": "X memories archived successfully",
+      "deletedCount": X
+    }
+    ```
+
 ### GET `/api/stats/usage`
 Retorna estatísticas globais de uso de tokens e mensagens.
 

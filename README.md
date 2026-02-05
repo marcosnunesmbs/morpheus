@@ -120,6 +120,7 @@ Morpheus features a dedicated middleware system called **Sati** (Mindfulness) th
 -   **Automated Storage**: Automatically extracts and saves preferences, project details, and facts from conversations.
 -   **Contextual Retrieval**: Injects relevant memories into the context based on your current query.
 -   **Data Privacy**: Stored in a local, independent SQLite database (`santi-memory.db`), ensuring sensitive data is handled securely and reducing context window usage.
+-   **Memory Management**: View and manage your long-term memories through the Web UI or via API endpoints.
 
 ### 📊 Usage Analytics
 Track your token usage across different providers and models directly from the Web UI. View detailed breakdowns of input/output tokens and message counts to monitor costs and activity.
@@ -232,6 +233,69 @@ Morpheus supports external tools via **MCP (Model Context Protocol)**. Configure
   }
 }
 ```
+
+## API Endpoints
+
+Morpheus exposes several API endpoints for programmatic access to its features:
+
+### Sati Memories Endpoints
+
+#### GET `/api/sati/memories`
+Retrieve all memories stored by the Sati agent (long-term memory).
+
+*   **Authentication:** Requires `Authorization` header with the password set in `THE_ARCHITECT_PASS`.
+*   **Response:**
+    ```json
+    [
+      {
+        "id": "unique-id",
+        "category": "work",
+        "importance": "high",
+        "summary": "Memory summary",
+        "details": "Additional details of the memory",
+        "hash": "unique-hash",
+        "source": "source",
+        "created_at": "2023-01-01T00:00:00.000Z",
+        "updated_at": "2023-01-01T00:00:00.000Z",
+        "last_accessed_at": "2023-01-01T00:00:00.000Z",
+        "access_count": 5,
+        "version": 1,
+        "archived": false
+      }
+    ]
+    ```
+
+#### DELETE `/api/sati/memories/:id`
+Archive (soft delete) a specific memory from the Sati agent.
+
+*   **Authentication:** Requires `Authorization` header with the password set in `THE_ARCHITECT_PASS`.
+*   **Parameters:** `id` - ID of the memory to archive.
+*   **Response:**
+    ```json
+    {
+      "success": true,
+      "message": "Memory archived successfully"
+    }
+    ```
+
+#### POST `/api/sati/memories/bulk-delete`
+Archive (soft delete) multiple memories from the Sati agent at once.
+
+*   **Authentication:** Requires `Authorization` header with the password set in `THE_ARCHITECT_PASS`.
+*   **Body:**
+    ```json
+    {
+      "ids": ["id1", "id2", "id3"]
+    }
+    ```
+*   **Response:**
+    ```json
+    {
+      "success": true,
+      "message": "X memories archived successfully",
+      "deletedCount": X
+    }
+    ```
 
 ## Testing
 
