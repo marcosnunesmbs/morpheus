@@ -31,10 +31,10 @@ export const TransportFields = ({
   return (
     <div className="space-y-4">
       {transport === 'stdio' && (
-        <label className="block space-y-2 text-sm text-slate-700 dark:text-slate-200">
+        <label className="block space-y-2 text-sm text-azure-text-primary dark:text-matrix-highlight">
           Command
           <input
-            className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800 shadow-sm focus:border-emerald-400 focus:outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
+            className="w-full rounded-md border border-azure-border bg-azure-surface px-3 py-2 text-sm text-azure-text-primary shadow-sm focus:border-azure-primary focus:outline-none dark:border-matrix-primary dark:bg-zinc-950 dark:text-matrix-highlight"
             value={command}
             onChange={(event) => onCommandChange(event.target.value)}
             placeholder="npx"
@@ -43,10 +43,10 @@ export const TransportFields = ({
       )}
 
       {transport === 'http' && (
-        <label className="block space-y-2 text-sm text-slate-700 dark:text-slate-200">
+        <label className="block space-y-2 text-sm text-azure-text-primary dark:text-matrix-highlight">
           URL
           <input
-            className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800 shadow-sm focus:border-emerald-400 focus:outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
+            className="w-full rounded-md border border-azure-border bg-azure-surface px-3 py-2 text-sm text-azure-text-primary shadow-sm focus:border-azure-primary focus:outline-none dark:border-matrix-primary dark:bg-zinc-950 dark:text-matrix-highlight"
             value={url}
             onChange={(event) => onUrlChange(event.target.value)}
             placeholder="https://example.com/mcp"

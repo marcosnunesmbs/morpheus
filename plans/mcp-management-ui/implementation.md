@@ -796,7 +796,7 @@ export const MCPServerCard = ({ server, onEdit, onDelete, onToggle }: MCPServerC
 ---
 
 #### Step 4: Frontend Page - MCP Manager
-- [ ] Create `src/ui/src/pages/MCPManager.tsx`:
+- [x] Create `src/ui/src/pages/MCPManager.tsx`:
 
 ```tsx
 import { useMemo, useState } from 'react';
@@ -925,8 +925,8 @@ export const MCPManager = () => {
 ```
 
 ##### Step 4 Verification Checklist
-- [ ] Visit `/mcp-servers` and verify grid rendering.
-- [ ] Add, edit, delete, and toggle MCP servers via UI.
+- [x] Visit `/mcp-servers` and verify grid rendering.
+- [x] Add, edit, delete, and toggle MCP servers via UI.
 
 #### Step 4 STOP & COMMIT
 **STOP & COMMIT:** Agent must stop here and wait for the user to test, stage, and commit the change.
@@ -934,7 +934,7 @@ export const MCPManager = () => {
 ---
 
 #### Step 5: Integration - Routing & Navigation
-- [ ] In `src/ui/src/App.tsx`, add a route import and route entry:
+- [x] In `src/ui/src/App.tsx`, add a route import and route entry:
 
 ```tsx
 import { MCPManager } from './pages/MCPManager';
@@ -944,7 +944,7 @@ import { MCPManager } from './pages/MCPManager';
 <Route path="/mcp-servers" element={<MCPManager />} />
 ```
 
-- [ ] In `src/ui/src/components/Layout.tsx`, add a nav item:
+- [x] In `src/ui/src/components/Layout.tsx`, add a nav item:
 
 ```tsx
 import { Puzzle } from 'lucide-react';
@@ -955,8 +955,8 @@ import { Puzzle } from 'lucide-react';
 ```
 
 ##### Step 5 Verification Checklist
-- [ ] Sidebar shows "MCP Servers" after Configuration.
-- [ ] Clicking it navigates to the MCP page.
+- [x] Sidebar shows "MCP Servers" after Configuration.
+- [x] Clicking it navigates to the MCP page.
 
 #### Step 5 STOP & COMMIT
 **STOP & COMMIT:** Agent must stop here and wait for the user to test, stage, and commit the change.

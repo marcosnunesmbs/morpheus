@@ -34,18 +34,18 @@ export const StringListInput = ({ label, values, onChange, placeholder }: String
 
   return (
     <div className="space-y-2">
-      <div className="text-sm font-semibold text-slate-700 dark:text-slate-200">{label}</div>
+      <div className="text-sm font-semibold text-azure-text-primary dark:text-matrix-highlight">{label}</div>
       {items.map((item, index) => (
         <div key={`${label}-${index}`} className="flex gap-2">
           <input
-            className="flex-1 rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800 shadow-sm focus:border-emerald-400 focus:outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
+            className="flex-1 rounded-md border border-azure-border bg-azure-surface px-3 py-2 text-sm text-azure-text-primary shadow-sm focus:border-azure-primary focus:outline-none dark:border-matrix-primary dark:bg-zinc-950 dark:text-matrix-highlight"
             value={item}
             placeholder={placeholder}
             onChange={(event) => updateItem(index, event.target.value)}
           />
           <button
             type="button"
-            className="rounded-md border border-slate-300 px-3 text-sm text-slate-600 hover:border-emerald-400 hover:text-emerald-600 dark:border-slate-700 dark:text-slate-300"
+            className="rounded-md border border-azure-border px-3 text-sm text-azure-text-secondary hover:border-azure-primary hover:text-azure-primary dark:border-matrix-primary dark:text-matrix-secondary hover:dark:border-matrix-highlight hover:dark:text-matrix-highlight"
             onClick={() => removeItem(index)}
           >
             Remove
@@ -54,7 +54,7 @@ export const StringListInput = ({ label, values, onChange, placeholder }: String
       ))}
       <button
         type="button"
-        className="text-sm font-semibold text-emerald-600 hover:text-emerald-500"
+        className="text-sm font-semibold text-azure-primary hover:text-azure-secondary dark:text-matrix-highlight hover:dark:text-matrix-secondary"
         onClick={addItem}
       >
         Add argument
@@ -86,24 +86,24 @@ export const KeyValueListInput = ({
 
   return (
     <div className="space-y-2">
-      <div className="text-sm font-semibold text-slate-700 dark:text-slate-200">{label}</div>
+      <div className="text-sm font-semibold text-azure-text-primary dark:text-matrix-highlight">{label}</div>
       {items.map((item, index) => (
         <div key={`${label}-${index}`} className="grid gap-2 md:grid-cols-[1fr,1fr,auto]">
           <input
-            className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800 shadow-sm focus:border-emerald-400 focus:outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
+            className="rounded-md border border-azure-border bg-azure-surface px-3 py-2 text-sm text-azure-text-primary shadow-sm focus:border-azure-primary focus:outline-none dark:border-matrix-primary dark:bg-zinc-950 dark:text-matrix-highlight"
             value={item.key}
             placeholder={keyPlaceholder}
             onChange={(event) => updateItem(index, 'key', event.target.value)}
           />
           <input
-            className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800 shadow-sm focus:border-emerald-400 focus:outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
+            className="rounded-md border border-azure-border bg-azure-surface px-3 py-2 text-sm text-azure-text-primary shadow-sm focus:border-azure-primary focus:outline-none dark:border-matrix-primary dark:bg-zinc-950 dark:text-matrix-highlight"
             value={item.value}
             placeholder={valuePlaceholder}
             onChange={(event) => updateItem(index, 'value', event.target.value)}
           />
           <button
             type="button"
-            className="rounded-md border border-slate-300 px-3 text-sm text-slate-600 hover:border-emerald-400 hover:text-emerald-600 dark:border-slate-700 dark:text-slate-300"
+            className="rounded-md border border-azure-border px-3 text-sm text-azure-text-secondary hover:border-azure-primary hover:text-azure-primary dark:border-matrix-primary dark:text-matrix-secondary hover:dark:border-matrix-highlight hover:dark:text-matrix-highlight"
             onClick={() => removeItem(index)}
           >
             Remove
@@ -112,7 +112,7 @@ export const KeyValueListInput = ({
       ))}
       <button
         type="button"
-        className="text-sm font-semibold text-emerald-600 hover:text-emerald-500"
+        className="text-sm font-semibold text-azure-primary hover:text-azure-secondary dark:text-matrix-highlight hover:dark:text-matrix-secondary"
         onClick={addItem}
       >
         Add entry

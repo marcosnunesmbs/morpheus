@@ -7,6 +7,7 @@ import { UsageStats } from './pages/UsageStats';
 import { Login } from './pages/Login';
 import { AuthGuard } from './components/AuthGuard';
 import { SatiMemories } from './pages/SatiMemories';
+import { MCPManager } from './pages/MCPManager';
 
 function App() {
   return (
@@ -24,6 +25,7 @@ function App() {
                   <Route path="/logs" element={<Logs />} />
                   <Route path="/stats" element={<UsageStats />} />
                   <Route path="/sati-memories" element={<SatiMemories />} />
+                  <Route path="/mcp-servers" element={<MCPManager />} />
                   <Route path="*" element={<Navigate to="/" replace />} />
                 </Routes>
               </Layout>

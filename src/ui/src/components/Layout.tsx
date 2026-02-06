@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { Terminal, Settings, Activity, LayoutDashboard, Sun, Moon, LogOut, BarChart3, RotateCcw } from 'lucide-react';
+import { Terminal, Settings, Activity, LayoutDashboard, Sun, Moon, LogOut, BarChart3, RotateCcw, Puzzle } from 'lucide-react';
 import { Footer } from './Footer';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '../hooks/useAuth';
@@ -47,6 +47,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
   const navItems = [
     { icon: LayoutDashboard, label: 'Dashboard', path: '/' },
     { icon: Settings, label: 'Configuration', path: '/config' },
+    { icon: Puzzle, label: 'MCP Servers', path: '/mcp-servers' },
     { icon: BarChart3, label: 'Usage Stats', path: '/stats' },
     { icon: Activity, label: 'Sati Memories', path: '/sati-memories' },
   ];
@@ -54,6 +55,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
   const mobileNavItems = [
     { icon: LayoutDashboard, label: 'Dashboard', path: '/' },
     { icon: Settings, label: 'Configuration', path: '/config' },
+    { icon: Puzzle, label: 'MCP Servers', path: '/mcp-servers' },
     { icon: BarChart3, label: 'Usage Stats', path: '/stats' },
     { icon: Activity, label: 'Sati Memories', path: '/sati-memories' },
   ];

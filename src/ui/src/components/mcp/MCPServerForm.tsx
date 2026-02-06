@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { z } from 'zod';
 import type { MCPServerConfig, MCPServerRecord } from '../../types/mcp';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../Dialog';
@@ -44,6 +44,20 @@ export const MCPServerForm = ({ open, mode, initial, onClose, onSubmit }: MCPSer
     initial?.config.transport === 'http' ? toKeyValue(initial.config.headers) : []
   );
   const [error, setError] = useState<string | null>(null);
+
+  // Reset form when initial data or modal state changes
+  useEffect(() => {
+    if (open) {
+      setName(initial?.name ?? '');
+      setTransport(initial?.config.transport ?? 'stdio');
+      setCommand(initial?.config.transport === 'stdio' ? initial.config.command : '');
+      setUrl(initial?.config.transport === 'http' ? initial.config.url : '');
+      setArgs(initial?.config.args ?? []);
+      setEnv(toKeyValue(initial?.config.env));
+      setHeaders(initial?.config.transport === 'http' ? toKeyValue(initial.config.headers) : []);
+      setError(null);
+    }
+  }, [open, initial]);
 
   const canEditName = mode === 'create';
 
@@ -94,10 +108,10 @@ export const MCPServerForm = ({ open, mode, initial, onClose, onSubmit }: MCPSer
         </DialogHeader>
 
         <div className="space-y-4">
-          <label className="block space-y-2 text-sm text-slate-700 dark:text-slate-200">
+          <label className="block space-y-2 text-sm text-azure-text-primary dark:text-matrix-highlight">
             Name
             <input
-              className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800 shadow-sm focus:border-emerald-400 focus:outline-none disabled:bg-slate-100 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:disabled:bg-slate-800"
+              className="w-full rounded-md border border-azure-border bg-azure-surface px-3 py-2 text-sm text-azure-text-primary shadow-sm focus:border-azure-primary focus:outline-none disabled:bg-azure-border dark:border-matrix-primary dark:bg-zinc-950 dark:text-matrix-highlight dark:disabled:bg-matrix-primary/50"
               value={name}
               onChange={(event) => setName(event.target.value)}
               placeholder="coolify"
@@ -105,10 +119,10 @@ export const MCPServerForm = ({ open, mode, initial, onClose, onSubmit }: MCPSer
             />
           </label>
 
-          <label className="block space-y-2 text-sm text-slate-700 dark:text-slate-200">
+          <label className="block space-y-2 text-sm text-azure-text-primary dark:text-matrix-highlight">
             Transport
             <select
-              className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800 shadow-sm focus:border-emerald-400 focus:outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
+              className="w-full rounded-md border border-azure-border bg-azure-surface px-3 py-2 text-sm text-azure-text-primary shadow-sm focus:border-azure-primary focus:outline-none dark:border-matrix-primary dark:bg-zinc-950 dark:text-matrix-highlight"
               value={transport}
               onChange={(event) => setTransport(event.target.value as MCPServerConfig['transport'])}
             >
@@ -131,19 +145,19 @@ export const MCPServerForm = ({ open, mode, initial, onClose, onSubmit }: MCPSer
             onHeadersChange={setHeaders}
           />
 
-          {error && <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div>}
+          {error && <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-900 dark:bg-red-950/50 dark:text-red-400">{error}</div>}
 
           <div className="flex justify-end gap-2">
             <button
               type="button"
-              className="rounded-md border border-slate-300 px-4 py-2 text-sm text-slate-700 hover:border-emerald-400 hover:text-emerald-600 dark:border-slate-700 dark:text-slate-200"
+              className="rounded-md border border-azure-border px-4 py-2 text-sm text-azure-text-primary hover:border-azure-primary hover:text-azure-primary dark:border-matrix-primary dark:text-matrix-secondary hover:dark:border-matrix-highlight hover:dark:text-matrix-highlight"
               onClick={onClose}
             >
               Cancel
             </button>
             <button
               type="button"
-              className="rounded-md bg-emerald-500 px-4 py-2 text-sm font-semibold text-white shadow hover:bg-emerald-400"
+              className="rounded-md bg-azure-primary px-4 py-2 text-sm font-semibold text-white shadow hover:bg-azure-secondary dark:bg-matrix-highlight dark:text-matrix-bg hover:dark:bg-matrix-secondary"
               onClick={handleSubmit}
             >
               Save
