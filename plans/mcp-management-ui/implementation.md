@@ -345,7 +345,7 @@ export const mcpService = {
 ---
 
 #### Step 3: Frontend Components - Form & Cards
-- [ ] Create `src/ui/src/components/mcp/DynamicList.tsx`:
+- [x] Create `src/ui/src/components/mcp/DynamicList.tsx`:
 
 ```tsx
 import { useMemo } from 'react';
@@ -472,7 +472,7 @@ export const KeyValueListInput = ({
 };
 ```
 
-- [ ] Create `src/ui/src/components/mcp/TransportFields.tsx`:
+- [x] Create `src/ui/src/components/mcp/TransportFields.tsx`:
 
 ```tsx
 import type { MCPServerConfig } from '../../types/mcp';
@@ -553,7 +553,7 @@ export const TransportFields = ({
 };
 ```
 
-- [ ] Create `src/ui/src/components/mcp/MCPServerForm.tsx`:
+- [x] Create `src/ui/src/components/mcp/MCPServerForm.tsx`:
 
 ```tsx
 import { useMemo, useState } from 'react';
@@ -714,7 +714,7 @@ export const MCPServerForm = ({ open, mode, initial, onClose, onSubmit }: MCPSer
 };
 ```
 
-- [ ] Create `src/ui/src/components/mcp/MCPServerCard.tsx`:
+- [x] Create `src/ui/src/components/mcp/MCPServerCard.tsx`:
 
 ```tsx
 import type { MCPServerRecord } from '../../types/mcp';
@@ -787,8 +787,8 @@ export const MCPServerCard = ({ server, onEdit, onDelete, onToggle }: MCPServerC
 ```
 
 ##### Step 3 Verification Checklist
-- [ ] Run `npm run build` and confirm no UI errors.
-- [ ] Open a scratch route and confirm components render.
+- [x] Run `npm run build` and confirm no UI errors.
+- [x] Open a scratch route and confirm components render.
 
 #### Step 3 STOP & COMMIT
 **STOP & COMMIT:** Agent must stop here and wait for the user to test, stage, and commit the change.
