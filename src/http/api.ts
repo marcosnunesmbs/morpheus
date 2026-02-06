@@ -3,10 +3,12 @@ import { Router } from 'express';
 import { ConfigManager } from '../config/manager.js';
 import { PATHS } from '../config/paths.js';
 import { DisplayManager } from '../runtime/display.js';
+import { writePid, readPid, isProcessRunning, clearPid, checkStalePid } from '../runtime/lifecycle.js';
 import fs from 'fs-extra';
 import path from 'path';
 import { SQLiteChatMessageHistory } from '../runtime/memory/sqlite.js';
 import { SatiRepository } from '../runtime/memory/sati/repository.js';
+import { spawn } from 'child_process';
 
 async function readLastLines(filePath: string, n: number): Promise<string[]> {
   try {
@@ -40,6 +42,33 @@ export function createApiRouter() {
       llmProvider: config.llm.provider,
       llmModel: config.llm.model
     });
+  });
+
+  router.post('/restart', async (req, res) => {
+    try {
+      // Send response immediately before restarting
+      res.json({ 
+        success: true, 
+        message: 'Restart initiated. Process will shut down and restart shortly.' 
+      });
+
+      // Delay the actual restart to allow response to be sent
+      setTimeout(() => {
+        // Execute the restart command using the CLI
+        const restartProcess = spawn(process.execPath, [process.argv[1], 'restart'], {
+          detached: true,
+          stdio: 'ignore'
+        });
+        
+        restartProcess.unref();
+        
+        // Exit the current process
+        process.exit(0);
+      }, 100);
+
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
   });
 
   router.get('/config', (req, res) => {

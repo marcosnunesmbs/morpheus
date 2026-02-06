@@ -14,6 +14,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Separate LLM provider, model, API key, and context window settings for Sati
   - API endpoints: GET/POST/DELETE `/api/config/sati` for managing Sati configuration
   - Sati config persists to `santi` key in config file, falls back to Oracle config when not set
+- **Restart Command**: Added restart functionality across all interfaces
+  - CLI command: `morpheus restart` to restart the agent
+  - Web UI: Restart button in the sidebar above the logout button with confirmation modal
+  - Telegram: `/restart` command to restart the agent with user notification after restart
+  - API endpoint: POST `/api/restart` to trigger agent restart
+  - The restart mechanism properly shuts down all services before restarting
 
 ### Changed
 - **BREAKING**: Renamed `memory.limit` configuration to `llm.context_window` for semantic clarity

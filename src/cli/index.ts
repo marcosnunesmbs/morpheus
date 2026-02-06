@@ -5,6 +5,7 @@ import { statusCommand } from './commands/status.js';
 import { configCommand } from './commands/config.js';
 import { doctorCommand } from './commands/doctor.js';
 import { initCommand } from './commands/init.js';
+import { restartCommand } from './commands/restart.js';
 import { scaffold } from '../runtime/scaffold.js';
 import { getVersion } from './utils/version.js';
 
@@ -23,6 +24,7 @@ export async function cli() {
   program.addCommand(initCommand);
   program.addCommand(startCommand);
   program.addCommand(stopCommand);
+  program.addCommand(restartCommand);
   program.addCommand(statusCommand);
   program.addCommand(configCommand);
   program.addCommand(doctorCommand);

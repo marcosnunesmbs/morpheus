@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { Terminal, Settings, Activity, LayoutDashboard, Sun, Moon, LogOut, BarChart3 } from 'lucide-react';
+import { Terminal, Settings, Activity, LayoutDashboard, Sun, Moon, LogOut, BarChart3, RotateCcw } from 'lucide-react';
 import { Footer } from './Footer';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '../hooks/useAuth';
 import { MobileHeader } from './MobileHeader';
+import { RestartConfirmationModal } from './RestartConfirmationModal';
+import { httpClient } from '../services/httpClient';
 
 export function Layout({ children }: { children: React.ReactNode }) {
   const location = useLocation();
@@ -13,7 +15,19 @@ export function Layout({ children }: { children: React.ReactNode }) {
     return saved ? saved === 'dark' : true; // Default to Matrix / Dark
   });
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [isRestartModalOpen, setIsRestartModalOpen] = useState(false);
   const { logout } = useAuth();
+
+  const handleRestart = async () => {
+    try {
+      await httpClient.post('/restart', {});
+      // Mostrar mensagem de sucesso ou redirecionar após restart
+      alert('Restart initiated successfully. The agent will restart shortly.');
+    } catch (error) {
+      console.error('Failed to restart:', error);
+      alert('Failed to restart the agent. Please try again.');
+    }
+  };
 
   useEffect(() => {
     if (isDark) {
@@ -101,6 +115,17 @@ export function Layout({ children }: { children: React.ReactNode }) {
             </Link>
           </nav>
 
+          {/* Restart Button */}
+          <div className="p-4 border-t border-azure-border dark:border-matrix-primary">
+            <button
+              onClick={() => setIsRestartModalOpen(true)}
+              className="flex items-center gap-3 px-4 py-3 rounded w-full text-left hover:bg-azure-hover dark:hover:bg-matrix-primary/50 text-azure-text-secondary dark:text-matrix-secondary transition-colors"
+            >
+              <RotateCcw className="w-5 h-5" />
+              <span>Restart</span>
+            </button>
+          </div>
+
           {/* Logout Button */}
           <div className="p-4 border-t border-azure-border dark:border-matrix-primary">
             <button
@@ -179,6 +204,20 @@ export function Layout({ children }: { children: React.ReactNode }) {
                   </Link>
                 </nav>
 
+                {/* Restart Button */}
+                <div className="p-4 border-t border-azure-border dark:border-matrix-primary">
+                  <button
+                    onClick={() => {
+                      setIsRestartModalOpen(true);
+                      setIsSidebarOpen(false);
+                    }}
+                    className="flex items-center gap-3 px-4 py-3 rounded w-full text-left hover:bg-azure-hover dark:hover:bg-matrix-primary/50 text-azure-text-secondary dark:text-matrix-secondary transition-colors"
+                  >
+                    <RotateCcw className="w-5 h-5" />
+                    <span>Restart</span>
+                  </button>
+                </div>
+
                 {/* Logout Button */}
                 <div className="p-4 border-t border-azure-border dark:border-matrix-primary">
                   <button
@@ -209,6 +248,13 @@ export function Layout({ children }: { children: React.ReactNode }) {
       </div>
 
       <Footer />
+
+      {/* Restart Confirmation Modal */}
+      <RestartConfirmationModal
+        isOpen={isRestartModalOpen}
+        onClose={() => setIsRestartModalOpen(false)}
+        onConfirm={handleRestart}
+      />
     </div>
   );
 }

@@ -60,6 +60,90 @@ Morpheus is a local-first AI operator/agent for developers, distributed as a glo
 7. **Web Dashboard**: Matrix-themed React UI for management and monitoring
 8. **Declarative Configuration**: YAML-based configuration with environment variable support
 
+## UI Design System
+
+### Color Palette
+The UI follows a dual-theme approach with Azure (light) and Matrix (dark) themes:
+
+**Azure Theme (Light Mode)**:
+- Background: `#F0F4F8`
+- Surface: `#FFFFFF`
+- Primary: `#0066CC`
+- Secondary: `#4A90E2`
+- Accent: `#2196F3`
+- Border: `#B3D4FC`
+- Hover: `#E3F2FD`
+- Active: `#BBDEFB`
+- Text Primary: `#1A1A1A`
+- Text Secondary: `#5C6B7D`
+- Text Muted: `#8899A8`
+
+**Matrix Theme (Dark Mode)**:
+- Background: `#000000`
+- Base: `#0D0208`
+- Primary: `#003B00`
+- Secondary: `#008F11` (Darker Green)
+- Highlight: `#00FF41` (Bright Green)
+- Text: `#008F11`
+
+### Typography
+- Font Family: Monospace (`"Courier New"`, `Courier`, `monospace`)
+- Consistent monospace font across the application for a terminal-like experience
+
+### Component Design
+- **Buttons**: Multiple variants (default, destructive, outline, secondary, ghost, link) with appropriate color schemes
+- **Layout**: Responsive sidebar navigation with mobile support
+- **Modals**: Confirmation dialogs with proper styling
+- **Forms**: Consistent input components (NumberInput, SelectInput, Switch, TextInput)
+
+### UI Framework
+- **React 19**: Latest version for component-based architecture
+- **TailwindCSS**: Utility-first CSS framework for styling
+- **Framer Motion**: For smooth animations and transitions
+- **Lucide React**: Icon library for consistent iconography
+- **React Router DOM**: For navigation between pages
+
+### TailwindCSS Classes Available
+
+**Color Classes**:
+- Azure Colors: `bg-azure-bg`, `bg-azure-surface`, `bg-azure-primary`, `bg-azure-secondary`, `bg-azure-accent`, `bg-azure-border`, `bg-azure-hover`, `bg-azure-active`
+- Azure Text Colors: `text-azure-text-primary`, `text-azure-text-secondary`, `text-azure-text-muted`
+- Matrix Colors: `bg-matrix-bg`, `bg-matrix-base`, `bg-matrix-primary`, `bg-matrix-secondary`, `bg-matrix-highlight`, `text-matrix-text`
+- Zinc Colors: `bg-zinc-950`
+
+**Typography**:
+- Font Family: `font-mono` (uses Courier New/Courier/monospace)
+
+**Layout**:
+- Flexbox: `flex`, `flex-col`, `flex-1`, `flex-shrink-0`, `hidden`, `lg:flex`, `lg:hidden`
+- Grid: Various grid classes available through Tailwind
+- Spacing: `p-*`, `px-*`, `py-*`, `m-*`, `mx-*`, `my-*` (all standard Tailwind spacing)
+- Sizing: `w-*`, `h-*`, `min-w-*`, `min-h-*`, `max-w-*`, `max-h-*`
+- Positioning: `absolute`, `relative`, `fixed`, `inset-*`, `top-*`, `bottom-*`, `left-*`, `right-*`
+
+**Borders**:
+- Border colors: `border-azure-border`, `border-matrix-primary`
+- Border styles: `rounded`, `rounded-md`, `rounded-lg`, etc.
+
+**Effects**:
+- Shadows: `shadow-*`, `shadow-xl`, etc.
+- Transitions: `transition-colors`, `transition-opacity`, `duration-300`
+- Opacity: `opacity-*`, `dark:opacity-*`
+
+**States**:
+- Hover: `hover:*`, `dark:hover:*`
+- Focus: `focus:*`, `focus-visible:*`
+- Disabled: `disabled:*`
+
+**Dark Mode**:
+- All color classes have dark mode variants using `dark:` prefix
+- Theme toggling via `dark` class on document element
+
+### Dark/Light Theme Toggle
+- Theme preference is stored in localStorage
+- Smooth transitions between themes
+- Matrix theme is the default (inspired by The Matrix aesthetic)
+
 ## Building and Running
 
 ### Development Setup

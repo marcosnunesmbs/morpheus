@@ -4,6 +4,7 @@ import chalk from 'chalk';
 import fs from 'fs-extra';
 import path from 'path';
 import os from 'os';
+import { spawn } from 'child_process';
 import { ConfigManager } from '../config/manager.js';
 import { DisplayManager } from '../runtime/display.js';
 import { Oracle } from '../runtime/oracle.js';
@@ -173,6 +174,11 @@ export class TelegramAdapter {
 
       this.isConnected = true;
 
+      // Check if there's a restart notification to send
+      this.checkAndSendRestartNotification().catch((err: any) => {
+        this.display.log(`Failed to send restart notification: ${err.message}`, { source: 'Telegram', level: 'error' });
+      });
+
       process.once('SIGINT', () => this.disconnect());
       process.once('SIGTERM', () => this.disconnect());
 
@@ -244,6 +250,9 @@ export class TelegramAdapter {
       case '/sati':
         await this.handleSatiCommand(ctx, user, args);
         break;
+      case '/restart':
+        await this.handleRestartCommand(ctx, user);
+        break;
       default:
         await this.handleDefaultCommand(ctx, user, command);
     }
@@ -262,9 +271,10 @@ I am your local AI operator/agent. Here are the commands you can use:
 /help - Show available commands
 /zaion - Show system configurations
 /sati <qnt> - Show specific memories
+/restart - Restart the Morpheus agent
 
 How can I assist you today?`;
-    
+
     await ctx.reply(welcomeMessage);
   }
 
@@ -371,11 +381,11 @@ How can I assist you today?`;
   private async handleDefaultCommand(ctx: any, user: string, command: string) {
     const prompt = `O usuário envio o comando: ${command},
     Não entendemos o comando
-    temos os seguintes comandos disponíveis: /start, /status, /doctor, /stats, /help, /zaion, /sati <qnt>
+    temos os seguintes comandos disponíveis: /start, /status, /doctor, /stats, /help, /zaion, /sati <qnt>, /restart
     Identifique se ele talvez tenha errado o comando e pergunte se ele não quis executar outro comando.
     Só faça isso agora.`;
     let response = await this.oracle.chat(prompt);
-    
+
     if (response) {
       await ctx.reply(response, { parse_mode: 'Markdown' });
     }
@@ -393,9 +403,10 @@ How can I assist you today?`;
 /help - Show this help message
 /zaion - Show system configurations
 /sati <qnt> - Show specific memories
+/restart - Restart the Morpheus agent
 
 How can I assist you today?`;
-    
+
     await ctx.reply(helpMessage, { parse_mode: 'Markdown' });
   }
 
@@ -438,35 +449,102 @@ How can I assist you today?`;
         return;
       }
     }
-    
+
     try {
       // Usar o repositório SATI para obter memórias de longo prazo
       const repository = SatiRepository.getInstance();
       const memories = repository.getAllMemories();
-      
+
       if (memories.length === 0) {
         await ctx.reply(`No memories found.`);
         return;
       }
-      
+
       // Se nenhum limite for especificado, usar todas as memórias
       let selectedMemories = memories;
       if (limit !== null) {
         selectedMemories = memories.slice(0, Math.min(limit, memories.length));
       }
-      
+
       let response = `*${selectedMemories.length} SATI Memories${limit !== null ? ` (Showing first ${selectedMemories.length})` : ''}:*\n\n`;
-      
+
       for (const memory of selectedMemories) {
         // Limitar o tamanho do resumo para evitar mensagens muito longas
         const truncatedSummary = memory.summary.length > 200 ? memory.summary.substring(0, 200) + '...' : memory.summary;
-        
+
         response += `*${memory.category} (${memory.importance}):* ${truncatedSummary}\n\n`;
       }
-      
+
       await ctx.reply(response, { parse_mode: 'Markdown' });
     } catch (error: any) {
       await ctx.reply(`Failed to retrieve memories: ${error.message}`);
+    }
+  }
+
+  private async handleRestartCommand(ctx: any, user: string) {
+    // Store the user ID who requested the restart
+    const userId = ctx.from.id;
+    
+    // Save the user ID to a temporary file so the restarted process can notify them
+    const restartNotificationFile = path.join(os.tmpdir(), 'morpheus_restart_notification.json');
+    try {
+      await fs.writeJson(restartNotificationFile, { userId: userId, username: user }, { encoding: 'utf8' });
+    } catch (error: any) {
+      this.display.log(`Failed to save restart notification info: ${error.message}`, { source: 'Telegram', level: 'error' });
+    }
+
+    // Respond to the user first
+    await ctx.reply('🔄 Restart initiated. The Morpheus agent will restart shortly.');
+
+    // Schedule the restart after a short delay to ensure the response is sent
+    setTimeout(() => {
+      // Stop the bot to prevent processing more messages
+      if (this.bot) {
+        try {
+          this.bot.stop();
+        } catch (e: any) {
+          // Ignore stop errors
+        }
+      }
+
+      // Execute the restart command using the CLI
+      const restartProcess = spawn(process.execPath, [process.argv[1], 'restart'], {
+        detached: true,
+        stdio: 'ignore'
+      });
+
+      restartProcess.unref();
+
+      // Exit the current process
+      process.exit(0);
+    }, 500); // Shorter delay to minimize chance of processing more messages
+  }
+
+  private async checkAndSendRestartNotification() {
+    const restartNotificationFile = path.join(os.tmpdir(), 'morpheus_restart_notification.json');
+    
+    try {
+      // Check if the notification file exists
+      if (await fs.pathExists(restartNotificationFile)) {
+        const notificationData = await fs.readJson(restartNotificationFile);
+        
+        // Send a message to the user who requested the restart
+        if (this.bot && notificationData.userId) {
+          try {
+            await this.bot.telegram.sendMessage(notificationData.userId, '✅ Morpheus agent has been successfully restarted!');
+            
+            // Optionally, also send to the display
+            this.display.log(`Restart notification sent to user ${notificationData.username} (ID: ${notificationData.userId})`, { source: 'Telegram', level: 'info' });
+          } catch (error: any) {
+            this.display.log(`Failed to send restart notification to user ${notificationData.username}: ${error.message}`, { source: 'Telegram', level: 'error' });
+          }
+        }
+        
+        // Remove the notification file after sending the message
+        await fs.remove(restartNotificationFile);
+      }
+    } catch (error: any) {
+      this.display.log(`Error checking restart notification: ${error.message}`, { source: 'Telegram', level: 'error' });
     }
   }
 }

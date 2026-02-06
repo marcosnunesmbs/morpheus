@@ -47,6 +47,9 @@ morpheus status
 # Stop the agent
 morpheus stop
 
+# Restart the agent
+morpheus restart
+
 # Diagnose issues
 morpheus doctor
 ```
@@ -195,6 +198,18 @@ Send voice messages directly to the Telegram bot. Morpheus will:
 3. Reply with the answer.
 
 *Requires a Google Gemini API Key.*
+
+### 🤖 Telegram Commands
+The Morpheus Telegram bot supports several commands for interacting with the agent:
+
+- `/start` - Show welcome message and available commands
+- `/status` - Check the status of the Morpheus agent
+- `/doctor` - Diagnose environment and configuration issues
+- `/stats` - Show token usage statistics
+- `/help` - Show available commands
+- `/zaion` - Show system configurations
+- `/sati <qnt>` - Show specific memories
+- `/restart` - **New!** Restart the Morpheus agent
 
 ## Development Setup
 
