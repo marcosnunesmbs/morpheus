@@ -407,6 +407,7 @@ This ensures that your private agent dashboard remains private and is not discov
 ## 🐳 Running with Docker
 
 Morpheus can be easily deployed using Docker and Docker Compose. The container supports all environment variables for configuration.
+The Docker image is publicly available at [Docker Hub](https://hub.docker.com/r/marcosnunesmbs/morpheus).
 
 ### Prerequisites
 
@@ -429,6 +430,46 @@ docker-compose up -d
 ```
 
 3. Access the Web UI at `http://localhost:3333`
+
+### Docker Compose Example
+
+Here's a complete example of how to run Morpheus using Docker Compose:
+
+```yaml
+version: '3.8'
+
+services:
+  morpheus:
+    image: morpheus/morpheus-agent:latest
+    container_name: morpheus-agent
+    ports:
+      - "3333:3333"
+    volumes:
+      - morpheus_data:/root/.morpheus
+    environment:
+      # LLM Configuration
+      - MORPHEUS_LLM_PROVIDER=openai
+      - MORPHEUS_LLM_MODEL=gpt-4o
+      - MORPHEUS_LLM_TEMPERATURE=0.7
+      
+      # API Keys
+      - OPENAI_API_KEY=your-openai-api-key
+      - ANTHROPIC_API_KEY=your-anthropic-api-key
+      - GOOGLE_API_KEY=your-google-api-key
+      - OPENROUTER_API_KEY=your-openrouter-api-key
+      
+      # Security
+      - THE_ARCHITECT_PASS=your-secure-password
+      
+      # Agent Configuration
+      - MORPHEUS_AGENT_NAME=morpheus
+      - MORPHEUS_AGENT_PERSONALITY=helpful_dev
+      
+      # UI Configuration
+      - MORPHEUS_UI_ENABLED=true
+      - MORPHEUS_UI_PORT=3333
+    restart: unless-stopped
+```
 
 ### Using Docker Directly
 
