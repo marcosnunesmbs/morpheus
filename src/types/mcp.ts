@@ -35,3 +35,13 @@ export const DEFAULT_MCP_TEMPLATE = {
     "env": {}
   }
 };
+
+export type MCPServerRecord = {
+  name: string;
+  enabled: boolean;
+  config: MCPServerConfig;
+};
+
+export type MCPListResponse = {
+  servers: MCPServerRecord[];
+};

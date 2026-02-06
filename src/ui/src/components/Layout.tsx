@@ -116,7 +116,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
           </nav>
 
           {/* Restart Button */}
-          <div className="p-4 border-t border-azure-border dark:border-matrix-primary">
+          <div className="p-2">
             <button
               onClick={() => setIsRestartModalOpen(true)}
               className="flex items-center gap-3 px-4 py-3 rounded w-full text-left hover:bg-azure-hover dark:hover:bg-matrix-primary/50 text-azure-text-secondary dark:text-matrix-secondary transition-colors"
@@ -127,7 +127,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
           </div>
 
           {/* Logout Button */}
-          <div className="p-4 border-t border-azure-border dark:border-matrix-primary">
+          <div className="p-2">
             <button
               onClick={logout}
               className="flex items-center gap-3 px-4 py-3 rounded w-full text-left hover:bg-red-50 dark:hover:bg-red-900/20 text-azure-text-secondary dark:text-matrix-secondary hover:text-red-600 transition-colors"
@@ -205,7 +205,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
                 </nav>
 
                 {/* Restart Button */}
-                <div className="p-4 border-t border-azure-border dark:border-matrix-primary">
+                <div className="p-2">
                   <button
                     onClick={() => {
                       setIsRestartModalOpen(true);
@@ -219,7 +219,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
                 </div>
 
                 {/* Logout Button */}
-                <div className="p-4 border-t border-azure-border dark:border-matrix-primary">
+                <div className="p-2">
                   <button
                     onClick={() => {
                       logout();

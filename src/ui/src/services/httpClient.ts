@@ -64,6 +64,28 @@ export class HttpClient {
     return this.handleResponse(response);
   }
 
+  public async put<T>(path: string, body: any): Promise<T> {
+    const response = await fetch(`${API_BASE}${path}`, {
+      method: 'PUT',
+      headers: this.getHeaders({
+        'Content-Type': 'application/json',
+      }),
+      body: JSON.stringify(body),
+    });
+    return this.handleResponse(response);
+  }
+
+  public async patch<T>(path: string, body: any): Promise<T> {
+    const response = await fetch(`${API_BASE}${path}`, {
+      method: 'PATCH',
+      headers: this.getHeaders({
+        'Content-Type': 'application/json',
+      }),
+      body: JSON.stringify(body),
+    });
+    return this.handleResponse(response);
+  }
+
   public async delete<T>(path: string): Promise<T> {
     const response = await fetch(`${API_BASE}${path}`, {
       method: 'DELETE',

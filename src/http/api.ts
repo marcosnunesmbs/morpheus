@@ -9,6 +9,9 @@ import path from 'path';
 import { SQLiteChatMessageHistory } from '../runtime/memory/sqlite.js';
 import { SatiRepository } from '../runtime/memory/sati/repository.js';
 import { spawn } from 'child_process';
+import { z } from 'zod';
+import { MCPManager } from '../config/mcp-manager.js';
+import { MCPServerConfigSchema } from '../config/schemas.js';
 
 async function readLastLines(filePath: string, n: number): Promise<string[]> {
   try {
@@ -276,6 +279,66 @@ export function createApiRouter() {
       });
     } catch (error: any) {
       res.status(500).json({ error: error.message });
+    }
+  });
+
+  const MCPUpsertSchema = z.object({
+    name: z.string().min(1),
+    config: MCPServerConfigSchema,
+  });
+
+  const MCPToggleSchema = z.object({
+    enabled: z.boolean(),
+  });
+
+  router.get('/mcp/servers', async (_req, res) => {
+    try {
+      const servers = await MCPManager.listServers();
+      res.json({ servers });
+    } catch (error) {
+      res.status(500).json({ error: 'Failed to load MCP servers.', details: String(error) });
+    }
+  });
+
+  router.post('/mcp/servers', async (req, res) => {
+    try {
+      const body = MCPUpsertSchema.parse(req.body);
+      await MCPManager.addServer(body.name, body.config);
+      res.status(201).json({ ok: true });
+    } catch (error) {
+      const status = error instanceof z.ZodError ? 400 : 500;
+      res.status(status).json({ error: 'Failed to create MCP server.', details: error });
+    }
+  });
+
+  router.put('/mcp/servers/:name', async (req, res) => {
+    try {
+      const body = MCPUpsertSchema.parse({ name: req.params.name, config: req.body?.config ?? req.body });
+      await MCPManager.updateServer(body.name, body.config);
+      res.json({ ok: true });
+    } catch (error) {
+      const status = error instanceof z.ZodError ? 400 : 500;
+      res.status(status).json({ error: 'Failed to update MCP server.', details: error });
+    }
+  });
+
+  router.delete('/mcp/servers/:name', async (req, res) => {
+    try {
+      await MCPManager.deleteServer(req.params.name);
+      res.json({ ok: true });
+    } catch (error) {
+      res.status(500).json({ error: 'Failed to delete MCP server.', details: String(error) });
+    }
+  });
+
+  router.patch('/mcp/servers/:name/toggle', async (req, res) => {
+    try {
+      const body = MCPToggleSchema.parse(req.body);
+      await MCPManager.setServerEnabled(req.params.name, body.enabled);
+      res.json({ ok: true });
+    } catch (error) {
+      const status = error instanceof z.ZodError ? 400 : 500;
+      res.status(status).json({ error: 'Failed to toggle MCP server.', details: error });
     }
   });
 
