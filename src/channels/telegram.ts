@@ -429,15 +429,14 @@ How can I assist you today?`;
   }
 
   private async handleSatiCommand(ctx: any, user: string, args: string[]) {
-    if (args.length === 0) {
-      await ctx.reply('Please specify how many memories to retrieve. Usage: /sati <qnt>');
-      return;
-    }
-    
-    const limit = parseInt(args[0], 10);
-    if (isNaN(limit) || limit <= 0) {
-      await ctx.reply('Invalid quantity. Please specify a positive number. Usage: /sati <qnt>');
-      return;
+    let limit: number | null = null;
+
+    if (args.length > 0) {
+      limit = parseInt(args[0], 10);
+      if (isNaN(limit) || limit <= 0) {
+        await ctx.reply('Invalid quantity. Please specify a positive number. Usage: /sati <qnt>');
+        return;
+      }
     }
     
     try {
@@ -450,12 +449,15 @@ How can I assist you today?`;
         return;
       }
       
-      // Pegar as últimas 'limit' memórias
-      const recentMemories = memories.slice(0, Math.min(limit, memories.length));
+      // Se nenhum limite for especificado, usar todas as memórias
+      let selectedMemories = memories;
+      if (limit !== null) {
+        selectedMemories = memories.slice(0, Math.min(limit, memories.length));
+      }
       
-      let response = `*Last ${recentMemories.length} SATI Memories:*\n\n`;
+      let response = `*${selectedMemories.length} SATI Memories${limit !== null ? ` (Showing first ${selectedMemories.length})` : ''}:*\n\n`;
       
-      for (const memory of recentMemories) {
+      for (const memory of selectedMemories) {
         // Limitar o tamanho do resumo para evitar mensagens muito longas
         const truncatedSummary = memory.summary.length > 200 ? memory.summary.substring(0, 200) + '...' : memory.summary;
         
