@@ -8,6 +8,9 @@ import { ConfigManager } from '../config/manager.js';
 import { DisplayManager } from '../runtime/display.js';
 import { Oracle } from '../runtime/oracle.js';
 import { Telephonist } from '../runtime/telephonist.js';
+import { readPid, isProcessRunning, checkStalePid } from '../runtime/lifecycle.js';
+import { SQLiteChatMessageHistory } from '../runtime/memory/sqlite.js';
+import { SatiRepository } from '../runtime/memory/sati/repository.js';
 
 export class TelegramAdapter {
   private bot: Telegraf | null = null;
@@ -50,6 +53,12 @@ export class TelegramAdapter {
 
         this.display.log(`@${user}: ${text}`, { source: 'Telegram' });
 
+        // Handle system commands
+        if (text.startsWith('/')) {
+          await this.handleSystemCommand(ctx, text, user);
+          return;
+        }
+
         try {
           // Send "typing" status
           await ctx.sendChatAction('typing');
@@ -58,8 +67,7 @@ export class TelegramAdapter {
           const response = await this.oracle.chat(text);
 
           if (response) {
-
-            await ctx.reply(response);
+            await ctx.reply(response, { parse_mode: 'Markdown' });
             this.display.log(`Responded to @${user}`, { source: 'Telegram' });
           }
         } catch (error: any) {
@@ -208,5 +216,255 @@ export class TelegramAdapter {
     this.isConnected = false;
     this.bot = null;
     this.display.log(chalk.gray('Telegram disconnected.'), { source: 'Telegram' });
+  }
+
+  private async handleSystemCommand(ctx: any, text: string, user: string) {
+    const command = text.split(' ')[0];
+    const args = text.split(' ').slice(1);
+
+    switch (command) {
+      case '/start':
+        await this.handleStartCommand(ctx, user);
+        break;
+      case '/status':
+        await this.handleStatusCommand(ctx, user);
+        break;
+      case '/doctor':
+        await this.handleDoctorCommand(ctx, user);
+        break;
+      case '/stats':
+        await this.handleStatsCommand(ctx, user);
+        break;
+      case '/help':
+        await this.handleHelpCommand(ctx, user);
+        break;
+      case '/zaion':
+        await this.handleZaionCommand(ctx, user);
+        break;
+      case '/sati':
+        await this.handleSatiCommand(ctx, user, args);
+        break;
+      default:
+        await this.handleDefaultCommand(ctx, user, command);
+    }
+  }
+
+  private async handleStartCommand(ctx: any, user: string) {
+    const welcomeMessage = `
+Hello, @${user}! I am ${this.config.get().agent.name}, ${this.config.get().agent.personality}.
+
+I am your local AI operator/agent. Here are the commands you can use:
+
+/start - Show this welcome message and available commands
+/status - Check the status of the Morpheus agent
+/doctor - Diagnose environment and configuration issues
+/stats - Show token usage statistics
+/help - Show available commands
+/zaion - Show system configurations
+/sati <qnt> - Show specific memories
+
+How can I assist you today?`;
+    
+    await ctx.reply(welcomeMessage);
+  }
+
+  private async handleStatusCommand(ctx: any, user: string) {
+    try {
+      await checkStalePid();
+      const pid = await readPid();
+
+      if (pid && isProcessRunning(pid)) {
+        await ctx.reply(`Morpheus is running (PID: ${pid})`);
+      } else {
+        await ctx.reply('Morpheus is stopped.');
+      }
+    } catch (error: any) {
+      await ctx.reply(`Failed to check status: ${error.message}`);
+    }
+  }
+
+  private async handleDoctorCommand(ctx: any, user: string) {
+    // Implementação simplificada do diagnóstico
+    const config = this.config.get();
+    let response = '*Morpheus Doctor*\n\n';
+    
+    // Verificar versão do Node.js
+    const nodeVersion = process.version;
+    const majorVersion = parseInt(nodeVersion.replace('v', '').split('.')[0], 10);
+    if (majorVersion >= 18) {
+      response += '✅ Node.js Version: ' + nodeVersion + ' (Satisfied)\n';
+    } else {
+      response += '❌ Node.js Version: ' + nodeVersion + ' (Required: >=18)\n';
+    }
+    
+    // Verificar configuração
+    if (config) {
+      response += '✅ Configuration: Valid\n';
+      
+      // Verificar se há chave de API disponível para o provedor ativo
+      const llmProvider = config.llm?.provider;
+      if (llmProvider && llmProvider !== 'ollama') {
+        const hasLlmApiKey = config.llm?.api_key ||
+                            (llmProvider === 'openai' && process.env.OPENAI_API_KEY) ||
+                            (llmProvider === 'anthropic' && process.env.ANTHROPIC_API_KEY) ||
+                            (llmProvider === 'gemini' && process.env.GOOGLE_API_KEY) ||
+                            (llmProvider === 'openrouter' && process.env.OPENROUTER_API_KEY);
+
+        if (hasLlmApiKey) {
+          response += `✅ LLM API key available for ${llmProvider}\n`;
+        } else {
+          response += `❌ LLM API key missing for ${llmProvider}. Either set in config or define environment variable.\n`;
+        }
+      }
+      
+      // Verificar token do Telegram se ativado
+      if (config.channels?.telegram?.enabled) {
+        const hasTelegramToken = config.channels.telegram?.token || process.env.TELEGRAM_BOT_TOKEN;
+        if (hasTelegramToken) {
+          response += '✅ Telegram bot token available\n';
+        } else {
+          response += '❌ Telegram bot token missing. Either set in config or define TELEGRAM_BOT_TOKEN environment variable.\n';
+        }
+      }
+    } else {
+      response += '⚠️ Configuration: Missing\n';
+    }
+    
+    await ctx.reply(response, { parse_mode: 'Markdown' });
+  }
+
+  private async handleStatsCommand(ctx: any, user: string) {
+    try {
+      // Criar instância temporária do histórico para obter estatísticas
+      const history = new SQLiteChatMessageHistory({
+        sessionId: "default",
+        databasePath: undefined, // Usará o caminho padrão
+        limit: 100, // Limite arbitrário para esta operação
+      });
+      
+      const stats = await history.getGlobalUsageStats();
+      const groupedStats = await history.getUsageStatsByProviderAndModel();
+      
+      let response = '*Token Usage Statistics*\n\n';
+      response += `Total Input Tokens: ${stats.totalInputTokens}\n`;
+      response += `Total Output Tokens: ${stats.totalOutputTokens}\n`;
+      response += `Total Tokens: ${stats.totalInputTokens + stats.totalOutputTokens}\n\n`;
+      
+      if (groupedStats.length > 0) {
+        response += '*Breakdown by Provider and Model:*\n';
+        for (const stat of groupedStats) {
+          response += `- ${stat.provider}/${stat.model}: ${stat.totalTokens} tokens (${stat.messageCount} messages)\n`;
+        }
+      } else {
+        response += 'No detailed usage statistics available.';
+      }
+      
+      await ctx.reply(response, { parse_mode: 'Markdown' });
+      
+      // Fechar conexão com o banco de dados
+      history.close();
+    } catch (error: any) {
+      await ctx.reply(`Failed to retrieve statistics: ${error.message}`);
+    }
+  }
+
+  private async handleDefaultCommand(ctx: any, user: string, command: string) {
+    const prompt = `O usuário envio o comando: ${command},
+    Não entendemos o comando
+    temos os seguintes comandos disponíveis: /start, /status, /doctor, /stats, /help, /zaion, /sati <qnt>
+    Identifique se ele talvez tenha errado o comando e pergunte se ele não quis executar outro comando.
+    Só faça isso agora.`;
+    let response = await this.oracle.chat(prompt);
+    
+    if (response) {
+      await ctx.reply(response, { parse_mode: 'Markdown' });
+    }
+    // await ctx.reply(`Command not recognized. Type /help to see available commands.`);
+  }
+
+  private async handleHelpCommand(ctx: any, user: string) {
+    const helpMessage = `
+*Available Commands:*
+
+/start - Show welcome message and available commands
+/status - Check the status of the Morpheus agent
+/doctor - Diagnose environment and configuration issues
+/stats - Show token usage statistics
+/help - Show this help message
+/zaion - Show system configurations
+/sati <qnt> - Show specific memories
+
+How can I assist you today?`;
+    
+    await ctx.reply(helpMessage, { parse_mode: 'Markdown' });
+  }
+
+  private async handleZaionCommand(ctx: any, user: string) {
+    const config = this.config.get();
+    
+    let response = '*System Configuration*\n\n';
+    response += `*Agent:*\n`;
+    response += `- Name: ${config.agent.name}\n`;
+    response += `- Personality: ${config.agent.personality}\n\n`;
+    
+    response += `*LLM:*\n`;
+    response += `- Provider: ${config.llm.provider}\n`;
+    response += `- Model: ${config.llm.model}\n`;
+    response += `- Temperature: ${config.llm.temperature}\n`;
+    response += `- Context Window: ${config.llm.context_window || 100}\n\n`;
+    
+    response += `*Channels:*\n`;
+    response += `- Telegram Enabled: ${config.channels.telegram.enabled}\n`;
+    response += `- Discord Enabled: ${config.channels.discord.enabled}\n\n`;
+    
+    response += `*UI:*\n`;
+    response += `- Enabled: ${config.ui.enabled}\n`;
+    response += `- Port: ${config.ui.port}\n\n`;
+    
+    response += `*Audio:*\n`;
+    response += `- Enabled: ${config.audio.enabled}\n`;
+    response += `- Max Duration: ${config.audio.maxDurationSeconds}s\n`;
+    
+    await ctx.reply(response, { parse_mode: 'Markdown' });
+  }
+
+  private async handleSatiCommand(ctx: any, user: string, args: string[]) {
+    if (args.length === 0) {
+      await ctx.reply('Please specify how many memories to retrieve. Usage: /sati <qnt>');
+      return;
+    }
+    
+    const limit = parseInt(args[0], 10);
+    if (isNaN(limit) || limit <= 0) {
+      await ctx.reply('Invalid quantity. Please specify a positive number. Usage: /sati <qnt>');
+      return;
+    }
+    
+    try {
+      // Usar o repositório SATI para obter memórias de longo prazo
+      const repository = SatiRepository.getInstance();
+      const memories = repository.getAllMemories();
+      
+      if (memories.length === 0) {
+        await ctx.reply(`No memories found.`);
+        return;
+      }
+      
+      // Pegar as últimas 'limit' memórias
+      const recentMemories = memories.slice(0, Math.min(limit, memories.length));
+      
+      let response = `*Last ${recentMemories.length} SATI Memories:*\n\n`;
+      
+      for (const memory of recentMemories) {
+        // Limitar o tamanho do resumo para evitar mensagens muito longas
+        const truncatedSummary = memory.summary.length > 200 ? memory.summary.substring(0, 200) + '...' : memory.summary;
+        
+        response += `*${memory.category} (${memory.importance}):* ${truncatedSummary}\n\n`;
+      }
+      
+      await ctx.reply(response, { parse_mode: 'Markdown' });
+    } catch (error: any) {
+      await ctx.reply(`Failed to retrieve memories: ${error.message}`);
+    }
   }
 }
