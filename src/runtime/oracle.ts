@@ -52,7 +52,7 @@ export class Oracle implements IOracle {
       this.display.log(`Using context window: ${contextWindow} messages`, { source: 'Oracle' });
       
       this.history = new SQLiteChatMessageHistory({
-        sessionId: "default",
+        sessionId: '', // Let the history manage session IDs internally
         databasePath: this.databasePath,
         limit: contextWindow,
       });

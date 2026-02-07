@@ -5,9 +5,11 @@ import * as fs from "fs-extra";
 import * as path from "path";
 import { homedir } from "os";
 import type { ProviderModelUsageStats } from "../../types/stats.js";
+import { randomUUID } from 'crypto';
+import { DisplayManager } from "../display.js";
 
 export interface SQLiteChatMessageHistoryInput {
-  sessionId: string;
+  sessionId: string | '';
   databasePath?: string;
   limit?: number;
   config?: Database.Options;
@@ -24,13 +26,15 @@ export interface MessageProviderMetadata {
 export class SQLiteChatMessageHistory extends BaseListChatMessageHistory {
   lc_namespace = ["langchain", "stores", "message", "sqlite"];
 
+  private display = DisplayManager.getInstance();
+
   private db: Database.Database;
   private sessionId: string;
   private limit?: number;
 
   constructor(fields: SQLiteChatMessageHistoryInput) {
     super();
-    this.sessionId = fields.sessionId;
+    this.sessionId = fields.sessionId || '';
     this.limit = fields.limit ? fields.limit : 20;
 
     // Default path: ~/.morpheus/memory/short-memory.db
@@ -52,6 +56,11 @@ export class SQLiteChatMessageHistory extends BaseListChatMessageHistory {
       } catch (tableError) {
         // Database might be corrupted, attempt recovery
         this.handleCorruption(dbPath, tableError);
+      }
+
+      // Initialize session ID if not provided (after db is initialized)
+      if (!this.sessionId) {
+        this.startSession(); // Initialize session ID if not provided
       }
     } catch (error) {
       throw new Error(`Failed to initialize SQLite database at ${dbPath}: ${error}`);
@@ -119,6 +128,23 @@ export class SQLiteChatMessageHistory extends BaseListChatMessageHistory {
         
         CREATE INDEX IF NOT EXISTS idx_messages_session_id 
         ON messages(session_id);
+
+        CREATE TABLE IF NOT EXISTS sessions (
+          id TEXT PRIMARY KEY,
+          started_at INTEGER NOT NULL,
+          ended_at INTEGER,
+          embedded INTEGER DEFAULT 0,
+          embedding_status TEXT DEFAULT 'pending'
+        );
+
+        CREATE TABLE IF NOT EXISTS session_chunks (
+          id TEXT PRIMARY KEY,
+          session_id TEXT,
+          chunk_index INTEGER,
+          content TEXT,
+          created_at TEXT
+        );
+
       `);
 
       this.migrateTable();
@@ -132,6 +158,7 @@ export class SQLiteChatMessageHistory extends BaseListChatMessageHistory {
    */
   private migrateTable(): void {
     try {
+      // Migrate messages table
       const tableInfo = this.db.pragma('table_info(messages)') as Array<{ name: string }>;
       const columns = new Set(tableInfo.map(c => c.name));
 
@@ -157,6 +184,18 @@ export class SQLiteChatMessageHistory extends BaseListChatMessageHistory {
           }
         }
       }
+
+      // Migrate sessions table
+      const sessionsTableInfo = this.db.pragma('table_info(sessions)') as Array<{ name: string }>;
+      const sessionsColumns = new Set(sessionsTableInfo.map(c => c.name));
+
+      if (!sessionsColumns.has('embedding_status')) {
+        try {
+          this.db.exec(`ALTER TABLE sessions ADD COLUMN embedding_status TEXT DEFAULT 'pending'`);
+        } catch (e) {
+          console.warn(`[SQLite] Failed to add column embedding_status: ${e}`);
+        }
+      }
     } catch (error) {
       console.warn(`[SQLite] Migration check failed: ${error}`);
     }
@@ -176,7 +215,7 @@ export class SQLiteChatMessageHistory extends BaseListChatMessageHistory {
          ORDER BY id DESC
          LIMIT ?`
       );
-      
+
       const rows = stmt.all(this.sessionId, this.limit) as Array<{
         type: string;
         content: string;
@@ -422,6 +461,174 @@ export class SQLiteChatMessageHistory extends BaseListChatMessageHistory {
       throw new Error(`Failed to clear messages: ${error}`);
     }
   }
+
+  /**
+   * Select the last session that time of no ended_at and return its ID, or create a new session if none found.
+   * This allows us to group messages into sessions for better organization and potential future features like session management.
+   */
+  public async startSession(): Promise<void> {
+    try {
+      // Try to find an active session
+      const selectStmt = this.db.prepare("SELECT id FROM sessions WHERE ended_at IS NULL ORDER BY started_at DESC LIMIT 1");
+      const row = selectStmt.get() as { id: string } | undefined;
+      if (row) {
+        this.sessionId = row.id;
+      }
+      // If no active session, create a new one
+      if (!this.sessionId) {
+        const uuid = randomUUID();
+        this.sessionId = uuid;
+
+        const insertStmt = this.db.prepare("INSERT INTO sessions (id, started_at) VALUES (?, ?)");
+        insertStmt.run(this.sessionId, Date.now());
+      }
+      const updateStmt = this.db.prepare("UPDATE messages SET session_id = ? WHERE session_id = 'default'");
+      updateStmt.run(this.sessionId);
+    } catch (error) {
+      throw new Error(`Failed to start session: ${error}`);
+    }
+  }
+
+  public async createNewSession(): Promise<void> {
+    const now = new Date().toISOString();
+
+    // 1️⃣ pegar sessão ativa
+    const activeSession = this.db.prepare(`
+    SELECT * FROM sessions
+    WHERE ended_at IS NULL
+    LIMIT 1
+  `).get() as any;
+
+    if (!activeSession) {
+      console.log('Nenhuma sessão ativa encontrada.');
+      return;
+    }
+
+    this.display.log(`🔒 Finalizando sessão ${activeSession.id}`, { source: 'Sati' });
+
+    // 2️⃣ finalizar sessão
+    this.db.prepare(`
+    UPDATE sessions
+    SET ended_at = ?,
+        embedding_status = 'pending',
+        embedded = 0
+    WHERE id = ?
+  `).run(now, activeSession.id);
+
+    // 3️⃣ buscar mensagens
+    const messages = this.db.prepare(`
+    SELECT type, content
+    FROM messages
+    WHERE session_id = ?
+    ORDER BY created_at ASC
+  `).all(activeSession.id) as any[];
+
+    if (messages.length === 0) {
+      this.display.log('Sessão vazia.', { source: 'Sati' });
+      this.createFreshSession();
+      return;
+    }
+
+    // 4️⃣ montar texto
+    const sessionText = messages
+      .map(m => `[${m.type}] ${m.content}`)
+      .join('\n\n');
+
+    // 5️⃣ salvar TXT
+    const filepath = path.join(
+      homedir(),
+      '.morpheus',
+      'memory',
+      'sessions',
+      `${activeSession.id}.txt`
+    );
+
+    fs.ensureDirSync(path.dirname(filepath));
+    fs.writeFileSync(filepath, sessionText);
+
+    this.display.log('📄 Sessão exportada para TXT', { source: 'Sati'});
+
+    // 6️⃣ criar chunks no sati-memory.db
+    const chunks = this.chunkText(sessionText);
+
+    for (let i = 0; i < chunks.length; i++) {
+      this.db!.prepare(`
+      INSERT INTO session_chunks (
+        id,
+        session_id,
+        chunk_index,
+        content,
+        created_at
+      ) VALUES (?, ?, ?, ?, ?)
+    `).run(
+        randomUUID(),
+        activeSession.id,
+        i,
+        chunks[i],
+        now
+      );
+    }
+
+    this.display.log(`🧩 ${chunks.length} chunks criados`, { source: 'Sati' });
+
+    // 7️⃣ criar nova sessão ativa
+    this.createFreshSession();
+
+    this.display.log('✅ Nova sessão iniciada', { source: 'Sati' });
+  }
+
+  private createFreshSession() {
+    const now = new Date().toISOString();
+
+    this.db.prepare(`
+    INSERT INTO sessions (
+      id,
+      started_at,
+      embedded,
+      embedding_status
+    ) VALUES (?, ?, 0, 'active')
+  `).run(randomUUID(), now);
+  }
+
+  private chunkText(
+  text: string,
+  chunkSize: number = 1000,
+  overlap: number = 200
+): string[] {
+
+  if (!text || text.length === 0) {
+    return [];
+  }
+
+  const chunks: string[] = [];
+  let start = 0;
+
+  while (start < text.length) {
+    let end = start + chunkSize;
+
+    // Evita cortar no meio da palavra
+    if (end < text.length) {
+      const lastSpace = text.lastIndexOf(' ', end);
+      if (lastSpace > start) {
+        end = lastSpace;
+      }
+    }
+
+    const chunk = text.slice(start, end).trim();
+    if (chunk.length > 0) {
+      chunks.push(chunk);
+    }
+
+    start = end - overlap;
+
+    if (start < 0) start = 0;
+  }
+
+  return chunks;
+}
+
+
+
 
   /**
    * Closes the database connection.

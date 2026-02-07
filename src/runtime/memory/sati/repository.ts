@@ -116,6 +116,31 @@ export class SatiRepository {
       INSERT INTO memory_fts(rowid, summary, details)
       VALUES (new.rowid, new.summary, new.details);
     END;
+
+    -- ===============================
+    -- 3️⃣ VECTOR TABLE SESSIONS (vec0)
+    -- ===============================
+
+    CREATE TABLE IF NOT EXISTS session_chunks (
+      id TEXT PRIMARY KEY,
+      session_id TEXT NOT NULL,
+      chunk_index INTEGER NOT NULL,
+      content TEXT NOT NULL,
+      created_at TEXT NOT NULL
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_session_chunks_session 
+    ON session_chunks(session_id);
+
+    CREATE VIRTUAL TABLE IF NOT EXISTS session_vec USING vec0(
+      embedding float[384]
+    );
+
+    CREATE TABLE IF NOT EXISTS session_embedding_map (
+      session_chunk_id TEXT PRIMARY KEY,
+      vec_rowid INTEGER NOT NULL
+    );
+
   `);
   }
 
