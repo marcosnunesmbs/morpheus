@@ -2,8 +2,11 @@ import Database from 'better-sqlite3';
 import path from 'path';
 import { homedir } from 'os';
 import fs from 'fs-extra';
-import { randomUUID } from 'crypto'; // Available in recent Node versions
+import { randomUUID } from 'crypto';
 import { IMemoryRecord, MemoryCategory, MemoryImportance } from './types.js';
+import loadVecExtension from '../sqlite-vec.js';
+
+const EMBEDDING_DIM = 384;
 
 export class SatiRepository {
   private db: Database.Database | null = null;
@@ -11,7 +14,8 @@ export class SatiRepository {
   private static instance: SatiRepository;
 
   private constructor(dbPath?: string) {
-    this.dbPath = dbPath || path.join(homedir(), '.morpheus', 'memory', 'santi-memory.db');
+    this.dbPath =
+      dbPath || path.join(homedir(), '.morpheus', 'memory', 'santi-memory.db');
   }
 
   public static getInstance(dbPath?: string): SatiRepository {
@@ -22,64 +26,95 @@ export class SatiRepository {
   }
 
   public initialize(): void {
-    try {
-      // Ensure directory exists
-      fs.ensureDirSync(path.dirname(this.dbPath));
+    fs.ensureDirSync(path.dirname(this.dbPath));
 
-      // Connect to database
-      this.db = new Database(this.dbPath, { timeout: 5000 });
-      this.db.pragma('journal_mode = WAL');
+    this.db = new Database(this.dbPath, { timeout: 5000 });
+    this.db.pragma('journal_mode = WAL');
 
-      // Create schema
-      this.createSchema();
-    } catch (error) {
-      console.error(`[SatiRepository] Failed to initialize database: ${error}`);
-      throw error;
-    }
+    loadVecExtension(this.db);
+
+    this.createSchema();
   }
 
   private createSchema() {
-    if (!this.db) throw new Error("DB not initialized");
+    if (!this.db) throw new Error('DB not initialized');
 
     this.db.exec(`
-      CREATE TABLE IF NOT EXISTS long_term_memory (
-        id TEXT PRIMARY KEY,
-        category TEXT NOT NULL,
-        importance TEXT NOT NULL,
-        summary TEXT NOT NULL,
-        details TEXT,
-        hash TEXT NOT NULL UNIQUE,
-        source TEXT,
-        created_at TEXT NOT NULL,
-        updated_at TEXT NOT NULL,
-        last_accessed_at TEXT,
-        access_count INTEGER DEFAULT 0,
-        version INTEGER DEFAULT 1,
-        archived INTEGER DEFAULT 0
+      CREATE TABLE IF NOT EXISTS memory_embedding_map (
+        memory_id TEXT PRIMARY KEY,
+        vec_rowid INTEGER NOT NULL
       );
 
-      CREATE INDEX IF NOT EXISTS idx_memory_category ON long_term_memory(category);
-      CREATE INDEX IF NOT EXISTS idx_memory_importance ON long_term_memory(importance);
-      CREATE INDEX IF NOT EXISTS idx_memory_archived ON long_term_memory(archived);
+      CREATE VIRTUAL TABLE IF NOT EXISTS memory_vec USING vec0(
+        embedding float[${EMBEDDING_DIM}]
+      );
 
-      -- FTS5 Virtual Table for semantic-like keyword search
-      CREATE VIRTUAL TABLE IF NOT EXISTS memory_fts USING fts5(summary, content='long_term_memory', content_rowid='rowid');
+      CREATE VIRTUAL TABLE IF NOT EXISTS memory_fts USING fts5(
+        summary,
+        details,
+        content='long_term_memory',
+        content_rowid='rowid'
+      );
 
-      -- Triggers to sync FTS
+      INSERT INTO memory_fts(memory_fts) VALUES('rebuild');
+
       CREATE TRIGGER IF NOT EXISTS memory_ai AFTER INSERT ON long_term_memory BEGIN
-        INSERT INTO memory_fts(rowid, summary) VALUES (new.rowid, new.summary);
+        INSERT INTO memory_fts(rowid, summary, details)
+        VALUES (new.rowid, new.summary, new.details);
       END;
+
       CREATE TRIGGER IF NOT EXISTS memory_ad AFTER DELETE ON long_term_memory BEGIN
-        INSERT INTO memory_fts(memory_fts, rowid, summary) VALUES('delete', old.rowid, old.summary);
+        INSERT INTO memory_fts(memory_fts, rowid, summary, details)
+        VALUES('delete', old.rowid, old.summary, old.details);
       END;
+
       CREATE TRIGGER IF NOT EXISTS memory_au AFTER UPDATE ON long_term_memory BEGIN
-        INSERT INTO memory_fts(memory_fts, rowid, summary) VALUES('delete', old.rowid, old.summary);
-        INSERT INTO memory_fts(rowid, summary) VALUES (new.rowid, new.summary);
+        INSERT INTO memory_fts(memory_fts, rowid, summary, details)
+        VALUES('delete', old.rowid, old.summary, old.details);
+
+        INSERT INTO memory_fts(rowid, summary, details)
+        VALUES (new.rowid, new.summary, new.details);
       END;
     `);
   }
 
-  public async save(record: Omit<IMemoryRecord, 'id' | 'created_at' | 'updated_at' | 'access_count' | 'version' | 'archived'>): Promise<IMemoryRecord> {
+  // 🔥 NOVO — Salvar embedding
+  public upsertEmbedding(memoryId: string, embedding: number[]) {
+    if (!this.db) this.initialize();
+
+    const vecInsert = this.db!.prepare(`
+      INSERT INTO memory_vec (embedding)
+      VALUES (?)
+    `);
+
+    const result = vecInsert.run(new Float32Array(embedding));
+    const vecRowId = result.lastInsertRowid as number;
+
+    this.db!.prepare(`
+      INSERT OR REPLACE INTO memory_embedding_map (memory_id, vec_rowid)
+      VALUES (?, ?)
+    `).run(memoryId, vecRowId);
+  }
+
+  // 🔥 NOVO — Busca vetorial
+  private searchByVector(embedding: number[], limit: number): IMemoryRecord[] {
+    if (!this.db) return [];
+
+    const stmt = this.db.prepare(`
+      SELECT m.*, 
+        vec_distance_cosine(v.embedding, ?) as distance
+      FROM memory_vec v
+      JOIN memory_embedding_map map ON map.vec_rowid = v.rowid
+      JOIN long_term_memory m ON m.id = map.memory_id
+      WHERE m.archived = 0
+      ORDER BY distance ASC
+      LIMIT ?
+    `);
+
+    const rows = stmt.all(new Float32Array(embedding), limit) as any[];
+    return rows.map(this.mapRowToRecord);
+  }
+public async save(record: Omit<IMemoryRecord, 'id' | 'created_at' | 'updated_at' | 'access_count' | 'version' | 'archived'>): Promise<IMemoryRecord> {
     if (!this.db) this.initialize();
 
     const now = new Date().toISOString();
@@ -130,89 +165,83 @@ export class SatiRepository {
     const row = this.db!.prepare('SELECT * FROM long_term_memory WHERE hash = ?').get(hash) as any;
     return row ? this.mapRowToRecord(row) : null;
   }
-
-  public search(query: string, limit: number = 5): IMemoryRecord[] {
+  // 🔥 ATUALIZADO
+  public search(
+    query: string,
+    limit: number = 5,
+    embedding?: number[]
+  ): IMemoryRecord[] {
     if (!this.db) this.initialize();
 
-    // Sanitize query for FTS5: remove characters that break FTS5 syntax
-    // Keep only alphanumeric, spaces, and safe punctuation (comma, period, hyphen)
-    // const safeQuery = query.replace(/[^a-zA-Z0-9\s,.\-]/g, "").trim();
-    
-    // if (!safeQuery) {
-    //     console.warn('[SatiRepository] Empty query after sanitization');
-    //     return this.getFallbackMemories(limit);
-    // }
+    try {
+      // 1️⃣ Vetorial (se embedding foi passado)
+      if (embedding) {
+        const vectorResults = this.searchByVector(embedding, limit);
+        if (vectorResults.length > 0) {
+          console.log('[SatiRepository] Vector search hit');
+          return vectorResults;
+        }
+      }
 
-    // try {
-    //     // Try FTS5 search first
-    //     const stmt = this.db!.prepare(`
-    //         SELECT m.* 
-    //         FROM long_term_memory m
-    //         JOIN memory_fts f ON m.rowid = f.rowid
-    //         WHERE memory_fts MATCH ? AND m.archived = 0
-    //         ORDER BY rank
-    //         LIMIT ?
-    //     `);
-        
-    //     const rows = stmt.all(safeQuery, limit) as any[];
-        
-    //     if (rows.length > 0) {
-    //         console.log(`[SatiRepository] FTS5 found ${rows.length} memories for: "${safeQuery}"`);
-    //         return rows.map(this.mapRowToRecord);
-    //     }
-        
-    //     // Fallback: try LIKE search
-    //     console.log(`[SatiRepository] FTS5 returned no results, trying LIKE search for: "${safeQuery}"`);
-    //     const likeStmt = this.db!.prepare(`
-    //         SELECT * FROM long_term_memory
-    //         WHERE (summary LIKE ? OR details LIKE ?) 
-    //         AND archived = 0
-    //         ORDER BY importance DESC, access_count DESC
-    //         LIMIT ?
-    //     `);
-        
-    //     const likePattern = `%${safeQuery}%`;
-    //     const likeRows = likeStmt.all(likePattern, likePattern, limit) as any[];
-        
-    //     if (likeRows.length > 0) {
-    //         console.log(`[SatiRepository] LIKE search found ${likeRows.length} memories`);
-    //         return likeRows.map(this.mapRowToRecord);
-    //     }
-        
-    //     // Final fallback: return most important/accessed memories
-    //     console.log('[SatiRepository] No search results, returning most important memories');
-    //     return this.getFallbackMemories(limit);
+      // 2️⃣ FTS
+      const safeQuery = query
+        .replace(/[^a-zA-Z0-9\s,.\-]/g, '')
+        .trim();
 
-    // } catch (e) {
-    //     console.warn(`[SatiRepository] Search failed for query "${query}": ${e}`);
-    //     return this.getFallbackMemories(limit);
-    // }
-        return this.getFallbackMemories(limit);
+      if (safeQuery) {
+        const stmt = this.db!.prepare(`
+          SELECT m.*, bm25(memory_fts) as rank
+          FROM long_term_memory m
+          JOIN memory_fts ON m.rowid = memory_fts.rowid
+          WHERE memory_fts MATCH ?
+          AND m.archived = 0
+          ORDER BY rank
+          LIMIT ?
+        `);
+
+        const rows = stmt.all(safeQuery, limit) as any[];
+        if (rows.length > 0) return rows.map(this.mapRowToRecord);
+      }
+
+      // 3️⃣ LIKE fallback
+      const likeStmt = this.db!.prepare(`
+        SELECT * FROM long_term_memory
+        WHERE (summary LIKE ? OR details LIKE ?) 
+        AND archived = 0
+        ORDER BY importance DESC, access_count DESC
+        LIMIT ?
+      `);
+
+      const pattern = `%${query}%`;
+      const likeRows = likeStmt.all(pattern, pattern, limit) as any[];
+
+      if (likeRows.length > 0)
+        return likeRows.map(this.mapRowToRecord);
+
+      // 4️⃣ Final fallback
+      return this.getFallbackMemories(limit);
+    } catch (e) {
+      console.warn(`[SatiRepository] Search error: ${e}`);
+      return this.getFallbackMemories(limit);
+    }
   }
 
   private getFallbackMemories(limit: number): IMemoryRecord[] {
     if (!this.db) return [];
-    
-    const stmt = this.db.prepare(`
+
+    const rows = this.db
+      .prepare(`
         SELECT * FROM long_term_memory
         WHERE archived = 0
-        ORDER BY 
-            CASE importance
-                WHEN 'critical' THEN 1
-                WHEN 'high' THEN 2
-                WHEN 'medium' THEN 3
-                WHEN 'low' THEN 4
-            END,
-            access_count DESC,
-            created_at DESC
+        ORDER BY access_count DESC, created_at DESC
         LIMIT ?
-    `);
-    
-    const rows = stmt.all(limit) as any[];
+      `)
+      .all(limit) as any[];
+
     return rows.map(this.mapRowToRecord);
   }
 
-  public getAllMemories(): IMemoryRecord[] {
+   public getAllMemories(): IMemoryRecord[] {
      if (!this.db) this.initialize();
      const rows = this.db!.prepare('SELECT * FROM long_term_memory WHERE archived = 0 ORDER BY created_at DESC').all() as any[];
      return rows.map(this.mapRowToRecord);
@@ -221,26 +250,21 @@ export class SatiRepository {
   private mapRowToRecord(row: any): IMemoryRecord {
     return {
       id: row.id,
-      category: row.category as MemoryCategory,
-      importance: row.importance as MemoryImportance,
+      category: row.category,
+      importance: row.importance,
       summary: row.summary,
       details: row.details,
       hash: row.hash,
       source: row.source,
       created_at: new Date(row.created_at),
       updated_at: new Date(row.updated_at),
-      last_accessed_at: row.last_accessed_at ? new Date(row.last_accessed_at) : undefined,
+      last_accessed_at: row.last_accessed_at
+        ? new Date(row.last_accessed_at)
+        : undefined,
       access_count: row.access_count,
       version: row.version,
       archived: Boolean(row.archived)
     };
-  }
-
-  public close(): void {
-    if (this.db) {
-      this.db.close();
-      this.db = null;
-    }
   }
 
   public archiveMemory(id: string): boolean {
@@ -250,5 +274,12 @@ export class SatiRepository {
     const result = stmt.run(id);
 
     return result.changes > 0;
+  }
+
+  public close(): void {
+    if (this.db) {
+      this.db.close();
+      this.db = null;
+    }
   }
 }
