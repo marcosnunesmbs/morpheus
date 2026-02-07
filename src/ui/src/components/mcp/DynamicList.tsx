@@ -26,7 +26,7 @@ export const StringListInput = ({ label, values, onChange, placeholder }: String
     onChange(next.filter((item) => item.trim().length > 0));
   };
 
-  const addItem = () => onChange([...items, ''].filter((item) => item.trim().length > 0));
+  const addItem = () => onChange([...items, '']);
   const removeItem = (index: number) => {
     const next = items.filter((_, i) => i !== index);
     onChange(next.filter((item) => item.trim().length > 0));
@@ -78,7 +78,7 @@ export const KeyValueListInput = ({
     onChange(next.filter((item) => item.key.trim().length > 0 || item.value.trim().length > 0));
   };
 
-  const addItem = () => onChange([...items, { key: '', value: '' }].filter((item) => item.key || item.value));
+  const addItem = () => onChange([...items, { key: '', value: '' }]);
   const removeItem = (index: number) => {
     const next = items.filter((_, i) => i !== index);
     onChange(next.filter((item) => item.key.trim().length > 0 || item.value.trim().length > 0));
@@ -88,22 +88,22 @@ export const KeyValueListInput = ({
     <div className="space-y-2">
       <div className="text-sm font-semibold text-azure-text-primary dark:text-matrix-highlight">{label}</div>
       {items.map((item, index) => (
-        <div key={`${label}-${index}`} className="grid gap-2 md:grid-cols-[1fr,1fr,auto]">
+        <div key={`${label}-${index}`} className="grid gap-2 md:grid-cols-5">
           <input
-            className="rounded-md border border-azure-border bg-azure-surface px-3 py-2 text-sm text-azure-text-primary shadow-sm focus:border-azure-primary focus:outline-none dark:border-matrix-primary dark:bg-zinc-950 dark:text-matrix-highlight"
+            className="col-span-2 rounded-md border border-azure-border bg-azure-surface px-3 py-2 text-sm text-azure-text-primary shadow-sm focus:border-azure-primary focus:outline-none dark:border-matrix-primary dark:bg-zinc-950 dark:text-matrix-highlight"
             value={item.key}
             placeholder={keyPlaceholder}
             onChange={(event) => updateItem(index, 'key', event.target.value)}
           />
           <input
-            className="rounded-md border border-azure-border bg-azure-surface px-3 py-2 text-sm text-azure-text-primary shadow-sm focus:border-azure-primary focus:outline-none dark:border-matrix-primary dark:bg-zinc-950 dark:text-matrix-highlight"
+            className="col-span-2 rounded-md border border-azure-border bg-azure-surface px-3 py-2 text-sm text-azure-text-primary shadow-sm focus:border-azure-primary focus:outline-none dark:border-matrix-primary dark:bg-zinc-950 dark:text-matrix-highlight"
             value={item.value}
             placeholder={valuePlaceholder}
             onChange={(event) => updateItem(index, 'value', event.target.value)}
           />
           <button
             type="button"
-            className="rounded-md border border-azure-border px-3 text-sm text-azure-text-secondary hover:border-azure-primary hover:text-azure-primary dark:border-matrix-primary dark:text-matrix-secondary hover:dark:border-matrix-highlight hover:dark:text-matrix-highlight"
+            className="rounded-md border border-red-300 px-3 py-2 text-sm text-red-600 hover:border-red-400 hover:text-red-500 dark:border-red-900 dark:text-red-400"
             onClick={() => removeItem(index)}
           >
             Remove

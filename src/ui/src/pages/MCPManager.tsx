@@ -14,6 +14,7 @@ export const MCPManager = () => {
   const [editTarget, setEditTarget] = useState<MCPServerRecord | null>(null);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<MCPServerRecord | null>(null);
+  const [notification, setNotification] = useState<{ type: 'success' | 'error', message: string } | null>(null);
 
   const servers = data?.servers ?? [];
 
@@ -36,15 +37,20 @@ export const MCPManager = () => {
   };
 
   const handleSubmit = async (name: string, config: MCPServerConfig) => {
-    if (editTarget) {
-      await mcpService.updateServer(editTarget.name, config);
-    } else {
-      await mcpService.addServer(name, config);
-    }
+    try {
+      if (editTarget) {
+        await mcpService.updateServer(editTarget.name, config);
+      } else {
+        await mcpService.addServer(name, config);
+      }
 
-    setIsModalOpen(false);
-    setEditTarget(null);
-    await mutate();
+      setIsModalOpen(false);
+      setEditTarget(null);
+      await mutate();
+      setNotification({ type: 'success', message: 'MCPs saved successfully. Restart Morpheus daemon for changes to take effect.' });
+    } catch (err: any) {
+      setNotification({ type: 'error', message: err.message || 'Failed to save MCP server.' });
+    }
   };
 
   const handleDelete = async (server: MCPServerRecord) => {
@@ -54,16 +60,26 @@ export const MCPManager = () => {
 
   const confirmDelete = async () => {
     if (deleteTarget) {
-      await mcpService.deleteServer(deleteTarget.name);
-      await mutate();
-      setIsDeleteModalOpen(false);
-      setDeleteTarget(null);
+      try {
+        await mcpService.deleteServer(deleteTarget.name);
+        await mutate();
+        setIsDeleteModalOpen(false);
+        setDeleteTarget(null);
+        setNotification({ type: 'success', message: 'MCPs saved successfully. Restart Morpheus daemon for changes to take effect.' });
+      } catch (err: any) {
+        setNotification({ type: 'error', message: err.message || 'Failed to delete MCP server.' });
+      }
     }
   };
 
   const handleToggle = async (server: MCPServerRecord, enabled: boolean) => {
-    await mcpService.toggleServer(server.name, enabled);
-    await mutate();
+    try {
+      await mcpService.toggleServer(server.name, enabled);
+      await mutate();
+      setNotification({ type: 'success', message: 'MCPs saved successfully. Restart Morpheus daemon for changes to take effect.' });
+    } catch (err: any) {
+      setNotification({ type: 'error', message: err.message || 'Failed to toggle MCP server.' });
+    }
   };
 
   return (
@@ -83,6 +99,14 @@ export const MCPManager = () => {
           Add Server
         </button>
       </div>
+
+      {notification && (
+        <div className={`p-4 rounded border ${
+          notification.type === 'success' ? 'border-azure-primary text-azure-primary bg-azure-primary/10 dark:border-matrix-highlight dark:text-matrix-highlight dark:bg-matrix-highlight/10' : 'border-red-500 text-red-500 bg-red-900/10'
+        }`}>
+          {notification.message}
+        </div>
+      )}
 
       <div className="flex flex-col gap-2 md:flex-row md:items-center">
         <input

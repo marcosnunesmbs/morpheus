@@ -19,7 +19,7 @@ export const MCPServerCard = ({ server, onEdit, onDelete, onToggle }: MCPServerC
           <button
             type="button"
             className={`rounded-full px-3 py-1 text-xs font-semibold ${
-              server.enabled ? 'bg-azure-active text-azure-primary dark:bg-matrix-primary dark:text-matrix-highlight' : 'bg-azure-border text-azure-text-secondary dark:bg-matrix-primary/50 dark:text-matrix-secondary'
+              server.enabled ? 'bg-matrix-highlight dark:text-matrix-primary' : 'bg-azure-border text-azure-text-secondary dark:bg-matrix-primary/50 dark:text-matrix-secondary'
             }`}
             onClick={() => onToggle(server, !server.enabled)}
           >
