@@ -1,5 +1,5 @@
 import { SatiRepository } from './repository.js';
-import { ISatiService, ISatiRetrievalOutput, ISatiEvaluationInput, ISatiEvaluationOutput } from './types.js';
+import { ISatiService, ISatiRetrievalOutput, ISatiEvaluationInput, ISatiEvaluationOutput, ISatiEvaluationOutputArray } from './types.js';
 import { ConfigManager } from '../../../config/manager.js';
 import { ProviderFactory } from '../../providers/factory.js';
 import { SystemMessage, HumanMessage, ToolMessage } from "@langchain/core/messages";
@@ -7,6 +7,9 @@ import { SATI_EVALUATION_PROMPT } from './system-prompts.js';
 import { createHash } from 'crypto';
 import { DisplayManager } from '../../display.js';
 import { SQLiteChatMessageHistory } from '../sqlite.js';
+import { EmbeddingService } from '../embedding.service.js';
+
+
 
 const display = DisplayManager.getInstance();
 
@@ -29,15 +32,38 @@ export class SatiService implements ISatiService {
     this.repository.initialize();
   }
 
-  public async recover(currentMessage: string, recentMessages: string[]): Promise<ISatiRetrievalOutput> {
+  public async recover(
+    currentMessage: string,
+    recentMessages: string[]
+  ): Promise<ISatiRetrievalOutput> {
+
     const santiConfig = ConfigManager.getInstance().getSatiConfig();
     const memoryLimit = santiConfig.memory_limit || 1000;
-    
-    // Use the current message as the primary search query
-    // We could enhance this by extracting keywords from the last few messages
-    // but for FR-004 we start with user input.
-    const memories = this.repository.search(currentMessage, memoryLimit);
-    
+
+    let queryEmbedding: number[] | undefined;
+
+    try {
+      const embeddingService = await EmbeddingService.getInstance();
+
+      const queryText = [
+        ...recentMessages.slice(-3),
+        currentMessage
+      ].join(' ');
+
+      queryEmbedding = await embeddingService.generate(
+        queryText
+      );
+
+    } catch (err) {
+      console.warn('[Sati] Failed to generate embedding:', err);
+    }
+
+    const memories = this.repository.search(
+      currentMessage,
+      memoryLimit,
+      queryEmbedding // 🔥 agora vai usar vector search
+    );
+
     return {
       relevant_memories: memories.map(m => ({
         summary: m.summary,
@@ -46,6 +72,7 @@ export class SatiService implements ISatiService {
       }))
     };
   }
+
 
   public async evaluateAndPersist(conversation: { role: string; content: string }[]): Promise<void> {
     try {
@@ -75,24 +102,24 @@ export class SatiService implements ISatiService {
         new SystemMessage(SATI_EVALUATION_PROMPT),
         new HumanMessage(JSON.stringify(inputPayload, null, 2))
       ];
-      
+
       const history = new SQLiteChatMessageHistory({ sessionId: 'sati-evaluation' });
 
       try {
         const inputMsg = new ToolMessage({
-            content: JSON.stringify(inputPayload, null, 2),
-            tool_call_id: `sati-input-${Date.now()}`,
-            name: 'sati_evaluation_input' 
+          content: JSON.stringify(inputPayload, null, 2),
+          tool_call_id: `sati-input-${Date.now()}`,
+          name: 'sati_evaluation_input'
         });
-        
+
         (inputMsg as any).provider_metadata = {
-            provider: santiConfig.provider,
-            model: santiConfig.model
+          provider: santiConfig.provider,
+          model: santiConfig.model
         };
 
         await history.addMessage(inputMsg);
       } catch (e) {
-         console.warn('[SatiService] Failed to persist input log:', e);
+        console.warn('[SatiService] Failed to persist input log:', e);
       }
 
       const response = await agent.invoke({ messages });
@@ -101,30 +128,30 @@ export class SatiService implements ISatiService {
       let content = lastMessage.content.toString();
 
       try {
-         const outputToolMsg = new ToolMessage({
-            content: content,
-            tool_call_id: `sati-output-${Date.now()}`,
-            name: 'sati_evaluation_output'
-         });
-         
-         if ((lastMessage as any).usage_metadata) {
-             (outputToolMsg as any).usage_metadata = (lastMessage as any).usage_metadata;
-         }
+        const outputToolMsg = new ToolMessage({
+          content: content,
+          tool_call_id: `sati-output-${Date.now()}`,
+          name: 'sati_evaluation_output'
+        });
 
-         (outputToolMsg as any).provider_metadata = {
-            provider: santiConfig.provider,
-            model: santiConfig.model
-         };
-         
-         await history.addMessage(outputToolMsg);
+        if ((lastMessage as any).usage_metadata) {
+          (outputToolMsg as any).usage_metadata = (lastMessage as any).usage_metadata;
+        }
+
+        (outputToolMsg as any).provider_metadata = {
+          provider: santiConfig.provider,
+          model: santiConfig.model
+        };
+
+        await history.addMessage(outputToolMsg);
       } catch (e) {
-         console.warn('[SatiService] Failed to persist output log:', e);
+        console.warn('[SatiService] Failed to persist output log:', e);
       }
 
       // Safe JSON parsing (handle markdown blocks if LLM wraps output)
       content = content.replace(/```json/g, '').replace(/```/g, '').trim();
 
-      let result: ISatiEvaluationOutput;
+      let result: ISatiEvaluationOutputArray = [];
       try {
         result = JSON.parse(content);
       } catch (e) {
@@ -132,27 +159,45 @@ export class SatiService implements ISatiService {
         return;
       }
 
-      if (result.should_store && result.summary && result.category && result.importance) {
-        display.log(`Persisting new memory: [${result.category.toUpperCase()}] ${result.summary}`, { source: 'Sati' });
+    for (const item of result) {
+      if (item.should_store && item.summary && item.category && item.importance) {
+        display.log(`Persisting new memory: [${item.category.toUpperCase()}] ${item.summary}`, { source: 'Sati' });
         try {
-            await this.repository.save({
-                summary: result.summary,
-                category: result.category,
-                importance: result.importance,
-                details: result.reason,
-                hash: this.generateHash(result.summary),
-                source: 'conversation' // Could track actual session ID here if available
-            });
-            // Quiet success - logging handled by repository/middleware if needed, or verbose debug
+          const savedMemory = await this.repository.save({
+            summary: item.summary,
+            category: item.category,
+            importance: item.importance,
+            details: item.reason,
+            hash: this.generateHash(item.summary),
+            source: 'conversation'
+          });
+
+          // 🔥 GERAR EMBEDDING
+          const embeddingService = await EmbeddingService.getInstance();
+
+          const textForEmbedding = [
+            savedMemory.summary,
+            savedMemory.details ?? ''
+          ].join(' ');
+
+          const embedding = await embeddingService.generate(textForEmbedding);
+
+          display.log(`Generated embedding for memory ID ${savedMemory.id}`, { source: 'Sati', level: 'debug' });
+
+          // 🔥 SALVAR EMBEDDING NO SQLITE_VEC
+          this.repository.upsertEmbedding(savedMemory.id, embedding);
+
+          // Quiet success - logging handled by repository/middleware if needed, or verbose debug
         } catch (saveError: any) {
-            if (saveError.message && saveError.message.includes('UNIQUE constraint failed')) {
-                // Duplicate detected by DB (Hash collision)
-                // This is expected given T012 logic
-            } else {
-                throw saveError;
-            }
+          if (saveError.message && saveError.message.includes('UNIQUE constraint failed')) {
+            // Duplicate detected by DB (Hash collision)
+            // This is expected given T012 logic
+          } else {
+            throw saveError;
+          }
         }
       }
+    }
 
     } catch (error) {
       console.error('[SatiService] Evaluation failed:', error);

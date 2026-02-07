@@ -5,6 +5,7 @@ import fs from 'fs-extra';
 import { randomUUID } from 'crypto';
 import { IMemoryRecord, MemoryCategory, MemoryImportance } from './types.js';
 import loadVecExtension from '../sqlite-vec.js';
+import { DisplayManager } from '../../display.js';
 
 const EMBEDDING_DIM = 384;
 
@@ -12,6 +13,7 @@ export class SatiRepository {
   private db: Database.Database | null = null;
   private dbPath: string;
   private static instance: SatiRepository;
+  private display = DisplayManager.getInstance();
 
   private constructor(dbPath?: string) {
     this.dbPath =
@@ -40,81 +42,170 @@ export class SatiRepository {
     if (!this.db) throw new Error('DB not initialized');
 
     this.db.exec(`
-      CREATE TABLE IF NOT EXISTS memory_embedding_map (
-        memory_id TEXT PRIMARY KEY,
-        vec_rowid INTEGER NOT NULL
-      );
+    -- ===============================
+    -- 1️⃣ TABELA PRINCIPAL
+    -- ===============================
+    CREATE TABLE IF NOT EXISTS long_term_memory (
+      id TEXT PRIMARY KEY,
+      category TEXT NOT NULL,
+      importance TEXT NOT NULL,
+      summary TEXT NOT NULL,
+      details TEXT,
+      hash TEXT NOT NULL UNIQUE,
+      source TEXT,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      last_accessed_at TEXT,
+      access_count INTEGER DEFAULT 0,
+      version INTEGER DEFAULT 1,
+      archived INTEGER DEFAULT 0
+    );
 
-      CREATE VIRTUAL TABLE IF NOT EXISTS memory_vec USING vec0(
-        embedding float[${EMBEDDING_DIM}]
-      );
+    CREATE INDEX IF NOT EXISTS idx_memory_category 
+      ON long_term_memory(category);
 
-      CREATE VIRTUAL TABLE IF NOT EXISTS memory_fts USING fts5(
-        summary,
-        details,
-        content='long_term_memory',
-        content_rowid='rowid'
-      );
+    CREATE INDEX IF NOT EXISTS idx_memory_importance 
+      ON long_term_memory(importance);
 
-      INSERT INTO memory_fts(memory_fts) VALUES('rebuild');
+    CREATE INDEX IF NOT EXISTS idx_memory_archived 
+      ON long_term_memory(archived);
 
-      CREATE TRIGGER IF NOT EXISTS memory_ai AFTER INSERT ON long_term_memory BEGIN
-        INSERT INTO memory_fts(rowid, summary, details)
-        VALUES (new.rowid, new.summary, new.details);
-      END;
+    -- ===============================
+    -- 2️⃣ FTS5
+    -- ===============================
+    CREATE VIRTUAL TABLE IF NOT EXISTS memory_fts USING fts5(
+      summary,
+      details,
+      content='long_term_memory',
+      content_rowid='rowid',
+      tokenize = 'unicode61 remove_diacritics 2'
+    );
 
-      CREATE TRIGGER IF NOT EXISTS memory_ad AFTER DELETE ON long_term_memory BEGIN
-        INSERT INTO memory_fts(memory_fts, rowid, summary, details)
-        VALUES('delete', old.rowid, old.summary, old.details);
-      END;
+    -- ===============================
+    -- 3️⃣ VECTOR TABLE (vec0)
+    -- ===============================
+    CREATE VIRTUAL TABLE IF NOT EXISTS memory_vec USING vec0(
+      embedding float[${EMBEDDING_DIM}]
+    );
 
-      CREATE TRIGGER IF NOT EXISTS memory_au AFTER UPDATE ON long_term_memory BEGIN
-        INSERT INTO memory_fts(memory_fts, rowid, summary, details)
-        VALUES('delete', old.rowid, old.summary, old.details);
+    CREATE TABLE IF NOT EXISTS memory_embedding_map (
+      memory_id TEXT PRIMARY KEY,
+      vec_rowid INTEGER NOT NULL
+    );
 
-        INSERT INTO memory_fts(rowid, summary, details)
-        VALUES (new.rowid, new.summary, new.details);
-      END;
-    `);
+    -- ===============================
+    -- 4️⃣ TRIGGERS FTS
+    -- ===============================
+    CREATE TRIGGER IF NOT EXISTS memory_ai 
+    AFTER INSERT ON long_term_memory BEGIN
+      INSERT INTO memory_fts(rowid, summary, details)
+      VALUES (new.rowid, new.summary, new.details);
+    END;
+
+    CREATE TRIGGER IF NOT EXISTS memory_ad 
+    AFTER DELETE ON long_term_memory BEGIN
+      INSERT INTO memory_fts(memory_fts, rowid, summary, details)
+      VALUES('delete', old.rowid, old.summary, old.details);
+    END;
+
+    CREATE TRIGGER IF NOT EXISTS memory_au 
+    AFTER UPDATE ON long_term_memory BEGIN
+      INSERT INTO memory_fts(memory_fts, rowid, summary, details)
+      VALUES('delete', old.rowid, old.summary, old.details);
+
+      INSERT INTO memory_fts(rowid, summary, details)
+      VALUES (new.rowid, new.summary, new.details);
+    END;
+  `);
   }
+
 
   // 🔥 NOVO — Salvar embedding
   public upsertEmbedding(memoryId: string, embedding: number[]) {
     if (!this.db) this.initialize();
 
-    const vecInsert = this.db!.prepare(`
-      INSERT INTO memory_vec (embedding)
-      VALUES (?)
-    `);
+    const getExisting = this.db!.prepare(`
+    SELECT vec_rowid FROM memory_embedding_map
+    WHERE memory_id = ?
+  `);
 
-    const result = vecInsert.run(new Float32Array(embedding));
-    const vecRowId = result.lastInsertRowid as number;
+    const insertVec = this.db!.prepare(`
+    INSERT INTO memory_vec (embedding)
+    VALUES (?)
+  `);
 
-    this.db!.prepare(`
-      INSERT OR REPLACE INTO memory_embedding_map (memory_id, vec_rowid)
-      VALUES (?, ?)
-    `).run(memoryId, vecRowId);
+    const deleteVec = this.db!.prepare(`
+    DELETE FROM memory_vec WHERE rowid = ?
+  `);
+
+    const upsertMap = this.db!.prepare(`
+    INSERT OR REPLACE INTO memory_embedding_map (memory_id, vec_rowid)
+    VALUES (?, ?)
+  `);
+
+    const transaction = this.db!.transaction(() => {
+      const existing = getExisting.get(memoryId) as any;
+
+      if (existing?.vec_rowid) {
+        deleteVec.run(existing.vec_rowid);
+      }
+
+      const result = insertVec.run(new Float32Array(embedding));
+      const newVecRowId = result.lastInsertRowid as number;
+
+      upsertMap.run(memoryId, newVecRowId);
+    });
+
+    transaction();
   }
+
 
   // 🔥 NOVO — Busca vetorial
-  private searchByVector(embedding: number[], limit: number): IMemoryRecord[] {
+  private searchByVector(
+    embedding: number[],
+    limit: number
+  ): IMemoryRecord[] {
     if (!this.db) return [];
 
-    const stmt = this.db.prepare(`
-      SELECT m.*, 
-        vec_distance_cosine(v.embedding, ?) as distance
-      FROM memory_vec v
-      JOIN memory_embedding_map map ON map.vec_rowid = v.rowid
-      JOIN long_term_memory m ON m.id = map.memory_id
-      WHERE m.archived = 0
-      ORDER BY distance ASC
-      LIMIT ?
-    `);
+    const SIMILARITY_THRESHOLD = 0.5; // ajuste fino depois
 
-    const rows = stmt.all(new Float32Array(embedding), limit) as any[];
-    return rows.map(this.mapRowToRecord);
+    const stmt = this.db.prepare(`
+    SELECT 
+      m.*,
+      vec_distance_cosine(v.embedding, ?) as distance
+    FROM memory_vec v
+    JOIN memory_embedding_map map ON map.vec_rowid = v.rowid
+    JOIN long_term_memory m ON m.id = map.memory_id
+    WHERE m.archived = 0
+    ORDER BY distance ASC
+    LIMIT ?
+  `);
+
+    const rows = stmt.all(
+      new Float32Array(embedding),
+      limit
+    ) as any[];
+
+    // 🔥 Filtrar por similaridade real
+    const ranked = rows
+      .map(r => ({
+        ...r,
+        similarity: 1 - r.distance
+      }))
+      .sort((a, b) => b.similarity - a.similarity);
+
+    const filtered = ranked.slice(0, 10);
+
+    if (filtered.length > 0) {
+      console.log(
+        `[SatiRepository] Vector hit (${filtered.length})`
+      );
+    }
+
+    return filtered.map(this.mapRowToRecord);
   }
-public async save(record: Omit<IMemoryRecord, 'id' | 'created_at' | 'updated_at' | 'access_count' | 'version' | 'archived'>): Promise<IMemoryRecord> {
+
+  public async save(record: Omit<IMemoryRecord, 'id' | 'created_at' | 'updated_at' | 'access_count' | 'version' | 'archived'>): Promise<IMemoryRecord> {
     if (!this.db) this.initialize();
 
     const now = new Date().toISOString();
@@ -161,11 +252,11 @@ public async save(record: Omit<IMemoryRecord, 'id' | 'created_at' | 'updated_at'
 
   public findByHash(hash: string): IMemoryRecord | null {
     if (!this.db) this.initialize();
-    
+
     const row = this.db!.prepare('SELECT * FROM long_term_memory WHERE hash = ?').get(hash) as any;
     return row ? this.mapRowToRecord(row) : null;
   }
-  // 🔥 ATUALIZADO
+
   public search(
     query: string,
     limit: number = 5,
@@ -174,57 +265,113 @@ public async save(record: Omit<IMemoryRecord, 'id' | 'created_at' | 'updated_at'
     if (!this.db) this.initialize();
 
     try {
-      // 1️⃣ Vetorial (se embedding foi passado)
+      this.display.log(
+        `🔍 Iniciando busca de memória | Query: "${query}"`,
+        { source: 'Sati', level: 'debug' }
+      );
+
+      // 1️⃣ Vetorial
       if (embedding) {
+        this.display.log(
+          '🧠 Tentando busca vetorial...',
+          { source: 'Sati', level: 'debug' }
+        );
+
         const vectorResults = this.searchByVector(embedding, limit);
+
         if (vectorResults.length > 0) {
-          console.log('[SatiRepository] Vector search hit');
-          return vectorResults;
+          this.display.log(
+            `✅ Vetorial retornou ${vectorResults.length} resultado(s)`,
+            { source: 'Sati', level: 'success' }
+          );
+          return vectorResults.slice(0, limit);
         }
+
+        this.display.log(
+          '⚠️ Vetorial não encontrou resultados relevantes',
+          { source: 'Sati', level: 'debug' }
+        );
       }
 
-      // 2️⃣ FTS
+      // 2️⃣ BM25 (FTS)
       const safeQuery = query
-        .replace(/[^a-zA-Z0-9\s,.\-]/g, '')
         .trim();
 
       if (safeQuery) {
+        this.display.log(
+          '📚 Tentando busca BM25 (FTS5)...',
+          { source: 'Sati', level: 'debug' }
+        );
+
         const stmt = this.db!.prepare(`
-          SELECT m.*, bm25(memory_fts) as rank
-          FROM long_term_memory m
-          JOIN memory_fts ON m.rowid = memory_fts.rowid
-          WHERE memory_fts MATCH ?
-          AND m.archived = 0
-          ORDER BY rank
-          LIMIT ?
-        `);
+        SELECT m.*, bm25(memory_fts) as rank
+        FROM long_term_memory m
+        JOIN memory_fts ON m.rowid = memory_fts.rowid
+        WHERE memory_fts MATCH ?
+        AND m.archived = 0
+        ORDER BY rank
+        LIMIT ?
+      `);
 
         const rows = stmt.all(safeQuery, limit) as any[];
-        if (rows.length > 0) return rows.map(this.mapRowToRecord);
+
+        if (rows.length > 0) {
+          this.display.log(
+            `✅ BM25 retornou ${rows.length} resultado(s)`,
+            { source: 'Sati', level: 'success' }
+          );
+          return rows.map(this.mapRowToRecord);
+        }
+
+        this.display.log(
+          '⚠️ BM25 não encontrou resultados',
+          { source: 'Sati', level: 'debug' }
+        );
       }
 
       // 3️⃣ LIKE fallback
+      this.display.log(
+        '🧵 Tentando fallback LIKE...',
+        { source: 'Sati', level: 'debug' }
+      );
+
       const likeStmt = this.db!.prepare(`
-        SELECT * FROM long_term_memory
-        WHERE (summary LIKE ? OR details LIKE ?) 
-        AND archived = 0
-        ORDER BY importance DESC, access_count DESC
-        LIMIT ?
-      `);
+      SELECT * FROM long_term_memory
+      WHERE (summary LIKE ? OR details LIKE ?) 
+      AND archived = 0
+      ORDER BY importance DESC, access_count DESC
+      LIMIT ?
+    `);
 
       const pattern = `%${query}%`;
       const likeRows = likeStmt.all(pattern, pattern, limit) as any[];
 
-      if (likeRows.length > 0)
+      if (likeRows.length > 0) {
+        this.display.log(
+          `✅ LIKE retornou ${likeRows.length} resultado(s)`,
+          { source: 'Sati', level: 'success' }
+        );
         return likeRows.map(this.mapRowToRecord);
+      }
 
       // 4️⃣ Final fallback
+      this.display.log(
+        '🛟 Nenhum mecanismo encontrou resultados. Usando fallback estratégico.',
+        { source: 'Sati', level: 'warning' }
+      );
+
       return this.getFallbackMemories(limit);
+
     } catch (e) {
-      console.warn(`[SatiRepository] Search error: ${e}`);
+      this.display.log(
+        `❌ Erro durante busca: ${e}`,
+        { source: 'Sati', level: 'error' }
+      );
+
       return this.getFallbackMemories(limit);
     }
   }
+
 
   private getFallbackMemories(limit: number): IMemoryRecord[] {
     if (!this.db) return [];
@@ -241,10 +388,10 @@ public async save(record: Omit<IMemoryRecord, 'id' | 'created_at' | 'updated_at'
     return rows.map(this.mapRowToRecord);
   }
 
-   public getAllMemories(): IMemoryRecord[] {
-     if (!this.db) this.initialize();
-     const rows = this.db!.prepare('SELECT * FROM long_term_memory WHERE archived = 0 ORDER BY created_at DESC').all() as any[];
-     return rows.map(this.mapRowToRecord);
+  public getAllMemories(): IMemoryRecord[] {
+    if (!this.db) this.initialize();
+    const rows = this.db!.prepare('SELECT * FROM long_term_memory WHERE archived = 0 ORDER BY created_at DESC').all() as any[];
+    return rows.map(this.mapRowToRecord);
   }
 
   private mapRowToRecord(row: any): IMemoryRecord {

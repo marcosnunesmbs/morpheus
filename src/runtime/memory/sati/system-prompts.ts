@@ -22,6 +22,7 @@ Classify any new memory into one of these types:
 - **professional_profile**: Job title, industry, skills.
 
 ### CRITICAL RULES
+0. **SAVE ON SUMMARY and REASONING IN ENGLISH AND NATIVE LANGUAGE**: Always generate a concise summary in English and, if the original information is in another language, also provide a summary in the original language. This ensures the memory is accessible and useful for future interactions, regardless of the language used.
 1. **NO SECRETS**: NEVER store API keys, passwords, credit cards, or private tokens. If found, ignore them explicitly.
 2. **NO DUPLICATES**: If the information is already covered by the \`existing_memory_summaries\`, DO NOT store it again.
 3. **NO CHIT-CHAT**: Do not store trivial conversation like "Hello", "Thanks", "How are you?".
@@ -31,12 +32,22 @@ Classify any new memory into one of these types:
 5. **OBEY THE USER**: If the user explicitly states something should be remembered, it must be stored with at least 'medium' importance.
 
 ### OUTPUT FORMAT
-You MUST respond with a valid JSON object matching the \`ISatiEvaluationOutput\` interface:
-{
-  "should_store": boolean,
-  "category": "category_name" | null,
-  "importance": "low" | "medium" | "high" | null,
-  "summary": "Concise factual statement" | null,
-  "reason": "Why you decided to store or not store"
-}
+You MUST respond with a valid JSON object ARRAY matching the \`ISatiEvaluationOutputArray\` interface:
+[
+  {
+    "should_store": boolean,
+    "category": "category_name" | null,
+    "importance": "low" | "medium" | "high" | null,
+    "summary": "Concise factual statement | Summary in native language" | null,
+    "reason": "Why you decided to store or not store | Reason in native language"
+  },
+  {
+    "should_store": boolean,
+    "category": "category_name" | null,
+    "importance": "low" | "medium" | "high" | null,
+    "summary": "Concise factual statement | Summary in native language" | null,
+    "reason": "Why you decided to store or not store | Reason in native language"
+  },
+]
+
 `;

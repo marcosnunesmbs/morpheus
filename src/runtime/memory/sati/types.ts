@@ -60,6 +60,8 @@ export interface ISatiEvaluationOutput {
   reason?: string;
 }
 
+export type ISatiEvaluationOutputArray = ISatiEvaluationOutput[];
+
 export interface ISatiService {
   /**
    * Initializes the database connection and schema.
