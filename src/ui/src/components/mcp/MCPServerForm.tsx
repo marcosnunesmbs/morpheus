@@ -90,7 +90,6 @@ export const MCPServerForm = ({ open, mode, initial, onClose, onSubmit }: MCPSer
             transport: 'http',
             url: url.trim(),
             headers: headers.length > 0 ? toRecord(headers) : undefined,
-            args: args.length > 0 ? args : undefined,
             env: env.length > 0 ? toRecord(env) : undefined,
           };
 

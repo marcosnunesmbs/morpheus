@@ -31,15 +31,18 @@ export const TransportFields = ({
   return (
     <div className="space-y-4">
       {transport === 'stdio' && (
-        <label className="block space-y-2 text-sm text-azure-text-primary dark:text-matrix-highlight">
-          Command
-          <input
-            className="w-full rounded-md border border-azure-border bg-azure-surface px-3 py-2 text-sm text-azure-text-primary shadow-sm focus:border-azure-primary focus:outline-none dark:border-matrix-primary dark:bg-zinc-950 dark:text-matrix-highlight"
-            value={command}
-            onChange={(event) => onCommandChange(event.target.value)}
-            placeholder="npx"
-          />
-        </label>
+        <>
+          <label className="block space-y-2 text-sm text-azure-text-primary dark:text-matrix-highlight">
+            Command
+            <input
+              className="w-full rounded-md border border-azure-border bg-azure-surface px-3 py-2 text-sm text-azure-text-primary shadow-sm focus:border-azure-primary focus:outline-none dark:border-matrix-primary dark:bg-zinc-950 dark:text-matrix-highlight"
+              value={command}
+              onChange={(event) => onCommandChange(event.target.value)}
+              placeholder="npx"
+            />
+          </label>
+          <StringListInput label="Arguments" values={args} onChange={onArgsChange} placeholder="--flag" />
+        </>
       )}
 
       {transport === 'http' && (
@@ -53,8 +56,6 @@ export const TransportFields = ({
           />
         </label>
       )}
-
-      <StringListInput label="Arguments" values={args} onChange={onArgsChange} placeholder="--flag" />
       <KeyValueListInput
         label="Environment Variables"
         values={env}

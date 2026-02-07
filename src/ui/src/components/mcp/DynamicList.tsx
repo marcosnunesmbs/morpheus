@@ -45,7 +45,7 @@ export const StringListInput = ({ label, values, onChange, placeholder }: String
           />
           <button
             type="button"
-            className="rounded-md border border-azure-border px-3 text-sm text-azure-text-secondary hover:border-azure-primary hover:text-azure-primary dark:border-matrix-primary dark:text-matrix-secondary hover:dark:border-matrix-highlight hover:dark:text-matrix-highlight"
+            className="rounded-md border border-red-300 px-3 py-2 text-sm text-red-600 hover:border-red-400 hover:text-red-500 dark:border-red-900 dark:text-red-400"
             onClick={() => removeItem(index)}
           >
             Remove
