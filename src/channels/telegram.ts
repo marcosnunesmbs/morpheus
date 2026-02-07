@@ -12,6 +12,7 @@ import { Telephonist } from '../runtime/telephonist.js';
 import { readPid, isProcessRunning, checkStalePid } from '../runtime/lifecycle.js';
 import { SQLiteChatMessageHistory } from '../runtime/memory/sqlite.js';
 import { SatiRepository } from '../runtime/memory/sati/repository.js';
+import { MCPManager } from '../config/mcp-manager.js';
 
 export class TelegramAdapter {
   private bot: Telegraf | null = null;
@@ -253,6 +254,10 @@ export class TelegramAdapter {
       case '/restart':
         await this.handleRestartCommand(ctx, user);
         break;
+      case '/mcp':
+      case '/mcps':
+        await this.handleMcpListCommand(ctx, user);
+        break;
       default:
         await this.handleDefaultCommand(ctx, user, command);
     }
@@ -381,7 +386,7 @@ How can I assist you today?`;
   private async handleDefaultCommand(ctx: any, user: string, command: string) {
     const prompt = `O usuário envio o comando: ${command},
     Não entendemos o comando
-    temos os seguintes comandos disponíveis: /start, /status, /doctor, /stats, /help, /zaion, /sati <qnt>, /restart
+    temos os seguintes comandos disponíveis: /start, /status, /doctor, /stats, /help, /zaion, /sati <qnt>, /restart, /mcp, /mcps
     Identifique se ele talvez tenha errado o comando e pergunte se ele não quis executar outro comando.
     Só faça isso agora.`;
     let response = await this.oracle.chat(prompt);
@@ -404,8 +409,9 @@ How can I assist you today?`;
 /zaion - Show system configurations
 /sati <qnt> - Show specific memories
 /restart - Restart the Morpheus agent
+/mcp or /mcps - List registered MCP servers
 
-How can I assist you today?`;
+How can I assist you today?  `;
 
     await ctx.reply(helpMessage, { parse_mode: 'Markdown' });
   }
@@ -522,29 +528,73 @@ How can I assist you today?`;
 
   private async checkAndSendRestartNotification() {
     const restartNotificationFile = path.join(os.tmpdir(), 'morpheus_restart_notification.json');
-    
+
     try {
       // Check if the notification file exists
       if (await fs.pathExists(restartNotificationFile)) {
         const notificationData = await fs.readJson(restartNotificationFile);
-        
+
         // Send a message to the user who requested the restart
         if (this.bot && notificationData.userId) {
           try {
             await this.bot.telegram.sendMessage(notificationData.userId, '✅ Morpheus agent has been successfully restarted!');
-            
+
             // Optionally, also send to the display
             this.display.log(`Restart notification sent to user ${notificationData.username} (ID: ${notificationData.userId})`, { source: 'Telegram', level: 'info' });
           } catch (error: any) {
             this.display.log(`Failed to send restart notification to user ${notificationData.username}: ${error.message}`, { source: 'Telegram', level: 'error' });
           }
         }
-        
+
         // Remove the notification file after sending the message
         await fs.remove(restartNotificationFile);
       }
     } catch (error: any) {
       this.display.log(`Error checking restart notification: ${error.message}`, { source: 'Telegram', level: 'error' });
+    }
+  }
+
+  private async handleMcpListCommand(ctx: any, user: string) {
+    try {
+      const servers = await MCPManager.listServers();
+
+      if (servers.length === 0) {
+        await ctx.reply(
+          '*No MCP Servers Configured*\n\nThere are currently no MCP servers configured in the system.',
+          { parse_mode: 'Markdown' }
+        );
+        return;
+      }
+
+      let response = `*MCP Servers (${servers.length})*\n\n`;
+      
+      servers.forEach((server, index) => {
+        const status = server.enabled ? '✅ Enabled' : '❌ Disabled';
+        const transport = server.config.transport.toUpperCase();
+        
+        response += `*${index + 1}. ${server.name}*\n`;
+        response += `Status: ${status}\n`;
+        response += `Transport: ${transport}\n`;
+        
+        if (server.config.transport === 'stdio') {
+          response += `Command: \`${server.config.command}\`\n`;
+          if (server.config.args && server.config.args.length > 0) {
+            response += `Args: \`${server.config.args.join(' ')}\`\n`;
+          }
+        } else if (server.config.transport === 'http') {
+          response += `URL: \`${server.config.url}\`\n`;
+        }
+        
+        response += '\n';
+      });
+
+      await ctx.reply(response, { parse_mode: 'Markdown' });
+    } catch (error) {
+      this.display.log('Error listing MCP servers: ' + (error instanceof Error ? error.message : String(error)), { source: 'Telegram', level: 'error' });
+      await ctx.reply(
+        'An error occurred while retrieving the list of MCP servers. Please check the logs for more details.',
+        { parse_mode: 'Markdown' }
+      );
     }
   }
 }

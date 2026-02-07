@@ -15,7 +15,7 @@ export const Dialog: React.FC<DialogProps> = ({ open, onOpenChange, children }) 
         className="fixed inset-0 bg-black/50 backdrop-blur-sm"
         onClick={() => onOpenChange(false)}
       />
-      <div className="relative bg-azure-surface dark:bg-zinc-900 rounded-lg border border-azure-border dark:border-matrix-primary shadow-lg w-full max-w-md max-h-[90vh] overflow-hidden flex flex-col">
+      <div className="relative bg-azure-surface dark:bg-zinc-900 rounded-lg border border-azure-border dark:border-matrix-primary shadow-lg w-full max-w-md md:max-w-2xl max-h-[90vh] overflow-hidden flex flex-col">
         {children}
       </div>
     </div>
@@ -29,7 +29,7 @@ interface DialogContentProps {
 
 export const DialogContent: React.FC<DialogContentProps> = ({ className, children }) => {
   return (
-    <div className={`relative bg-azure-surface dark:bg-zinc-900 rounded-lg border border-azure-border dark:border-matrix-primary shadow-lg w-full max-w-md max-h-[90vh] overflow-hidden flex flex-col ${className}`}>
+    <div className={`relative bg-azure-surface dark:bg-zinc-900 rounded-lg border border-azure-border dark:border-matrix-primary shadow-lg w-full max-w-md md:max-w-2xl max-h-[90vh] overflow-hidden flex flex-col ${className}`}>
       <div className="overflow-y-auto flex-grow p-6">
         {children}
       </div>

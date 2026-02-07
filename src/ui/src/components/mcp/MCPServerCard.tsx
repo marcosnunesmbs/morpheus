@@ -9,10 +9,10 @@ type MCPServerCardProps = {
 
 export const MCPServerCard = ({ server, onEdit, onDelete, onToggle }: MCPServerCardProps) => {
   return (
-    <div className="rounded-2xl border border-azure-border bg-azure-surface/80 p-4 shadow-sm dark:border-matrix-primary dark:bg-zinc-950/70">
+    <div className="rounded-2xl border border-azure-border bg-azure-surface/80 p-4 shadow-sm overflow-hidden dark:border-matrix-primary dark:bg-zinc-950/70">
       <div className="flex items-start justify-between gap-3">
-        <div>
-          <div className="text-lg font-semibold text-azure-text-primary dark:text-matrix-highlight">{server.name}</div>
+        <div className="min-w-0 flex-1">
+          <div className="text-lg font-semibold text-azure-text-primary break-words dark:text-matrix-highlight">{server.name}</div>
           <div className="text-xs uppercase tracking-wide text-azure-text-muted dark:text-matrix-secondary">{server.config.transport}</div>
         </div>
         <div className="flex items-center gap-2">
@@ -30,17 +30,17 @@ export const MCPServerCard = ({ server, onEdit, onDelete, onToggle }: MCPServerC
 
       <div className="mt-4 space-y-2 text-sm text-azure-text-secondary dark:text-matrix-secondary">
         {server.config.transport === 'stdio' && (
-          <div>
+          <div className="break-all">
             <span className="font-semibold text-azure-text-primary dark:text-matrix-highlight">Command:</span> {server.config.command}
           </div>
         )}
         {server.config.transport === 'http' && (
-          <div>
+          <div className="break-all">
             <span className="font-semibold text-azure-text-primary dark:text-matrix-highlight">URL:</span> {server.config.url}
           </div>
         )}
         {server.config.args && server.config.args.length > 0 && (
-          <div>
+          <div className="break-all">
             <span className="font-semibold text-azure-text-primary dark:text-matrix-highlight">Args:</span> {server.config.args.join(' ')}
           </div>
         )}
