@@ -209,7 +209,8 @@ The Morpheus Telegram bot supports several commands for interacting with the age
 - `/help` - Show available commands
 - `/zaion` - Show system configurations
 - `/sati <qnt>` - Show specific memories
-- `/restart` - **New!** Restart the Morpheus agent
+- `/restart` - Restart the Morpheus agent
+- `/mcp` or `/mcps` - List registered MCP servers
 
 ## Development Setup
 
@@ -316,6 +317,230 @@ Morpheus supports external tools via **MCP (Model Context Protocol)**. Configure
 
 Morpheus exposes several API endpoints for programmatic access to its features:
 
+### Health Check Endpoints
+
+#### GET `/health`
+Public health check endpoint without authentication.
+
+*   **Response:**
+    ```json
+    {
+      "status": "healthy",
+      "timestamp": "2026-02-05T21:30:00.000Z",
+      "uptime": 123.45
+    }
+    ```
+
+#### GET `/api/health`
+Health check endpoint for the API (requires authentication).
+
+*   **Authentication:** Requires `Authorization` header with the password set in `THE_ARCHITECT_PASS`.
+*   **Response:**
+    ```json
+    {
+      "status": "healthy",
+      "timestamp": "2026-02-05T21:30:00.000Z",
+      "uptime": 123.45
+    }
+    ```
+
+### Status Endpoint
+
+#### GET `/api/status`
+Get the current status of the Morpheus agent.
+
+*   **Authentication:** Requires `Authorization` header with the password set in `THE_ARCHITECT_PASS`.
+*   **Response:**
+    ```json
+    {
+      "status": "online",
+      "uptimeSeconds": 1234.56,
+      "pid": 12345,
+      "projectVersion": "1.0.0",
+      "nodeVersion": "v18.17.0",
+      "agentName": "Morpheus",
+      "llmProvider": "openai",
+      "llmModel": "gpt-4-turbo"
+    }
+    ```
+
+### Configuration Endpoints
+
+#### GET `/api/config`
+Retrieve the current configuration.
+
+*   **Authentication:** Requires `Authorization` header with the password set in `THE_ARCHITECT_PASS`.
+*   **Response:**
+    ```json
+    {
+      "agent": {
+        "name": "Morpheus",
+        "personality": "stoic, wise, and helpful"
+      },
+      "llm": {
+        "provider": "openai",
+        "model": "gpt-4-turbo",
+        "temperature": 0.7,
+        "context_window": 100,
+        "api_key": "***"
+      },
+      "santi": {
+        "provider": "openai",
+        "model": "gpt-4o",
+        "memory_limit": 1000
+      },
+      "channels": {
+        "telegram": {
+          "enabled": true,
+          "token": "***",
+          "allowedUsers": ["123456789"]
+        },
+        "discord": {
+          "enabled": false
+        }
+      },
+      "ui": {
+        "enabled": true,
+        "port": 3333
+      },
+      "audio": {
+        "enabled": true,
+        "apiKey": "***",
+        "maxDurationSeconds": 300
+      }
+    }
+    ```
+
+#### POST `/api/config`
+Update the configuration.
+
+*   **Authentication:** Requires `Authorization` header with the password set in `THE_ARCHITECT_PASS`.
+*   **Body:** Complete configuration object (same structure as GET response).
+*   **Response:**
+    ```json
+    {
+      "agent": {
+        "name": "Morpheus",
+        "personality": "stoic, wise, and helpful"
+      },
+      "llm": {
+        "provider": "openai",
+        "model": "gpt-4-turbo",
+        "temperature": 0.7,
+        "context_window": 100,
+        "api_key": "***"
+      },
+      "santi": {
+        "provider": "openai",
+        "model": "gpt-4o",
+        "memory_limit": 1000
+      },
+      "channels": {
+        "telegram": {
+          "enabled": true,
+          "token": "***",
+          "allowedUsers": ["123456789"]
+        },
+        "discord": {
+          "enabled": false
+        }
+      },
+      "ui": {
+        "enabled": true,
+        "port": 3333
+      },
+      "audio": {
+        "enabled": true,
+        "apiKey": "***",
+        "maxDurationSeconds": 300
+      }
+    }
+    ```
+
+#### GET `/api/config/sati`
+Retrieve the Sati (long-term memory) configuration.
+
+*   **Authentication:** Requires `Authorization` header with the password set in `THE_ARCHITECT_PASS`.
+*   **Response:**
+    ```json
+    {
+      "provider": "openai",
+      "model": "gpt-4o",
+      "memory_limit": 1000
+    }
+    ```
+
+#### POST `/api/config/sati`
+Update the Sati (long-term memory) configuration.
+
+*   **Authentication:** Requires `Authorization` header with the password set in `THE_ARCHITECT_PASS`.
+*   **Body:**
+    ```json
+    {
+      "provider": "openai",
+      "model": "gpt-4o",
+      "memory_limit": 1000
+    }
+    ```
+*   **Response:**
+    ```json
+    {
+      "success": true
+    }
+    ```
+
+#### DELETE `/api/config/sati`
+Remove the Sati (long-term memory) configuration (falls back to Oracle config).
+
+*   **Authentication:** Requires `Authorization` header with the password set in `THE_ARCHITECT_PASS`.
+*   **Response:**
+    ```json
+    {
+      "success": true
+    }
+    ```
+
+### Statistics Endpoints
+
+#### GET `/api/stats/usage`
+Get global token usage statistics.
+
+*   **Authentication:** Requires `Authorization` header with the password set in `THE_ARCHITECT_PASS`.
+*   **Response:**
+    ```json
+    {
+      "totalInputTokens": 12345,
+      "totalOutputTokens": 6789,
+      "totalTokens": 19134
+    }
+    ```
+
+#### GET `/api/stats/usage/grouped`
+Get token usage statistics grouped by provider and model.
+
+*   **Authentication:** Requires `Authorization` header with the password set in `THE_ARCHITECT_PASS`.
+*   **Response:**
+    ```json
+    [
+      {
+        "provider": "openai",
+        "model": "gpt-4-turbo",
+        "totalTokens": 12345,
+        "inputTokens": 10000,
+        "outputTokens": 2345,
+        "messageCount": 100
+      },
+      {
+        "provider": "anthropic",
+        "model": "claude-3-opus",
+        "totalTokens": 6789,
+        "inputTokens": 5000,
+        "outputTokens": 1789,
+        "messageCount": 50
+      }
+    ]
+    ```
+
 ### Sati Memories Endpoints
 
 #### GET `/api/sati/memories`
@@ -372,6 +597,174 @@ Archive (soft delete) multiple memories from the Sati agent at once.
       "success": true,
       "message": "X memories archived successfully",
       "deletedCount": X
+    }
+    ```
+
+### MCP Server Endpoints
+
+#### GET `/api/mcp/servers`
+List all registered MCP servers.
+
+*   **Authentication:** Requires `Authorization` header with the password set in `THE_ARCHITECT_PASS`.
+*   **Response:**
+    ```json
+    {
+      "servers": [
+        {
+          "name": "coolify",
+          "config": {
+            "transport": "stdio",
+            "command": "npx",
+            "args": ["-y", "@coolify/mcp-server"],
+            "env": {
+              "COOLIFY_URL": "https://app.coolify.io",
+              "COOLIFY_TOKEN": "your-token"
+            }
+          },
+          "enabled": true
+        },
+        {
+          "name": "coingecko",
+          "config": {
+            "transport": "http",
+            "url": "https://mcps.mnunes.xyz/coingecko/mcp"
+          },
+          "enabled": false
+        }
+      ]
+    }
+    ```
+
+#### POST `/api/mcp/servers`
+Add a new MCP server.
+
+*   **Authentication:** Requires `Authorization` header with the password set in `THE_ARCHITECT_PASS`.
+*   **Body:**
+    ```json
+    {
+      "name": "new-server",
+      "config": {
+        "transport": "stdio",
+        "command": "npx",
+        "args": ["-y", "@new-mcp-server"],
+        "env": {
+          "NEW_SERVER_URL": "https://example.com",
+          "NEW_SERVER_TOKEN": "your-token"
+        }
+      }
+    }
+    ```
+*   **Response:**
+    ```json
+    {
+      "ok": true
+    }
+    ```
+
+#### PUT `/api/mcp/servers/:name`
+Update an existing MCP server.
+
+*   **Authentication:** Requires `Authorization` header with the password set in `THE_ARCHITECT_PASS`.
+*   **Parameters:** `name` - Name of the server to update.
+*   **Body:**
+    ```json
+    {
+      "transport": "stdio",
+      "command": "npx",
+      "args": ["-y", "@updated-mcp-server"],
+      "env": {
+        "UPDATED_SERVER_URL": "https://example.com",
+        "UPDATED_SERVER_TOKEN": "your-updated-token"
+      }
+    }
+    ```
+*   **Response:**
+    ```json
+    {
+      "ok": true
+    }
+    ```
+
+#### DELETE `/api/mcp/servers/:name`
+Delete an MCP server.
+
+*   **Authentication:** Requires `Authorization` header with the password set in `THE_ARCHITECT_PASS`.
+*   **Parameters:** `name` - Name of the server to delete.
+*   **Response:**
+    ```json
+    {
+      "ok": true
+    }
+    ```
+
+#### PATCH `/api/mcp/servers/:name/toggle`
+Enable or disable an MCP server.
+
+*   **Authentication:** Requires `Authorization` header with the password set in `THE_ARCHITECT_PASS`.
+*   **Parameters:** `name` - Name of the server to toggle.
+*   **Body:**
+    ```json
+    {
+      "enabled": true
+    }
+    ```
+*   **Response:**
+    ```json
+    {
+      "ok": true
+    }
+    ```
+
+### Logging Endpoints
+
+#### GET `/api/logs`
+List all log files.
+
+*   **Authentication:** Requires `Authorization` header with the password set in `THE_ARCHITECT_PASS`.
+*   **Response:**
+    ```json
+    [
+      {
+        "name": "morpheus.log",
+        "size": 10240,
+        "modified": "2026-02-05T21:30:00.000Z"
+      },
+      {
+        "name": "morpheus-2026-02-04.log",
+        "size": 20480,
+        "modified": "2026-02-04T21:30:00.000Z"
+      }
+    ]
+    ```
+
+#### GET `/api/logs/:filename`
+Get the last lines of a specific log file.
+
+*   **Authentication:** Requires `Authorization` header with the password set in `THE_ARCHITECT_PASS`.
+*   **Parameters:** `filename` - Name of the log file to read.
+*   **Query Parameters:** `limit` - Number of lines to return (default: 50).
+*   **Response:**
+    ```json
+    {
+      "lines": [
+        "2026-02-05T21:30:00.000Z INFO: Starting Morpheus agent...",
+        "2026-02-05T21:30:01.000Z DEBUG: Connected to OpenAI API",
+        "2026-02-05T21:30:02.000Z INFO: Telegram bot initialized"
+      ]
+    }
+    ```
+
+### Control Endpoints
+
+#### POST `/api/restart`
+Restart the Morpheus agent.
+
+*   **Authentication:** Requires `Authorization` header with the password set in `THE_ARCHITECT_PASS`.
+*   **Response:**
+    ```json
+    {
+      "success": true,
+      "message": "Restart initiated. Process will shut down and restart shortly."
     }
     ```
 
