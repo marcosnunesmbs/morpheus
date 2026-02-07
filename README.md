@@ -848,7 +848,7 @@ version: '3.8'
 
 services:
   morpheus:
-    image: morpheus/morpheus-agent:latest
+    image: marcosnunesmbs/morpheus:latest
     container_name: morpheus-agent
     ports:
       - "3333:3333"
