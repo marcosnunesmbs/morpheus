@@ -1,6 +1,7 @@
 import { Command } from 'commander';
 import chalk from 'chalk';
 import { ConfigManager } from '../../config/manager.js';
+import { input, select, password, confirm, checkbox } from '@inquirer/prompts';
 
 const session = new Command('session')
     .description('Manage chat sessions');
@@ -8,31 +9,38 @@ const session = new Command('session')
 session.command('new')
     .description('Archive current session and start a new one')
     .action(async () => {
-        const config = ConfigManager.getInstance().get();
-        const port = config.ui.port || 3333;
-        const authPass = process.env.THE_ARCHITECT_PASS || 'iamthearchitect';
+        const confirmNew = await confirm({
+            message: 'Are you sure you want to start a new session? This will archive the current session and cannot be undone.',
+            default: false,
+        });
 
-        // Check if process is running logic could be added here, but fetch will fail if not compatible
+        if (confirmNew) {
+            const config = ConfigManager.getInstance().get();
+            const port = config.ui.port || 3333;
+            const authPass = process.env.THE_ARCHITECT_PASS || 'iamthearchitect';
 
-        try {
-            const response = await fetch(`http://localhost:${port}/api/session/reset`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'x-architect-pass': authPass
+            try {
+                const response = await fetch(`http://localhost:${port}/api/session/reset`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'x-architect-pass': authPass
+                    }
+                });
+
+                if (response.ok) {
+                    console.log(chalk.green('✓ New session started successfully on running Morpheus instance.'));
+                } else {
+                    const errorText = await response.text();
+                    console.log(chalk.red(`Failed: ${response.status} ${response.statusText}`));
+                    if (errorText) console.log(chalk.gray(errorText));
                 }
-            });
-
-            if (response.ok) {
-                console.log(chalk.green('✓ New session started successfully on running Morpheus instance.'));
-            } else {
-                const errorText = await response.text();
-                console.log(chalk.red(`Failed: ${response.status} ${response.statusText}`));
-                if (errorText) console.log(chalk.gray(errorText));
+            } catch (err) {
+                console.log(chalk.red('Could not connect to Morpheus daemon.'));
+                console.log(chalk.yellow(`Ensure Morpheus is running and listening on port ${port}.`));
             }
-        } catch (err) {
-            console.log(chalk.red('Could not connect to Morpheus daemon.'));
-            console.log(chalk.yellow(`Ensure Morpheus is running and listening on port ${port}.`));
+        } else {
+            console.log(chalk.yellow('Session reset cancelled. Current session is intact.'));
         }
     });
 

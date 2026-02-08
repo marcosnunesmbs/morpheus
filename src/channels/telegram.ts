@@ -181,6 +181,27 @@ export class TelegramAdapter {
         }
       });
 
+      this.bot.action('confirm_new_session', async (ctx) => {
+        await this.history.createNewSession().then(() => {
+          //remove las message
+          if (ctx.updateType === 'callback_query') {
+            ctx.answerCbQuery();
+            ctx.deleteMessage().catch(() => { });
+            }
+          ctx.reply("New session started successfully.");
+        }).catch((e: any) => {
+          ctx.reply(`Error starting new session: ${e.message}`);
+        });
+      });
+
+      this.bot.action('cancel_new_session', async (ctx) => {
+          if (ctx.updateType === 'callback_query') {
+            ctx.answerCbQuery();
+            ctx.deleteMessage().catch(() => { });
+          }
+          ctx.reply("New session cancelled.");
+      });
+
       this.bot.launch().catch((err) => {
         if (this.isConnected) {
           this.display.log(`Telegram bot error: ${err}`, { source: 'Telegram', level: 'error' });
@@ -280,7 +301,7 @@ export class TelegramAdapter {
         break;
       case '/newsession':
       case '/reset':
-        await this.handleNewSessionCommand(ctx, user);
+        await this.handleNewSessionCommand(ctx, user); 
         break;
       case '/sessionstatus':
       case '/session':
@@ -294,12 +315,23 @@ export class TelegramAdapter {
 
   private async handleNewSessionCommand(ctx: any, user: string) {
     try {
-      await this.history.createNewSession();
-      await ctx.reply("✨ *New Session Started*\nPrevious session has been archived locally.", { parse_mode: 'Markdown' });
+      await ctx.reply("Are you ready to start a new session? Please confirm.", { parse_mode: 'Markdown', reply_markup: { inline_keyboard: [
+        [{ text: 'Yes, start new session', callback_data: 'confirm_new_session' }, { text: 'No, cancel', callback_data: 'cancel_new_session' }]] } });
     } catch (e: any) {
       await ctx.reply(`Error starting new session: ${e.message}`);
     }
   }
+
+  private async handleAproveNewSessionCommand(ctx: any, user: string) {
+    try {
+      await this.history.createNewSession();
+    } catch (e: any) {
+      await ctx.reply(`Error creating new session: ${e.message}`);
+    } finally {
+      this.history.close();
+    }
+  }
+  
 
   private async handleSessionStatusCommand(ctx: any, user: string) {
     try {
