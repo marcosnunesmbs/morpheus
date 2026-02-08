@@ -285,6 +285,19 @@ You maintain intent until resolution.
     return await this.history.getMessages();
   }
 
+  async createNewSession(): Promise<void> {
+    if (!this.history) {
+      throw new Error("Message history not initialized. Call initialize() first.");
+    }
+
+    if (this.history instanceof SQLiteChatMessageHistory) {
+      await this.history.createNewSession();
+      this.display.log('Session rolled over successfully.', { source: 'Oracle' });
+    } else {
+      throw new Error("Current history provider does not support session rollover.");
+    }
+  }
+
   async clearMemory(): Promise<void> {
     if (!this.history) {
       throw new Error("Message history not initialized. Call initialize() first.");

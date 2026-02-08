@@ -6,6 +6,7 @@ import { configCommand } from './commands/config.js';
 import { doctorCommand } from './commands/doctor.js';
 import { initCommand } from './commands/init.js';
 import { restartCommand } from './commands/restart.js';
+import { sessionCommand } from './commands/session.js';
 import { scaffold } from '../runtime/scaffold.js';
 import { getVersion } from './utils/version.js';
 
@@ -28,8 +29,9 @@ export async function cli() {
   program.addCommand(statusCommand);
   program.addCommand(configCommand);
   program.addCommand(doctorCommand);
+  program.addCommand(sessionCommand);
 
-  program.parse(process.argv);
+  await program.parseAsync(process.argv);
 }
 
 // Support direct execution via tsx

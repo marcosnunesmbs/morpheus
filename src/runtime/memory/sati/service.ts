@@ -38,7 +38,7 @@ export class SatiService implements ISatiService {
   ): Promise<ISatiRetrievalOutput> {
 
     const santiConfig = ConfigManager.getInstance().getSatiConfig();
-    const memoryLimit = santiConfig.memory_limit || 1000;
+    const memoryLimit = santiConfig.memory_limit || 10;
 
     let queryEmbedding: number[] | undefined;
 

@@ -21,6 +21,20 @@ export class TelegramAdapter {
   private config = ConfigManager.getInstance();
   private oracle: Oracle;
   private telephonist = new Telephonist();
+  private history = new SQLiteChatMessageHistory({sessionId: ''});
+
+  private HELP_MESSAGE = `
+  /start - Show this welcome message and available commands
+/status - Check the status of the Morpheus agent
+/doctor - Diagnose environment and configuration issues
+/stats - Show token usage statistics
+/help - Show available commands
+/zaion - Show system configurations
+/sati <qnt> - Show specific memories
+/newsession - Archive current session and start fresh
+/sessionstatus - Show current session status
+/restart - Restart the Morpheus agent
+/mcp or /mcps - List registered MCP servers`;
 
   constructor(oracle: Oracle) {
     this.oracle = oracle;
@@ -225,6 +239,12 @@ export class TelegramAdapter {
     this.display.log(chalk.gray('Telegram disconnected.'), { source: 'Telegram' });
   }
 
+  /**
+  ** =========================
+  **     Commands Handlers
+  ** =========================
+  */
+
   private async handleSystemCommand(ctx: any, text: string, user: string) {
     const command = text.split(' ')[0];
     const args = text.split(' ').slice(1);
@@ -258,10 +278,39 @@ export class TelegramAdapter {
       case '/mcps':
         await this.handleMcpListCommand(ctx, user);
         break;
+      case '/newsession':
+      case '/reset':
+        await this.handleNewSessionCommand(ctx, user);
+        break;
+      case '/sessionstatus':
+      case '/session':
+      case '/sessions':
+        await this.handleSessionStatusCommand(ctx, user);
+        break;
       default:
         await this.handleDefaultCommand(ctx, user, command);
     }
   }
+
+  private async handleNewSessionCommand(ctx: any, user: string) {
+    try {
+      await this.history.createNewSession();
+      await ctx.reply("✨ *New Session Started*\nPrevious session has been archived locally.", { parse_mode: 'Markdown' });
+    } catch (e: any) {
+      await ctx.reply(`Error starting new session: ${e.message}`);
+    }
+  }
+
+  private async handleSessionStatusCommand(ctx: any, user: string) {
+    try {
+      const status = await this.history.getSessionStatus();
+      await ctx.reply(`*Current Session Status:*\n- Session ID: ${status?.id}\n- Messages in Session: ${status?.messageCount}\n- Embedded: ${status?.embedded}\n- Status: ${status?.embedding_status}`, { parse_mode: 'Markdown' });
+    } catch (e: any) {
+      await ctx.reply(`Error retrieving session status: ${e.message}`);
+    } finally {
+      this.history.close();
+    }
+  } 
 
   private async handleStartCommand(ctx: any, user: string) {
     const welcomeMessage = `
@@ -269,14 +318,7 @@ Hello, @${user}! I am ${this.config.get().agent.name}, ${this.config.get().agent
 
 I am your local AI operator/agent. Here are the commands you can use:
 
-/start - Show this welcome message and available commands
-/status - Check the status of the Morpheus agent
-/doctor - Diagnose environment and configuration issues
-/stats - Show token usage statistics
-/help - Show available commands
-/zaion - Show system configurations
-/sati <qnt> - Show specific memories
-/restart - Restart the Morpheus agent
+  ${this.HELP_MESSAGE}
 
 How can I assist you today?`;
 
@@ -386,7 +428,8 @@ How can I assist you today?`;
   private async handleDefaultCommand(ctx: any, user: string, command: string) {
     const prompt = `O usuário envio o comando: ${command},
     Não entendemos o comando
-    temos os seguintes comandos disponíveis: /start, /status, /doctor, /stats, /help, /zaion, /sati <qnt>, /restart, /mcp, /mcps
+    temos os seguintes comandos disponíveis: 
+    ${this.HELP_MESSAGE}
     Identifique se ele talvez tenha errado o comando e pergunte se ele não quis executar outro comando.
     Só faça isso agora.`;
     let response = await this.oracle.chat(prompt);
@@ -401,15 +444,7 @@ How can I assist you today?`;
     const helpMessage = `
 *Available Commands:*
 
-/start - Show welcome message and available commands
-/status - Check the status of the Morpheus agent
-/doctor - Diagnose environment and configuration issues
-/stats - Show token usage statistics
-/help - Show this help message
-/zaion - Show system configurations
-/sati <qnt> - Show specific memories
-/restart - Restart the Morpheus agent
-/mcp or /mcps - List registered MCP servers
+${this.HELP_MESSAGE}
 
 How can I assist you today?  `;
 

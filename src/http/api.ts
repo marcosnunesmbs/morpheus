@@ -6,12 +6,13 @@ import { DisplayManager } from '../runtime/display.js';
 import { writePid, readPid, isProcessRunning, clearPid, checkStalePid } from '../runtime/lifecycle.js';
 import fs from 'fs-extra';
 import path from 'path';
-import { SQLiteChatMessageHistory } from '../runtime/memory/sqlite.js';
+import { SQLiteChatMessageHistory, SessionStatus } from '../runtime/memory/sqlite.js';
 import { SatiRepository } from '../runtime/memory/sati/repository.js';
 import { spawn } from 'child_process';
 import { z } from 'zod';
 import { MCPManager } from '../config/mcp-manager.js';
 import { MCPServerConfigSchema } from '../config/schemas.js';
+import { IOracle } from '../runtime/types.js';
 
 async function readLastLines(filePath: string, n: number): Promise<string[]> {
   try {
@@ -26,13 +27,38 @@ async function readLastLines(filePath: string, n: number): Promise<string[]> {
 export function createApiRouter() {
   const router = Router();
   const configManager = ConfigManager.getInstance();
+  const history = new SQLiteChatMessageHistory({ sessionId: 'api-reader' });
+
+  router.post('/session/reset', async (req, res) => {
+    // if (!oracle) {
+    //   return res.status(503).json({ error: 'Oracle unavailable' });
+    // }
+    try {
+      await history.createNewSession();
+      res.json({ success: true, message: 'New session started' });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  router.post('/session/status', async (req, res) => {
+    try {
+      const sessionStatus: SessionStatus | null = await history.getSessionStatus();
+      if (!sessionStatus) {
+        return res.status(404).json({ error: 'No session found' });
+      }
+      res.json(sessionStatus);
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
 
   router.get('/status', async (req, res) => {
     let version = 'unknown';
     try {
-        const pkg = await fs.readJson(path.join(process.cwd(), 'package.json'));
-        version = pkg.version;
-    } catch {}
+      const pkg = await fs.readJson(path.join(process.cwd(), 'package.json'));
+      version = pkg.version;
+    } catch { }
 
     const config = configManager.get();
     res.json({
@@ -50,9 +76,9 @@ export function createApiRouter() {
   router.post('/restart', async (req, res) => {
     try {
       // Send response immediately before restarting
-      res.json({ 
-        success: true, 
-        message: 'Restart initiated. Process will shut down and restart shortly.' 
+      res.json({
+        success: true,
+        message: 'Restart initiated. Process will shut down and restart shortly.'
       });
 
       // Delay the actual restart to allow response to be sent
@@ -62,9 +88,9 @@ export function createApiRouter() {
           detached: true,
           stdio: 'ignore'
         });
-        
+
         restartProcess.unref();
-        
+
         // Exit the current process
         process.exit(0);
       }, 100);
@@ -106,26 +132,26 @@ export function createApiRouter() {
     const keys = new Set([...Object.keys(obj1 || {}), ...Object.keys(obj2 || {})]);
 
     for (const key of keys) {
-        const val1 = obj1?.[key];
-        const val2 = obj2?.[key];
-        const currentPath = prefix ? `${prefix}.${key}` : key;
+      const val1 = obj1?.[key];
+      const val2 = obj2?.[key];
+      const currentPath = prefix ? `${prefix}.${key}` : key;
 
-        // Skip if identical
-        if (JSON.stringify(val1) === JSON.stringify(val2)) continue;
+      // Skip if identical
+      if (JSON.stringify(val1) === JSON.stringify(val2)) continue;
 
-        if (
-            typeof val1 === 'object' && val1 !== null &&
-            typeof val2 === 'object' && val2 !== null &&
-            !Array.isArray(val1) && !Array.isArray(val2)
-        ) {
-            changes.push(...getDiff(val1, val2, currentPath));
-        } else {
-            // Mask secrets in logs
-            const isSecret = currentPath.includes('key') || currentPath.includes('token');
-            const v1Display = isSecret ? '***' : JSON.stringify(val1);
-            const v2Display = isSecret ? '***' : JSON.stringify(val2);
-            changes.push(`${currentPath}: ${v1Display} -> ${v2Display}`);
-        }
+      if (
+        typeof val1 === 'object' && val1 !== null &&
+        typeof val2 === 'object' && val2 !== null &&
+        !Array.isArray(val1) && !Array.isArray(val2)
+      ) {
+        changes.push(...getDiff(val1, val2, currentPath));
+      } else {
+        // Mask secrets in logs
+        const isSecret = currentPath.includes('key') || currentPath.includes('token');
+        const v1Display = isSecret ? '***' : JSON.stringify(val1);
+        const v2Display = isSecret ? '***' : JSON.stringify(val2);
+        changes.push(`${currentPath}: ${v1Display} -> ${v2Display}`);
+      }
     }
     return changes;
   };
@@ -133,27 +159,27 @@ export function createApiRouter() {
   router.post('/config', async (req, res) => {
     try {
       const oldConfig = JSON.parse(JSON.stringify(configManager.get()));
-      
+
       // Save will validate against Zod schema
       await configManager.save(req.body);
-      
+
       const newConfig = configManager.get();
       const changes = getDiff(oldConfig, newConfig);
 
       if (changes.length > 0) {
         const display = DisplayManager.getInstance();
-        display.log(`Configuration updated via UI:\n  - ${changes.join('\n  - ')}`, { 
-            source: 'Zaion', 
-            level: 'info' 
+        display.log(`Configuration updated via UI:\n  - ${changes.join('\n  - ')}`, {
+          source: 'Zaion',
+          level: 'info'
         });
       }
 
       res.json(newConfig);
     } catch (error: any) {
       if (error.name === 'ZodError') {
-          res.status(400).json({ error: 'Validation failed', details: error.errors });
+        res.status(400).json({ error: 'Validation failed', details: error.errors });
       } else {
-          res.status(400).json({ error: error.message });
+        res.status(400).json({ error: error.message });
       }
     }
   });
@@ -172,11 +198,11 @@ export function createApiRouter() {
     try {
       const config = configManager.get();
       await configManager.save({ ...config, santi: req.body });
-      
+
       const display = DisplayManager.getInstance();
-      display.log('Sati configuration updated via UI', { 
-        source: 'Zaion', 
-        level: 'info' 
+      display.log('Sati configuration updated via UI', {
+        source: 'Zaion',
+        level: 'info'
       });
 
       res.json({ success: true });
@@ -345,8 +371,8 @@ export function createApiRouter() {
   // Keep PUT for backward compatibility if needed, or remove. 
   // Tasks says Implement POST. I'll remove PUT to avoid confusion or redirect it.
   router.put('/config', async (req, res) => {
-      // Redirect to POST logic or just reuse
-      res.status(307).redirect(307, '/api/config');
+    // Redirect to POST logic or just reuse
+    res.status(307).redirect(307, '/api/config');
   });
 
   router.get('/logs', async (req, res) => {
@@ -373,15 +399,15 @@ export function createApiRouter() {
   router.get('/logs/:filename', async (req, res) => {
     const filename = req.params.filename;
     if (filename.includes('..') || filename.includes('/') || filename.includes('\\')) {
-       return res.status(400).json({ error: 'Invalid filename' });
+      return res.status(400).json({ error: 'Invalid filename' });
     }
-    
+
     // Explicitly cast req.query.limit to string, or handle ParsedQs type
     const limitQuery = req.query.limit;
     const limit = limitQuery ? parseInt(String(limitQuery)) : 50;
 
     const filePath = path.join(PATHS.logs, filename);
-    
+
     if (!await fs.pathExists(filePath)) {
       return res.status(404).json({ error: 'Log file not found' });
     }

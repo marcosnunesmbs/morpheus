@@ -12,6 +12,7 @@ import { Oracle } from '../../runtime/oracle.js';
 import { ProviderError } from '../../runtime/errors.js';
 import { HttpServer } from '../../http/server.js';
 import { getVersion } from '../utils/version.js';
+import { startSessionEmbeddingScheduler } from '../../runtime/session-embedding-scheduler.js';
 
 export const startCommand = new Command('start')
   .description('Start the Morpheus agent')
@@ -116,6 +117,9 @@ export const startCommand = new Command('start')
           display.log(chalk.yellow('Telegram enabled but no token provided. Skipping.'));
         }
       }
+
+      // Start Background Services
+      startSessionEmbeddingScheduler();
 
       // Handle graceful shutdown
       const shutdown = async (signal: string) => {

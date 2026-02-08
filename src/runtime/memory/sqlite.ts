@@ -1,7 +1,7 @@
 import { BaseListChatMessageHistory } from "@langchain/core/chat_history";
 import { BaseMessage, HumanMessage, AIMessage, SystemMessage, ToolMessage } from "@langchain/core/messages";
 import Database from "better-sqlite3";
-import * as fs from "fs-extra";
+import fs from "fs-extra";
 import * as path from "path";
 import { homedir } from "os";
 import type { ProviderModelUsageStats } from "../../types/stats.js";
@@ -14,6 +14,8 @@ export interface SQLiteChatMessageHistoryInput {
   limit?: number;
   config?: Database.Options;
 }
+
+export interface SessionStatus { embedded: boolean; embedding_status: string, id: string, messageCount: number }
 
 /**
  * Metadata for tracking which provider and model generated a message.
@@ -29,6 +31,7 @@ export class SQLiteChatMessageHistory extends BaseListChatMessageHistory {
   private display = DisplayManager.getInstance();
 
   private db: Database.Database;
+  private dbSati?: Database.Database; // Optional separate DB for Sati memory, if needed in the future
   private sessionId: string;
   private limit?: number;
 
@@ -39,15 +42,21 @@ export class SQLiteChatMessageHistory extends BaseListChatMessageHistory {
 
     // Default path: ~/.morpheus/memory/short-memory.db
     const dbPath = fields.databasePath || path.join(homedir(), ".morpheus", "memory", "short-memory.db");
+    const dbSatiPath = path.join(homedir(), '.morpheus', 'memory', 'sati-memory.db');
 
     // Ensure the directory exists
     this.ensureDirectory(dbPath);
+    this.ensureDirectory(dbSatiPath);
 
     // Initialize database with retry logic for locked databases
     try {
       this.db = new Database(dbPath, {
         ...fields.config,
         timeout: 5000, // 5 second timeout for locks
+      });
+      this.dbSati = new Database(dbSatiPath, {
+        ...fields.config,
+        timeout: 5000,
       });
 
       // Try to ensure table, if it fails due to corruption, backup and recreate
@@ -134,15 +143,7 @@ export class SQLiteChatMessageHistory extends BaseListChatMessageHistory {
           started_at INTEGER NOT NULL,
           ended_at INTEGER,
           embedded INTEGER DEFAULT 0,
-          embedding_status TEXT DEFAULT 'pending'
-        );
-
-        CREATE TABLE IF NOT EXISTS session_chunks (
-          id TEXT PRIMARY KEY,
-          session_id TEXT,
-          chunk_index INTEGER,
-          content TEXT,
-          created_at TEXT
+          embedding_status TEXT DEFAULT 'active'
         );
 
       `);
@@ -191,9 +192,16 @@ export class SQLiteChatMessageHistory extends BaseListChatMessageHistory {
 
       if (!sessionsColumns.has('embedding_status')) {
         try {
-          this.db.exec(`ALTER TABLE sessions ADD COLUMN embedding_status TEXT DEFAULT 'pending'`);
+          this.db.exec(`ALTER TABLE sessions ADD COLUMN embedding_status TEXT DEFAULT 'active'`);
         } catch (e) {
           console.warn(`[SQLite] Failed to add column embedding_status: ${e}`);
+        }
+      } else {
+        // Compatibility: Ensure active sessions have 'active' status (if they were created with default 'pending')
+        try {
+          this.db.exec(`UPDATE sessions SET embedding_status = 'active' WHERE ended_at IS NULL AND (embedding_status IS NULL OR embedding_status = 'pending')`);
+        } catch (e) {
+          console.warn(`[SQLite] Failed to update embedding_status: ${e}`);
         }
       }
     } catch (error) {
@@ -405,6 +413,34 @@ export class SQLiteChatMessageHistory extends BaseListChatMessageHistory {
     }
   }
 
+  async getSessionStatus(): Promise<SessionStatus | null> {
+    try {
+      const stmt = this.db.prepare(
+        "SELECT embedded, embedding_status FROM sessions WHERE id = ?"
+      );
+      const row = stmt.get(this.sessionId) as { embedded: number; embedding_status: string } | undefined;
+
+      //get messages where session_id = this.sessionId
+      const stmtMessages = this.db.prepare(
+        "SELECT COUNT(*) as messageCount FROM messages WHERE session_id = ?"
+      );
+
+      const msgRow = stmtMessages.get(this.sessionId) as { messageCount: number };
+
+      if (row) {
+        return {
+          id: this.sessionId,
+          embedded: row.embedded === 1,
+          embedding_status: row.embedding_status,
+          messageCount: msgRow.messageCount || 0,
+        };
+      }
+      return null;
+    } catch (error) {
+      throw new Error(`Failed to get session status: ${error}`);
+    }
+  }
+
   /**
    * Retrieves aggregated usage statistics grouped by provider and model.
    */
@@ -469,7 +505,7 @@ export class SQLiteChatMessageHistory extends BaseListChatMessageHistory {
   public async startSession(): Promise<void> {
     try {
       // Try to find an active session
-      const selectStmt = this.db.prepare("SELECT id FROM sessions WHERE ended_at IS NULL ORDER BY started_at DESC LIMIT 1");
+      const selectStmt = this.db.prepare("SELECT id FROM sessions WHERE ended_at IS NULL AND embedding_status = 'active' ORDER BY started_at DESC LIMIT 1");
       const row = selectStmt.get() as { id: string } | undefined;
       if (row) {
         this.sessionId = row.id;
@@ -479,7 +515,7 @@ export class SQLiteChatMessageHistory extends BaseListChatMessageHistory {
         const uuid = randomUUID();
         this.sessionId = uuid;
 
-        const insertStmt = this.db.prepare("INSERT INTO sessions (id, started_at) VALUES (?, ?)");
+        const insertStmt = this.db.prepare("INSERT INTO sessions (id, started_at, embedded, embedding_status) VALUES (?, ?, 0, 'active')");
         insertStmt.run(this.sessionId, Date.now());
       }
       const updateStmt = this.db.prepare("UPDATE messages SET session_id = ? WHERE session_id = 'default'");
@@ -490,95 +526,116 @@ export class SQLiteChatMessageHistory extends BaseListChatMessageHistory {
   }
 
   public async createNewSession(): Promise<void> {
-    const now = new Date().toISOString();
+    const now = Date.now();
+    let filepath: string | null = null;
 
-    // 1️⃣ pegar sessão ativa
-    const activeSession = this.db.prepare(`
-    SELECT * FROM sessions
-    WHERE ended_at IS NULL
-    LIMIT 1
-  `).get() as any;
+    const txShort = this.db.transaction(() => {
+      const txSati = this.dbSati!.transaction(() => {
 
-    if (!activeSession) {
-      console.log('Nenhuma sessão ativa encontrada.');
-      return;
+        // 1️⃣ pegar sessão ativa
+        const activeSession = this.db.prepare(`
+        SELECT * FROM sessions
+        WHERE ended_at IS NULL
+        LIMIT 1
+      `).get() as any;
+
+        if (!activeSession) {
+          throw new Error('No active session to archive.');
+        }
+
+        this.display.log(`🔒 Finalizando sessão ${activeSession.id}`, { source: 'Sati' });
+
+        // 2️⃣ finalizar sessão
+        this.db.prepare(`
+        UPDATE sessions
+        SET ended_at = ?,
+            embedding_status = 'pending',
+            embedded = 0
+        WHERE id = ?
+      `).run(now, activeSession.id);
+
+        // 3️⃣ buscar mensagens
+        const messages = this.db.prepare(`
+        SELECT type, content
+        FROM messages
+        WHERE session_id = ?
+        ORDER BY created_at ASC
+      `).all(activeSession.id) as any[];
+
+        if (messages.length === 0) {
+          throw new Error('Sessão vazia.'); // força rollback
+        }
+
+        // 4️⃣ montar texto
+        const sessionText = messages
+          .map(m => `[${m.type}] ${m.content}`)
+          .join('\n\n');
+
+        // 5️⃣ salvar TXT
+        filepath = path.join(
+          homedir(),
+          '.morpheus',
+          'memory',
+          'sessions',
+          `${activeSession.id}.txt`
+        );
+
+        fs.ensureDirSync(path.dirname(filepath));
+        fs.writeFileSync(filepath, sessionText);
+
+        // 6️⃣ criar chunks no sati-memory.db
+        const chunks = this.chunkText(sessionText);
+
+        for (let i = 0; i < chunks.length; i++) {
+          this.dbSati!.prepare(`
+          INSERT INTO session_chunks (
+            id,
+            session_id,
+            chunk_index,
+            content,
+            created_at
+          ) VALUES (?, ?, ?, ?, ?)
+        `).run(
+            randomUUID(),
+            activeSession.id,
+            i,
+            chunks[i],
+            now
+          );
+        }
+
+        this.display.log(`🧩 ${chunks.length} chunks criados`, { source: 'Sati' });
+
+      });
+
+      txSati(); // executa transação do sati
+    });
+
+    try {
+      txShort(); // executa tudo
+      const newId = this.createFreshSession();
+      this.sessionId = newId;
+
+      this.display.log('✅ Nova sessão iniciada', { source: 'Sati' });
+
+    } catch (err) {
+
+      // 🔥 rollback já aconteceu automaticamente
+      this.display.log('❌ Erro ao finalizar sessão. Rollback aplicado.', { source: 'Sati' });
+
+      // 🔥 se criou arquivo, apagar
+      if (filepath && fs.existsSync(filepath)) {
+        fs.unlinkSync(filepath);
+      }
+
+      throw err;
     }
-
-    this.display.log(`🔒 Finalizando sessão ${activeSession.id}`, { source: 'Sati' });
-
-    // 2️⃣ finalizar sessão
-    this.db.prepare(`
-    UPDATE sessions
-    SET ended_at = ?,
-        embedding_status = 'pending',
-        embedded = 0
-    WHERE id = ?
-  `).run(now, activeSession.id);
-
-    // 3️⃣ buscar mensagens
-    const messages = this.db.prepare(`
-    SELECT type, content
-    FROM messages
-    WHERE session_id = ?
-    ORDER BY created_at ASC
-  `).all(activeSession.id) as any[];
-
-    if (messages.length === 0) {
-      this.display.log('Sessão vazia.', { source: 'Sati' });
-      this.createFreshSession();
-      return;
-    }
-
-    // 4️⃣ montar texto
-    const sessionText = messages
-      .map(m => `[${m.type}] ${m.content}`)
-      .join('\n\n');
-
-    // 5️⃣ salvar TXT
-    const filepath = path.join(
-      homedir(),
-      '.morpheus',
-      'memory',
-      'sessions',
-      `${activeSession.id}.txt`
-    );
-
-    fs.ensureDirSync(path.dirname(filepath));
-    fs.writeFileSync(filepath, sessionText);
-
-    this.display.log('📄 Sessão exportada para TXT', { source: 'Sati'});
-
-    // 6️⃣ criar chunks no sati-memory.db
-    const chunks = this.chunkText(sessionText);
-
-    for (let i = 0; i < chunks.length; i++) {
-      this.db!.prepare(`
-      INSERT INTO session_chunks (
-        id,
-        session_id,
-        chunk_index,
-        content,
-        created_at
-      ) VALUES (?, ?, ?, ?, ?)
-    `).run(
-        randomUUID(),
-        activeSession.id,
-        i,
-        chunks[i],
-        now
-      );
-    }
-
-    this.display.log(`🧩 ${chunks.length} chunks criados`, { source: 'Sati' });
-
-    // 7️⃣ criar nova sessão ativa
-    this.createFreshSession();
-
-    this.display.log('✅ Nova sessão iniciada', { source: 'Sati' });
   }
 
-  private createFreshSession() {
-    const now = new Date().toISOString();
+
+  private createFreshSession(): string {
+    const now = Date.now();
+    const newId = randomUUID();
 
     this.db.prepare(`
     INSERT INTO sessions (
@@ -587,45 +644,47 @@ export class SQLiteChatMessageHistory extends BaseListChatMessageHistory {
       embedded,
       embedding_status
     ) VALUES (?, ?, 0, 'active')
-  `).run(randomUUID(), now);
+  `).run(newId, now);
+
+    return newId;
   }
 
   private chunkText(
-  text: string,
-  chunkSize: number = 1000,
-  overlap: number = 200
-): string[] {
+    text: string,
+    chunkSize: number = 1000,
+    overlap: number = 200
+  ): string[] {
 
-  if (!text || text.length === 0) {
-    return [];
-  }
+    if (!text || text.length === 0) {
+      return [];
+    }
 
-  const chunks: string[] = [];
-  let start = 0;
+    const chunks: string[] = [];
+    let start = 0;
 
-  while (start < text.length) {
-    let end = start + chunkSize;
+    while (start < text.length) {
+      let end = start + chunkSize;
 
-    // Evita cortar no meio da palavra
-    if (end < text.length) {
-      const lastSpace = text.lastIndexOf(' ', end);
-      if (lastSpace > start) {
-        end = lastSpace;
+      // Evita cortar no meio da palavra
+      if (end < text.length) {
+        const lastSpace = text.lastIndexOf(' ', end);
+        if (lastSpace > start) {
+          end = lastSpace;
+        }
       }
+
+      const chunk = text.slice(start, end).trim();
+      if (chunk.length > 0) {
+        chunks.push(chunk);
+      }
+
+      start = end - overlap;
+
+      if (start < 0) start = 0;
     }
 
-    const chunk = text.slice(start, end).trim();
-    if (chunk.length > 0) {
-      chunks.push(chunk);
-    }
-
-    start = end - overlap;
-
-    if (start < 0) start = 0;
+    return chunks;
   }
-
-  return chunks;
-}
 
 
 

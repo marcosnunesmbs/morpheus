@@ -24,12 +24,12 @@ export class SatiMemoryMiddleware {
             // Extract recent messages content strings for context
             const recentText = history.slice(-10).map(m => m.content.toString());
             
-            display.log(`[Sati] Searching memories for: "${currentMessage.substring(0, 50)}${currentMessage.length > 50 ? '...' : ''}"`, { source: 'Sati' });
+            display.log(`Searching memories for: "${currentMessage.substring(0, 50)}${currentMessage.length > 50 ? '...' : ''}"`, { source: 'Sati' });
             
             const result = await this.service.recover(currentMessage, recentText);
             
             if (result.relevant_memories.length === 0) {
-                display.log('[Sati] No relevant memories found', { source: 'Sati' });
+                display.log('No relevant memories found', { source: 'Sati' });
                 return null;
             }
             
@@ -37,7 +37,7 @@ export class SatiMemoryMiddleware {
                 .map(m => `- [${m.category.toUpperCase()}] ${m.summary}`)
                 .join('\n');
 
-            display.log(`[Sati] Retrieved ${result.relevant_memories.length} memories.`, { source: 'Sati' });
+            display.log(`Retrieved ${result.relevant_memories.length} memories.`, { source: 'Sati' });
                 
             return new AIMessage(`
                 ### LONG-TERM MEMORY (SATI)
@@ -46,7 +46,7 @@ export class SatiMemoryMiddleware {
                 ${memoryContext}
             `);
         } catch (error) {
-            display.log(`[SatiMiddleware] Error in beforeAgent: ${error}`, { source: 'Sati' });
+            display.log(`Error in beforeAgent: ${error}`, { source: 'Sati' });
             // Fail open: return null so execution continues without memory
             return null;
         }
@@ -62,7 +62,7 @@ export class SatiMemoryMiddleware {
                 { role: 'assistant', content: generatedResponse }
              ]);
         } catch (error) {
-            console.error('[SatiMiddleware] Error in afterAgent:', error);
+            display.log(`Error in afterAgent: ${error}`, { source: 'Sati' });
         }
     }
 }

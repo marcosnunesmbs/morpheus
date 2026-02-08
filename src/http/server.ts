@@ -7,6 +7,7 @@ import { ConfigManager } from '../config/manager.js';
 import { DisplayManager } from '../runtime/display.js';
 import { createApiRouter } from './api.js';
 import { authMiddleware } from './middleware/auth.js';
+import { IOracle } from '../runtime/types.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);

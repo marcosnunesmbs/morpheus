@@ -149,7 +149,7 @@ export const doctorCommand = new Command('doctor')
 
     // 5. Check Sati Memory DB
     try {
-        const satiDbPath = path.join(PATHS.memory, 'santi-memory.db');
+        const satiDbPath = path.join(PATHS.memory, 'sati-memory.db');
         if (await fs.pathExists(satiDbPath)) {
             console.log(chalk.green('✓') + ' Sati Memory: Database exists');
         } else {

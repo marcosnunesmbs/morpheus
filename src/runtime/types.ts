@@ -22,6 +22,11 @@ export interface IOracle {
   getHistory(): Promise<BaseMessage[]>;
 
   /**
+   * Archives the current session and starts a new one.
+   */
+  createNewSession(): Promise<void>;
+
+  /**
    * Reset the current session.
    */
   clearMemory(): Promise<void>;

@@ -15,10 +15,10 @@ export default function loadVecExtension(db: Database.Database) : void  {
     'node_modules'
   );
 
-  console.log(`Loading sqlite-vec extension for platform: ${platform}, architecture: ${arch}`);
+//   console.log(`Loading sqlite-vec extension for platform: ${platform}, architecture: ${arch}`);
 
-  //log basePath
-    console.log(`Base path for sqlite-vec: ${basePath}`);
+//   //log basePath
+//     console.log(`Base path for sqlite-vec: ${basePath}`);
 
   if (platform === 'win32' && arch === 'x64') {
     extensionPath = path.join(

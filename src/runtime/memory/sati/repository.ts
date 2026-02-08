@@ -17,7 +17,7 @@ export class SatiRepository {
 
   private constructor(dbPath?: string) {
     this.dbPath =
-      dbPath || path.join(homedir(), '.morpheus', 'memory', 'santi-memory.db');
+      dbPath || path.join(homedir(), '.morpheus', 'memory', 'sati-memory.db');
   }
 
   public static getInstance(dbPath?: string): SatiRepository {
@@ -129,8 +129,6 @@ export class SatiRepository {
       created_at TEXT NOT NULL
     );
 
-    CREATE INDEX IF NOT EXISTS idx_session_chunks_session 
-    ON session_chunks(session_id);
 
     CREATE VIRTUAL TABLE IF NOT EXISTS session_vec USING vec0(
       embedding float[384]
@@ -217,9 +215,11 @@ export class SatiRepository {
         ...r,
         similarity: 1 - r.distance
       }))
-      .sort((a, b) => b.similarity - a.similarity);
+      .sort((a, b) => b.distance - a.distance);
 
-    const filtered = ranked.slice(0, 10);
+    const filtered = ranked
+      .filter(r => r.distance >= SIMILARITY_THRESHOLD)
+      .sort((a, b) => b.distance - a.distance);
 
     if (filtered.length > 0) {
       console.log(
@@ -229,6 +229,98 @@ export class SatiRepository {
 
     return filtered.map(this.mapRowToRecord);
   }
+
+  private searchUnifiedVector(
+    embedding: number[],
+    limit: number
+  ): IMemoryRecord[] {
+    if (!this.db) return [];
+
+    const SIMILARITY_THRESHOLD = 0.75;
+
+    const stmt = this.db.prepare(`
+    SELECT *
+    FROM (
+      -- LONG TERM MEMORY
+      SELECT 
+        m.id as id,
+        m.summary as summary,
+        m.details as details,
+        m.category as category,
+        m.importance as importance,
+        'long_term' as source_type,
+        (1 - vec_distance_cosine(v.embedding, ?)) * 1.2 as distance
+      FROM memory_vec v
+      JOIN memory_embedding_map map ON map.vec_rowid = v.rowid
+      JOIN long_term_memory m ON m.id = map.memory_id
+      WHERE m.archived = 0
+
+      UNION ALL
+
+      -- SESSION CHUNKS
+      SELECT 
+        sc.id as id,
+        sc.content as summary,
+        sc.content as details,
+        'session' as category,
+        'medium' as importance,
+        'session_chunk' as source_type,
+        (1 - vec_distance_cosine(v.embedding, ?)) * 0.9 as distance
+      FROM session_vec v
+      JOIN session_embedding_map map ON map.vec_rowid = v.rowid
+      JOIN session_chunks sc ON sc.id = map.session_chunk_id
+    )
+    ORDER BY distance ASC
+    LIMIT ?
+  `);
+
+    const rows = stmt.all(
+      new Float32Array(embedding),
+      new Float32Array(embedding),
+      limit
+    ) as any[];
+
+    // console.log(
+    //   `[SatiRepository] Unified vector search returned ${rows.length} raw results`
+    // );
+    // console each row
+    // rows.forEach((row, index) => {
+    //   console.log(`[SatiRepository] Row ${index + 1}:`, row);
+    // });
+
+    const ranked = rows
+      .map(r => ({
+        ...r,
+        similarity: 1 - r.distance
+      }))
+      .sort((a, b) => b.similarity - a.similarity);
+
+    const filtered = ranked
+      .filter(r => r.similarity >= SIMILARITY_THRESHOLD)
+      .sort((a, b) => b.similarity - a.similarity);
+
+    this.display.log(
+      `🧠 Unified vector search retornou ${filtered.length} resultados`,
+      { source: 'Sati', level: 'debug' }
+    );
+
+
+    return filtered.map(r => ({
+      id: r.id,
+      summary: r.summary,
+      details: r.details,
+      category: r.category,
+      importance: r.importance,
+      hash: '',
+      source: r.source_type,
+      created_at: new Date(),
+      updated_at: new Date(),
+      access_count: 0,
+      version: 1,
+      archived: false
+    }));
+  }
+
 
   public async save(record: Omit<IMemoryRecord, 'id' | 'created_at' | 'updated_at' | 'access_count' | 'version' | 'archived'>): Promise<IMemoryRecord> {
     if (!this.db) this.initialize();
@@ -302,13 +394,14 @@ export class SatiRepository {
           { source: 'Sati', level: 'debug' }
         );
 
-        const vectorResults = this.searchByVector(embedding, limit);
+        const vectorResults = this.searchUnifiedVector(embedding, limit);
 
         if (vectorResults.length > 0) {
           this.display.log(
             `✅ Vetorial retornou ${vectorResults.length} resultado(s)`,
             { source: 'Sati', level: 'success' }
           );
+
           return vectorResults.slice(0, limit);
         }
 
@@ -319,7 +412,11 @@ export class SatiRepository {
       }
 
       // 2️⃣ BM25 (FTS)
+      // Sanitize query: remove characters that could break FTS5 syntax (like ?, *, OR, etc)
+      // keeping only letters, numbers and spaces.
       const safeQuery = query
+        .replace(/[^\p{L}\p{N}\s]/gu, ' ')
+        .replace(/\s+/g, ' ')
         .trim();
 
       if (safeQuery) {

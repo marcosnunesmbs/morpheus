@@ -4,7 +4,7 @@ import path from 'path';
 import { homedir } from 'os';
 import loadVecExtension from './sqlite-vec.js';
 
-const db = new Database(path.join(homedir(), '.morpheus', 'memory', 'santi-memory.db'));
+const db = new Database(path.join(homedir(), '.morpheus', 'memory', 'sati-memory.db'));
 db.pragma('journal_mode = WAL');
 
 // 🔥 ISSO AQUI É O QUE ESTÁ FALTANDO
