@@ -10,7 +10,7 @@ session.command('new')
     .description('Archive current session and start a new one')
     .action(async () => {
         const confirmNew = await confirm({
-            message: 'Are you sure you want to start a new session? This will archive the current session and cannot be undone.',
+            message: 'Are you sure you want to start a new session?',
             default: false,
         });
 

@@ -37,7 +37,7 @@ export class SQLiteChatMessageHistory extends BaseListChatMessageHistory {
 
   constructor(fields: SQLiteChatMessageHistoryInput) {
     super();
-    this.sessionId = fields.sessionId || '';
+    this.sessionId = fields.sessionId && fields.sessionId !== '' ? fields.sessionId : '';
     this.limit = fields.limit ? fields.limit : 20;
 
     // Default path: ~/.morpheus/memory/short-memory.db
@@ -59,6 +59,8 @@ export class SQLiteChatMessageHistory extends BaseListChatMessageHistory {
         timeout: 5000,
       });
 
+      this.initializeSession(); // Initialize session ID
+
       // Try to ensure table, if it fails due to corruption, backup and recreate
       try {
         this.ensureTable();
@@ -66,13 +68,18 @@ export class SQLiteChatMessageHistory extends BaseListChatMessageHistory {
         // Database might be corrupted, attempt recovery
         this.handleCorruption(dbPath, tableError);
       }
-
-      // Initialize session ID if not provided (after db is initialized)
-      if (!this.sessionId) {
-        this.startSession(); // Initialize session ID if not provided
-      }
     } catch (error) {
       throw new Error(`Failed to initialize SQLite database at ${dbPath}: ${error}`);
+    }
+  }
+
+  /**
+   * Initializes the session ID after the database is ready.
+   * Must be called after the constructor completes.
+   */
+  async initializeSession(): Promise<void> {
+    if (!this.sessionId || this.sessionId === '') {
+      this.sessionId = await this.getCurrentSessionOrCreate();
     }
   }
 
@@ -140,10 +147,15 @@ export class SQLiteChatMessageHistory extends BaseListChatMessageHistory {
 
         CREATE TABLE IF NOT EXISTS sessions (
           id TEXT PRIMARY KEY,
+          title TEXT,
+          status TEXT CHECK (
+            status IN ('active', 'paused', 'archived', 'deleted')
+          ) NOT NULL DEFAULT 'paused',
           started_at INTEGER NOT NULL,
           ended_at INTEGER,
-          embedded INTEGER DEFAULT 0,
-          embedding_status TEXT DEFAULT 'active'
+          archived_at INTEGER,
+          deleted_at INTEGER,
+          embedding_status TEXT CHECK (embedding_status IN ('none', 'pending', 'embedded', 'failed')) NOT NULL DEFAULT 'none'
         );
 
       `);
@@ -186,24 +198,6 @@ export class SQLiteChatMessageHistory extends BaseListChatMessageHistory {
         }
       }
 
-      // Migrate sessions table
-      const sessionsTableInfo = this.db.pragma('table_info(sessions)') as Array<{ name: string }>;
-      const sessionsColumns = new Set(sessionsTableInfo.map(c => c.name));
-
-      if (!sessionsColumns.has('embedding_status')) {
-        try {
-          this.db.exec(`ALTER TABLE sessions ADD COLUMN embedding_status TEXT DEFAULT 'active'`);
-        } catch (e) {
-          console.warn(`[SQLite] Failed to add column embedding_status: ${e}`);
-        }
-      } else {
-        // Compatibility: Ensure active sessions have 'active' status (if they were created with default 'pending')
-        try {
-          this.db.exec(`UPDATE sessions SET embedding_status = 'active' WHERE ended_at IS NULL AND (embedding_status IS NULL OR embedding_status = 'pending')`);
-        } catch (e) {
-          console.warn(`[SQLite] Failed to update embedding_status: ${e}`);
-        }
-      }
     } catch (error) {
       console.warn(`[SQLite] Migration check failed: ${error}`);
     }
@@ -378,6 +372,9 @@ export class SQLiteChatMessageHistory extends BaseListChatMessageHistory {
         "INSERT INTO messages (session_id, type, content, created_at, input_tokens, output_tokens, total_tokens, cache_read_tokens, provider, model) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
       );
       stmt.run(this.sessionId, type, finalContent, Date.now(), inputTokens, outputTokens, totalTokens, cacheReadTokens, provider, model);
+
+      // Verificar se a sessão tem título e definir automaticamente se necessário
+      await this.setSessionTitleIfNeeded();
     } catch (error) {
       // Check for specific SQLite errors
       if (error instanceof Error) {
@@ -392,6 +389,48 @@ export class SQLiteChatMessageHistory extends BaseListChatMessageHistory {
         }
       }
       throw new Error(`Failed to add message: ${error}`);
+    }
+  }
+
+  /**
+   * Verifies if the session has a title, and if not, sets it automatically
+   * using the first 20 characters of the oldest human message.
+   */
+  private async setSessionTitleIfNeeded(): Promise<void> {
+    // Verificar se a sessão já tem título
+    const session = this.db.prepare(`
+      SELECT title FROM sessions
+      WHERE id = ?
+    `).get(this.sessionId) as { title: string | null } | undefined;
+
+    if (session && session.title) {
+      // A sessão já tem título, não precisa fazer nada
+      return;
+    }
+
+    // Obter a mensagem mais antiga do tipo "human" da sessão
+    const oldestHumanMessage = this.db.prepare(`
+      SELECT content
+      FROM messages
+      WHERE session_id = ? AND type = 'human'
+      ORDER BY created_at ASC
+      LIMIT 1
+    `).get(this.sessionId) as { content: string } | undefined;
+
+    if (oldestHumanMessage) {
+      // Pegar os primeiros 20 caracteres como título
+      let title = oldestHumanMessage.content.substring(0, 20);
+      
+      // Certificar-se de que o título não termine no meio de uma palavra
+      if (title.length === 20) {
+        const lastSpaceIndex = title.lastIndexOf(' ');
+        if (lastSpaceIndex > 0) {
+          title = title.substring(0, lastSpaceIndex);
+        }
+      }
+
+      // Chamar a função renameSession para definir o título automaticamente
+      await this.renameSession(this.sessionId, title);
     }
   }
 
@@ -502,10 +541,10 @@ export class SQLiteChatMessageHistory extends BaseListChatMessageHistory {
    * Select the last session that time of no ended_at and return its ID, or create a new session if none found.
    * This allows us to group messages into sessions for better organization and potential future features like session management.
    */
-  public async startSession(): Promise<void> {
+  public async getSession(): Promise<void> {
     try {
       // Try to find an active session
-      const selectStmt = this.db.prepare("SELECT id FROM sessions WHERE ended_at IS NULL AND embedding_status = 'active' ORDER BY started_at DESC LIMIT 1");
+      const selectStmt = this.db.prepare("SELECT id FROM sessions WHERE ended_at IS NULL AND status = 'active' ORDER BY started_at DESC LIMIT 1");
       const row = selectStmt.get() as { id: string } | undefined;
       if (row) {
         this.sessionId = row.id;
@@ -514,126 +553,311 @@ export class SQLiteChatMessageHistory extends BaseListChatMessageHistory {
       if (!this.sessionId) {
         const uuid = randomUUID();
         this.sessionId = uuid;
-
-        const insertStmt = this.db.prepare("INSERT INTO sessions (id, started_at, embedded, embedding_status) VALUES (?, ?, 0, 'active')");
-        insertStmt.run(this.sessionId, Date.now());
+        const insertStmt = this.db.prepare("INSERT INTO sessions (id, started_at, status) VALUES (?, ?, 'active')");
+        const sessionCreated = insertStmt.run(this.sessionId, Date.now());
+        this.sessionId = sessionCreated.lastInsertRowid.toString();
       }
       const updateStmt = this.db.prepare("UPDATE messages SET session_id = ? WHERE session_id = 'default'");
       updateStmt.run(this.sessionId);
     } catch (error) {
-      throw new Error(`Failed to start session: ${error}`);
+      throw new Error(`Failed to get session: ${error}`);
     }
   }
 
   public async createNewSession(): Promise<void> {
     const now = Date.now();
-    let filepath: string | null = null;
 
-    const txShort = this.db.transaction(() => {
-      const txSati = this.dbSati!.transaction(() => {
+    // Transação para garantir consistência
+    const tx = this.db.transaction(() => {
+      // Pegar a sessão atualmente ativa
+      const activeSession = this.db.prepare(`
+        SELECT id FROM sessions
+        WHERE status = 'active'
+      `).get() as { id: string } | undefined;
 
-        // 1️⃣ pegar sessão ativa
-        const activeSession = this.db.prepare(`
-        SELECT * FROM sessions
-        WHERE ended_at IS NULL
-        LIMIT 1
-      `).get() as any;
-
-        if (!activeSession) {
-          throw new Error('No active session to archive.');
-        }
-
-        this.display.log(`🔒 Finalizando sessão ${activeSession.id}`, { source: 'Sati' });
-
-        // 2️⃣ finalizar sessão
+      // Se houver uma sessão ativa, mudar seu status para 'paused'
+      if (activeSession) {
         this.db.prepare(`
-        UPDATE sessions
-        SET ended_at = ?,
-            embedding_status = 'pending',
-            embedded = 0
-        WHERE id = ?
-      `).run(now, activeSession.id);
+          UPDATE sessions
+          SET status = 'paused'
+          WHERE id = ?
+        `).run(activeSession.id);
+      }
 
-        // 3️⃣ buscar mensagens
-        const messages = this.db.prepare(`
+      // Criar uma nova sessão ativa
+      const newId = randomUUID();
+      this.db.prepare(`
+        INSERT INTO sessions (
+          id,
+          started_at,
+          status
+        ) VALUES (?, ?, 'active')
+      `).run(newId, now);
+
+      // Atualizar o ID da sessão atual desta instância
+      this.sessionId = newId;
+    });
+
+    tx(); // Executar a transação
+
+    this.display.log('✅ Nova sessão iniciada e sessão anterior pausada', { source: 'Sati' });
+  }
+
+
+  /**
+   * Encerrar uma sessão e transformá-la em memória do Sati.
+   * Validar sessão existe e está em active ou paused.
+   * Marcar sessão como: status = 'archived', ended_at = now, archived_at = now, embedding_status = 'pending'.
+   * Exportar mensagens → texto e criar chunks (session_chunks).
+   * Remover mensagens da sessão após criar os chunks.
+   */
+  public async archiveSession(sessionId: string): Promise<void> {
+    // Validar sessão existe e está em active ou paused
+    const session = this.db.prepare(`
+      SELECT id, status FROM sessions
+      WHERE id = ?
+    `).get(sessionId) as { id: string, status: string } | undefined;
+
+    if (!session) {
+      throw new Error(`Sessão com ID ${sessionId} não encontrada.`);
+    }
+
+    if (session.status !== 'active' && session.status !== 'paused') {
+      throw new Error(`Sessão com ID ${sessionId} não está em estado ativo ou pausado. Status atual: ${session.status}`);
+    }
+
+    const now = Date.now();
+
+    // Transação para garantir consistência
+    const tx = this.db.transaction(() => {
+      // Marcar sessão como: status = 'archived', ended_at = now, archived_at = now, embedding_status = 'pending'
+      this.db.prepare(`
+        UPDATE sessions
+        SET status = 'archived',
+            ended_at = ?,
+            archived_at = ?,
+            embedding_status = 'pending'
+        WHERE id = ?
+      `).run(now, now, sessionId);
+
+      // Exportar mensagens → texto
+      const messages = this.db.prepare(`
         SELECT type, content
         FROM messages
         WHERE session_id = ?
         ORDER BY created_at ASC
-      `).all(activeSession.id) as any[];
+      `).all(sessionId) as Array<{ type: string, content: string }>;
 
-        if (messages.length === 0) {
-          throw new Error('Sessão vazia.'); // força rollback
-        }
-
-        // 4️⃣ montar texto
+      if (messages.length > 0) {
         const sessionText = messages
           .map(m => `[${m.type}] ${m.content}`)
           .join('\n\n');
 
-        // 5️⃣ salvar TXT
-        filepath = path.join(
-          homedir(),
-          '.morpheus',
-          'memory',
-          'sessions',
-          `${activeSession.id}.txt`
-        );
+        // Criar chunks (session_chunks) usando dbSati
+        if (this.dbSati) {
+          const chunks = this.chunkText(sessionText);
 
-        fs.ensureDirSync(path.dirname(filepath));
-        fs.writeFileSync(filepath, sessionText);
+          for (let i = 0; i < chunks.length; i++) {
+            this.dbSati.prepare(`
+              INSERT INTO session_chunks (
+                id,
+                session_id,
+                chunk_index,
+                content,
+                created_at
+              ) VALUES (?, ?, ?, ?, ?)
+            `).run(
+              randomUUID(),
+              sessionId,
+              i,
+              chunks[i],
+              now
+            );
+          }
 
-        // 6️⃣ criar chunks no sati-memory.db
-        const chunks = this.chunkText(sessionText);
-
-        for (let i = 0; i < chunks.length; i++) {
-          this.dbSati!.prepare(`
-          INSERT INTO session_chunks (
-            id,
-            session_id,
-            chunk_index,
-            content,
-            created_at
-          ) VALUES (?, ?, ?, ?, ?)
-        `).run(
-            randomUUID(),
-            activeSession.id,
-            i,
-            chunks[i],
-            now
-          );
+          this.display.log(`🧩 ${chunks.length} chunks criados para sessão ${sessionId}`, { source: 'Sati' });
         }
 
-        this.display.log(`🧩 ${chunks.length} chunks criados`, { source: 'Sati' });
-
-      });
-
-      txSati(); // executa transação do sati
+        // Remover mensagens da sessão após criar os chunks
+        this.db.prepare(`
+          DELETE FROM messages
+          WHERE session_id = ?
+        `).run(sessionId);
+      }
     });
 
-    try {
-      txShort(); // executa tudo
-      const newId = this.createFreshSession();
-      this.sessionId = newId;
+    tx(); // Executar a transação
+  }
 
-      this.display.log('✅ Nova sessão iniciada', { source: 'Sati' });
+  /**
+   * Descartar completamente uma sessão sem gerar memória.
+   * Validar sessão existe e status ≠ archived.
+   * Transação: deletar mensagens da sessão, marcar sessão como: status = 'deleted', deleted_at = now.
+   * Se a sessão era active, criar nova sessão ativa.
+   */
+  public async deleteSession(sessionId: string): Promise<void> {
+    // Validar sessão existe
+    const session = this.db.prepare(`
+      SELECT id, status FROM sessions
+      WHERE id = ?
+    `).get(sessionId) as { id: string, status: string } | undefined;
 
-    } catch (err) {
+    if (!session) {
+      throw new Error(`Sessão com ID ${sessionId} não encontrada.`);
+    }
 
-      // 🔥 rollback já aconteceu automaticamente
-      this.display.log('❌ Erro ao finalizar sessão. Rollback aplicado.', { source: 'Sati' });
+    // Validar status ≠ archived
+    if (session.status === 'archived') {
+      throw new Error(`Não é possível deletar uma sessão arquivada. Sessão ID: ${sessionId}`);
+    }
 
-      // 🔥 se criou arquivo, apagar
-      if (filepath && fs.existsSync(filepath)) {
-        fs.unlinkSync(filepath);
-      }
+    const now = Date.now();
 
-      throw err;
+    // Transação: deletar mensagens da sessão, marcar sessão como: status = 'deleted', deleted_at = now
+    const tx = this.db.transaction(() => {
+      // Deletar mensagens da sessão
+      this.db.prepare(`
+        DELETE FROM messages
+        WHERE session_id = ?
+      `).run(sessionId);
+
+      // Marcar sessão como: status = 'deleted', deleted_at = now
+      this.db.prepare(`
+        UPDATE sessions
+        SET status = 'deleted',
+            deleted_at = ?
+        WHERE id = ?
+      `).run(now, sessionId);
+    });
+
+    tx(); // Executar a transação
+
+    // Se a sessão era active, criar nova sessão ativa
+    if (session.status === 'active') {
+      this.createFreshSession();
     }
   }
 
+  /**
+   * Renomear uma sessão ativa ou pausada.
+   * Validar sessão existe e status ∈ (paused, active).
+   * Atualizar o título da sessão.
+   */
+  public async renameSession(sessionId: string, title: string): Promise<void> {
+    // Validar sessão existe e status ∈ (paused, active)
+    const session = this.db.prepare(`
+      SELECT id, status FROM sessions
+      WHERE id = ?
+    `).get(sessionId) as { id: string, status: string } | undefined;
 
-  private createFreshSession(): string {
+    if (!session) {
+      throw new Error(`Sessão com ID ${sessionId} não encontrada.`);
+    }
+
+    if (session.status !== 'active' && session.status !== 'paused') {
+      throw new Error(`Sessão com ID ${sessionId} não está em estado ativo ou pausado. Status atual: ${session.status}`);
+    }
+
+    // Transação para garantir consistência
+    const tx = this.db.transaction(() => {
+      // Atualizar o título da sessão
+      this.db.prepare(`
+        UPDATE sessions
+        SET title = ?
+        WHERE id = ?
+      `).run(title, sessionId);
+    });
+
+    tx(); // Executar a transação
+  }
+
+  /**
+   * Trocar o contexto ativo entre sessões não finalizadas.
+   * Validar sessão alvo: existe e status ∈ (paused, active).
+   * Se já for active, não faz nada.
+   * Transação: sessão atual active → paused, sessão alvo → active.
+   */
+  public async switchSession(targetSessionId: string): Promise<void> {
+    // Validar sessão alvo: existe e status ∈ (paused, active)
+    const targetSession = this.db.prepare(`
+      SELECT id, status FROM sessions
+      WHERE id = ?
+    `).get(targetSessionId) as { id: string, status: string } | undefined;
+
+    if (!targetSession) {
+      throw new Error(`Sessão alvo com ID ${targetSessionId} não encontrada.`);
+    }
+
+    if (targetSession.status !== 'active' && targetSession.status !== 'paused') {
+      throw new Error(`Sessão alvo com ID ${targetSessionId} não está em estado ativo ou pausado. Status atual: ${targetSession.status}`);
+    }
+
+    // Se já for active, não faz nada
+    if (targetSession.status === 'active') {
+      return; // A sessão alvo já está ativa, não precisa fazer nada
+    }
+
+    // Transação: sessão atual active → paused, sessão alvo → active
+    const tx = this.db.transaction(() => {
+      // Pegar a sessão atualmente ativa
+      const currentActiveSession = this.db.prepare(`
+        SELECT id FROM sessions
+        WHERE status = 'active'
+      `).get() as { id: string } | undefined;
+
+      // Se houver uma sessão ativa, mudar seu status para 'paused'
+      if (currentActiveSession) {
+        this.db.prepare(`
+          UPDATE sessions
+          SET status = 'paused'
+          WHERE id = ?
+        `).run(currentActiveSession.id);
+      }
+
+      // Mudar o status da sessão alvo para 'active'
+      this.db.prepare(`
+        UPDATE sessions
+        SET status = 'active'
+        WHERE id = ?
+      `).run(targetSessionId);
+    });
+
+    tx(); // Executar a transação
+  }
+
+  /**
+   * Garantir que sempre exista uma sessão ativa válida.
+   * Buscar sessão com status = 'active', retornar seu id se existir,
+   * ou criar nova sessão (createFreshSession) e retornar o novo id.
+   */
+  public async getCurrentSessionOrCreate(): Promise<string> {
+    // Buscar sessão com status = 'active'
+    const activeSession = this.db.prepare(`
+      SELECT id FROM sessions
+      WHERE status = 'active'
+    `).get() as { id: string } | undefined;
+
+    if (activeSession) {
+      // Se existir, retornar seu id
+      return activeSession.id;
+    } else {
+      // Se não existir, criar nova sessão (createFreshSession) e retornar o novo id
+      const newId = await this.createFreshSession();
+      return newId;
+    }
+  }
+
+  private async createFreshSession(): Promise<string> {
+    // Validar que não existe sessão 'active'
+    const activeSession = this.db.prepare(`
+      SELECT id FROM sessions
+      WHERE status = 'active'
+    `).get() as { id: string } | undefined;
+
+    if (activeSession) {
+      throw new Error('Já existe uma sessão ativa. Não é possível criar uma nova sessão ativa.');
+    }
+
     const now = Date.now();
     const newId = randomUUID();
 
@@ -641,9 +865,8 @@ export class SQLiteChatMessageHistory extends BaseListChatMessageHistory {
     INSERT INTO sessions (
       id,
       started_at,
-      embedded,
-      embedding_status
-    ) VALUES (?, ?, 0, 'active')
+      status
+    ) VALUES (?, ?, 'active')
   `).run(newId, now);
 
     return newId;
@@ -651,8 +874,8 @@ export class SQLiteChatMessageHistory extends BaseListChatMessageHistory {
 
   private chunkText(
     text: string,
-    chunkSize: number = 1000,
-    overlap: number = 200
+    chunkSize: number = 500,
+    overlap: number = 50
   ): string[] {
 
     if (!text || text.length === 0) {
@@ -685,9 +908,6 @@ export class SQLiteChatMessageHistory extends BaseListChatMessageHistory {
 
     return chunks;
   }
-
-
-
 
   /**
    * Closes the database connection.

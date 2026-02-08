@@ -312,7 +312,7 @@ export class TelegramAdapter {
         await this.handleDefaultCommand(ctx, user, command);
     }
   }
-
+  
   private async handleNewSessionCommand(ctx: any, user: string) {
     try {
       await ctx.reply("Are you ready to start a new session? Please confirm.", { parse_mode: 'Markdown', reply_markup: { inline_keyboard: [
