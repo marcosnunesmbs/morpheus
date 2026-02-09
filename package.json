@@ -76,5 +76,8 @@
   "bugs": {
     "url": "https://github.com/marcosnunesmbs/morpheus/issues"
   },
-  "homepage": "https://morpheusproject.xyz"
+  "homepage": "https://morpheusproject.xyz",
+  "optionalDependencies": {
+    "sqlite-vec-linux-x64": "^0.1.7-alpha.2"
+  }
 }
