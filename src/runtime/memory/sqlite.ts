@@ -54,23 +54,24 @@ export class SQLiteChatMessageHistory extends BaseListChatMessageHistory {
         ...fields.config,
         timeout: 5000, // 5 second timeout for locks
       });
+
       this.dbSati = new Database(dbSatiPath, {
         ...fields.config,
         timeout: 5000,
       });
 
-      this.initializeSession(); // Initialize session ID
-
-      // Try to ensure table, if it fails due to corruption, backup and recreate
       try {
         this.ensureTable();
       } catch (tableError) {
         // Database might be corrupted, attempt recovery
         this.handleCorruption(dbPath, tableError);
       }
+
     } catch (error) {
       throw new Error(`Failed to initialize SQLite database at ${dbPath}: ${error}`);
     }
+
+    this.initializeSession(); // Initialize session ID
   }
 
   /**
