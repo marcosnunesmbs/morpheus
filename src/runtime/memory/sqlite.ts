@@ -15,7 +15,7 @@ export interface SQLiteChatMessageHistoryInput {
   config?: Database.Options;
 }
 
-export interface SessionStatus { embedded: boolean; embedding_status: string, id: string, messageCount: number }
+export interface SessionStatus { embedding_status: string, id: string, messageCount: number }
 
 /**
  * Metadata for tracking which provider and model generated a message.
@@ -455,9 +455,9 @@ export class SQLiteChatMessageHistory extends BaseListChatMessageHistory {
   async getSessionStatus(): Promise<SessionStatus | null> {
     try {
       const stmt = this.db.prepare(
-        "SELECT embedded, embedding_status FROM sessions WHERE id = ?"
+        "SELECT embedding_status FROM sessions WHERE id = ?"
       );
-      const row = stmt.get(this.sessionId) as { embedded: number; embedding_status: string } | undefined;
+      const row = stmt.get(this.sessionId) as {embedding_status: string } | undefined;
 
       //get messages where session_id = this.sessionId
       const stmtMessages = this.db.prepare(
@@ -469,7 +469,6 @@ export class SQLiteChatMessageHistory extends BaseListChatMessageHistory {
       if (row) {
         return {
           id: this.sessionId,
-          embedded: row.embedded === 1,
           embedding_status: row.embedding_status,
           messageCount: msgRow.messageCount || 0,
         };
