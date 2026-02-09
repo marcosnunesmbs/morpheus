@@ -394,7 +394,7 @@ export class SQLiteChatMessageHistory extends BaseListChatMessageHistory {
 
   /**
    * Verifies if the session has a title, and if not, sets it automatically
-   * using the first 20 characters of the oldest human message.
+   * using the first 50 characters of the oldest human message.
    */
   private async setSessionTitleIfNeeded(): Promise<void> {
     // Verificar se a sessão já tem título
@@ -418,11 +418,11 @@ export class SQLiteChatMessageHistory extends BaseListChatMessageHistory {
     `).get(this.sessionId) as { content: string } | undefined;
 
     if (oldestHumanMessage) {
-      // Pegar os primeiros 20 caracteres como título
-      let title = oldestHumanMessage.content.substring(0, 20);
+      // Pegar os primeiros 50 caracteres como título
+      let title = oldestHumanMessage.content.substring(0, 50);
       
       // Certificar-se de que o título não termine no meio de uma palavra
-      if (title.length === 20) {
+      if (title.length === 50) {
         const lastSpaceIndex = title.lastIndexOf(' ');
         if (lastSpaceIndex > 0) {
           title = title.substring(0, lastSpaceIndex);
@@ -907,6 +907,21 @@ export class SQLiteChatMessageHistory extends BaseListChatMessageHistory {
     }
 
     return chunks;
+  }
+
+  /**
+   * Lists all active and paused sessions with their basic information.
+   * Returns an array of session objects containing id, title, status, and started_at.
+   */
+  public async listSessions(): Promise<Array<{ id: string, title: string | null, status: string, started_at: number }>> {
+    const sessions = this.db.prepare(`
+      SELECT id, title, status, started_at
+      FROM sessions
+      WHERE status IN ('active', 'paused')
+      ORDER BY started_at DESC
+    `).all() as Array<{ id: string, title: string | null, status: string, started_at: number }>;
+
+    return sessions;
   }
 
   /**

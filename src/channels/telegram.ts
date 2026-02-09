@@ -21,10 +21,9 @@ export class TelegramAdapter {
   private config = ConfigManager.getInstance();
   private oracle: Oracle;
   private telephonist = new Telephonist();
-  private history = new SQLiteChatMessageHistory({sessionId: ''});
+  private history = new SQLiteChatMessageHistory({ sessionId: '' });
 
-  private HELP_MESSAGE = `
-  /start - Show this welcome message and available commands
+  private HELP_MESSAGE = `/start - Show this welcome message and available commands
 /status - Check the status of the Morpheus agent
 /doctor - Diagnose environment and configuration issues
 /stats - Show token usage statistics
@@ -32,7 +31,7 @@ export class TelegramAdapter {
 /zaion - Show system configurations
 /sati <qnt> - Show specific memories
 /newsession - Archive current session and start fresh
-/sessionstatus - Show current session status
+/sessions - List all sessions with titles and switch between them
 /restart - Restart the Morpheus agent
 /mcp or /mcps - List registered MCP servers`;
 
@@ -182,24 +181,48 @@ export class TelegramAdapter {
       });
 
       this.bot.action('confirm_new_session', async (ctx) => {
-        await this.history.createNewSession().then(() => {
-          //remove las message
-          if (ctx.updateType === 'callback_query') {
-            ctx.answerCbQuery();
-            ctx.deleteMessage().catch(() => { });
-            }
-          ctx.reply("New session started successfully.");
-        }).catch((e: any) => {
-          ctx.reply(`Error starting new session: ${e.message}`);
-        });
+        await this.handleApproveNewSessionCommand(ctx, ctx.from.username || ctx.from.first_name);
+        if (ctx.updateType === 'callback_query') {
+          ctx.answerCbQuery();
+          ctx.deleteMessage().catch(() => { });
+        }
+        ctx.reply("New session created.");
       });
 
       this.bot.action('cancel_new_session', async (ctx) => {
+        if (ctx.updateType === 'callback_query') {
+          ctx.answerCbQuery();
+          ctx.deleteMessage().catch(() => { });
+        }
+        ctx.reply("New session cancelled.");
+      });
+
+      this.bot.action(/^switch_session_/, async (ctx) => {
+        const callbackQuery = ctx.callbackQuery;
+        const data = callbackQuery && 'data' in callbackQuery ? callbackQuery.data : undefined;
+        const sessionId = typeof data === 'string' ? data.replace('switch_session_', '') : '';
+
+        if (!sessionId || sessionId === '') {
+          await ctx.answerCbQuery('Invalid session ID');
+          return;
+        }
+
+        try {
+          // Obter a sessão atual antes de alternar
+          const history = new SQLiteChatMessageHistory({sessionId: ""});
+          // Alternar para a nova sessão
+          await history.switchSession(sessionId);
+          await ctx.answerCbQuery();
+
+          // Remover a mensagem anterior e enviar confirmação
           if (ctx.updateType === 'callback_query') {
-            ctx.answerCbQuery();
             ctx.deleteMessage().catch(() => { });
           }
-          ctx.reply("New session cancelled.");
+
+          ctx.reply(`✅ Switched to session ID: ${sessionId}`);
+        } catch (error: any) {
+          await ctx.answerCbQuery(`Error switching session: ${error.message}`);
+        }
       });
 
       this.bot.launch().catch((err) => {
@@ -301,7 +324,7 @@ export class TelegramAdapter {
         break;
       case '/newsession':
       case '/reset':
-        await this.handleNewSessionCommand(ctx, user); 
+        await this.handleNewSessionCommand(ctx, user);
         break;
       case '/sessionstatus':
       case '/session':
@@ -312,37 +335,72 @@ export class TelegramAdapter {
         await this.handleDefaultCommand(ctx, user, command);
     }
   }
-  
+
   private async handleNewSessionCommand(ctx: any, user: string) {
     try {
-      await ctx.reply("Are you ready to start a new session? Please confirm.", { parse_mode: 'Markdown', reply_markup: { inline_keyboard: [
-        [{ text: 'Yes, start new session', callback_data: 'confirm_new_session' }, { text: 'No, cancel', callback_data: 'cancel_new_session' }]] } });
+      await ctx.reply("Are you ready to start a new session? Please confirm.", {
+        parse_mode: 'Markdown', reply_markup: {
+          inline_keyboard: [
+            [{ text: 'Yes, start new session', callback_data: 'confirm_new_session' }, { text: 'No, cancel', callback_data: 'cancel_new_session' }]]
+        }
+      });
     } catch (e: any) {
       await ctx.reply(`Error starting new session: ${e.message}`);
     }
   }
 
-  private async handleAproveNewSessionCommand(ctx: any, user: string) {
+  private async handleApproveNewSessionCommand(ctx: any, user: string) {
     try {
-      await this.history.createNewSession();
+      const history = new SQLiteChatMessageHistory({sessionId: ""});
+      await history.createNewSession();
     } catch (e: any) {
       await ctx.reply(`Error creating new session: ${e.message}`);
-    } finally {
-      this.history.close();
     }
   }
-  
+
 
   private async handleSessionStatusCommand(ctx: any, user: string) {
     try {
-      const status = await this.history.getSessionStatus();
-      await ctx.reply(`*Current Session Status:*\n- Session ID: ${status?.id}\n- Messages in Session: ${status?.messageCount}\n- Embedded: ${status?.embedded}\n- Status: ${status?.embedding_status}`, { parse_mode: 'Markdown' });
+      // Obter todas as sessões ativas e pausadas usando a nova função
+      const history = new SQLiteChatMessageHistory({sessionId: ""});
+      const sessions = await history.listSessions();
+
+      if (sessions.length === 0) {
+        await ctx.reply('No active or paused sessions found.', { parse_mode: 'Markdown' });
+        return;
+      }
+
+      let response = '*Sessions:*\n\n';
+      const keyboard = [];
+
+      for (const session of sessions) {
+        const title = session.title || 'Untitled Session';
+        const statusEmoji = session.status === 'active' ? '🟢' : '🟡';
+        response += `${statusEmoji} *${title}*\n`;
+        response += `- ID: ${session.id}\n`;
+        response += `- Status: ${session.status}\n`;
+        response += `- Started: ${new Date(session.started_at).toLocaleString()}\n\n`;
+
+        // Adicionar botão inline para alternar para esta sessão
+        if (session.status !== 'active') {
+          keyboard.push([{
+            text: `Switch to: ${title}`,
+            callback_data: `switch_session_${session.id}`
+          }]);
+        }
+      }
+
+      await ctx.reply(response, {
+        parse_mode: 'Markdown',
+        reply_markup: {
+          inline_keyboard: keyboard
+        }
+      });
+      history.close();
     } catch (e: any) {
       await ctx.reply(`Error retrieving session status: ${e.message}`);
-    } finally {
-      this.history.close();
     }
-  } 
+  }
 
   private async handleStartCommand(ctx: any, user: string) {
     const welcomeMessage = `
@@ -376,7 +434,7 @@ How can I assist you today?`;
     // Implementação simplificada do diagnóstico
     const config = this.config.get();
     let response = '*Morpheus Doctor*\n\n';
-    
+
     // Verificar versão do Node.js
     const nodeVersion = process.version;
     const majorVersion = parseInt(nodeVersion.replace('v', '').split('.')[0], 10);
@@ -385,19 +443,19 @@ How can I assist you today?`;
     } else {
       response += '❌ Node.js Version: ' + nodeVersion + ' (Required: >=18)\n';
     }
-    
+
     // Verificar configuração
     if (config) {
       response += '✅ Configuration: Valid\n';
-      
+
       // Verificar se há chave de API disponível para o provedor ativo
       const llmProvider = config.llm?.provider;
       if (llmProvider && llmProvider !== 'ollama') {
         const hasLlmApiKey = config.llm?.api_key ||
-                            (llmProvider === 'openai' && process.env.OPENAI_API_KEY) ||
-                            (llmProvider === 'anthropic' && process.env.ANTHROPIC_API_KEY) ||
-                            (llmProvider === 'gemini' && process.env.GOOGLE_API_KEY) ||
-                            (llmProvider === 'openrouter' && process.env.OPENROUTER_API_KEY);
+          (llmProvider === 'openai' && process.env.OPENAI_API_KEY) ||
+          (llmProvider === 'anthropic' && process.env.ANTHROPIC_API_KEY) ||
+          (llmProvider === 'gemini' && process.env.GOOGLE_API_KEY) ||
+          (llmProvider === 'openrouter' && process.env.OPENROUTER_API_KEY);
 
         if (hasLlmApiKey) {
           response += `✅ LLM API key available for ${llmProvider}\n`;
@@ -405,7 +463,7 @@ How can I assist you today?`;
           response += `❌ LLM API key missing for ${llmProvider}. Either set in config or define environment variable.\n`;
         }
       }
-      
+
       // Verificar token do Telegram se ativado
       if (config.channels?.telegram?.enabled) {
         const hasTelegramToken = config.channels.telegram?.token || process.env.TELEGRAM_BOT_TOKEN;
@@ -418,7 +476,7 @@ How can I assist you today?`;
     } else {
       response += '⚠️ Configuration: Missing\n';
     }
-    
+
     await ctx.reply(response, { parse_mode: 'Markdown' });
   }
 
@@ -430,26 +488,26 @@ How can I assist you today?`;
         databasePath: undefined, // Usará o caminho padrão
         limit: 100, // Limite arbitrário para esta operação
       });
-      
+
       const stats = await history.getGlobalUsageStats();
       const groupedStats = await history.getUsageStatsByProviderAndModel();
-      
+
       let response = '*Token Usage Statistics*\n\n';
       response += `Total Input Tokens: ${stats.totalInputTokens}\n`;
       response += `Total Output Tokens: ${stats.totalOutputTokens}\n`;
       response += `Total Tokens: ${stats.totalInputTokens + stats.totalOutputTokens}\n\n`;
-      
+
       if (groupedStats.length > 0) {
         response += '*Breakdown by Provider and Model:*\n';
         for (const stat of groupedStats) {
-          response += `- ${stat.provider}/${stat.model}: ${stat.totalTokens} tokens (${stat.messageCount} messages)\n`;
+          response += `- ${stat.provider}/${stat.model}:\n ${stat.totalTokens} tokens\n(${stat.messageCount} messages)\n\n`;
         }
       } else {
         response += 'No detailed usage statistics available.';
       }
-      
+
       await ctx.reply(response, { parse_mode: 'Markdown' });
-      
+
       // Fechar conexão com o banco de dados
       history.close();
     } catch (error: any) {
@@ -458,9 +516,9 @@ How can I assist you today?`;
   }
 
   private async handleDefaultCommand(ctx: any, user: string, command: string) {
-    const prompt = `O usuário envio o comando: ${command},
+    const prompt = `O usuário enviou o comando: ${command},
     Não entendemos o comando
-    temos os seguintes comandos disponíveis: 
+    temos os seguintes comandos disponíveis:
     ${this.HELP_MESSAGE}
     Identifique se ele talvez tenha errado o comando e pergunte se ele não quis executar outro comando.
     Só faça isso agora.`;
@@ -478,37 +536,37 @@ How can I assist you today?`;
 
 ${this.HELP_MESSAGE}
 
-How can I assist you today?  `;
+How can I assist you today?`;
 
     await ctx.reply(helpMessage, { parse_mode: 'Markdown' });
   }
 
   private async handleZaionCommand(ctx: any, user: string) {
     const config = this.config.get();
-    
+
     let response = '*System Configuration*\n\n';
     response += `*Agent:*\n`;
     response += `- Name: ${config.agent.name}\n`;
     response += `- Personality: ${config.agent.personality}\n\n`;
-    
+
     response += `*LLM:*\n`;
     response += `- Provider: ${config.llm.provider}\n`;
     response += `- Model: ${config.llm.model}\n`;
     response += `- Temperature: ${config.llm.temperature}\n`;
     response += `- Context Window: ${config.llm.context_window || 100}\n\n`;
-    
+
     response += `*Channels:*\n`;
     response += `- Telegram Enabled: ${config.channels.telegram.enabled}\n`;
     response += `- Discord Enabled: ${config.channels.discord.enabled}\n\n`;
-    
+
     response += `*UI:*\n`;
     response += `- Enabled: ${config.ui.enabled}\n`;
     response += `- Port: ${config.ui.port}\n\n`;
-    
+
     response += `*Audio:*\n`;
     response += `- Enabled: ${config.audio.enabled}\n`;
     response += `- Max Duration: ${config.audio.maxDurationSeconds}s\n`;
-    
+
     await ctx.reply(response, { parse_mode: 'Markdown' });
   }
 
@@ -557,7 +615,7 @@ How can I assist you today?  `;
   private async handleRestartCommand(ctx: any, user: string) {
     // Store the user ID who requested the restart
     const userId = ctx.from.id;
-    
+
     // Save the user ID to a temporary file so the restarted process can notify them
     const restartNotificationFile = path.join(os.tmpdir(), 'morpheus_restart_notification.json');
     try {
@@ -634,15 +692,15 @@ How can I assist you today?  `;
       }
 
       let response = `*MCP Servers (${servers.length})*\n\n`;
-      
+
       servers.forEach((server, index) => {
         const status = server.enabled ? '✅ Enabled' : '❌ Disabled';
         const transport = server.config.transport.toUpperCase();
-        
+
         response += `*${index + 1}. ${server.name}*\n`;
         response += `Status: ${status}\n`;
         response += `Transport: ${transport}\n`;
-        
+
         if (server.config.transport === 'stdio') {
           response += `Command: \`${server.config.command}\`\n`;
           if (server.config.args && server.config.args.length > 0) {
@@ -651,7 +709,7 @@ How can I assist you today?  `;
         } else if (server.config.transport === 'http') {
           response += `URL: \`${server.config.url}\`\n`;
         }
-        
+
         response += '\n';
       });
 
