@@ -15,12 +15,18 @@
 
 ### Runtime & Agent
 - **Oracle Engine:** `src/runtime/oracle.ts` implements `IOracle` - the main conversation loop using LangChain's `ReactAgent`
-  - **Memory System (Dual-Layer):**
+  - **Memory System (Three-Database Architecture):**
     - **Short-term:** `SQLiteChatMessageHistory` (`src/runtime/memory/sqlite.ts`) - per-session chat history
+      - **Storage:** `~/.morpheus/memory/short-memory.db`
     - **Long-term (Sati):** `src/runtime/memory/sati/` - persistent facts/preferences across sessions
       - **Architecture Rule:** Sati is an *independent sub-agent* invoked by middleware, NOT part of Oracle's main flow
       - **Middleware:** `SatiMemoryMiddleware` (`src/runtime/memory/sati/index.ts`) hooks into `beforeAgent` (retrieval) and `afterAgent` (consolidation)
-      - **Storage:** Dedicated `santi-memory.db` (separate from chat history)
+      - **Storage:** Dedicated `sati-memory.db` (separate from chat history)
+    - **Session Embeddings:** Background worker for semantic search over past sessions
+      - **Service:** `EmbeddingService` (`src/runtime/memory/embedding.service.ts`) - uses `@xenova/transformers` with `Xenova/all-MiniLM-L6-v2` (384-dim embeddings)
+      - **Worker:** `runSessionEmbeddingWorker()` processes completed sessions asynchronously
+      - **Scheduler:** Runs every 5 minutes to embed pending sessions (`startSessionEmbeddingScheduler()`)
+      - **Storage:** Vector embeddings stored in `sati-memory.db` using `sqlite-vec` extension
     - **Context Window:** Configurable via `llm.context_window` (default: 100 messages) - controls how many messages from history are loaded into LLM context
   - **Providers:** `src/runtime/providers/factory.ts` creates LLMs (OpenAI, Anthropic, Google Gemini, Ollama)
   - **Tools:** `src/runtime/tools/factory.ts` loads MCP servers from `~/.morpheus/mcps.json`
@@ -102,6 +108,9 @@
 - `npm start -- doctor` - Diagnose environment (checks API keys, config, processes)
 - `npm start -- status` - Check if daemon is running
 - `npm start -- stop` - Kill daemon process
+- `npm start -- session new` - Start a new session (archives current conversation)
+- `npm start -- session status` - Get current session information
+- `npm run backfill` - Manually trigger embedding generation for existing sessions
 - `npx tsx src/runtime/__tests__/manual_start_verify.ts` - Quick sanity check for Oracle initialization
 
 ### Adding Features
@@ -129,13 +138,22 @@
 - **Loader:** `src/config/mcp-loader.ts` → `MultiServerMCPClient` from `@langchain/mcp-adapters`
 - **Sanitization:** Tools are wrapped to remove Gemini-incompatible schema fields
 
-### Memory Architecture (Sati)
-- **Separation:** Oracle (short-term) vs. Sati (long-term) - completely independent databases
-- **Middleware Hooks:**
-  - `beforeAgent()`: Retrieves relevant memories, injects as AIMessage
-  - `afterAgent()`: Analyzes conversation, extracts/stores new facts
-- **Categories:** Preference, Project, Identity, Personal Data, etc.
-- **Deduplication:** Hash-based to prevent redundant memories
+### Memory Architecture
+- **Three-Database System:**
+  - `~/.morpheus/memory/short-memory.db` - Per-session chat history (Oracle short-term memory)
+  - `~/.morpheus/memory/sati-memory.db` - Long-term facts + session embeddings (Sati + vector storage)
+- **Sati (Long-Term Memory):**
+  - **Separation:** Oracle (short-term) vs. Sati (long-term) - completely independent databases
+  - **Middleware Hooks:**
+    - `beforeAgent()`: Retrieves relevant memories, injects as AIMessage
+    - `afterAgent()`: Analyzes conversation, extracts/stores new facts
+  - **Categories:** Preference, Project, Identity, Personal Data, etc.
+  - **Deduplication:** Hash-based to prevent redundant memories
+- **Session Embeddings:**
+  - **Purpose:** Enable semantic search over historical conversations
+  - **Process:** Background scheduler embeds completed sessions every 5 minutes
+  - **Vector DB:** Uses `sqlite-vec` extension with 384-dimensional embeddings
+  - **Model:** Xenova/all-MiniLM-L6-v2 via @xenova/transformers
 
 ### Channel Security
 - **Allowlist Pattern:** All adapters enforce strict user ID allowlists (Telegram: numeric IDs)

@@ -1,79 +1,85 @@
-# Architecture Reference
+# Morpheus Architecture Reference
 
-## 🧠 Project Overview
-Morpheus is a local-first AI operator/agent for developers. It functions as a persistent background daemon that bridges Large Language Models (LLMs) with:
-1.  **External Communication Channels** (e.g., Telegram)
-2.  **Local System Tools** (File system, specialized agents)
-3.  **User Interfaces** (CLI, Web Dashboard)
+## 1. High-Level System Overview
+Morpheus is a **local-first AI Operator** designed as a persistent background service (Daemon). It functions as an orchestration layer that bridges Large Language Models (LLMs) with the user's local environment, external communication channels (like Telegram), and developer tools.
 
-## 🏗 High-Level Architecture
+Unlike a simple chatbot, Morpheus is architected to be a long-running "OS for AI" that maintains state, identity, and memory across different interaction sessions and modalities (text, voice, terminal).
 
-The application runs as a cohesive Node.js process managed by a CLI entry point.
+## 2. Architectural Style
+The system follows a **Modular Monolith** architecture with a clear separation of concerns, orchestrated by a central event loop:
+*   **Daemon Process:** A single Node.js process manages the lifecycle of all components.
+*   **Event-Driven Channels:** External interfaces (Telegram, HTTP) act as event producers for the central agent.
+*   **Agentic Core:** The "Oracle" acts as the central brain, executing a retrieve-think-act loop.
 
-### 1. The Runtime Core (`src/runtime/`)
-The Runtime is the central nervous system of Morpheus.
--   **Oracle Engine (`oracle.ts`)**: Implements the `IOracle` interface. It manages the conversation loop using LangChain, handling prompt construction, tool execution, and context management.
--   **Middleware System (`middleware/`)**: A layer that intercepts the agent's execution cycle.
-    -   **Sati (Long-Term Memory)**: A specialized sub-agent that allows Morpheus to "remember" facts, preferences, and context across sessions. It retrieves relevant memories *before* the main agent thinks, and consolidates new information *after* the conversation.
--   **Memory System (`memory/`)**: 
-    -   **Short-Term**: Conversation history persisted locally using `SQLiteChatMessageHistory` (via `better-sqlite3`).
-    -   **Long-Term (Sati)**: A dedicated `santi-memory.db` stores semantic memories and preferences, separated from the chat logs.
--   **LLM Providers (`providers/`)**: A factory pattern (`ProvidersFactory`) abstracts specific LLM implementations (OpenAI, Ollama, etc.), allowing the user to switch models via configuration.
+## 3. Main Components & Responsibilities
 
-### 2. Channel Adapters (`src/channels/`)
-Channels serve as the sensory input and output for the Oracle.
--   **Adapter Pattern**: Each channel (e.g., `TelegramAdapter`) implements a common interface to:
-    -   Receive external events (messages, voice notes).
-    -   Normalize them into internal standard objects.
-    -   Pass them to the Oracle.
-    -   Route the Oracle's response back to the external platform.
--   **Security**: Channels enforce strict authorization (allow-lists) to prevents unauthorized access to the local agent.
+### Core Runtime (`src/runtime/`)
+The "Central Nervous System" of Morpheus.
+*   **Oracle Engine (`oracle.ts`):** Implements the main conversation loop using LangChain. It handles prompt construction, context window management, and tool execution.
+*   **Memory Systems:**
+    *   **Short-Term:** SQLite-based chat history for active session context.
+    *   **Long-Term (Sati):** A dedicated sub-agent and database (`sati-memory.db`) for storing semantic facts, user preferences, and project context.
+    *   **Embeddings:** Background workers allowing semantic search over past conversations.
+*   **Provider Factory:** Abstracts LLM providers (OpenAI, Anthropic, Gemini, Ollama) allowing seamless model switching.
+*   **Tool Manager:** Loads and executes Model Context Protocol (MCP) servers and local function calls.
 
-### 3. Interfaces (CLI & HTTP)
--   **CLI (`src/cli/`)**: Built with `commander`. It handles process lifecycle (start/stop daemon), configuration initialization, and status checks.
--   **HTTP Server (`src/http/`)**: An Express.js server that runs alongside the Agent.
-    -   **API**: Exposes endpoints for the UI to fetch status, logs, and update config.
-    -   **Static Assets**: Serves the compiled Web UI.
+### Interfaces & Channels (`src/channels/`, `src/http/`)
+The methods by which users interact with Morpheus.
+*   **Channel Adapters:** Protocol translators (e.g., `TelegramAdapter`) that convert external platform events into normalized Oracle messages.
+*   **HTTP Server:** Express.js server providing a REST API for the UI and external integrations.
+*   **Web UI (`src/ui/`):** A React/Vite SPA for system monitoring, configuration, and direct chat.
 
-### 4. Web Dashboard (`src/ui/`)
-A React-based Single Page Application (SPA) built with Vite and TailwindCSS.
--   Communicates with the Daemon via the local HTTP API.
--   Provides "Matrix-themed" visualization of agent activity, tool usage, and system health.
+### Infrastructure (`src/cli/`, `src/config/`)
+*   **CLI:** Commander.js based tool for process management (`start`, `stop`, `status`).
+*   **Config Manager:** Zod-validated configuration loader handling `~/.morpheus/config.yaml`.
 
-## 🔄 Data Flow
-
-1.  **Input**: User sends a message via Telegram.
-2.  **Ingest**: `TelegramAdapter` receives the webhook/poll update.
-3.  **Authorize**: Adapter verifies the User ID against `zaion.yaml`.
-4.  **Dispatch**: Valid message is sent to `Oracle.chat()`.
-5.  **Middleware (Pre)**: Sati retrieves relevant long-term memories and injects them into the context.
-6.  **Think**:
-    -   Oracle retrieves context from `SQLite` (Short-term).
-    -   Oracle queries LLM (via `LangChain`).
-    -   Oracle may execute **Tools** (e.g., search docs, save file).
-7.  **Respond**: Oracle generates a final text response.
-8.  **Middleware (Post)**: Sati analyzes the interaction in the background to extract and store new long-term memories.
-9.  **Output**: `TelegramAdapter` sends the text back to the user's chat.
-
-## 📂 Directory Structure Map
-
+## 4. Folder Structure
 ```
 bin/                # Executable entry point
 src/
-├── channels/       # External communication adapters
-├── cli/            # CLI Command definitions
-├── config/         # Configuration loading & Zod schemas
-├── http/           # REST API & Static Server
-├── runtime/        # Core Agent logic, Memory, & Providers
+├── channels/       # Adapters for external platforms (Telegram, etc.)
+├── cli/            # CLI Command definitions and lifecycle management
+├── config/         # Configuration logic and Zod schemas
+├── http/           # Express API server & static asset serving
+├── runtime/        # Core business logic (Agent, Memory, Tools)
+│   ├── memory/     # SQLite & Vector storage implementations
+│   ├── providers/  # LLM API wrappers
+│   └── tools/      # MCP and local tool integration
 ├── types/          # Shared TypeScript interfaces
-└── ui/             # React Web Dashboard source
+└── ui/             # React Frontend application
 ```
 
-## 🛠 Tech Stack
+## 5. Data Flow
 
--   **Runtime**: Node.js (ES Modules)
--   **Language**: TypeScript
--   **AI Framework**: LangChain
--   **Storage**: SQLite (`better-sqlite3`)
--   **Frontend**: React, Vite, TailwindCSS
--   **Validation**: Zod (for Config & API)
+1.  **Ingestion:** User sends a message via **Telegram**.
+2.  **Normalization:** `TelegramAdapter` receives the webhook, verifies the user, and converts the payload to a standard internal message format.
+3.  **Context Assembly (Pre-Agent):**
+    *   **Sati Middleware** queries the Vector DB for relevant past memories.
+    *   Recent chat history is loaded from SQLite.
+4.  **Cognition (The Oracle):**
+    *   The **LLM** receives the prompt (System prompt + Context + User query).
+    *   The LLM may decide to call **Tools** (e.g., "Search Web", "Read File").
+    *   The Oracle executes tools and feeds results back to the LLM (ReAct loop).
+5.  **Response:** The LLM generates a final text response.
+6.  **Consolidation (Post-Agent):**
+    *   **Sati Middleware** analyzes the interaction to extract new facts/preferences and stores them in the Long-Term Memory DB.
+7.  **Delivery:** `TelegramAdapter` formats the response and sends it back to the user.
+
+## 6. External Integrations
+*   **LLM Providers:** OpenAI, Anthropic, Google Gemini, Ollama (Local).
+*   **Messaging Platforms:** Telegram Bot API.
+*   **MCP Servers:** Connects to any standard Model Context Protocol server (Filesystem, GitHub, Databases).
+
+## 7. Authentication & Security
+*   **Daemon Security:** The HTTP API is protected by `THE_ARCHITECT_PASS`, validated via the `x-architect-pass` header.
+*   **Channel Security:** Messaging adapters enforce strict **Allowlists**. Only User IDs defined in `config.yaml` can trigger the agent. Unauthorized messages are silently ignored or logged.
+*   **Local-First:** All data acts locally. Use of external LLMs is optional (via Ollama).
+
+## 8. Scalability & Deployment
+*   **Single-User Focus:** Currently designed as a personal single-user daemon.
+*   **Deployment:** Runs on local dev machines, home servers, or VPS.
+*   **Resource Management:** Uses `better-sqlite3` for efficient local storage and manages child processes for MCP servers.
+
+## 9. Future Considerations
+*   **Multi-Agent Swarms:** Expanding the runtime to support multiple specialized agents collaborating.
+*   **Plugin System:** Dynamic loading of channels and tools without rebuilding the core.

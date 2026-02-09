@@ -1,73 +1,56 @@
 # Morpheus Product Documentation
 
-> **"Morpheus is a local-first AI operator that bridges developers and machines."**
+## 1. Product Overview
+Morpheus is a **Local-First AI Operator** designed to be the ultimate companion for software developers. Unlike standard AI chatbots that live in a browser tab and forget you when the session ends, Morpheus runs as a persistent background service on your machine.
 
-Morpheus is a sophisticated, background-running AI agent designed for developers who demand control, privacy, and extensibility. It acts as an intelligent orchestrator, connecting Large Language Models (LLMs) like OpenAI, Anthropic, and Ollama with your local environment, external communication channels, and developer tools.
+It bridges the gap between **Intelligence** (LLMs like GPT-4, Claude), **Communication** (Telegram, Voice), and **Action** (running code, managing files, using tools).
 
-## 🏗 Core Philosophy
+**Core Philosophy:**
+*   **Ownership:** Your data and memories live on your disk.
+*   **Omnipresence:** Available via Terminal, Web UI, or Mobile Chat.
+*   **Agency:** Capable of executing tasks, not just outputting text.
 
-*   **Local-First:** Your data, configuration, and conversation history reside on your machine.
-*   **Developer-Centric:** Managed via CLI, configured via YAML/Typescript, and extended via protocols like MCP.
-*   **Omni-Channel:** Interact with your agent wherever you are—terminal, web dashboard, or mobile chat apps.
+## 2. Target Users
+*   **Software Engineers:** Who want an AI assistant that understands their local environment and projects.
+*   **Privacy Advocates:** Users who prefer running local models (Ollama) or keeping their conversation history entirely self-hosted.
+*   **Power Users:** Individuals managing complex digital workflows who need an automated orchestrator.
 
----
+## 3. Core Features
+*   **Persistent Memory System:**
+    *   **Short-Term:** Remembers the full context of the current session.
+    *   **Long-Term (Sati):** Learns facts about you, your projects, and preferences over time, automatically retrieving them when relevant.
+*   **Multi-Provider LLM Support:** Switch between OpenAI, Anthropic, Google Gemini, or local Ollama models on the fly.
+*   **Channel Integration:**
+    *   **Telegram:** Full interaction via text and **Voice**. Send a voice note, and Morpheus listens, transcribes, and acts.
+    *   **Web Dashboard:** A "Matrix-themed" local control center.
+    *   **CLI:** Pipe terminal output directly to the agent.
+*   **Tooling (MCP):** Native support for the **Model Context Protocol**, allowing Morpheus to connect to databases, git repositories, and file systems safely.
 
-## 🚀 Key Features
+## 4. User Workflows
 
-### 1. The Intelligent Agent Core
-At the heart of Morpheus is a **LangChain-powered orchestrator** that manages context, tools, and execution flow.
-*   **Multi-Provider Support:** Seamlessly switch between OpenAI, Anthropic, or local Ollama models.
-*   **Persistent Memory:** All interactions are stored in a local SQLite database, allowing the agent to remember context across sessions and channels.
-*   **Audio Intelligence:** Native support for transcribing voice messages, enabling true voice-to-text-to-action workflows.
+### The "On-the-Go" Workflow
+1.  User is away from keyboard but has an idea.
+2.  User sends a **Voice Note** to Morpheus on Telegram: *"Remind me to refactor the auth integration when I get back, and add a task to the project plan."*
+3.  Morpheus transcribes the audio.
+4.  Morpheus adds the item to the TODO list (via tool) and acknowledges.
 
-### 2. Multi-Channel Presence
-Morpheus doesn't just live in a browser tab. It connects to the platforms you use daily:
-*   **Telegram & Discord:** Chat with your agent from your phone. Send voice notes, images, or text commands.
-*   **Web Dashboard:** A "Matrix-themed" local web interface (React/Vite) for monitoring agent status, viewing chat history, and managing settings.
-*   **CLI:** Direct terminal and standard input integration for piping system data directly to the agent.
+### The "Deep Work" Workflow
+1.  User is coding and hits an error.
+2.  User pipes the error log to Morpheus via CLI.
+3.  User asks: *"What's wrong here?"* via the Web UI or Terminal.
+4.  Morpheus analyzes the error using context from the project files (via File System MCP) and suggests a fix.
 
-### 3. Extensibility & Tooling
-Morpheus is designed to *do* things, not just talk.
-*   **Model Context Protocol (MCP):** Full support for the MCP standard, allowing Morpheus to connect to databases, file systems, and external APIs using standard server definitions.
-*   **Local Tool Execution:** Securely execute defined local scripts and tools.
+## 5. Use Cases
+*   **Context-Aware Coding Companion:** ask questions about your codebase, dependencies, and architecture.
+*   **Personal Knowledge Base:** Morpheus remembers your server IPs, preferred tech stack, and project history.
+*   **System Automation:** use Morpheus to check server status or run build scripts via secure tool definitions.
+*   **Meeting Assistant:** Record meetings and have Morpheus generate summaries and action items.
 
-### 4. Management & Security
-*   **Background Daemon:** Runs efficiently in the background using a robust lifecycle manager.
-*   **Secure Access:** The Web UI is protected by "The Architect Pass", ensuring only you can control your agent.
-*   **Configuration:** Declarative configuration management via `~/.morpheus/config.yaml` or through the interactive Settings UI.
+## 6. Non-Functional Requirements
+*   **Privacy:** All vector embeddings and chat logs are stored locally in SQLite.
+*   **Security:** API is protected by a strong password/token mechanism. External channels allow only whitelisted user IDs.
+*   **Performance:** The daemon is lightweight (Node.js) and optimized for long-running stability.
+*   **Reliability:** Auto-restarts on failure; maintains a PID file to prevent conflicts.
 
----
-
-## 🛠 Usage Scenarios
-
-| Use Case | Description |
-| :--- | :--- |
-| **Coding Assistant** | Ask questions about your code, generate snippets, or debug issues directly from your terminal or chat app without context switching. |
-| **Voice Memos** | Record a voice note on Telegram while walking; Morpheus transcribes it, summarizes it, and stores it in your notes. |
-| **DevOps Automator** | Hook Morpheus up to local deployment scripts or monitoring logs to get natural language alerts and control. |
-| **Personal Knowledge Base** | Use the persistent memory to build a long-term context of your projects and preferences. |
-
-## 📦 Architecture
-
-Morpheus is built on a modern TypeScript stack:
-*   **Runtime:** Node.js
-*   **UI:** React 19 + Vite + TailwindCSS
-*   **Storage:** SQLite (`better-sqlite3`)
-*   **Orchestration:** LangChain.js
-
-## 🏁 Getting Started
-
-Morpheus is distributed as a global NPM package.
-
-```bash
-# Install globally
-npm install -g morpheus-cli
-
-# Initialize configuration
-morpheus init
-
-# Wake up Morpheus
-morpheus start
-```
-
-Once running, Morpheus becomes your always-on digital operator, ready to execute tasks and answer queries across any connected channel.
+## 7. Product Vision
+Morpheus aims to evolve from a "Chatbot" into a **Digital Twin**. Eventually, it will be able to proactively assist with tasks, monitor your digital environment for anomalies, and act as a seamless extension of your cognitive workflow—always running, always remembering, always helpful.
