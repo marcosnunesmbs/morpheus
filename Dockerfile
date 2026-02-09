@@ -1,8 +1,16 @@
-FROM node:20-alpine
+FROM node:20-slim
 
 # Instalar dependências do sistema necessárias
-RUN apk add --no-cache dumb-init
-
+# Instalar dependências do sistema necessárias incluindo OpenSSL e ca-certificates para requisições HTTPS
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    dumb-init \
+    wget \
+    ca-certificates \
+    openssl \
+    python3 \
+    build-essential \
+    && rm -rf /var/lib/apt/lists/*
+    
 # Criar diretório de trabalho
 WORKDIR /app
 

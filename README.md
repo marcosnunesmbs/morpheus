@@ -52,6 +52,10 @@ morpheus restart
 
 # Diagnose issues
 morpheus doctor
+
+# Manage sessions
+morpheus session new     # Archive current and start new
+morpheus session status  # Check current session info
 ```
 
 ## Troubleshooting
@@ -209,6 +213,8 @@ The Morpheus Telegram bot supports several commands for interacting with the age
 - `/help` - Show available commands
 - `/zaion` - Show system configurations
 - `/sati <qnt>` - Show specific memories
+- `/newsession` - Archive current session and start fresh
+- `/sessions` - List all sessions and switch between them
 - `/restart` - Restart the Morpheus agent
 - `/mcp` or `/mcps` - List registered MCP servers
 
@@ -361,6 +367,33 @@ Get the current status of the Morpheus agent.
       "agentName": "Morpheus",
       "llmProvider": "openai",
       "llmModel": "gpt-4-turbo"
+    }
+    ```
+
+### Session Endpoints
+
+#### POST `/api/session/reset`
+Archive the current session and start a new one.
+
+*   **Authentication:** Requires `Authorization` header with the password set in `THE_ARCHITECT_PASS`.
+*   **Response:**
+    ```json
+    {
+      "success": true,
+      "message": "New session started"
+    }
+    ```
+
+#### POST `/api/session/status`
+Get the status of the current session.
+
+*   **Authentication:** Requires `Authorization` header with the password set in `THE_ARCHITECT_PASS`.
+*   **Response:**
+    ```json
+    {
+      "id": "uuid-...",
+      "messageCount": 42,
+      "embedding_status": "pending"
     }
     ```
 

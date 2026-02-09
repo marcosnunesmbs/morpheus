@@ -45,6 +45,8 @@ The Morpheus Telegram bot supports several commands for interacting with the age
 - `/help` - Show available commands
 - `/zaion` - Show system configurations
 - `/sati <qnt>` - Show specific memories
+- `/newsession` - Archive current session and start fresh
+- `/sessions` - List all sessions and switch between them
 - `/restart` - Restart the Morpheus agent
 - `/mcp` or `/mcps` - List registered MCP servers
 
