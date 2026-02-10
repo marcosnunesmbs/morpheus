@@ -37,8 +37,10 @@ export class SatiService implements ISatiService {
     recentMessages: string[]
   ): Promise<ISatiRetrievalOutput> {
 
-    const santiConfig = ConfigManager.getInstance().getSatiConfig();
-    const memoryLimit = santiConfig.memory_limit || 10;
+    const satiConfig = ConfigManager.getInstance().getSatiConfig();
+    const memoryLimit = satiConfig.memory_limit || 10;
+
+    const enabled_vector_search = satiConfig.enabled_archived_sessions ?? true;
 
     let queryEmbedding: number[] | undefined;
 
@@ -50,9 +52,11 @@ export class SatiService implements ISatiService {
         currentMessage
       ].join(' ');
 
-      queryEmbedding = await embeddingService.generate(
-        queryText
-      );
+      if (enabled_vector_search) {
+        queryEmbedding = await embeddingService.generate(
+          queryText
+        );
+      }
 
     } catch (err) {
       console.warn('[Sati] Failed to generate embedding:', err);
@@ -61,7 +65,7 @@ export class SatiService implements ISatiService {
     const memories = this.repository.search(
       currentMessage,
       memoryLimit,
-      queryEmbedding // 🔥 agora vai usar vector search
+      queryEmbedding
     );
 
     return {
@@ -76,12 +80,12 @@ export class SatiService implements ISatiService {
 
   public async evaluateAndPersist(conversation: { role: string; content: string }[]): Promise<void> {
     try {
-      const santiConfig = ConfigManager.getInstance().getSatiConfig();
-      if (!santiConfig) return;
+      const satiConfig = ConfigManager.getInstance().getSatiConfig();
+      if (!satiConfig) return;
 
       // Use the main provider factory to get an agent (Reusing Zion configuration)
       // We pass empty tools as Sati is a pure reasoning agent here
-      const agent = await ProviderFactory.create(santiConfig, []);
+      const agent = await ProviderFactory.create(satiConfig, []);
 
       // Get existing memories for context (Simulated "Working Memory" or full list if small)
       const allMemories = this.repository.getAllMemories();
@@ -113,8 +117,8 @@ export class SatiService implements ISatiService {
         });
 
         (inputMsg as any).provider_metadata = {
-          provider: santiConfig.provider,
-          model: santiConfig.model
+          provider: satiConfig.provider,
+          model: satiConfig.model
         };
 
         await history.addMessage(inputMsg);
@@ -139,8 +143,8 @@ export class SatiService implements ISatiService {
         }
 
         (outputToolMsg as any).provider_metadata = {
-          provider: santiConfig.provider,
-          model: santiConfig.model
+          provider: satiConfig.provider,
+          model: satiConfig.model
         };
 
         await history.addMessage(outputToolMsg);

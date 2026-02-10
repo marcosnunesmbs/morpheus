@@ -96,9 +96,9 @@ docker-compose up -d
 - `MORPHEUS_TELEGRAM_ALLOWED_USERS`: Comma-separated list of allowed user IDs
 
 ### Sati Memory Configuration
-- `MORPHEUS_SANTI_PROVIDER`: Sati provider (same as LLM by default)
-- `MORPHEUS_SANTI_MODEL`: Sati model name
-- `MORPHEUS_SANTI_MEMORY_LIMIT`: Memory retrieval limit
+- `MORPHEUS_SATI_PROVIDER`: Sati provider (same as LLM by default)
+- `MORPHEUS_SATI_MODEL`: Sati model name
+- `MORPHEUS_SATI_MEMORY_LIMIT`: Memory retrieval limit
 
 ### Audio Configuration
 - `MORPHEUS_AUDIO_ENABLED`: Enable/disable audio transcription

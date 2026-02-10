@@ -31,6 +31,9 @@ export async function migrateConfigFile(): Promise<void> {
 
   // Migrate memory.limit to llm.context_window
   await migrateContextWindow();
+
+  // Migrate santi -> sati
+  await migrateSantiToSati();
 }
 
 /**
@@ -91,3 +94,49 @@ async function migrateContextWindow(): Promise<void> {
     });
   }
 }
+
+/**
+ * Migrates santi config section to sati
+ * Fixes typo in previous versions
+ */
+async function migrateSantiToSati(): Promise<void> {
+  const display = DisplayManager.getInstance();
+  const configPath = PATHS.config;
+
+  try {
+    // Check if config file exists
+    if (!await fs.pathExists(configPath)) {
+      return; 
+    }
+
+    // Read current config
+    const configContent = await fs.readFile(configPath, 'utf8');
+    const config: any = yaml.load(configContent);
+
+    // Check if migration is needed
+    if (config?.santi !== undefined && config?.sati === undefined) {
+      
+      // Create backup before migration
+      const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+      const backupPath = `${configPath}.backup-${timestamp}`;
+      await fs.copy(configPath, backupPath);
+      display.log(`Created config backup: ${backupPath}`, { source: 'Migration', level: 'info' });
+
+      // Perform migration
+      config.sati = config.santi;
+      delete config.santi;
+
+      // Write migrated config
+      const migratedYaml = yaml.dump(config);
+      await fs.writeFile(configPath, migratedYaml, 'utf8');
+
+      display.log('Migrated santi → sati in configuration', { source: 'Migration', level: 'info' });
+    }
+  } catch (error: any) {
+    display.log(`Config migration (santi->sati) failed: ${error.message}`, { 
+      source: 'Migration', 
+      level: 'warning' 
+    });
+  }
+}
+

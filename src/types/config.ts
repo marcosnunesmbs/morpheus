@@ -55,6 +55,7 @@ export interface AudioConfig {
 
 export interface SatiConfig extends LLMConfig {
   memory_limit?: number;
+  enabled_archived_sessions?: boolean;
 }
 
 export interface MemoryConfig {
@@ -67,7 +68,7 @@ export interface MemoryConfig {
 export interface MorpheusConfig {
   agent: AgentConfig;
   llm: LLMConfig;
-  santi?: SatiConfig;
+  sati?: SatiConfig;
   channels: ChannelsConfig;
   ui: UIConfig;
   logging: LogConfig;
@@ -109,4 +110,12 @@ export const DEFAULT_CONFIG: MorpheusConfig = {
     enabled: true,
     port: 3333,
   },
+  sati: {
+    provider: 'openai',
+    model: 'gpt-4',
+    temperature: 0.7,
+    context_window: 100,
+    memory_limit: 100,
+    enabled_archived_sessions: true,
+  }
 };

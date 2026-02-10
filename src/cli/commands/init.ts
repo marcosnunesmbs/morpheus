@@ -124,17 +124,17 @@ export const initCommand = new Command('init')
           default: 'no',
       });
 
-      let santiProvider = provider;
-      let santiModel = model;
-      let santiApiKey = apiKey;
+      let satiProvider = provider;
+      let satiModel = model;
+      let satiApiKey = apiKey;
       
       // If using main settings and no new key provided, use existing if available
-      if (configureSati === 'no' && !santiApiKey && hasExistingKey) {
-          santiApiKey = currentConfig.llm.api_key;
+      if (configureSati === 'no' && !satiApiKey && hasExistingKey) {
+          satiApiKey = currentConfig.llm.api_key;
       }
 
       if (configureSati === 'yes') {
-        santiProvider = await select({
+        satiProvider = await select({
             message: 'Select Sati LLM Provider:',
             choices: [
               { name: 'OpenAI', value: 'openai' },
@@ -143,11 +143,11 @@ export const initCommand = new Command('init')
               { name: 'Ollama', value: 'ollama' },
               { name: 'Google Gemini', value: 'gemini' },
             ],
-            default: currentConfig.santi?.provider || provider,
+            default: currentConfig.sati?.provider || provider,
         });
 
         let defaultSatiModel = 'gpt-3.5-turbo';
-        switch(santiProvider) {
+        switch(satiProvider) {
             case 'openai': defaultSatiModel = 'gpt-4o'; break;
             case 'anthropic': defaultSatiModel = 'claude-3-5-sonnet-20240620'; break;
             case 'openrouter': defaultSatiModel = 'openrouter/auto'; break;
@@ -155,61 +155,61 @@ export const initCommand = new Command('init')
             case 'gemini': defaultSatiModel = 'gemini-pro'; break;
         }
 
-        if (santiProvider === currentConfig.santi?.provider) {
-             defaultSatiModel = currentConfig.santi?.model || defaultSatiModel;
+        if (satiProvider === currentConfig.sati?.provider) {
+             defaultSatiModel = currentConfig.sati?.model || defaultSatiModel;
         }
 
-        santiModel = await input({
+        satiModel = await input({
             message: 'Enter Sati Model Name:',
             default: defaultSatiModel,
         });
 
-        const hasExistingSatiKey = !!currentConfig.santi?.api_key;
-        let santiKeyMsg = hasExistingSatiKey
+        const hasExistingSatiKey = !!currentConfig.sati?.api_key;
+        let satiKeyMsg = hasExistingSatiKey
           ? 'Enter Sati API Key (leave empty to preserve existing, or if using env vars):'
           : 'Enter Sati API Key (leave empty if using env vars):';
 
         // Add info about environment variables to the message
-        if (santiProvider === 'openai') {
-          santiKeyMsg = `${santiKeyMsg} (Env var: OPENAI_API_KEY)`;
-        } else if (santiProvider === 'anthropic') {
-          santiKeyMsg = `${santiKeyMsg} (Env var: ANTHROPIC_API_KEY)`;
-        } else if (santiProvider === 'gemini') {
-          santiKeyMsg = `${santiKeyMsg} (Env var: GOOGLE_API_KEY)`;
-        } else if (santiProvider === 'openrouter') {
-          santiKeyMsg = `${santiKeyMsg} (Env var: OPENROUTER_API_KEY)`;
+        if (satiProvider === 'openai') {
+          satiKeyMsg = `${satiKeyMsg} (Env var: OPENAI_API_KEY)`;
+        } else if (satiProvider === 'anthropic') {
+          satiKeyMsg = `${satiKeyMsg} (Env var: ANTHROPIC_API_KEY)`;
+        } else if (satiProvider === 'gemini') {
+          satiKeyMsg = `${satiKeyMsg} (Env var: GOOGLE_API_KEY)`;
+        } else if (satiProvider === 'openrouter') {
+          satiKeyMsg = `${satiKeyMsg} (Env var: OPENROUTER_API_KEY)`;
         }
 
-        const keyInput = await password({ message: santiKeyMsg });
+        const keyInput = await password({ message: satiKeyMsg });
         if (keyInput) {
-            santiApiKey = keyInput;
+            satiApiKey = keyInput;
         } else if (hasExistingSatiKey) {
-            santiApiKey = currentConfig.santi?.api_key;
+            satiApiKey = currentConfig.sati?.api_key;
         } else {
-             santiApiKey = undefined; // Ensure we don't accidentally carry over invalid state
+             satiApiKey = undefined; // Ensure we don't accidentally carry over invalid state
         }
         
         // Base URL Configuration for Sati OpenRouter
-        if (santiProvider === 'openrouter') {
+        if (satiProvider === 'openrouter') {
             const satiBaseUrl = await input({
                 message: 'Enter Sati OpenRouter Base URL:',
-                default: currentConfig.santi?.base_url || 'https://openrouter.ai/api/v1',
+                default: currentConfig.sati?.base_url || 'https://openrouter.ai/api/v1',
             });
-            await configManager.set('santi.base_url', satiBaseUrl);
+            await configManager.set('sati.base_url', satiBaseUrl);
         }
       }
 
       const memoryLimit = await input({
           message: 'Sati Memory Retrieval Limit (messages):',
-          default: currentConfig.santi?.memory_limit?.toString() || '1000',
+          default: currentConfig.sati?.memory_limit?.toString() || '1000',
           validate: (val) => !isNaN(Number(val)) && Number(val) > 0 || 'Must be a positive number'
       });
 
-      await configManager.set('santi.provider', santiProvider);
-      await configManager.set('santi.model', santiModel);
-      await configManager.set('santi.memory_limit', Number(memoryLimit));
-      if (santiApiKey) {
-        await configManager.set('santi.api_key', santiApiKey);
+      await configManager.set('sati.provider', satiProvider);
+      await configManager.set('sati.model', satiModel);
+      await configManager.set('sati.memory_limit', Number(memoryLimit));
+      if (satiApiKey) {
+        await configManager.set('sati.api_key', satiApiKey);
       }
 
       // Audio Configuration

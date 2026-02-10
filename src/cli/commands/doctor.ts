@@ -53,7 +53,7 @@ export const doctorCommand = new Command('doctor')
 
         // Check API keys availability for active providers
         const llmProvider = config.llm?.provider;
-        const santiProvider = config.santi?.provider;
+        const satiProvider = config.sati?.provider;
         
         // Check LLM provider API key
         if (llmProvider && llmProvider !== 'ollama') {
@@ -71,18 +71,18 @@ export const doctorCommand = new Command('doctor')
           }
         }
 
-        // Check Santi provider API key
-        if (santiProvider && santiProvider !== 'ollama') {
-          const hasSantiApiKey = config.santi?.api_key || 
-                                (santiProvider === 'openai' && process.env.OPENAI_API_KEY) ||
-                                (santiProvider === 'anthropic' && process.env.ANTHROPIC_API_KEY) ||
-                                (santiProvider === 'gemini' && process.env.GOOGLE_API_KEY) ||
-                                (santiProvider === 'openrouter' && process.env.OPENROUTER_API_KEY);
+        // Check Sati provider API key
+        if (satiProvider && satiProvider !== 'ollama') {
+          const hasSantiApiKey = config.sati?.api_key || 
+                                (satiProvider === 'openai' && process.env.OPENAI_API_KEY) ||
+                                (satiProvider === 'anthropic' && process.env.ANTHROPIC_API_KEY) ||
+                                (satiProvider === 'gemini' && process.env.GOOGLE_API_KEY) ||
+                                (satiProvider === 'openrouter' && process.env.OPENROUTER_API_KEY);
           
           if (hasSantiApiKey) {
-            console.log(chalk.green('✓') + ` Santi API key available for ${santiProvider}`);
+            console.log(chalk.green('✓') + ` Sati API key available for ${satiProvider}`);
           } else {
-            console.log(chalk.red('✗') + ` Santi API key missing for ${santiProvider}. Either set in config or define environment variable.`);
+            console.log(chalk.red('✗') + ` Sati API key missing for ${satiProvider}. Either set in config or define environment variable.`);
             allPassed = false;
           }
         }

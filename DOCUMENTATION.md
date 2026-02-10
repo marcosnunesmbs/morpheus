@@ -143,13 +143,14 @@ The system also supports generic environment variables that apply to all provide
 | `MORPHEUS_LLM_MAX_TOKENS` | Maximum tokens for LLM | llm.max_tokens |
 | `MORPHEUS_LLM_CONTEXT_WINDOW` | Context window size for LLM | llm.context_window |
 | `MORPHEUS_LLM_API_KEY` | Generic API key for LLM (lower precedence than provider-specific keys) | llm.api_key |
-| `MORPHEUS_SANTI_PROVIDER` | Sati provider to use | santi.provider |
-| `MORPHEUS_SANTI_MODEL` | Model name for Sati | santi.model |
-| `MORPHEUS_SANTI_TEMPERATURE` | Temperature setting for Sati | santi.temperature |
-| `MORPHEUS_SANTI_MAX_TOKENS` | Maximum tokens for Sati | santi.max_tokens |
-| `MORPHEUS_SANTI_CONTEXT_WINDOW` | Context window size for Sati | santi.context_window |
-| `MORPHEUS_SANTI_API_KEY` | Generic API key for Sati (lower precedence than provider-specific keys) | santi.api_key |
-| `MORPHEUS_SANTI_MEMORY_LIMIT` | Memory retrieval limit for Sati | santi.memory_limit |
+| `MORPHEUS_SATI_PROVIDER` | Sati provider to use | santi.provider |
+| `MORPHEUS_SATI_MODEL` | Model name for Sati | santi.model |
+| `MORPHEUS_SATI_TEMPERATURE` | Temperature setting for Sati | santi.temperature |
+| `MORPHEUS_SATI_MAX_TOKENS` | Maximum tokens for Sati | santi.max_tokens |
+| `MORPHEUS_SATI_CONTEXT_WINDOW` | Context window size for Sati | santi.context_window |
+| `MORPHEUS_SATI_API_KEY` | Generic API key for Sati (lower precedence than provider-specific keys) | santi.api_key |
+| `MORPHEUS_SATI_MEMORY_LIMIT` | Memory retrieval limit for Sati | santi.memory_limit |
+| `MORPHEUS_SATI_ENABLED_ARCHIVED_SESSIONS`| Enable/disable retrieval of archived sessions in Sati | santi.enableArchivedSessions |
 | `MORPHEUS_AUDIO_MODEL` | Model name for audio processing | audio.model |
 | `MORPHEUS_AUDIO_ENABLED` | Enable/disable audio processing | audio.enabled |
 | `MORPHEUS_AUDIO_API_KEY` | Generic API key for audio (lower precedence than provider-specific keys) | audio.apiKey |

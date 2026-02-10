@@ -21,7 +21,7 @@ function App() {
               <Layout>
                 <Routes>
                   <Route path="/" element={<Dashboard />} />
-                  <Route path="/config" element={<Settings />} />
+                  <Route path="/zaion" element={<Settings />} />
                   <Route path="/logs" element={<Logs />} />
                   <Route path="/stats" element={<UsageStats />} />
                   <Route path="/sati-memories" element={<SatiMemories />} />

@@ -1,6 +1,17 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { Terminal, Settings, Activity, LayoutDashboard, Sun, Moon, LogOut, BarChart3, RotateCcw, Puzzle } from 'lucide-react';
+import {
+  Terminal,
+  Settings,
+  Activity,
+  LayoutDashboard,
+  Sun,
+  Moon,
+  LogOut,
+  BarChart3,
+  RotateCcw,
+  Puzzle,
+} from 'lucide-react';
 import { Footer } from './Footer';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '../hooks/useAuth';
@@ -46,7 +57,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
 
   const navItems = [
     { icon: LayoutDashboard, label: 'Dashboard', path: '/' },
-    { icon: Settings, label: 'Configuration', path: '/config' },
+    { icon: Settings, label: 'Zaion', path: '/zaion' },
     { icon: Puzzle, label: 'MCP Servers', path: '/mcp-servers' },
     { icon: BarChart3, label: 'Usage Stats', path: '/stats' },
     { icon: Activity, label: 'Sati Memories', path: '/sati-memories' },
@@ -54,7 +65,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
 
   const mobileNavItems = [
     { icon: LayoutDashboard, label: 'Dashboard', path: '/' },
-    { icon: Settings, label: 'Configuration', path: '/config' },
+    { icon: Settings, label: 'Zaion', path: '/zaion' },
     { icon: Puzzle, label: 'MCP Servers', path: '/mcp-servers' },
     { icon: BarChart3, label: 'Usage Stats', path: '/stats' },
     { icon: Activity, label: 'Sati Memories', path: '/sati-memories' },
@@ -63,13 +74,15 @@ export function Layout({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex flex-col h-screen bg-azure-bg dark:bg-black text-azure-text-primary dark:text-matrix-secondary font-mono overflow-hidden transition-colors duration-300">
       {/* Mobile Header */}
-      <MobileHeader 
-        onMenuClick={() => setIsSidebarOpen(true)} 
-        isDark={isDark} 
-        toggleTheme={() => setIsDark(!isDark)} 
+      <MobileHeader
+        onMenuClick={() => setIsSidebarOpen(true)}
+        isDark={isDark}
+        toggleTheme={() => setIsDark(!isDark)}
       />
 
-      <div className="flex flex-1 overflow-hidden pt-16 lg:pt-0"> {/* Espaço para o header móvel */}
+      <div className="flex flex-1 overflow-hidden pt-16 lg:pt-0">
+        {' '}
+        {/* Espaço para o header móvel */}
         {/* Sidebar */}
         {/* Desktop Sidebar - Always visible on lg and above */}
         <div className="hidden lg:flex w-64 border-r border-azure-border dark:border-matrix-primary bg-azure-surface dark:bg-zinc-950 flex-col shrink-0 transition-colors duration-300">
@@ -82,7 +95,11 @@ export function Layout({ children }: { children: React.ReactNode }) {
               onClick={() => setIsDark(!isDark)}
               className="p-1 rounded hover:bg-azure-hover dark:hover:bg-matrix-primary/50 text-azure-text-muted dark:text-matrix-secondary transition-colors"
             >
-              {isDark ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+              {isDark ? (
+                <Sun className="w-4 h-4" />
+              ) : (
+                <Moon className="w-4 h-4" />
+              )}
             </button>
           </div>
           <nav className="flex-1 p-4 space-y-2">
@@ -139,7 +156,6 @@ export function Layout({ children }: { children: React.ReactNode }) {
             </button>
           </div>
         </div>
-
         {/* Mobile Sidebar - Overlay */}
         <AnimatePresence>
           {isSidebarOpen && (
@@ -151,7 +167,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
               onClick={() => setIsSidebarOpen(false)}
             >
               <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" />
-              
+
               <motion.div
                 className="absolute left-0 top-0 bottom-0 w-64 bg-azure-surface dark:bg-zinc-950 flex flex-col shadow-xl"
                 initial={{ x: '-100%' }}
@@ -170,12 +186,23 @@ export function Layout({ children }: { children: React.ReactNode }) {
                     className="p-2 rounded hover:bg-azure-hover dark:hover:bg-matrix-primary/50 text-azure-text-muted dark:text-matrix-secondary transition-colors"
                     aria-label="Fechar menu"
                   >
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      className="h-6 w-6"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M6 18L18 6M6 6l12 12"
+                      />
                     </svg>
                   </button>
                 </div>
-                
+
                 <nav className="flex-1 p-4 space-y-2 overflow-y-auto">
                   {mobileNavItems.map((item) => {
                     const isActive = location.pathname === item.path;
@@ -237,12 +264,9 @@ export function Layout({ children }: { children: React.ReactNode }) {
             </motion.div>
           )}
         </AnimatePresence>
-
         {/* Main Content */}
         <main className="flex-1 overflow-auto p-4 md:p-8 relative flex flex-col">
-          <div className="max-w-6xl w-full mx-auto flex-1">
-            {children}
-          </div>
+          <div className="max-w-6xl w-full mx-auto flex-1">{children}</div>
 
           {/* Scanline effect overlay (only in dark mode) */}
           <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(rgba(18,16,16,0)_50%,rgba(0,0,0,0.1)_50%),linear-gradient(90deg,rgba(0,255,0,0.03),rgba(0,255,0,0.01))] bg-[length:100%_2px,3px_100%] opacity-0 dark:opacity-20 transition-opacity duration-300" />

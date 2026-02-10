@@ -72,18 +72,19 @@ export class ConfigManager {
     };
 
     // Apply precedence to Sati config
-    let santiConfig: SatiConfig | undefined;
-    if (config.santi) {
-      const santiProvider = resolveProvider('MORPHEUS_SANTI_PROVIDER', config.santi.provider, llmConfig.provider);
-      santiConfig = {
-        provider: santiProvider,
-        model: resolveModel(santiProvider, 'MORPHEUS_SANTI_MODEL', config.santi.model || llmConfig.model),
-        temperature: resolveNumeric('MORPHEUS_SANTI_TEMPERATURE', config.santi.temperature, llmConfig.temperature),
-        max_tokens: config.santi.max_tokens !== undefined ? resolveNumeric('MORPHEUS_SANTI_MAX_TOKENS', config.santi.max_tokens, config.santi.max_tokens!) : llmConfig.max_tokens,
-        api_key: resolveApiKey(santiProvider, 'MORPHEUS_SANTI_API_KEY', config.santi.api_key || llmConfig.api_key),
-        base_url: config.santi.base_url || config.llm.base_url,
-        context_window: config.santi.context_window !== undefined ? resolveNumeric('MORPHEUS_SANTI_CONTEXT_WINDOW', config.santi.context_window, config.santi.context_window!) : llmConfig.context_window,
-        memory_limit: config.santi.memory_limit !== undefined ? resolveNumeric('MORPHEUS_SANTI_MEMORY_LIMIT', config.santi.memory_limit, config.santi.memory_limit!) : undefined
+    let satiConfig: SatiConfig | undefined;
+    if (config.sati) {
+      const satiProvider = resolveProvider('MORPHEUS_SATI_PROVIDER', config.sati.provider, llmConfig.provider);
+      satiConfig = {
+        provider: satiProvider,
+        model: resolveModel(satiProvider, 'MORPHEUS_SATI_MODEL', config.sati.model || llmConfig.model),
+        temperature: resolveNumeric('MORPHEUS_SATI_TEMPERATURE', config.sati.temperature, llmConfig.temperature),
+        max_tokens: config.sati.max_tokens !== undefined ? resolveNumeric('MORPHEUS_SATI_MAX_TOKENS', config.sati.max_tokens, config.sati.max_tokens!) : llmConfig.max_tokens,
+        api_key: resolveApiKey(satiProvider, 'MORPHEUS_SATI_API_KEY', config.sati.api_key || llmConfig.api_key),
+        base_url: config.sati.base_url || config.llm.base_url,
+        context_window: config.sati.context_window !== undefined ? resolveNumeric('MORPHEUS_SATI_CONTEXT_WINDOW', config.sati.context_window, config.sati.context_window!) : llmConfig.context_window,
+        memory_limit: config.sati.memory_limit !== undefined ? resolveNumeric('MORPHEUS_SATI_MEMORY_LIMIT', config.sati.memory_limit, config.sati.memory_limit!) : undefined,
+        enabled_archived_sessions: resolveBoolean('MORPHEUS_SATI_ENABLED_ARCHIVED_SESSIONS', config.sati.enabled_archived_sessions, true)
       };
     }
 
@@ -131,7 +132,7 @@ export class ConfigManager {
     return {
       agent: agentConfig,
       llm: llmConfig,
-      santi: santiConfig,
+      sati: satiConfig,
       audio: audioConfig,
       channels: channelsConfig,
       ui: uiConfig,
@@ -167,10 +168,10 @@ export class ConfigManager {
   }
 
   public getSatiConfig(): SatiConfig {
-    if (this.config.santi) {
+    if (this.config.sati) {
       return {
         memory_limit: 10, // Default if undefined
-        ...this.config.santi
+        ...this.config.sati
       };
     }
     

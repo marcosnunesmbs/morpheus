@@ -37,8 +37,8 @@ export function Config() {
     >
        <div className="flex justify-between items-center">
          <div>
-            <h2 className="text-2xl font-bold text-azure-primary dark:text-matrix-highlight">CONFIGURATION</h2>
-            <p className="text-azure-text-secondary dark:text-matrix-secondary opacity-80">Edit agent settings (JSON).</p>
+            <h2 className="text-2xl font-bold text-azure-primary dark:text-matrix-highlight">Zaion</h2>
+            <p className="text-azure-text-secondary dark:text-matrix-secondary opacity-80">Edit zaion settings (JSON).</p>
          </div>
          <button 
            onClick={handleSave}

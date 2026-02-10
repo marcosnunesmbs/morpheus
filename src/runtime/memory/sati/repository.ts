@@ -388,9 +388,9 @@ export class SatiRepository {
       );
 
       // 1️⃣ Vetorial
-      if (embedding) {
+      if (embedding && embedding.length > 0) {
         this.display.log(
-          '🧠 Tentando busca vetorial...',
+          '🧠  Tentando busca vetorial...',
           { source: 'Sati', level: 'debug' }
         );
 
@@ -398,7 +398,7 @@ export class SatiRepository {
 
         if (vectorResults.length > 0) {
           this.display.log(
-            `✅ Vetorial retornou ${vectorResults.length} resultado(s)`,
+            `✅  Vetorial retornou ${vectorResults.length} resultado(s)`,
             { source: 'Sati', level: 'success' }
           );
 
@@ -406,8 +406,13 @@ export class SatiRepository {
         }
 
         this.display.log(
-          '⚠️ Vetorial não encontrou resultados relevantes',
+          '⚠️  Vetorial não encontrou resultados relevantes',
           { source: 'Sati', level: 'debug' }
+        );
+      } else {
+        this.display.log(
+          '🛡️  Disabled Archived Sessions in Memory Retrieval',
+          { source: 'Sati', level: 'info' }
         );
       }
 
@@ -421,7 +426,7 @@ export class SatiRepository {
 
       if (safeQuery) {
         this.display.log(
-          '📚 Tentando busca BM25 (FTS5)...',
+          '📚  Tentando busca BM25 (FTS5)...',
           { source: 'Sati', level: 'debug' }
         );
 
@@ -439,21 +444,21 @@ export class SatiRepository {
 
         if (rows.length > 0) {
           this.display.log(
-            `✅ BM25 retornou ${rows.length} resultado(s)`,
+            `✅  BM25 retornou ${rows.length} resultado(s)`,
             { source: 'Sati', level: 'success' }
           );
           return rows.map(this.mapRowToRecord);
         }
 
         this.display.log(
-          '⚠️ BM25 não encontrou resultados',
+          '⚠️  BM25 não encontrou resultados',
           { source: 'Sati', level: 'debug' }
         );
       }
 
       // 3️⃣ LIKE fallback
       this.display.log(
-        '🧵 Tentando fallback LIKE...',
+        '🧵  Tentando fallback LIKE...',
         { source: 'Sati', level: 'debug' }
       );
 
@@ -470,7 +475,7 @@ export class SatiRepository {
 
       if (likeRows.length > 0) {
         this.display.log(
-          `✅ LIKE retornou ${likeRows.length} resultado(s)`,
+          `✅  LIKE retornou ${likeRows.length} resultado(s)`,
           { source: 'Sati', level: 'success' }
         );
         return likeRows.map(this.mapRowToRecord);
@@ -478,7 +483,7 @@ export class SatiRepository {
 
       // 4️⃣ Final fallback
       this.display.log(
-        '🛟 Nenhum mecanismo encontrou resultados. Usando fallback estratégico.',
+        '🛟  Nenhum mecanismo encontrou resultados. Usando fallback estratégico.',
         { source: 'Sati', level: 'warning' }
       );
 
@@ -486,7 +491,7 @@ export class SatiRepository {
 
     } catch (e) {
       this.display.log(
-        `❌ Erro durante busca: ${e}`,
+        `❌  Erro durante busca: ${e}`,
         { source: 'Sati', level: 'error' }
       );
 

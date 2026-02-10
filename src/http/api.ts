@@ -197,7 +197,7 @@ export function createApiRouter() {
   router.post('/config/sati', async (req, res) => {
     try {
       const config = configManager.get();
-      await configManager.save({ ...config, santi: req.body });
+      await configManager.save({ ...config, sati: req.body });
 
       const display = DisplayManager.getInstance();
       display.log('Sati configuration updated via UI', {
@@ -218,7 +218,7 @@ export function createApiRouter() {
   router.delete('/config/sati', async (req, res) => {
     try {
       const config = configManager.get();
-      const { santi, ...restConfig } = config;
+      const { sati: sati, ...restConfig } = config;
       await configManager.save(restConfig);
 
       const display = DisplayManager.getInstance();
