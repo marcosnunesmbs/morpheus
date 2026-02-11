@@ -27,8 +27,10 @@ The project solves the problem of fragmentation and lack of agency in current AI
     *   Middleware that intercepts conversations to extract and store important facts in `santi-memory.db`.
     *   Independent configuration (allows using a smarter/cheaper model just for memory management).
 *   **MCP Protocol**: Dynamic tool loading via the `~/.morpheus/mcps.json` file.
-*   **Matrix Web Interface**: Local dashboard for monitoring, configuration, and chat, password-protected (`THE_ARCHITECT_PASS`).
-*   **Telegram/Discord Chatbot**: Mobile interface with voice transcription support via Google GenAI.
+*   **Matrix Web Interface**: Local dashboard for monitoring, configuration, and **interactive chat**, password-protected (`THE_ARCHITECT_PASS`).
+    *   **Web Chat**: Full-featured chat interface accessible from the browser with session management (create, archive, delete, rename).
+    *   **Cross-Channel Sessions**: View and interact with sessions started on any channel (Telegram, Web, etc.).
+*   **Telegram/Discord Chatbot**: Mobile interface with voice transcription support via Google GenAI and session management commands.
 *   **Hot-Reload Configuration**: APIs for dynamic agent parameter adjustment without restarting the process.
 *   **Usage Analytics**: Granular monitoring of token consumption by provider and model.
 
@@ -46,7 +48,7 @@ The Morpheus Telegram bot supports several commands for interacting with the age
 - `/zaion` - Show system configurations
 - `/sati <qnt>` - Show specific memories
 - `/newsession` - Archive current session and start fresh
-- `/sessions` - List all sessions and switch between them
+- `/sessions` - List all sessions with options to switch, archive, or delete
 - `/restart` - Restart the Morpheus agent
 - `/mcp` or `/mcps` - List registered MCP servers
 
@@ -722,6 +724,121 @@ Restart the Morpheus agent.
     {
       "success": true,
       "message": "Restart initiated. Process will shut down and restart shortly."
+    }
+    ```
+
+### Session Management Endpoints
+
+#### GET `/api/sessions`
+List all active and paused sessions.
+
+*   **Authentication:** Requires `Authorization` header with the password set in `THE_ARCHITECT_PASS`.
+*   **Response:**
+    ```json
+    [
+      {
+        "id": "session-uuid",
+        "title": "Session Title",
+        "status": "active",
+        "started_at": 1707168000000
+      }
+    ]
+    ```
+
+#### POST `/api/sessions`
+Create a new session.
+
+*   **Authentication:** Requires `Authorization` header with the password set in `THE_ARCHITECT_PASS`.
+*   **Response:**
+    ```json
+    {
+      "success": true,
+      "id": "new-session-uuid",
+      "message": "New session started"
+    }
+    ```
+
+#### DELETE `/api/sessions/:id`
+Delete a specific session.
+
+*   **Authentication:** Requires `Authorization` header with the password set in `THE_ARCHITECT_PASS`.
+*   **Parameters:** `id` - Session ID to delete.
+*   **Response:**
+    ```json
+    {
+      "success": true,
+      "message": "Session deleted"
+    }
+    ```
+
+#### POST `/api/sessions/:id/archive`
+Archive a specific session.
+
+*   **Authentication:** Requires `Authorization` header with the password set in `THE_ARCHITECT_PASS`.
+*   **Parameters:** `id` - Session ID to archive.
+*   **Response:**
+    ```json
+    {
+      "success": true,
+      "message": "Session archived"
+    }
+    ```
+
+#### PATCH `/api/sessions/:id/title`
+Rename a specific session.
+
+*   **Authentication:** Requires `Authorization` header with the password set in `THE_ARCHITECT_PASS`.
+*   **Parameters:** `id` - Session ID to rename.
+*   **Body:**
+    ```json
+    {
+      "title": "New Session Title"
+    }
+    ```
+*   **Response:**
+    ```json
+    {
+      "success": true,
+      "message": "Session renamed"
+    }
+    ```
+
+#### GET `/api/sessions/:id/messages`
+Get all messages from a specific session.
+
+*   **Authentication:** Requires `Authorization` header with the password set in `THE_ARCHITECT_PASS`.
+*   **Parameters:** `id` - Session ID.
+*   **Response:**
+    ```json
+    [
+      {
+        "type": "human",
+        "content": "Hello"
+      },
+      {
+        "type": "ai",
+        "content": "Hi! How can I help you?"
+      }
+    ]
+    ```
+
+### Chat Endpoints
+
+#### POST `/api/chat`
+Send a message to the agent and get a response.
+
+*   **Authentication:** Requires `Authorization` header with the password set in `THE_ARCHITECT_PASS`.
+*   **Body:**
+    ```json
+    {
+      "sessionId": "session-uuid",
+      "message": "What is the weather today?"
+    }
+    ```
+*   **Response:**
+    ```json
+    {
+      "response": "I don't have access to real-time weather data..."
     }
     ```
 

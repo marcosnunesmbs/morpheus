@@ -97,6 +97,14 @@ Morpheus is built with **Node.js** and **TypeScript**, using **LangChain** as th
 ### 🖥️ Web Dashboard
 Local React-based UI to manage recordings, chat history, and system status across your agent instances.
 
+**New: Interactive Web Chat**
+- Full-featured chat interface accessible from the browser
+- Session management: create, archive, delete, and rename sessions
+- Cross-channel visibility: view and interact with sessions started on any channel (Telegram, Web, etc.)
+- Real-time messaging with the Oracle agent
+- Responsive design with collapsible sidebar
+- Full support for Light and Dark (Matrix) themes
+
 #### 🔒 UI Authentication
 To protect your Web UI, use the `THE_ARCHITECT_PASS` environment variable. This ensures only authorized users can access the dashboard and API.
 
@@ -216,7 +224,7 @@ The Morpheus Telegram bot supports several commands for interacting with the age
 - `/zaion` - Show system configurations
 - `/sati <qnt>` - Show specific memories
 - `/newsession` - Archive current session and start fresh
-- `/sessions` - List all sessions and switch between them
+- `/sessions` - List all sessions with options to switch, archive, or delete
 - `/restart` - Restart the Morpheus agent
 - `/mcp` or `/mcps` - List registered MCP servers
 
