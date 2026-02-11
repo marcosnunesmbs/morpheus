@@ -30,6 +30,12 @@ export interface IOracle {
    * Reset the current session.
    */
   clearMemory(): Promise<void>;
+
+  /**
+   * Sets the active session ID for the oracle.
+   * @param sessionId - The session ID to switch to.
+   */
+  setSessionId(sessionId: string): Promise<void>;
 }
 
 export interface Session {

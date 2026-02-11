@@ -201,7 +201,7 @@ export const SatiMemories: React.FC = () => {
         <CardHeader className="border-b border-azure-border dark:border-matrix-primary">
           <div className="flex flex-col lg:flex-row gap-4">
             <div className="flex flex-col relative w-full">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-azure-text-secondary dark:text-matrix-tertiary w-4 h-4" />
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-azure-text-secondary dark:text-matrix-secondary w-4 h-4" />
               <input
                 type="text"
                 placeholder="Search memories..."
@@ -266,7 +266,7 @@ export const SatiMemories: React.FC = () => {
                 <TableRow>
                   <TableCell
                     colSpan={6}
-                    className="text-center py-8 text-azure-text-secondary dark:text-matrix-tertiary"
+                    className="text-center py-8 text-azure-text-secondary dark:text-matrix-secondary"
                   >
                     {loading ? 'Loading memories...' : 'No memories found'}
                   </TableCell>
@@ -302,7 +302,7 @@ export const SatiMemories: React.FC = () => {
                       </Badge>
                     </TableCell>
                     <TableCell>
-                      <div className="flex items-center gap-1 text-azure-text-secondary dark:text-matrix-tertiary">
+                      <div className="flex items-center gap-1 text-azure-text-secondary dark:text-matrix-secondary">
                         <Calendar className="w-4 h-4" />
                         {new Date(memory.created_at).toLocaleDateString()}
                       </div>

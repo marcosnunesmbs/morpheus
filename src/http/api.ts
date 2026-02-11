@@ -24,15 +24,162 @@ async function readLastLines(filePath: string, n: number): Promise<string[]> {
   }
 }
 
-export function createApiRouter() {
+export function createApiRouter(oracle: IOracle) {
   const router = Router();
   const configManager = ConfigManager.getInstance();
   const history = new SQLiteChatMessageHistory({ sessionId: 'api-reader' });
 
+  // --- Session Management ---
+
+  router.get('/sessions', async (req, res) => {
+    try {
+      const allSessions = await history.listSessions();
+      res.json(allSessions);
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  router.post('/sessions', async (req, res) => {
+    try {
+      await history.createNewSession();
+      const newSessionId = await history.getCurrentSessionOrCreate(); // Should be the new one
+      res.json({ success: true, id: newSessionId, message: 'New session started' });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  router.delete('/sessions/:id', async (req, res) => {
+    try {
+      const { id } = req.params;
+      await history.deleteSession(id);
+      res.json({ success: true, message: 'Session deleted' });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  router.post('/sessions/:id/archive', async (req, res) => {
+    try {
+      const { id } = req.params;
+      await history.archiveSession(id);
+      res.json({ success: true, message: 'Session archived' });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  router.patch('/sessions/:id/title', async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { title } = req.body;
+      if (!title) {
+        return res.status(400).json({ error: 'Title is required' });
+      }
+      await history.renameSession(id, title);
+      res.json({ success: true, message: 'Session renamed' });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  router.get('/sessions/:id/messages', async (req, res) => {
+    try {
+      const { id } = req.params;
+      const sessionHistory = new SQLiteChatMessageHistory({ sessionId: id, limit: 100 });
+      const messages = await sessionHistory.getMessages();
+
+      // Normalize messages for UI
+      const key = (msg: any) => msg._getType(); // Access internal type if available, or infer
+
+      const normalizedMessages = messages.map((msg: any) => {
+        const type = msg._getType ? msg._getType() : 'unknown';
+        return {
+          type,
+          content: msg.content,
+          tool_calls: (msg as any).tool_calls,
+          usage_metadata: (msg as any).usage_metadata
+        };
+      });
+
+      // Reverse to chronological order for UI
+      res.json(normalizedMessages.reverse());
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // --- Chat Interaction ---
+
+  router.post('/chat', async (req, res) => {
+    try {
+      const { message, sessionId } = req.body;
+
+      if (!message || !sessionId) {
+        return res.status(400).json({ error: 'Message and Session ID are required' });
+      }
+
+      // We need to ensure the Oracle uses the correct session history.
+      // The Oracle class uses its own internal history instance.
+      // We might need to refactor Oracle to accept a session ID per request or 
+      // instantiate a temporary Oracle wrapper/context?
+      //
+      // ACTUALLY: The Oracle class uses `this.history`. 
+      // `SQLiteChatMessageHistory` takes `sessionId` in constructor.
+      // To support multi-session chat via API, we should probably allow passing sessionId to `chat()` 
+      // OR (cleaner for now) we can rely on the fact that `Oracle` might not support swapping sessions easily without
+      // re-initialization or we extend `oracle.chat` to support overriding session.
+      //
+      // Let's look at `Oracle.chat`: it uses `this.history`.
+      // And `SQLiteChatMessageHistory` is tied to a sessionId.
+      //
+      // Quick fix for this feature:
+      // We can use a trick: `Oracle` allows `overrides` in constructor but that's for db path.
+      // `Oracle` initializes `this.history` in `initialize`.
+
+      // Better approach:
+      // We can temporarily switch the session of the Oracle's history if it exposes it,
+      // OR we just instantiate a fresh history for the chat request and use the provider?
+      // No, `oracle.chat` encapsulates the provider invocation.
+
+      // Let's check `Oracle` class again. (I viewed it earlier).
+      // It has `private history`.
+
+      // SOLUTION:
+      // I will add a `setSessionId(id: string)` method to `Oracle` interface and class.
+      // OR pass `sessionId` to `chat`.
+
+      // For now, I will assume I can update `Oracle` to support dynamic sessions.
+      // I'll modify `Oracle.chat` signature in a separate step if needed. 
+      // Wait, `Oracle` is a singleton-ish in `start.ts`.
+
+      // Let's modify `Oracle` to accept `sessionId` in `chat`?
+      // `chat(message: string, extraUsage?: UsageMetadata, isTelephonist?: boolean)`
+      //
+      // Adding `sessionId` to `chat` seems invasive if not threaded fast.
+      //
+      // Alternative:
+      // `router.post('/chat')` instantiates a *new* Oracle? No, expensive (provider factory).
+      //
+      // Ideally `Oracle` should be stateless regarding session, or easily switchable.
+      // `SQLiteChatMessageHistory` is cheap to instantiate.
+      //
+      // Let's update `Oracle` to allow switching session.
+      // `oracle.switchSession(sessionId)`
+
+      await (oracle as any).setSessionId(sessionId); // Type cast for now, will implement next
+      const response = await oracle.chat(message);
+
+      res.json({ response });
+
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // Legacy /session/reset (keep for backward compat or redirect to POST /sessions)
   router.post('/session/reset', async (req, res) => {
-    // if (!oracle) {
-    //   return res.status(503).json({ error: 'Oracle unavailable' });
-    // }
     try {
       await history.createNewSession();
       res.json({ success: true, message: 'New session started' });

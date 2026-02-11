@@ -8,7 +8,7 @@ interface MobileHeaderProps {
 
 export function MobileHeader({ onMenuClick, isDark, toggleTheme }: MobileHeaderProps) {
   return (
-    <header className="lg:hidden fixed top-0 left-0 right-0 z-50 bg-azure-surface dark:bg-zinc-950 border-b border-azure-border dark:border-matrix-primary p-4 flex items-center justify-between">
+    <header className="lg:hidden fixed top-0 left-0 right-0 z-50 bg-azure-surface dark:bg-black border-b border-azure-border dark:border-matrix-primary/30 p-4 flex items-center justify-between">
       <h1 className="text-lg font-bold text-azure-primary dark:text-matrix-highlight flex items-center gap-2">
         <Activity className="w-6 h-6" />
         MORPHEUS

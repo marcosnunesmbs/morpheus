@@ -48,9 +48,9 @@ export class Oracle implements IOracle {
 
       // Initialize persistent memory with SQLite
       const contextWindow = this.config.llm?.context_window ?? this.config.memory?.limit ?? 100;
-      
+
       this.display.log(`Using context window: ${contextWindow} messages`, { source: 'Oracle' });
-      
+
       this.history = new SQLiteChatMessageHistory({
         sessionId: '', // Let the history manage session IDs internally
         databasePath: this.databasePath,
@@ -81,11 +81,11 @@ export class Oracle implements IOracle {
       this.display.log('Processing message...', { source: 'Oracle' });
 
       const userMessage = new HumanMessage(message);
-      
+
       // Inject provider/model metadata for persistence
       (userMessage as any).provider_metadata = {
         provider: isTelephonist ? this.config.audio?.provider : this.config.llm.provider,
-        model: isTelephonist ? this.config.audio?.model :this.config.llm.model
+        model: isTelephonist ? this.config.audio?.model : this.config.llm.model
       };
 
       // Attach extra usage (e.g. from Audio) to the user message to be persisted
@@ -94,8 +94,8 @@ export class Oracle implements IOracle {
       }
 
       const systemMessage = new SystemMessage(
-          
-`
+
+        `
 You are  ${this.config.agent.name}, ${this.config.agent.personality}, the Oracle.
 
 Your role is to orchestrate tools, MCPs, and language models to accurately fulfill the Architect’s request.
@@ -222,11 +222,11 @@ You maintain intent until resolution.
       try {
         memoryMessage = await this.satiMiddleware.beforeAgent(message, previousMessages);
         if (memoryMessage) {
-            this.display.log('Sati memory retrieved.', { source: 'Sati' });
+          this.display.log('Sati memory retrieved.', { source: 'Sati' });
         }
       } catch (e: any) {
-         // Fail open - do not disrupt main flow
-         this.display.log(`Sati memory retrieval failed: ${e.message}`, { source: 'Sati' });
+        // Fail open - do not disrupt main flow
+        this.display.log(`Sati memory retrieval failed: ${e.message}`, { source: 'Sati' });
       }
 
       const messages: BaseMessage[] = [
@@ -234,7 +234,7 @@ You maintain intent until resolution.
       ];
 
       if (memoryMessage) {
-          messages.push(memoryMessage);
+        messages.push(memoryMessage);
       }
 
       messages.push(...previousMessages);
@@ -264,7 +264,7 @@ You maintain intent until resolution.
       }
 
       this.display.log('Response generated.', { source: 'Oracle' });
-      
+
       const lastMessage = response.messages[response.messages.length - 1];
       const responseContent = (typeof lastMessage.content === 'string') ? lastMessage.content : JSON.stringify(lastMessage.content);
 
@@ -295,6 +295,68 @@ You maintain intent until resolution.
       this.display.log('Session rolled over successfully.', { source: 'Oracle' });
     } else {
       throw new Error("Current history provider does not support session rollover.");
+    }
+  }
+
+  async setSessionId(sessionId: string): Promise<void> {
+    if (!this.history) {
+      throw new Error("Message history not initialized. Call initialize() first.");
+    }
+
+    // Check if the history provider supports switching sessions
+    // SQLiteChatMessageHistory does support it via constructor (new instance) or maybe we can add a method there too?
+    // Actually SQLiteChatMessageHistory has `switchSession(targetSessionId)` but that one logic is "pause current, activate target".
+    // For API usage, we might just want to *target* a session without necessarily changing the global "active" state regarding the Daemon?
+    //
+    // However, the user request implies this is "the" chat.
+    // If we use `switchSession` it pauses others. That seems correct for a single-user agent model.
+    //
+    // But `SQLiteChatMessageHistory` properties are `sessionId`.
+    // It seems `switchSession` in `sqlite.ts` updates the DB state.
+    // We also need to update the `sessionId` property of the `SQLiteChatMessageHistory` instance held by Oracle.
+    //
+    // Let's check `SQLiteChatMessageHistory` again.
+    // It has `sessionId` property.
+    // It does NOT have a method to just update `sessionId` property without DB side effects?
+    //
+    // Use `switchSession` from `sqlite.ts` is good for "Active/Paused" state management.
+    // But we also need the `history` instance to know it is now pointing to `sessionId`.
+
+    if (this.history instanceof SQLiteChatMessageHistory) {
+      // Logic:
+      // 1. If currently active session is different, switch.
+      // 2. Update internal sessionId.
+
+      // Actually `switchSession` in `sqlite.ts` takes `targetSessionId`.
+      // It updates the DB status.
+      // It DOES NOT seem to update `this.sessionId` of the instance? 
+      // Wait, let me check `sqlite.ts` content from memory or view it again alongside.
+      //
+      // In `sqlite.ts`:
+      // public async switchSession(targetSessionId: string): Promise<void> { ... }
+      // It updates DB.
+      // It DOES NOT update `this.sessionId`.
+      //
+      // So we need to ensure `this.history` points to the new session.
+      // Since `SQLiteChatMessageHistory` might not allow changing `sessionId` publicly if it's protected/private...
+      // It is `private sessionId: string;`.
+      //
+      // So simple fix: Re-instantiate `this.history`?
+      // `this.history = new SQLiteChatMessageHistory({ sessionId: sessionId, ... })`
+      //
+      // This is safe and clean.
+
+      await (this.history as SQLiteChatMessageHistory).switchSession(sessionId);
+
+      // Re-instantiate to point to new session
+      this.history = new SQLiteChatMessageHistory({
+        sessionId: sessionId,
+        databasePath: this.databasePath,
+        limit: this.config.llm?.context_window ?? 100
+      });
+
+    } else {
+      throw new Error("Current history provider does not support session switching.");
     }
   }
 

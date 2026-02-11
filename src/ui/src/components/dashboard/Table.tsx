@@ -23,7 +23,7 @@ export const TableBody: React.FC<TableBodyProps> = ({ ...props }) => (
 interface TableRowProps extends React.HTMLAttributes<HTMLElement> {}
 export const TableRow: React.FC<TableRowProps> = ({ ...props }) => (
   <tr
-    className="border-b border-azure-border dark:border-matrix-primary transition-colors hover:bg-azure-hover/50 dark:hover:bg-matrix-primary/10"
+    className="border-b border-azure-border dark:border-matrix-primary/30 transition-colors hover:bg-azure-hover/50 dark:hover:bg-matrix-primary/10"
     {...props}
   />
 );
@@ -31,7 +31,7 @@ export const TableRow: React.FC<TableRowProps> = ({ ...props }) => (
 interface TableHeadProps extends React.ThHTMLAttributes<HTMLElement> {}
 export const TableHead: React.FC<TableHeadProps> = ({ className, ...props }) => (
   <th
-    className={`h-12 px-4 text-left align-middle font-medium text-azure-text-secondary dark:text-matrix-tertiary [&:has([role=checkbox])]:pr-0 ${className}`}
+    className={`h-12 px-4 text-left align-middle font-medium text-azure-text-secondary dark:text-matrix-secondary/70 [&:has([role=checkbox])]:pr-0 ${className}`}
     {...props}
   />
 );

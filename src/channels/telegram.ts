@@ -209,7 +209,7 @@ export class TelegramAdapter {
 
         try {
           // Obter a sessão atual antes de alternar
-          const history = new SQLiteChatMessageHistory({sessionId: ""});
+          const history = new SQLiteChatMessageHistory({ sessionId: "" });
           // Alternar para a nova sessão
           await history.switchSession(sessionId);
           await ctx.answerCbQuery();
@@ -221,8 +221,92 @@ export class TelegramAdapter {
 
           ctx.reply(`✅ Switched to session ID: ${sessionId}`);
         } catch (error: any) {
-          await ctx.answerCbQuery(`Error switching session: ${error.message}`);
+          await ctx.answerCbQuery(`Error switching session: ${error.message}`, { show_alert: true });
         }
+      });
+
+      // --- Archive Flow ---
+      this.bot.action(/^ask_archive_session_/, async (ctx) => {
+        const data = (ctx.callbackQuery as any).data;
+        const sessionId = data.replace('ask_archive_session_', '');
+        // Fetch session title for better UX (optional, but nice) - for now just use ID
+
+        await ctx.reply(`⚠️ **ARCHIVE SESSION?**\n\nAre you sure you want to archive session \`${sessionId}\`?\n\nIt will be moved to long-term memory (SATI) and removed from the active list. This action cannot be easily undone via Telegram.`, {
+          parse_mode: 'Markdown',
+          reply_markup: {
+            inline_keyboard: [
+              [
+                { text: '✅ Yes, Archive', callback_data: `confirm_archive_session_${sessionId}` },
+                { text: '❌ Cancel', callback_data: 'cancel_session_action' }
+              ]
+            ]
+          }
+        });
+        await ctx.answerCbQuery();
+      });
+
+      this.bot.action(/^confirm_archive_session_/, async (ctx) => {
+        const data = (ctx.callbackQuery as any).data;
+        const sessionId = data.replace('confirm_archive_session_', '');
+
+        try {
+          const history = new SQLiteChatMessageHistory({ sessionId: "" });
+          await history.archiveSession(sessionId);
+          await ctx.answerCbQuery('Session archived successfully');
+
+          if (ctx.updateType === 'callback_query') {
+            ctx.deleteMessage().catch(() => { });
+          }
+          await ctx.reply(`✅ Session \`${sessionId}\` has been archived and moved to long-term memory.`, { parse_mode: 'Markdown' });
+        } catch (error: any) {
+          await ctx.answerCbQuery(`Error archiving: ${error.message}`, { show_alert: true });
+        }
+      });
+
+      // --- Delete Flow ---
+      this.bot.action(/^ask_delete_session_/, async (ctx) => {
+        const data = (ctx.callbackQuery as any).data;
+        const sessionId = data.replace('ask_delete_session_', '');
+
+        await ctx.reply(`🚫 **DELETE SESSION?**\n\nAre you sure you want to PERMANENTLY DELETE session \`${sessionId}\`?\n\nThis action is **IRREVERSIBLE**. All data will be lost.`, {
+          parse_mode: 'Markdown',
+          reply_markup: {
+            inline_keyboard: [
+              [
+                { text: '🗑️ Yes, DELETE PERMANENTLY', callback_data: `confirm_delete_session_${sessionId}` },
+                { text: '❌ Cancel', callback_data: 'cancel_session_action' }
+              ]
+            ]
+          }
+        });
+        await ctx.answerCbQuery();
+      });
+
+      this.bot.action(/^confirm_delete_session_/, async (ctx) => {
+        const data = (ctx.callbackQuery as any).data;
+        const sessionId = data.replace('confirm_delete_session_', '');
+
+        try {
+          const history = new SQLiteChatMessageHistory({ sessionId: "" });
+          await history.deleteSession(sessionId);
+          await ctx.answerCbQuery('Session deleted successfully');
+
+          if (ctx.updateType === 'callback_query') {
+            ctx.deleteMessage().catch(() => { });
+          }
+          await ctx.reply(`🗑️ Session \`${sessionId}\` has been permanently deleted.`, { parse_mode: 'Markdown' });
+        } catch (error: any) {
+          await ctx.answerCbQuery(`Error deleting: ${error.message}`, { show_alert: true });
+        }
+      });
+
+      // --- Cancel Action ---
+      this.bot.action('cancel_session_action', async (ctx) => {
+        await ctx.answerCbQuery('Action cancelled');
+        if (ctx.updateType === 'callback_query') {
+          ctx.deleteMessage().catch(() => { });
+        }
+        await ctx.reply('Action cancelled.');
       });
 
       this.bot.launch().catch((err) => {
@@ -351,7 +435,7 @@ export class TelegramAdapter {
 
   private async handleApproveNewSessionCommand(ctx: any, user: string) {
     try {
-      const history = new SQLiteChatMessageHistory({sessionId: ""});
+      const history = new SQLiteChatMessageHistory({ sessionId: "" });
       await history.createNewSession();
     } catch (e: any) {
       await ctx.reply(`Error creating new session: ${e.message}`);
@@ -362,7 +446,7 @@ export class TelegramAdapter {
   private async handleSessionStatusCommand(ctx: any, user: string) {
     try {
       // Obter todas as sessões ativas e pausadas usando a nova função
-      const history = new SQLiteChatMessageHistory({sessionId: ""});
+      const history = new SQLiteChatMessageHistory({ sessionId: "" });
       const sessions = await history.listSessions();
 
       if (sessions.length === 0) {
@@ -382,12 +466,26 @@ export class TelegramAdapter {
         response += `- Started: ${new Date(session.started_at).toLocaleString()}\n\n`;
 
         // Adicionar botão inline para alternar para esta sessão
+        const sessionButtons = [];
+
         if (session.status !== 'active') {
-          keyboard.push([{
-            text: `Switch to: ${title}`,
+          sessionButtons.push({
+            text: `➡️ Switch`,
             callback_data: `switch_session_${session.id}`
-          }]);
+          });
         }
+
+        sessionButtons.push({
+          text: `📂 Archive`,
+          callback_data: `ask_archive_session_${session.id}`
+        });
+
+        sessionButtons.push({
+          text: `🗑️ Delete`,
+          callback_data: `ask_delete_session_${session.id}`
+        });
+
+        keyboard.push(sessionButtons);
       }
 
       await ctx.reply(response, {

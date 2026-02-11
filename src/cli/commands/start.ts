@@ -24,9 +24,9 @@ export const startCommand = new Command('start')
 
     try {
       renderBanner(getVersion());
-      
+
       await scaffold(); // Ensure env exists
-      
+
       // Cleanup stale PID first
       await checkStalePid();
 
@@ -45,17 +45,17 @@ export const startCommand = new Command('start')
 
       // Write current PID
       await writePid(process.pid);
-      
+
       const configManager = ConfigManager.getInstance();
       const config = await configManager.load();
 
       // Initialize persistent logging
       await display.initialize(config.logging);
-      
+
       display.log(chalk.green(`Morpheus Agent (${config.agent.name}) starting...`));
       display.log(chalk.gray(`PID: ${process.pid}`));
       if (options.ui) {
-         display.log(chalk.blue(`Web UI enabled to port ${options.port}`));
+        display.log(chalk.blue(`Web UI enabled to port ${options.port}`));
       }
 
       // Initialize Oracle
@@ -71,14 +71,14 @@ export const startCommand = new Command('start')
           display.log(chalk.red(`\nProvider Error (${err.provider}):`));
           display.log(chalk.white(err.message));
           if (err.suggestion) {
-             display.log(chalk.yellow(`Tip: ${err.suggestion}`));
+            display.log(chalk.yellow(`Tip: ${err.suggestion}`));
           }
         } else {
           display.log(chalk.red('\nOracle initialization failed:'));
           display.log(chalk.white(err.message));
-          
+
           if (err.message.includes('API Key')) {
-             display.log(chalk.yellow('Tip: Check your API key in configuration or environment variables.'));
+            display.log(chalk.yellow('Tip: Check your API key in configuration or environment variables.'));
           }
         }
         await clearPid();
@@ -91,7 +91,7 @@ export const startCommand = new Command('start')
       // Initialize Web UI
       if (options.ui && config.ui.enabled) {
         try {
-          httpServer = new HttpServer();
+          httpServer = new HttpServer(oracle);
           // Use CLI port if provided and valid, otherwise fallback to config or default
           const port = parseInt(options.port) || config.ui.port || 3333;
           httpServer.start(port);
@@ -111,7 +111,7 @@ export const startCommand = new Command('start')
             );
             adapters.push(telegram);
           } catch (e) {
-             display.log(chalk.red('Failed to initialize Telegram adapter. Continuing...'));
+            display.log(chalk.red('Failed to initialize Telegram adapter. Continuing...'));
           }
         } else {
           display.log(chalk.yellow('Telegram enabled but no token provided. Skipping.'));
@@ -125,13 +125,13 @@ export const startCommand = new Command('start')
       const shutdown = async (signal: string) => {
         display.stopSpinner();
         display.log(`\n${signal} received. Shutting down...`);
-        
+
         if (httpServer) {
           httpServer.stop();
         }
 
         for (const adapter of adapters) {
-            await adapter.disconnect();
+          await adapter.disconnect();
         }
 
         await clearPid();
@@ -149,14 +149,14 @@ export const startCommand = new Command('start')
         process.stdin.on('data', (key: string) => {
           // ESC or Ctrl+C
           if (key === '\u001B' || key === '\u0003') {
-             shutdown('User Quit');
+            shutdown('User Quit');
           }
         });
       }
 
       // Keep process alive (Mock Agent Loop)
       display.startSpinner('Agent active and listening... (Press ctrl+c to stop)');
-      
+
       // Prevent node from exiting
       setInterval(() => {
         // Heartbeat or background tasks would go here

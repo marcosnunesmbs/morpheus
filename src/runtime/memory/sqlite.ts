@@ -421,7 +421,7 @@ export class SQLiteChatMessageHistory extends BaseListChatMessageHistory {
     if (oldestHumanMessage) {
       // Pegar os primeiros 50 caracteres como título
       let title = oldestHumanMessage.content.substring(0, 50);
-      
+
       // Certificar-se de que o título não termine no meio de uma palavra
       if (title.length === 50) {
         const lastSpaceIndex = title.lastIndexOf(' ');
@@ -458,7 +458,7 @@ export class SQLiteChatMessageHistory extends BaseListChatMessageHistory {
       const stmt = this.db.prepare(
         "SELECT embedding_status FROM sessions WHERE id = ?"
       );
-      const row = stmt.get(this.sessionId) as {embedding_status: string } | undefined;
+      const row = stmt.get(this.sessionId) as { embedding_status: string } | undefined;
 
       //get messages where session_id = this.sessionId
       const stmtMessages = this.db.prepare(
@@ -732,9 +732,26 @@ export class SQLiteChatMessageHistory extends BaseListChatMessageHistory {
 
     tx(); // Executar a transação
 
-    // Se a sessão era active, criar nova sessão ativa
+    // Se a sessão era active, verificar se há outra para ativar
     if (session.status === 'active') {
-      this.createFreshSession();
+      const nextSession = this.db.prepare(`
+        SELECT id FROM sessions
+        WHERE status = 'paused'
+        ORDER BY started_at DESC
+        LIMIT 1
+      `).get() as { id: string } | undefined;
+
+      if (nextSession) {
+        // Promover a próxima sessão a ativa
+        this.db.prepare(`
+          UPDATE sessions
+          SET status = 'active'
+          WHERE id = ?
+        `).run(nextSession.id);
+      } else {
+        // Nenhuma outra sessão, criar nova
+        this.createFreshSession();
+      }
     }
   }
 

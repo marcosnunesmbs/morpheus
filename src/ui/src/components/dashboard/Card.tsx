@@ -3,7 +3,7 @@ import React from 'react';
 interface CardProps extends React.HTMLAttributes<HTMLDivElement> {}
 export const Card: React.FC<CardProps> = ({ className, ...props }) => (
   <div
-    className={`rounded-lg border border-azure-border dark:border-matrix-primary bg-azure-surface dark:bg-zinc-900 text-azure-text-primary dark:text-matrix-secondary shadow-sm ${className || ''}`}
+    className={`rounded-lg border border-azure-border dark:border-matrix-primary/30 bg-azure-surface dark:bg-zinc-900 text-azure-text-primary dark:text-matrix-secondary shadow-sm ${className || ''}`}
     {...props}
   />
 );

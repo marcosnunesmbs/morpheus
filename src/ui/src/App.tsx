@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { Layout } from './components/Layout';
 import { Dashboard } from './pages/Dashboard';
+import { ChatPage } from './pages/Chat';
 import Settings from './pages/Settings';
 import { Logs } from './pages/Logs';
 import { UsageStats } from './pages/UsageStats';
@@ -21,6 +22,7 @@ function App() {
               <Layout>
                 <Routes>
                   <Route path="/" element={<Dashboard />} />
+                  <Route path="/chat" element={<ChatPage />} />
                   <Route path="/zaion" element={<Settings />} />
                   <Route path="/logs" element={<Logs />} />
                   <Route path="/stats" element={<UsageStats />} />

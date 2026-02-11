@@ -43,7 +43,6 @@ export async function runSessionEmbeddingWorker() {
       FROM sessions
       WHERE ended_at IS NOT NULL
         AND embedding_status = 'pending'
-        OR embedding_status = 'failed'
       LIMIT ?
     `).all(BATCH_LIMIT) as any[];
 
@@ -58,12 +57,8 @@ export async function runSessionEmbeddingWorker() {
             display.log(`🧠 Processando sessão ${sessionId}...`, { source: 'SessionEmbeddingWorker' });
 
             try {
-                // 🔒 marcar como processing
-                shortDb.prepare(`
-          UPDATE sessions
-          SET embedding_status = 'processing'
-          WHERE id = ?
-        `).run(sessionId);
+                // Skip setting 'processing' as it violates CHECK constraint
+                // active_processing.add(sessionId); // If we needed concurrency control
 
                 const chunks = satiDb.prepare(`
           SELECT id, content
@@ -77,7 +72,7 @@ export async function runSessionEmbeddingWorker() {
 
                     shortDb.prepare(`
             UPDATE sessions
-            SET embedding_status = 'completed',
+            SET embedding_status = 'embedded',
                 embedded = 1
             WHERE id = ?
           `).run(sessionId);
@@ -119,7 +114,7 @@ export async function runSessionEmbeddingWorker() {
                 // ✅ finalizar sessão
                 shortDb.prepare(`
           UPDATE sessions
-          SET embedding_status = 'completed',
+          SET embedding_status = 'embedded',
               embedded = 1
           WHERE id = ?
         `).run(sessionId);
