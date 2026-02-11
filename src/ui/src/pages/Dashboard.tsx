@@ -3,6 +3,7 @@ import { Activity, Cpu, Clock, Brain, Box } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { StatCard } from '../components/dashboard/StatCard';
 import { UsageStatsWidget } from '../components/dashboard/UsageStatsWidget';
+import { formatUptime } from '@/lib/formatUptime';
 
 export function Dashboard() {
   const { data: status } = useStatus();
@@ -43,7 +44,7 @@ export function Dashboard() {
         />
         <StatCard 
           title="Uptime" 
-          value={status ? `${Math.floor(status.uptimeSeconds / 60)}m` : '-'} 
+          value={status ? formatUptime(status.uptimeSeconds) : '-'} 
           icon={Clock}
           subValue={status ? `${status.uptimeSeconds.toFixed(0)} seconds` : ''}
         />

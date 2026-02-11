@@ -1,4 +1,5 @@
 import { useStatus } from '@/lib/api';
+import { formatUptime } from '@/lib/formatUptime';
 
 export function Footer() {
   const { data: status } = useStatus();
@@ -10,7 +11,7 @@ export function Footer() {
            ● {status?.status.toUpperCase() || 'OFFLINE'}
         </span>
         <span>PID: {status?.pid || '-'}</span>
-        <span>UPTIME: {status ? Math.floor(status.uptimeSeconds / 60) + 'm' : '-'}</span>
+        <span>UPTIME: {status ? formatUptime(status.uptimeSeconds) : '-'}</span>
       </div>
       <div className="flex gap-4 opacity-70">
         <span>v{status?.projectVersion || '0.0.0'}</span>
