@@ -32,7 +32,7 @@ export const restartCommand = new Command('restart')
         if (isProcessRunning(pid)) {
           process.kill(pid, 'SIGTERM');
           display.log(chalk.green(`Sent stop signal to Morpheus (PID: ${pid}).`));
-          
+
           // Wait a bit for the process to terminate
           await new Promise(resolve => setTimeout(resolve, 2000));
         } else {
@@ -78,7 +78,7 @@ export const restartCommand = new Command('restart')
       display.log(chalk.green(`Morpheus Agent (${config.agent.name}) starting...`));
       display.log(chalk.gray(`PID: ${process.pid}`));
       if (options.ui) {
-         display.log(chalk.blue(`Web UI enabled to port ${options.port}`));
+        display.log(chalk.blue(`Web UI enabled to port ${options.port}`));
       }
 
       // Initialize Oracle
@@ -94,14 +94,14 @@ export const restartCommand = new Command('restart')
           display.log(chalk.red(`\nProvider Error (${err.provider}):`));
           display.log(chalk.white(err.message));
           if (err.suggestion) {
-             display.log(chalk.yellow(`Tip: ${err.suggestion}`));
+            display.log(chalk.yellow(`Tip: ${err.suggestion}`));
           }
         } else {
           display.log(chalk.red('\nOracle initialization failed:'));
           display.log(chalk.white(err.message));
 
           if (err.message.includes('API Key')) {
-             display.log(chalk.yellow('Tip: Check your API key in configuration or environment variables.'));
+            display.log(chalk.yellow('Tip: Check your API key in configuration or environment variables.'));
           }
         }
         await clearPid();
@@ -114,7 +114,7 @@ export const restartCommand = new Command('restart')
       // Initialize Web UI
       if (options.ui && config.ui.enabled) {
         try {
-          httpServer = new HttpServer();
+          httpServer = new HttpServer(oracle);
           // Use CLI port if provided and valid, otherwise fallback to config or default
           const port = parseInt(options.port) || config.ui.port || 3333;
           httpServer.start(port);
@@ -134,7 +134,7 @@ export const restartCommand = new Command('restart')
             );
             adapters.push(telegram);
           } catch (e) {
-             display.log(chalk.red('Failed to initialize Telegram adapter. Continuing...'));
+            display.log(chalk.red('Failed to initialize Telegram adapter. Continuing...'));
           }
         } else {
           display.log(chalk.yellow('Telegram enabled but no token provided. Skipping.'));
@@ -151,7 +151,7 @@ export const restartCommand = new Command('restart')
         }
 
         for (const adapter of adapters) {
-            await adapter.disconnect();
+          await adapter.disconnect();
         }
 
         await clearPid();
@@ -169,7 +169,7 @@ export const restartCommand = new Command('restart')
         process.stdin.on('data', (key: string) => {
           // ESC or Ctrl+C
           if (key === '\u001B' || key === '\u0003') {
-             shutdown('User Quit');
+            shutdown('User Quit');
           }
         });
       }

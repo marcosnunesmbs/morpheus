@@ -34,10 +34,16 @@ describe('Config API', () => {
     };
     (DisplayManager.getInstance as any).mockReturnValue(mockDisplayManager);
 
+    // Mock Oracle instance
+    const mockOracle = {
+      think: vi.fn(),
+      getMemory: vi.fn(),
+    } as any;
+
     // Setup App
     app = express();
     app.use(bodyParser.json());
-    app.use('/api', createApiRouter());
+    app.use('/api', createApiRouter(mockOracle));
   });
 
   afterEach(() => {
@@ -61,7 +67,7 @@ describe('Config API', () => {
     it('should update configuration and return new config', async () => {
       const oldConfig = { agent: { name: 'OldName' } };
       const newConfig = { agent: { name: 'NewName' } };
-      
+
       mockConfigManager.get.mockReturnValueOnce(oldConfig).mockReturnValue(newConfig);
       mockConfigManager.save.mockResolvedValue(undefined);
 
@@ -72,7 +78,7 @@ describe('Config API', () => {
       expect(res.status).toBe(200);
       expect(res.body).toEqual(newConfig);
       expect(mockConfigManager.save).toHaveBeenCalledWith({ agent: { name: 'NewName' } });
-      
+
       // Verify logging
       expect(mockDisplayManager.log).toHaveBeenCalled();
       const logCall = mockDisplayManager.log.mock.calls[0][0];
@@ -84,7 +90,7 @@ describe('Config API', () => {
       const zodError = new Error('Validation failed');
       (zodError as any).name = 'ZodError';
       (zodError as any).errors = [{ message: 'Invalid field' }];
-      
+
       mockConfigManager.save.mockRejectedValue(zodError);
 
       const res = await request(app)
