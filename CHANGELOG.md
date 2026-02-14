@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.1] - 2026-02-14
+
+### Fixed
+- **Telegram `/restart` infinite loop**: The `/restart` command was causing a restart loop in production. Telegraf stores the polling offset (update_id) only in memory; when the process exited before acknowledging the current update to Telegram, the `/restart` message was re-delivered on the next startup and processed again indefinitely. Fixed by calling `getUpdates` with `offset = update_id + 1` before restarting, explicitly confirming to Telegram that the update was processed.
+
 ### Added
 - **Sati Agent UI Configuration**: Added dedicated UI section for configuring the Sati memory agent independently from Oracle
   - New "Sati Agent" section in Settings page (LLM tab) below "Oracle Agent"

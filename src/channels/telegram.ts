@@ -713,6 +713,7 @@ How can I assist you today?`;
   private async handleRestartCommand(ctx: any, user: string) {
     // Store the user ID who requested the restart
     const userId = ctx.from.id;
+    const updateId: number = ctx.update.update_id;
 
     // Save the user ID to a temporary file so the restarted process can notify them
     const restartNotificationFile = path.join(os.tmpdir(), 'morpheus_restart_notification.json');
@@ -724,6 +725,15 @@ How can I assist you today?`;
 
     // Respond to the user first
     await ctx.reply('🔄 Restart initiated. The Morpheus agent will restart shortly.');
+
+    // Acknowledge this update to Telegram by advancing the offset past it.
+    // Without this, Telegraf's in-memory offset is lost on process.exit() and the
+    // /restart message gets re-delivered on the next startup, causing an infinite loop.
+    try {
+      await ctx.telegram.callApi('getUpdates', { offset: updateId + 1, limit: 1, timeout: 0 });
+    } catch (e: any) {
+      // Best-effort — proceed with restart regardless
+    }
 
     // Schedule the restart after a short delay to ensure the response is sent
     setTimeout(() => {
@@ -746,7 +756,7 @@ How can I assist you today?`;
 
       // Exit the current process
       process.exit(0);
-    }, 500); // Shorter delay to minimize chance of processing more messages
+    }, 500);
   }
 
   private async checkAndSendRestartNotification() {
