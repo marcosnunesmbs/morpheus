@@ -82,13 +82,13 @@ export class TelegramAdapter {
           const response = await this.oracle.chat(text);
 
           if (response) {
-            await ctx.reply(response, { parse_mode: 'Markdown' });
-            this.display.log(`Responded to @${user}`, { source: 'Telegram' });
+            await ctx.reply(response);
+            this.display.log(`Responded to @${user}: ${response}`, { source: 'Telegram' });
           }
         } catch (error: any) {
           this.display.log(`Error processing message for @${user}: ${error.message}`, { source: 'Telegram', level: 'error' });
           try {
-            await ctx.reply("Sorry, I encountered an error while processing your request.");
+            await ctx.reply("Sorry, I encountered an error while processing your request. " + error.message);
           } catch (e) {
             // Ignore reply error
           }
