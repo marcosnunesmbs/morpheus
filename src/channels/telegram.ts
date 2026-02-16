@@ -13,6 +13,7 @@ import { readPid, isProcessRunning, checkStalePid } from '../runtime/lifecycle.j
 import { SQLiteChatMessageHistory } from '../runtime/memory/sqlite.js';
 import { SatiRepository } from '../runtime/memory/sati/repository.js';
 import { MCPManager } from '../config/mcp-manager.js';
+import { Construtor } from '../runtime/tools/factory.js';
 
 export class TelegramAdapter {
   private bot: Telegraf | null = null;
@@ -831,7 +832,10 @@ How can I assist you today?`;
 
   private async handleMcpListCommand(ctx: any, user: string) {
     try {
-      const servers = await MCPManager.listServers();
+      const [servers, probeResults] = await Promise.all([
+        MCPManager.listServers(),
+        Construtor.probe(),
+      ]);
 
       if (servers.length === 0) {
         await ctx.reply(
@@ -841,15 +845,24 @@ How can I assist you today?`;
         return;
       }
 
+      const probeMap = new Map(probeResults.map(r => [r.name, r]));
+
       let response = `*MCP Servers (${servers.length})*\n\n`;
       const keyboard: { text: string; callback_data: string }[][] = [];
 
       servers.forEach((server, index) => {
-        const status = server.enabled ? '✅ Enabled' : '❌ Disabled';
+        const enabledStatus = server.enabled ? '✅ Enabled' : '❌ Disabled';
         const transport = server.config.transport.toUpperCase();
+        const probe = probeMap.get(server.name);
+        const connectionStatus = probe
+          ? probe.ok
+            ? `🟢 Connected (${probe.toolCount} tools)`
+            : `🔴 Failed`
+          : '⚪ Unknown';
 
         response += `*${index + 1}. ${server.name}*\n`;
-        response += `Status: ${status}\n`;
+        response += `Status: ${enabledStatus}\n`;
+        response += `Connection: ${connectionStatus}\n`;
         response += `Transport: ${transport}\n`;
 
         if (server.config.transport === 'stdio') {
@@ -859,6 +872,11 @@ How can I assist you today?`;
           }
         } else if (server.config.transport === 'http') {
           response += `URL: \`${server.config.url}\`\n`;
+        }
+
+        if (probe && !probe.ok && probe.error) {
+          const shortError = probe.error.length > 80 ? probe.error.slice(0, 80) + '…' : probe.error;
+          response += `Error: \`${shortError}\`\n`;
         }
 
         response += '\n';
