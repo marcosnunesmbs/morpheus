@@ -6,7 +6,10 @@
       "Bash(node -e:*)",
       "Bash(npm run build:*)",
       "Bash(npm install:*)",
-      "Bash(ls:*)"
+      "Bash(ls:*)",
+      "Bash(dir:*)",
+      "Bash(magick:*)",
+      "Bash(node scripts/generate-pwa-icons.mjs:*)"
     ]
   }
 }
