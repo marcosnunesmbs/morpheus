@@ -89,7 +89,7 @@ export class ConfigManager {
     }
 
     // Apply precedence to audio config
-    const audioProvider = config.audio.provider;
+    const audioProvider = resolveString('MORPHEUS_AUDIO_PROVIDER', config.audio.provider, DEFAULT_CONFIG.audio.provider) as typeof config.audio.provider;
     // AudioProvider uses 'google' but resolveApiKey expects LLMProvider which uses 'gemini'
     const audioProviderForKey = (audioProvider === 'google' ? 'gemini' : audioProvider) as LLMProvider;
     const audioConfig = {
