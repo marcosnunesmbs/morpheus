@@ -13,6 +13,7 @@ import { z } from 'zod';
 import { MCPManager } from '../config/mcp-manager.js';
 import { MCPServerConfigSchema } from '../config/schemas.js';
 import { IOracle } from '../runtime/types.js';
+import { Construtor } from '../runtime/tools/factory.js';
 
 async function readLastLines(filePath: string, n: number): Promise<string[]> {
   try {
@@ -512,6 +513,24 @@ export function createApiRouter(oracle: IOracle) {
     } catch (error) {
       const status = error instanceof z.ZodError ? 400 : 500;
       res.status(status).json({ error: 'Failed to toggle MCP server.', details: error });
+    }
+  });
+
+  router.post('/mcp/reload', async (_req, res) => {
+    try {
+      await oracle.reloadTools();
+      res.json({ ok: true, message: 'MCP tools reloaded successfully.' });
+    } catch (error) {
+      res.status(500).json({ error: 'Failed to reload MCP tools.', details: String(error) });
+    }
+  });
+
+  router.get('/mcp/status', async (_req, res) => {
+    try {
+      const results = await Construtor.probe();
+      res.json({ servers: results });
+    } catch (error) {
+      res.status(500).json({ error: 'Failed to probe MCP servers.', details: String(error) });
     }
   });
 

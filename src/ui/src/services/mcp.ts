@@ -1,5 +1,5 @@
 import { HttpClient } from './httpClient';
-import type { MCPListResponse, MCPServerConfig } from '../types/mcp';
+import type { MCPListResponse, MCPServerConfig, MCPStatusResponse } from '../types/mcp';
 
 const httpClient = HttpClient.getInstance();
 
@@ -13,4 +13,8 @@ export const mcpService = {
     httpClient.delete(`/mcp/servers/${encodeURIComponent(name)}`),
   toggleServer: async (name: string, enabled: boolean): Promise<void> =>
     httpClient.patch(`/mcp/servers/${encodeURIComponent(name)}/toggle`, { enabled }),
+  reloadTools: async (): Promise<void> =>
+    httpClient.post('/mcp/reload', {}),
+  fetchStatus: async (): Promise<MCPStatusResponse> =>
+    httpClient.get<MCPStatusResponse>('/mcp/status'),
 };

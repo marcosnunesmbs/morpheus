@@ -366,4 +366,14 @@ You maintain intent until resolution.
     }
     await this.history.clear();
   }
+
+  async reloadTools(): Promise<void> {
+    if (!this.provider) {
+      throw new Error("Oracle not initialized. Call initialize() first.");
+    }
+
+    const tools = await Construtor.create();
+    this.provider = await ProviderFactory.create(this.config.llm, tools);
+    this.display.log(`MCP tools reloaded (${tools.length} tools)`, { source: 'Oracle' });
+  }
 }

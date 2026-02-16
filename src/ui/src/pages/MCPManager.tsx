@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import useSWR from 'swr';
 import { mcpService } from '../services/mcp';
-import type { MCPServerConfig, MCPServerRecord } from '../types/mcp';
+import type { MCPProbeResult, MCPServerConfig, MCPServerRecord } from '../types/mcp';
 import { MCPServerForm } from '../components/mcp/MCPServerForm';
 import { MCPServerCard } from '../components/mcp/MCPServerCard';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../components/Dialog';
@@ -15,6 +15,9 @@ export const MCPManager = () => {
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<MCPServerRecord | null>(null);
   const [notification, setNotification] = useState<{ type: 'success' | 'error', message: string } | null>(null);
+  const [probeResults, setProbeResults] = useState<Record<string, MCPProbeResult>>({});
+  const [isChecking, setIsChecking] = useState(false);
+  const [isReloading, setIsReloading] = useState(false);
 
   const servers = data?.servers ?? [];
 
@@ -47,7 +50,7 @@ export const MCPManager = () => {
       setIsModalOpen(false);
       setEditTarget(null);
       await mutate();
-      setNotification({ type: 'success', message: 'MCPs saved successfully. Restart Morpheus daemon for changes to take effect.' });
+      setNotification({ type: 'success', message: 'MCPs saved successfully. Restart MCPs for changes to take effect.' });
     } catch (err: any) {
       setNotification({ type: 'error', message: err.message || 'Failed to save MCP server.' });
     }
@@ -65,10 +68,38 @@ export const MCPManager = () => {
         await mutate();
         setIsDeleteModalOpen(false);
         setDeleteTarget(null);
-        setNotification({ type: 'success', message: 'MCPs saved successfully. Restart Morpheus daemon for changes to take effect.' });
+        setNotification({ type: 'success', message: 'MCPs saved successfully. Restart MCPs for changes to take effect.' });
       } catch (err: any) {
         setNotification({ type: 'error', message: err.message || 'Failed to delete MCP server.' });
       }
+    }
+  };
+
+  const handleCheckStatus = async () => {
+    setIsChecking(true);
+    try {
+      const result = await mcpService.fetchStatus();
+      const map: Record<string, MCPProbeResult> = {};
+      for (const r of result.servers) {
+        map[r.name] = r;
+      }
+      setProbeResults(map);
+    } catch (err: any) {
+      setNotification({ type: 'error', message: err.message || 'Failed to check MCP status.' });
+    } finally {
+      setIsChecking(false);
+    }
+  };
+
+  const handleReload = async () => {
+    setIsReloading(true);
+    try {
+      await mcpService.reloadTools();
+      setNotification({ type: 'success', message: 'MCP tools reloaded successfully.' });
+    } catch (err: any) {
+      setNotification({ type: 'error', message: err.message || 'Failed to reload MCP tools.' });
+    } finally {
+      setIsReloading(false);
     }
   };
 
@@ -76,7 +107,7 @@ export const MCPManager = () => {
     try {
       await mcpService.toggleServer(server.name, enabled);
       await mutate();
-      setNotification({ type: 'success', message: 'MCPs saved successfully. Restart Morpheus daemon for changes to take effect.' });
+      setNotification({ type: 'success', message: 'MCPs saved successfully. Restart MCPs for changes to take effect.' });
     } catch (err: any) {
       setNotification({ type: 'error', message: err.message || 'Failed to toggle MCP server.' });
     }
@@ -91,13 +122,31 @@ export const MCPManager = () => {
             Manage MCP servers stored in mcps.json.
           </p>
         </div>
-        <button
-          type="button"
-          className="rounded-md bg-azure-primary px-4 py-2 text-sm font-semibold text-white shadow hover:bg-azure-secondary dark:bg-matrix-highlight dark:text-matrix-bg hover:dark:bg-matrix-secondary"
-          onClick={handleCreate}
-        >
-          Add Server
-        </button>
+        <div className="flex gap-2">
+          <button
+            type="button"
+            disabled={isChecking}
+            className="rounded-md border border-azure-border px-4 py-2 text-sm font-semibold text-azure-text-primary shadow hover:border-azure-primary hover:text-azure-primary disabled:opacity-50 dark:border-matrix-primary dark:text-matrix-secondary hover:dark:border-matrix-highlight hover:dark:text-matrix-highlight"
+            onClick={handleCheckStatus}
+          >
+            {isChecking ? 'Checking…' : 'Check Status'}
+          </button>
+          <button
+            type="button"
+            disabled={isReloading}
+            className="rounded-md border border-azure-border px-4 py-2 text-sm font-semibold text-azure-text-primary shadow hover:border-azure-primary hover:text-azure-primary disabled:opacity-50 dark:border-matrix-primary dark:text-matrix-secondary hover:dark:border-matrix-highlight hover:dark:text-matrix-highlight"
+            onClick={handleReload}
+          >
+            {isReloading ? 'Reloading…' : 'Reload MCPs'}
+          </button>
+          <button
+            type="button"
+            className="rounded-md bg-azure-primary px-4 py-2 text-sm font-semibold text-white shadow hover:bg-azure-secondary dark:bg-matrix-highlight dark:text-matrix-bg hover:dark:bg-matrix-secondary"
+            onClick={handleCreate}
+          >
+            Add Server
+          </button>
+        </div>
       </div>
 
       {notification && (
@@ -140,6 +189,7 @@ export const MCPManager = () => {
           <MCPServerCard
             key={`${server.name}-${server.enabled ? 'on' : 'off'}`}
             server={server}
+            probeResult={probeResults[server.name]}
             onEdit={handleEdit}
             onDelete={handleDelete}
             onToggle={handleToggle}

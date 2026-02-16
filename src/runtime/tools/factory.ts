@@ -51,7 +51,34 @@ function wrapToolWithSanitizedSchema(tool: StructuredTool): StructuredTool {
   return tool;
 }
 
+export type MCPProbeResult = {
+  name: string;
+  ok: boolean;
+  toolCount: number;
+  error?: string;
+};
+
 export class Construtor {
+  static async probe(): Promise<MCPProbeResult[]> {
+    const mcpServers = await loadMCPConfig();
+    const results: MCPProbeResult[] = [];
+
+    for (const [serverName, serverConfig] of Object.entries(mcpServers)) {
+      try {
+        const client = new MultiServerMCPClient({
+          mcpServers: { [serverName]: serverConfig } as any,
+          onConnectionError: "ignore",
+        });
+        const tools = await client.getTools();
+        results.push({ name: serverName, ok: true, toolCount: tools.length });
+      } catch (error) {
+        results.push({ name: serverName, ok: false, toolCount: 0, error: String(error) });
+      }
+    }
+
+    return results;
+  }
+
   static async create(): Promise<StructuredTool[]> { // LangChain Tools type
     const display = DisplayManager.getInstance();
 

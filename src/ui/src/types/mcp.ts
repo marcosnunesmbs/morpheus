@@ -24,3 +24,14 @@ export type MCPServerRecord = {
 export type MCPListResponse = {
   servers: MCPServerRecord[];
 };
+
+export type MCPProbeResult = {
+  name: string;
+  ok: boolean;
+  toolCount: number;
+  error?: string;
+};
+
+export type MCPStatusResponse = {
+  servers: MCPProbeResult[];
+};

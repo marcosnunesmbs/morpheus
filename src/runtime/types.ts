@@ -36,6 +36,12 @@ export interface IOracle {
    * @param sessionId - The session ID to switch to.
    */
   setSessionId(sessionId: string): Promise<void>;
+
+  /**
+   * Reloads MCP tools at runtime without restarting the process.
+   * Recreates the provider with the current MCP configuration.
+   */
+  reloadTools(): Promise<void>;
 }
 
 export interface Session {

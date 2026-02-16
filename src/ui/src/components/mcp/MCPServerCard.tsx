@@ -1,13 +1,14 @@
-import type { MCPServerRecord } from '../../types/mcp';
+import type { MCPProbeResult, MCPServerRecord } from '../../types/mcp';
 
 type MCPServerCardProps = {
   server: MCPServerRecord;
+  probeResult?: MCPProbeResult;
   onEdit: (server: MCPServerRecord) => void;
   onDelete: (server: MCPServerRecord) => void;
   onToggle: (server: MCPServerRecord, enabled: boolean) => void;
 };
 
-export const MCPServerCard = ({ server, onEdit, onDelete, onToggle }: MCPServerCardProps) => {
+export const MCPServerCard = ({ server, probeResult, onEdit, onDelete, onToggle }: MCPServerCardProps) => {
   return (
     <div className="rounded-2xl border border-azure-border bg-azure-surface/80 p-4 shadow-sm overflow-hidden dark:border-matrix-primary dark:bg-zinc-950/70">
       <div className="flex items-start justify-between gap-3">
@@ -16,6 +17,18 @@ export const MCPServerCard = ({ server, onEdit, onDelete, onToggle }: MCPServerC
           <div className="text-xs uppercase tracking-wide text-azure-text-muted dark:text-matrix-secondary">{server.config.transport}</div>
         </div>
         <div className="flex items-center gap-2">
+          {probeResult && (
+            <span
+              title={probeResult.ok ? `${probeResult.toolCount} tools` : probeResult.error}
+              className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
+                probeResult.ok
+                  ? 'bg-green-500/20 text-green-600 dark:bg-green-400/20 dark:text-green-400'
+                  : 'bg-red-500/20 text-red-600 dark:bg-red-400/20 dark:text-red-400'
+              }`}
+            >
+              {probeResult.ok ? `✓ ${probeResult.toolCount} tools` : '✗ Failed'}
+            </span>
+          )}
           <button
             type="button"
             className={`rounded-full px-3 py-1 text-xs font-semibold ${
@@ -42,6 +55,11 @@ export const MCPServerCard = ({ server, onEdit, onDelete, onToggle }: MCPServerC
         {server.config.args && server.config.args.length > 0 && (
           <div className="break-all">
             <span className="font-semibold text-azure-text-primary dark:text-matrix-highlight">Args:</span> {server.config.args.join(' ')}
+          </div>
+        )}
+        {probeResult && !probeResult.ok && probeResult.error && (
+          <div className="mt-1 break-all rounded border border-red-300 bg-red-50 px-2 py-1 text-xs text-red-600 dark:border-red-900 dark:bg-red-950/30 dark:text-red-400">
+            {probeResult.error.length > 120 ? probeResult.error.slice(0, 120) + '…' : probeResult.error}
           </div>
         )}
       </div>

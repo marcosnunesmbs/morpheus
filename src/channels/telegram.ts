@@ -33,6 +33,7 @@ export class TelegramAdapter {
 /newsession - Archive current session and start fresh
 /sessions - List all sessions with titles and switch between them
 /restart - Restart the Morpheus agent
+/mcpreload - Reload MCP servers without restarting
 /mcp or /mcps - List registered MCP servers`;
 
   constructor(oracle: Oracle) {
@@ -401,6 +402,9 @@ export class TelegramAdapter {
         break;
       case '/restart':
         await this.handleRestartCommand(ctx, user);
+        break;
+      case '/mcpreload':
+        await this.handleMcpReloadCommand(ctx, user);
         break;
       case '/mcp':
       case '/mcps':
@@ -784,6 +788,18 @@ How can I assist you today?`;
       }
     } catch (error: any) {
       this.display.log(`Error checking restart notification: ${error.message}`, { source: 'Telegram', level: 'error' });
+    }
+  }
+
+  private async handleMcpReloadCommand(ctx: any, user: string) {
+    try {
+      await ctx.reply('🔄 Reloading MCP servers...');
+      await this.oracle.reloadTools();
+      await ctx.reply('✅ MCP servers reloaded successfully.');
+      this.display.log(`MCP reload triggered by @${user}`, { source: 'Telegram', level: 'info' });
+    } catch (error: any) {
+      await ctx.reply(`❌ Failed to reload MCP servers: ${error.message}`);
+      this.display.log(`MCP reload failed: ${error.message}`, { source: 'Telegram', level: 'error' });
     }
   }
 
