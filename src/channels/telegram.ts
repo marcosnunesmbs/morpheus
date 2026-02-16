@@ -329,6 +329,7 @@ export class TelegramAdapter {
           const user = ctx.from?.username || ctx.from?.first_name || 'unknown';
           this.display.log(`MCP '${serverName}' ${enable ? 'enabled' : 'disabled'} by @${user}`, { source: 'Telegram', level: 'info' });
           await this.handleMcpListCommand(ctx, user);
+          await ctx.reply(`⚠️ Use /mcpreload for the changes to take effect.`);
         } catch (error: any) {
           await ctx.answerCbQuery('Failed to update MCP');
           await ctx.reply(`❌ Failed to ${enable ? 'enable' : 'disable'} MCP '${serverName}': ${error.message}`);
