@@ -37,6 +37,17 @@ morpheus start
 This will:
 - Start the agent process
 - Launch the Web UI at http://localhost:3333
+- If an instance is already running, prompt whether to stop it and start a new one
+
+#### Auto-approve restart
+
+If you want to automatically stop any running instance and start a new one without prompting:
+
+```bash
+morpheus start -y
+# or
+morpheus start --yes
+```
 
 ### Other Commands
 

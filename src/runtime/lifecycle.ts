@@ -42,3 +42,16 @@ export async function checkStalePid(): Promise<void> {
         }
     }
 }
+
+export function killProcess(pid: number): boolean {
+  try {
+    process.kill(pid, 'SIGTERM');
+    return true;
+  } catch (e: any) {
+    if (e.code === 'ESRCH') {
+      // Process doesn't exist
+      return false;
+    }
+    throw e;
+  }
+}

@@ -36,7 +36,7 @@ EXPOSE 3333
 ENTRYPOINT ["dumb-init", "--"]
 
 # Comando padrão
-CMD ["sh", "-c", "npx morpheus start"]
+CMD ["sh", "-c", "npx morpheus start -y"]
 
 # Health check para o Docker
 HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \

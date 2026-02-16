@@ -1,9 +1,10 @@
 import { Command } from 'commander';
 import chalk from 'chalk';
 import fs from 'fs-extra';
+import { confirm } from '@inquirer/prompts';
 import { scaffold } from '../../runtime/scaffold.js';
 import { DisplayManager } from '../../runtime/display.js';
-import { writePid, readPid, isProcessRunning, clearPid, checkStalePid } from '../../runtime/lifecycle.js';
+import { writePid, readPid, isProcessRunning, clearPid, checkStalePid, killProcess } from '../../runtime/lifecycle.js';
 import { ConfigManager } from '../../config/manager.js';
 import { renderBanner } from '../utils/render.js';
 import { TelegramAdapter } from '../../channels/telegram.js';
@@ -19,6 +20,7 @@ export const startCommand = new Command('start')
   .option('--ui', 'Enable web UI', true)
   .option('--no-ui', 'Disable web UI')
   .option('-p, --port <number>', 'Port for web UI', '3333')
+  .option('-y, --yes', 'Automatically answer yes to prompts')
   .action(async (options) => {
     const display = DisplayManager.getInstance();
 
@@ -33,9 +35,40 @@ export const startCommand = new Command('start')
 
       const existingPid = await readPid();
       if (existingPid !== null && isProcessRunning(existingPid)) {
-        display.log(chalk.red(`Morpheus is already running (PID: ${existingPid})`));
-        await clearPid();
-        process.exit(1);
+        display.log(chalk.yellow(`Morpheus is already running (PID: ${existingPid})`));
+
+        let shouldKill = options.yes;
+
+        if (!shouldKill) {
+          try {
+            shouldKill = await confirm({
+              message: 'Do you want to stop the running instance and start a new one?',
+              default: false,
+            });
+          } catch (error) {
+            // User cancelled (Ctrl+C)
+            display.log(chalk.gray('\nCancelled'));
+            process.exit(1);
+          }
+        }
+
+        if (shouldKill) {
+          display.log(chalk.cyan(`Stopping existing process (PID: ${existingPid})...`));
+          const killed = killProcess(existingPid);
+          if (killed) {
+            display.log(chalk.green('✓ Process stopped successfully'));
+            await clearPid();
+            // Give a moment for the process to fully terminate
+            await new Promise(resolve => setTimeout(resolve, 1000));
+          } else {
+            display.log(chalk.red('Failed to stop the process'));
+            await clearPid();
+            process.exit(1);
+          }
+        } else {
+          display.log(chalk.gray('Use a different port or stop the running instance manually'));
+          process.exit(0);
+        }
       }
 
       // Always remove any leftover PID file before writing the new one.

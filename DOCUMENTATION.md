@@ -192,6 +192,13 @@ Starts the agent in the background and frees the terminal.
 ```bash
 morpheus start
 ```
+
+If an existing instance is running, you'll be prompted to stop it and start a new one. To automatically agree and restart without prompting:
+
+```bash
+morpheus start -y
+```
+
 *   **Dashboard**: `http://localhost:3333`
 *   **Status**: Use `morpheus status` to see the PID.
 *   **Logs**: Use `morpheus logs` (if implemented) or check `~/.morpheus/logs`.
