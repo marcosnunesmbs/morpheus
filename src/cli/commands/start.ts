@@ -36,6 +36,11 @@ export const startCommand = new Command('start')
         process.exit(1);
       }
 
+      // Always remove any leftover PID file before writing the new one.
+      // Guards against PID reuse on Linux where a stale PID may coincidentally
+      // belong to an unrelated process, causing checkStalePid to keep it.
+      await clearPid();
+
       // Check config existence
       if (!await fs.pathExists(PATHS.config)) {
         display.log(chalk.yellow("Configuration not found."));
