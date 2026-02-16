@@ -2,10 +2,11 @@ import { z } from 'zod';
 import { DEFAULT_CONFIG } from '../types/config.js';
 
 export const AudioConfigSchema = z.object({
-  provider: z.enum(['google']).default(DEFAULT_CONFIG.audio.provider),
+  provider: z.enum(['google', 'openai', 'openrouter', 'ollama']).default(DEFAULT_CONFIG.audio.provider),
   model: z.string().min(1).default(DEFAULT_CONFIG.audio.model),
   enabled: z.boolean().default(DEFAULT_CONFIG.audio.enabled),
   apiKey: z.string().optional(),
+  base_url: z.string().optional(),
   maxDurationSeconds: z.number().default(DEFAULT_CONFIG.audio.maxDurationSeconds),
   supportedMimeTypes: z.array(z.string()).default(DEFAULT_CONFIG.audio.supportedMimeTypes),
 });

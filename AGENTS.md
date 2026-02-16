@@ -56,7 +56,7 @@ Morpheus is a local-first AI operator/agent for developers, distributed as a glo
 3. **LLM Provider Agnostic**: Supports OpenAI, Anthropic, Ollama, and Google Gemini
 4. **Persistent Memory**: SQLite-backed conversation history across sessions
 5. **MCP Integration**: Full support for Model Context Protocol for external tools
-6. **Audio Transcription**: Voice message support via Google Gemini
+6. **Audio Transcription**: Voice message support via multi-provider Telephonist (Google Gemini, OpenAI Whisper, OpenRouter, Anthropic, Ollama)
 7. **Web Dashboard**: Matrix-themed React UI for management and monitoring
 8. **Declarative Configuration**: YAML-based configuration with environment variable support
 
@@ -232,7 +232,8 @@ The project follows a specification-driven development approach:
 ### Runtime Core (`src/runtime/`)
 - **Agent Orchestrator**: Implements the `IAgent` interface, manages conversation loop using LangChain
 - **Memory System**: Uses `SQLiteChatMessageHistory` for persistent conversation storage
-- **LLM Providers**: Factory pattern abstracts specific LLM implementations
+- **LLM Providers**: Factory pattern (`ProviderFactory`) abstracts specific LLM implementations (OpenAI, Anthropic, OpenRouter, Ollama, Google Gemini)
+- **Telephonist**: Multi-provider audio transcription factory (`createTelephonist`). Supports Google Gemini (native file upload), OpenAI Whisper API, and Ollama Whisper (local, via OpenAI-compatible endpoint). Configured via `audio.provider` in `config.yaml`.
 
 ### Channel Adapters (`src/channels/`)
 - Implement adapter pattern for external communication

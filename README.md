@@ -114,7 +114,7 @@ Additionally, you can use environment variables for API keys instead of storing 
 |----------|-------------|----------|
 | `OPENAI_API_KEY` | OpenAI API key (if using GPT) | No |
 | `ANTHROPIC_API_KEY` | Anthropic API key (if using Claude) | No |
-| `GOOGLE_API_KEY` | Google AI key (for Gemini and Audio) | Yes (for audio) |
+| `GOOGLE_API_KEY` | Google AI key (for Gemini LLM/Audio) | No |
 | `OPENROUTER_API_KEY` | OpenRouter API key (if using OpenRouter) | No |
 | `THE_ARCHITECT_PASS` | Web Dashboard access password | Recommended |
 | `TELEGRAM_BOT_TOKEN` | Telegram BotFather token | No |
@@ -207,11 +207,22 @@ Track your token usage across different providers and models directly from the W
 
 ### 🎙️ Audio Transcription (Telegram)
 Send voice messages directly to the Telegram bot. Morpheus will:
-1. Transcribe the audio using **Google Gemini**.
+1. Transcribe the audio using the configured provider.
 2. Process the text as a standard prompt.
 3. Reply with the answer.
 
-*Requires a Google Gemini API Key.*
+Supported audio providers:
+
+| Provider | Method | Model example |
+|---|---|---|
+| **Google Gemini** | Native audio file upload | `gemini-2.5-flash-lite` |
+| **OpenAI** | Whisper API (`/audio/transcriptions`) | `whisper-1` |
+| **OpenRouter** | `input_audio` via `@openrouter/sdk` (multimodal models) | `google/gemini-2.5-flash` |
+| **Ollama** | Whisper local via OpenAI-compatible endpoint | `whisper` |
+
+> Ollama requires a Whisper model loaded: `ollama pull whisper`
+
+*Configure `audio.provider` and `audio.apiKey` in Settings or `config.yaml`.*
 
 ### 🤖 Telegram Commands
 The Morpheus Telegram bot supports several commands for interacting with the agent:
@@ -303,7 +314,10 @@ ui:
 # Audio Transcription Support
 audio:
   enabled: true
-  apiKey: "YOUR_GEMINI_API_KEY" # Optional if llm.provider is 'gemini'
+  provider: "google"           # google | openai | openrouter | anthropic | ollama
+  model: "gemini-2.5-flash-lite"
+  apiKey: "YOUR_API_KEY"       # Optional if using same provider as LLM
+  base_url: ""                 # Required for openrouter/ollama
   maxDurationSeconds: 300
 ```
 

@@ -419,9 +419,37 @@ export default function Settings() {
               onChange={(e: any) =>
                 handleUpdate(['audio', 'provider'], e.target.value)
               }
-              options={[{ label: 'Google Gemini', value: 'google' }]}
+              options={[
+                { label: 'Google Gemini', value: 'google' },
+                { label: 'OpenAI (Whisper)', value: 'openai' },
+                { label: 'OpenRouter (multimodal)', value: 'openrouter' },
+                { label: 'Ollama (Whisper local)', value: 'ollama' },
+              ]}
               error={errors['audio.provider']}
             />
+
+            <TextInput
+              label="Model"
+              value={localConfig.audio.model}
+              onChange={(e: any) =>
+                handleUpdate(['audio', 'model'], e.target.value)
+              }
+              placeholder="e.g. whisper-1, gemini-2.5-flash-lite..."
+              helperText="Model to use for audio transcription."
+              error={errors['audio.model']}
+            />
+
+            {localConfig.audio.provider === 'ollama' && (
+              <TextInput
+                label="Base URL"
+                value={(localConfig.audio as any).base_url || ''}
+                onChange={(e: any) =>
+                  handleUpdate(['audio', 'base_url'], e.target.value)
+                }
+                placeholder="http://localhost:11434"
+                helperText="Ollama base URL. Requires a Whisper model loaded (ollama pull whisper)."
+              />
+            )}
 
             <TextInput
               label="API Key"
@@ -431,7 +459,7 @@ export default function Settings() {
                 handleUpdate(['audio', 'apiKey'], e.target.value)
               }
               placeholder="If different from LLM key..."
-              helperText="Leave empty to use LLM API key if using same provider."
+              helperText="Leave empty to use LLM API key if using the same provider."
             />
 
             <NumberInput

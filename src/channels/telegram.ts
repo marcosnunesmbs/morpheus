@@ -8,7 +8,7 @@ import { spawn } from 'child_process';
 import { ConfigManager } from '../config/manager.js';
 import { DisplayManager } from '../runtime/display.js';
 import { Oracle } from '../runtime/oracle.js';
-import { Telephonist } from '../runtime/telephonist.js';
+import { createTelephonist, ITelephonist } from '../runtime/telephonist.js';
 import { readPid, isProcessRunning, checkStalePid } from '../runtime/lifecycle.js';
 import { SQLiteChatMessageHistory } from '../runtime/memory/sqlite.js';
 import { SatiRepository } from '../runtime/memory/sati/repository.js';
@@ -21,7 +21,8 @@ export class TelegramAdapter {
   private display = DisplayManager.getInstance();
   private config = ConfigManager.getInstance();
   private oracle: Oracle;
-  private telephonist = new Telephonist();
+  private telephonist: ITelephonist | null = null;
+  private telephonistProvider: string | null = null;
   private history = new SQLiteChatMessageHistory({ sessionId: '' });
 
   private HELP_MESSAGE = `/start - Show this welcome message and available commands
@@ -114,11 +115,17 @@ export class TelegramAdapter {
           return;
         }
 
-        const apiKey = config.audio.apiKey || (config.llm.provider === 'gemini' ? config.llm.api_key : undefined);
+        const apiKey = config.audio.apiKey ||
+          (config.llm.provider === config.audio.provider ? config.llm.api_key : undefined);
         if (!apiKey) {
-          this.display.log(`Audio transcription failed: No Gemini API key available`, { source: 'Telephonist', level: 'error' });
-          await ctx.reply("Audio transcription requires a Gemini API key. Please configure `audio.apiKey` or set LLM provider to Gemini.");
+          this.display.log(`Audio transcription failed: No API key available for provider '${config.audio.provider}'`, { source: 'Telephonist', level: 'error' });
+          await ctx.reply(`Audio transcription requires an API key for provider '${config.audio.provider}'. Please configure \`audio.apiKey\` or use the same provider as your LLM.`);
           return;
+        }
+
+        if (!this.telephonist || this.telephonistProvider !== config.audio.provider) {
+          this.telephonist = createTelephonist(config.audio);
+          this.telephonistProvider = config.audio.provider;
         }
 
         const duration = ctx.message.voice.duration;
@@ -172,7 +179,8 @@ export class TelegramAdapter {
           }
 
         } catch (error: any) {
-          this.display.log(`Audio processing error for @${user}: ${error.message}`, { source: 'Telephonist', level: 'error' });
+          const detail = error?.cause?.message || error?.response?.data?.error?.message || error.message;
+          this.display.log(`Audio processing error for @${user}: ${detail}`, { source: 'Telephonist', level: 'error' });
           await ctx.reply("Sorry, I failed to process your audio message.");
         } finally {
           // Cleanup

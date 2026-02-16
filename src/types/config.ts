@@ -42,13 +42,14 @@ export interface LogConfig {
   retention: string;
 }
 
-export type AudioProvider = 'google';
+export type AudioProvider = 'google' | 'openai' | 'openrouter' | 'ollama';
 
 export interface AudioConfig {
   provider: AudioProvider;
   model: string;
   enabled: boolean;
   apiKey?: string;
+  base_url?: string;
   maxDurationSeconds: number;
   supportedMimeTypes: string[];
 }
