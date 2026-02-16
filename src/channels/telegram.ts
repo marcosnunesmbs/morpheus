@@ -662,7 +662,11 @@ How can I assist you today?`;
     let response = await this.oracle.chat(prompt);
 
     if (response) {
-      await ctx.reply(response, { parse_mode: 'Markdown' });
+      try {
+        await ctx.reply(response, { parse_mode: 'Markdown' });
+      } catch {
+        await ctx.reply(response);
+      }
     }
     // await ctx.reply(`Command not recognized. Type /help to see available commands.`);
   }
