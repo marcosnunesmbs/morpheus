@@ -30,9 +30,11 @@ export const startCommand = new Command('start')
       // Cleanup stale PID first
       await checkStalePid();
 
+
       const existingPid = await readPid();
       if (existingPid !== null && isProcessRunning(existingPid)) {
         display.log(chalk.red(`Morpheus is already running (PID: ${existingPid})`));
+        await clearPid();
         process.exit(1);
       }
 
