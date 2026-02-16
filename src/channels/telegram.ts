@@ -310,6 +310,31 @@ export class TelegramAdapter {
         await ctx.reply('Action cancelled.');
       });
 
+      this.bot.action(/^toggle_mcp_/, async (ctx) => {
+        const data = (ctx.callbackQuery as any).data as string;
+        // format: toggle_mcp_enable_<name> or toggle_mcp_disable_<name>
+        const match = data.match(/^toggle_mcp_(enable|disable)_(.+)$/);
+        if (!match) {
+          await ctx.answerCbQuery('Invalid action');
+          return;
+        }
+        const [, action, serverName] = match;
+        const enable = action === 'enable';
+        try {
+          await MCPManager.setServerEnabled(serverName, enable);
+          await ctx.answerCbQuery(`${enable ? '✅ Enabled' : '❌ Disabled'}: ${serverName}`);
+          if (ctx.updateType === 'callback_query') {
+            ctx.deleteMessage().catch(() => { });
+          }
+          const user = ctx.from?.username || ctx.from?.first_name || 'unknown';
+          this.display.log(`MCP '${serverName}' ${enable ? 'enabled' : 'disabled'} by @${user}`, { source: 'Telegram', level: 'info' });
+          await this.handleMcpListCommand(ctx, user);
+        } catch (error: any) {
+          await ctx.answerCbQuery('Failed to update MCP');
+          await ctx.reply(`❌ Failed to ${enable ? 'enable' : 'disable'} MCP '${serverName}': ${error.message}`);
+        }
+      });
+
       this.bot.launch().catch((err) => {
         if (this.isConnected) {
           this.display.log(`Telegram bot error: ${err}`, { source: 'Telegram', level: 'error' });
@@ -816,6 +841,7 @@ How can I assist you today?`;
       }
 
       let response = `*MCP Servers (${servers.length})*\n\n`;
+      const keyboard: { text: string; callback_data: string }[][] = [];
 
       servers.forEach((server, index) => {
         const status = server.enabled ? '✅ Enabled' : '❌ Disabled';
@@ -835,9 +861,18 @@ How can I assist you today?`;
         }
 
         response += '\n';
+
+        if (server.enabled) {
+          keyboard.push([{ text: `❌ Disable ${server.name}`, callback_data: `toggle_mcp_disable_${server.name}` }]);
+        } else {
+          keyboard.push([{ text: `✅ Enable ${server.name}`, callback_data: `toggle_mcp_enable_${server.name}` }]);
+        }
       });
 
-      await ctx.reply(response, { parse_mode: 'Markdown' });
+      await ctx.reply(response, {
+        parse_mode: 'Markdown',
+        reply_markup: { inline_keyboard: keyboard },
+      });
     } catch (error) {
       this.display.log('Error listing MCP servers: ' + (error instanceof Error ? error.message : String(error)), { source: 'Telegram', level: 'error' });
       await ctx.reply(
