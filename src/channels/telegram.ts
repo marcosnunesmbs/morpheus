@@ -23,6 +23,7 @@ export class TelegramAdapter {
   private oracle: Oracle;
   private telephonist: ITelephonist | null = null;
   private telephonistProvider: string | null = null;
+  private telephonistModel: string | null = null;
   private history = new SQLiteChatMessageHistory({ sessionId: '' });
 
   private HELP_MESSAGE = `/start - Show this welcome message and available commands
@@ -123,9 +124,10 @@ export class TelegramAdapter {
           return;
         }
 
-        if (!this.telephonist || this.telephonistProvider !== config.audio.provider) {
+        if (!this.telephonist || this.telephonistProvider !== config.audio.provider || this.telephonistModel !== config.audio.model) {
           this.telephonist = createTelephonist(config.audio);
           this.telephonistProvider = config.audio.provider;
+          this.telephonistModel = config.audio.model;
         }
 
         const duration = ctx.message.voice.duration;

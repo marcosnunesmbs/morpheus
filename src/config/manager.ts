@@ -89,11 +89,14 @@ export class ConfigManager {
     }
 
     // Apply precedence to audio config
+    const audioProvider = config.audio.provider;
+    // AudioProvider uses 'google' but resolveApiKey expects LLMProvider which uses 'gemini'
+    const audioProviderForKey = (audioProvider === 'google' ? 'gemini' : audioProvider) as LLMProvider;
     const audioConfig = {
-      provider: config.audio.provider, // Audio provider is fixed as 'google'
+      provider: audioProvider,
       model: resolveString('MORPHEUS_AUDIO_MODEL', config.audio.model, DEFAULT_CONFIG.audio.model),
       enabled: resolveBoolean('MORPHEUS_AUDIO_ENABLED', config.audio.enabled, DEFAULT_CONFIG.audio.enabled),
-      apiKey: resolveApiKey('gemini', 'MORPHEUS_AUDIO_API_KEY', config.audio.apiKey),
+      apiKey: resolveApiKey(audioProviderForKey, 'MORPHEUS_AUDIO_API_KEY', config.audio.apiKey),
       maxDurationSeconds: resolveNumeric('MORPHEUS_AUDIO_MAX_DURATION', config.audio.maxDurationSeconds, DEFAULT_CONFIG.audio.maxDurationSeconds),
       supportedMimeTypes: config.audio.supportedMimeTypes
     };
