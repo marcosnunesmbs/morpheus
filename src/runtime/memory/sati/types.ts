@@ -76,5 +76,5 @@ export interface ISatiService {
   /**
    * Evaluates the conversation and persists new memories if needed.
    */
-  evaluateAndPersist(conversation: { role: string; content: string }[]): Promise<void>;
+  evaluateAndPersist(conversation: { role: string; content: string }[], userSessionId?: string): Promise<void>;
 }

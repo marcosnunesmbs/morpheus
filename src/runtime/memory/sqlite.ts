@@ -4,7 +4,7 @@ import Database from "better-sqlite3";
 import fs from "fs-extra";
 import * as path from "path";
 import { homedir } from "os";
-import type { ProviderModelUsageStats } from "../../types/stats.js";
+import type { ProviderModelUsageStats, ModelPricingEntry } from "../../types/stats.js";
 import { randomUUID } from 'crypto';
 import { DisplayManager } from "../display.js";
 
@@ -35,6 +35,10 @@ export class SQLiteChatMessageHistory extends BaseListChatMessageHistory {
   private sessionId: string;
   private limit?: number;
   private titleSet = false; // cache: skip setSessionTitleIfNeeded after title is set
+
+  get currentSessionId(): string {
+    return this.sessionId;
+  }
 
   constructor(fields: SQLiteChatMessageHistoryInput) {
     super();
@@ -141,9 +145,10 @@ export class SQLiteChatMessageHistory extends BaseListChatMessageHistory {
           total_tokens INTEGER,
           cache_read_tokens INTEGER,
           provider TEXT,
-          model TEXT
+          model TEXT,
+          audio_duration_seconds REAL
         );
-        
+
         CREATE INDEX IF NOT EXISTS idx_messages_session_id
         ON messages(session_id);
 
@@ -162,6 +167,33 @@ export class SQLiteChatMessageHistory extends BaseListChatMessageHistory {
           deleted_at INTEGER,
           embedding_status TEXT CHECK (embedding_status IN ('none', 'pending', 'embedded', 'failed')) NOT NULL DEFAULT 'none'
         );
+
+        CREATE TABLE IF NOT EXISTS model_pricing (
+          provider TEXT NOT NULL,
+          model TEXT NOT NULL,
+          input_price_per_1m REAL NOT NULL DEFAULT 0,
+          output_price_per_1m REAL NOT NULL DEFAULT 0,
+          PRIMARY KEY (provider, model)
+        );
+
+        INSERT OR IGNORE INTO model_pricing (provider, model, input_price_per_1m, output_price_per_1m) VALUES
+          ('anthropic', 'claude-opus-4-6', 15.0, 75.0),
+          ('anthropic', 'claude-sonnet-4-5-20250929', 3.0, 15.0),
+          ('anthropic', 'claude-haiku-4-5-20251001', 0.8, 4.0),
+          ('anthropic', 'claude-3-5-sonnet-20241022', 3.0, 15.0),
+          ('anthropic', 'claude-3-5-haiku-20241022', 0.8, 4.0),
+          ('anthropic', 'claude-3-opus-20240229', 15.0, 75.0),
+          ('openai', 'gpt-4o', 2.5, 10.0),
+          ('openai', 'gpt-4o-mini', 0.15, 0.6),
+          ('openai', 'gpt-4-turbo', 10.0, 30.0),
+          ('openai', 'gpt-3.5-turbo', 0.5, 1.5),
+          ('openai', 'o1', 15.0, 60.0),
+          ('openai', 'o1-mini', 3.0, 12.0),
+          ('google', 'gemini-2.5-flash', 0.15, 0.6),
+          ('google', 'gemini-2.5-flash-lite', 0.075, 0.3),
+          ('google', 'gemini-2.0-flash', 0.1, 0.4),
+          ('google', 'gemini-1.5-pro', 1.25, 5.0),
+          ('google', 'gemini-1.5-flash', 0.075, 0.3);
 
       `);
 
@@ -186,15 +218,17 @@ export class SQLiteChatMessageHistory extends BaseListChatMessageHistory {
         'total_tokens',
         'cache_read_tokens',
         'provider',
-        'model'
+        'model',
+        'audio_duration_seconds'
       ];
 
       const integerColumns = new Set(['input_tokens', 'output_tokens', 'total_tokens', 'cache_read_tokens']);
+      const realColumns = new Set(['audio_duration_seconds']);
 
       for (const col of newColumns) {
         if (!columns.has(col)) {
           try {
-            const type = integerColumns.has(col) ? 'INTEGER' : 'TEXT';
+            const type = integerColumns.has(col) ? 'INTEGER' : realColumns.has(col) ? 'REAL' : 'TEXT';
             this.db.exec(`ALTER TABLE messages ADD COLUMN ${col} ${type}`);
           } catch (e) {
             // Ignore error if column already exists (race condition or check failed)
@@ -350,6 +384,7 @@ export class SQLiteChatMessageHistory extends BaseListChatMessageHistory {
       // Extract provider metadata
       const provider = anyMsg.provider_metadata?.provider ?? null;
       const model = anyMsg.provider_metadata?.model ?? null;
+      const audioDurationSeconds = usage?.audio_duration_seconds ?? null;
 
       // Handle special content serialization for Tools
       let finalContent = "";
@@ -374,9 +409,9 @@ export class SQLiteChatMessageHistory extends BaseListChatMessageHistory {
       }
 
       const stmt = this.db.prepare(
-        "INSERT INTO messages (session_id, type, content, created_at, input_tokens, output_tokens, total_tokens, cache_read_tokens, provider, model) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+        "INSERT INTO messages (session_id, type, content, created_at, input_tokens, output_tokens, total_tokens, cache_read_tokens, provider, model, audio_duration_seconds) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
       );
-      stmt.run(this.sessionId, type, finalContent, Date.now(), inputTokens, outputTokens, totalTokens, cacheReadTokens, provider, model);
+      stmt.run(this.sessionId, type, finalContent, Date.now(), inputTokens, outputTokens, totalTokens, cacheReadTokens, provider, model, audioDurationSeconds);
 
       // Verificar se a sessão tem título e definir automaticamente se necessário
       await this.setSessionTitleIfNeeded();
@@ -405,7 +440,7 @@ export class SQLiteChatMessageHistory extends BaseListChatMessageHistory {
     if (messages.length === 0) return;
 
     const stmt = this.db.prepare(
-      "INSERT INTO messages (session_id, type, content, created_at, input_tokens, output_tokens, total_tokens, cache_read_tokens, provider, model) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+      "INSERT INTO messages (session_id, type, content, created_at, input_tokens, output_tokens, total_tokens, cache_read_tokens, provider, model, audio_duration_seconds) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
     );
 
     const insertAll = this.db.transaction((msgs: BaseMessage[]) => {
@@ -440,7 +475,8 @@ export class SQLiteChatMessageHistory extends BaseListChatMessageHistory {
           usage?.total_tokens ?? null,
           usage?.input_token_details?.cache_read ?? usage?.cache_read_tokens ?? null,
           anyMsg.provider_metadata?.provider ?? null,
-          anyMsg.provider_metadata?.model ?? null
+          anyMsg.provider_metadata?.model ?? null,
+          usage?.audio_duration_seconds ?? null
         );
       }
     });
@@ -508,15 +544,28 @@ export class SQLiteChatMessageHistory extends BaseListChatMessageHistory {
   /**
    * Retrieves aggregated usage statistics for all messages in the database.
    */
-  async getGlobalUsageStats(): Promise<{ totalInputTokens: number; totalOutputTokens: number }> {
+  async getGlobalUsageStats(): Promise<{ totalInputTokens: number; totalOutputTokens: number; totalEstimatedCostUsd: number | null }> {
     try {
       const stmt = this.db.prepare(
         "SELECT SUM(input_tokens) as totalInput, SUM(output_tokens) as totalOutput FROM messages"
       );
       const row = stmt.get() as { totalInput: number; totalOutput: number };
+
+      // Calculate total estimated cost by summing per-model costs
+      const costStmt = this.db.prepare(
+        `SELECT
+          SUM((COALESCE(m.input_tokens, 0) / 1000000.0) * p.input_price_per_1m
+            + (COALESCE(m.output_tokens, 0) / 1000000.0) * p.output_price_per_1m) as totalCost
+        FROM messages m
+        INNER JOIN model_pricing p ON p.provider = m.provider AND p.model = COALESCE(m.model, 'unknown')
+        WHERE m.provider IS NOT NULL`
+      );
+      const costRow = costStmt.get() as { totalCost: number | null };
+
       return {
         totalInputTokens: row.totalInput || 0,
-        totalOutputTokens: row.totalOutput || 0
+        totalOutputTokens: row.totalOutput || 0,
+        totalEstimatedCostUsd: costRow.totalCost ?? null
       };
     } catch (error) {
       throw new Error(`Failed to get usage stats: ${error}`);
@@ -556,17 +605,21 @@ export class SQLiteChatMessageHistory extends BaseListChatMessageHistory {
   async getUsageStatsByProviderAndModel(): Promise<ProviderModelUsageStats[]> {
     try {
       const stmt = this.db.prepare(
-        `SELECT 
-          provider,
-          COALESCE(model, 'unknown') as model,
-          SUM(input_tokens) as totalInputTokens,
-          SUM(output_tokens) as totalOutputTokens,
-          SUM(total_tokens) as totalTokens,
-          COUNT(*) as messageCount
-        FROM messages
-        WHERE provider IS NOT NULL
-        GROUP BY provider, COALESCE(model, 'unknown')
-        ORDER BY provider, model`
+        `SELECT
+          m.provider,
+          COALESCE(m.model, 'unknown') as model,
+          SUM(m.input_tokens) as totalInputTokens,
+          SUM(m.output_tokens) as totalOutputTokens,
+          SUM(m.total_tokens) as totalTokens,
+          COUNT(*) as messageCount,
+          COALESCE(SUM(m.audio_duration_seconds), 0) as totalAudioSeconds,
+          p.input_price_per_1m,
+          p.output_price_per_1m
+        FROM messages m
+        LEFT JOIN model_pricing p ON p.provider = m.provider AND p.model = COALESCE(m.model, 'unknown')
+        WHERE m.provider IS NOT NULL
+        GROUP BY m.provider, COALESCE(m.model, 'unknown')
+        ORDER BY m.provider, m.model`
       );
 
       const rows = stmt.all() as Array<{
@@ -576,19 +629,51 @@ export class SQLiteChatMessageHistory extends BaseListChatMessageHistory {
         totalOutputTokens: number | null;
         totalTokens: number | null;
         messageCount: number | null;
+        totalAudioSeconds: number | null;
+        input_price_per_1m: number | null;
+        output_price_per_1m: number | null;
       }>;
 
-      return rows.map((row) => ({
-        provider: row.provider,
-        model: row.model,
-        totalInputTokens: row.totalInputTokens || 0,
-        totalOutputTokens: row.totalOutputTokens || 0,
-        totalTokens: row.totalTokens || 0,
-        messageCount: row.messageCount || 0
-      }));
+      return rows.map((row) => {
+        const inputTokens = row.totalInputTokens || 0;
+        const outputTokens = row.totalOutputTokens || 0;
+        let estimatedCostUsd: number | null = null;
+        if (row.input_price_per_1m != null && row.output_price_per_1m != null) {
+          estimatedCostUsd = (inputTokens / 1_000_000) * row.input_price_per_1m
+                           + (outputTokens / 1_000_000) * row.output_price_per_1m;
+        }
+        return {
+          provider: row.provider,
+          model: row.model,
+          totalInputTokens: inputTokens,
+          totalOutputTokens: outputTokens,
+          totalTokens: row.totalTokens || 0,
+          messageCount: row.messageCount || 0,
+          totalAudioSeconds: row.totalAudioSeconds || 0,
+          estimatedCostUsd
+        };
+      });
     } catch (error) {
       throw new Error(`Failed to get grouped usage stats: ${error}`);
     }
+  }
+
+  // --- Model Pricing CRUD ---
+
+  listModelPricing(): ModelPricingEntry[] {
+    const rows = this.db.prepare('SELECT provider, model, input_price_per_1m, output_price_per_1m FROM model_pricing ORDER BY provider, model').all() as ModelPricingEntry[];
+    return rows;
+  }
+
+  upsertModelPricing(entry: ModelPricingEntry): void {
+    this.db.prepare(
+      'INSERT INTO model_pricing (provider, model, input_price_per_1m, output_price_per_1m) VALUES (?, ?, ?, ?) ON CONFLICT(provider, model) DO UPDATE SET input_price_per_1m = excluded.input_price_per_1m, output_price_per_1m = excluded.output_price_per_1m'
+    ).run(entry.provider, entry.model, entry.input_price_per_1m, entry.output_price_per_1m);
+  }
+
+  deleteModelPricing(provider: string, model: string): number {
+    const result = this.db.prepare('DELETE FROM model_pricing WHERE provider = ? AND model = ?').run(provider, model);
+    return result.changes;
   }
 
   /**

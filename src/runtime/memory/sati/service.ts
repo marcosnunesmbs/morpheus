@@ -78,7 +78,7 @@ export class SatiService implements ISatiService {
   }
 
 
-  public async evaluateAndPersist(conversation: { role: string; content: string }[]): Promise<void> {
+  public async evaluateAndPersist(conversation: { role: string; content: string }[], userSessionId?: string): Promise<void> {
     try {
       const satiConfig = ConfigManager.getInstance().getSatiConfig();
       if (!satiConfig) return;
@@ -107,7 +107,8 @@ export class SatiService implements ISatiService {
         new HumanMessage(JSON.stringify(inputPayload, null, 2))
       ];
 
-      const history = new SQLiteChatMessageHistory({ sessionId: 'sati-evaluation' });
+      const satiSessionId = userSessionId ? `sati-evaluation-${userSessionId}` : 'sati-evaluation';
+      const history = new SQLiteChatMessageHistory({ sessionId: satiSessionId });
 
       try {
         const inputMsg = new ToolMessage({

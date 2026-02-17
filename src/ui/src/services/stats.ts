@@ -1,6 +1,10 @@
-// @ts-ignore
-import type { UsageStats } from '../../../../specs/016-ui-config-stats/contracts/api-stats';
 import { httpClient } from './httpClient';
+
+export interface UsageStats {
+  totalInputTokens: number;
+  totalOutputTokens: number;
+  totalEstimatedCostUsd: number | null;
+}
 
 export interface ProviderModelUsageStats {
   provider: string;
@@ -9,6 +13,8 @@ export interface ProviderModelUsageStats {
   totalOutputTokens: number;
   totalTokens: number;
   messageCount: number;
+  totalAudioSeconds: number;
+  estimatedCostUsd: number | null;
 }
 
 export const statsService = {

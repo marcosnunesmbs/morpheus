@@ -229,6 +229,83 @@ export function createApiRouter(oracle: IOracle) {
     }
   });
 
+  // --- Model Pricing ---
+
+  const ModelPricingSchema = z.object({
+    provider: z.string().min(1),
+    model: z.string().min(1),
+    input_price_per_1m: z.number().nonnegative(),
+    output_price_per_1m: z.number().nonnegative()
+  });
+
+  router.get('/model-pricing', (req, res) => {
+    try {
+      const h = new SQLiteChatMessageHistory({ sessionId: 'api-reader' });
+      const entries = h.listModelPricing();
+      h.close();
+      res.json(entries);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  router.post('/model-pricing', (req, res) => {
+    const parsed = ModelPricingSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({ error: 'Invalid payload', details: parsed.error.issues });
+    }
+    try {
+      const h = new SQLiteChatMessageHistory({ sessionId: 'api-reader' });
+      h.upsertModelPricing(parsed.data);
+      h.close();
+      res.json({ success: true });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  router.put('/model-pricing/:provider/:model', (req, res) => {
+    const { provider, model } = req.params;
+    const partial = z.object({
+      input_price_per_1m: z.number().nonnegative().optional(),
+      output_price_per_1m: z.number().nonnegative().optional()
+    }).safeParse(req.body);
+    if (!partial.success) {
+      return res.status(400).json({ error: 'Invalid payload', details: partial.error.issues });
+    }
+    try {
+      const h = new SQLiteChatMessageHistory({ sessionId: 'api-reader' });
+      const existing = h.listModelPricing().find(e => e.provider === provider && e.model === model);
+      if (!existing) {
+        h.close();
+        return res.status(404).json({ error: 'Pricing entry not found' });
+      }
+      h.upsertModelPricing({
+        provider,
+        model,
+        input_price_per_1m: partial.data.input_price_per_1m ?? existing.input_price_per_1m,
+        output_price_per_1m: partial.data.output_price_per_1m ?? existing.output_price_per_1m
+      });
+      h.close();
+      res.json({ success: true });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  router.delete('/model-pricing/:provider/:model', (req, res) => {
+    const { provider, model } = req.params;
+    try {
+      const h = new SQLiteChatMessageHistory({ sessionId: 'api-reader' });
+      const changes = h.deleteModelPricing(provider, model);
+      h.close();
+      if (changes === 0) return res.status(404).json({ error: 'Pricing entry not found' });
+      res.json({ success: true });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   // Calculate diff between two objects
   const getDiff = (obj1: any, obj2: any, prefix = ''): string[] => {
     const changes: string[] = [];

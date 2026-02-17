@@ -52,15 +52,15 @@ export class SatiMemoryMiddleware {
         }
     }
 
-    async afterAgent(generatedResponse: string, history: BaseMessage[]): Promise<void> {
+    async afterAgent(generatedResponse: string, history: BaseMessage[], userSessionId?: string): Promise<void> {
         try {
              await this.service.evaluateAndPersist([
-                ...history.slice(-5).map(m => ({ 
-                    role: m._getType() === 'human' ? 'user' : 'assistant', 
-                    content: m.content.toString() 
+                ...history.slice(-5).map(m => ({
+                    role: m._getType() === 'human' ? 'user' : 'assistant',
+                    content: m.content.toString()
                 })),
                 { role: 'assistant', content: generatedResponse }
-             ]);
+             ], userSessionId);
         } catch (error) {
             display.log(`Error in afterAgent: ${error}`, { source: 'Sati' });
         }

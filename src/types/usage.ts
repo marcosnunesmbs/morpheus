@@ -5,4 +5,5 @@ export interface UsageMetadata {
   input_token_details?: {
     cache_read?: number;
   };
+  audio_duration_seconds?: number;
 }

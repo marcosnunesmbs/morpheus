@@ -267,7 +267,10 @@ You maintain intent until resolution.
       const responseContent = (typeof lastMessage.content === 'string') ? lastMessage.content : JSON.stringify(lastMessage.content);
 
       // Sati Middleware: Evaluation (Fire and forget)
-      this.satiMiddleware.afterAgent(responseContent, [...previousMessages, userMessage])
+      const currentSessionId = (this.history instanceof SQLiteChatMessageHistory)
+        ? this.history.currentSessionId
+        : undefined;
+      this.satiMiddleware.afterAgent(responseContent, [...previousMessages, userMessage], currentSessionId)
         .catch((e: any) => this.display.log(`Sati memory evaluation failed: ${e.message}`, { source: 'Sati' }));
 
       return responseContent;

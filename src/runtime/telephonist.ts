@@ -5,6 +5,21 @@ import fs from 'fs';
 import { AudioConfig } from '../types/config.js';
 import { UsageMetadata } from '../types/usage.js';
 
+/**
+ * Estimates audio duration in seconds based on file size and a typical bitrate.
+ * Uses 32 kbps (4000 bytes/sec) as a conservative baseline for compressed audio (OGG, MP3, etc.).
+ * This is an approximation — actual duration depends on encoding settings.
+ */
+function estimateAudioDurationSeconds(filePath: string): number {
+  try {
+    const stats = fs.statSync(filePath);
+    const bytesPerSecond = 4000; // ~32 kbps
+    return Math.round(stats.size / bytesPerSecond);
+  } catch {
+    return 0;
+  }
+}
+
 export interface AudioTranscriptionResult {
   text: string;
   usage: UsageMetadata;
@@ -64,7 +79,8 @@ class GeminiTelephonist implements ITelephonist {
       total_tokens: usage?.totalTokenCount ?? 0,
       input_token_details: {
         cache_read: usage?.cachedContentTokenCount ?? 0
-      }
+      },
+      audio_duration_seconds: estimateAudioDurationSeconds(filePath)
     };
 
     return { text, usage: usageMetadata };
@@ -102,6 +118,7 @@ class WhisperTelephonist implements ITelephonist {
       input_tokens: 0,
       output_tokens: 0,
       total_tokens: 0,
+      audio_duration_seconds: estimateAudioDurationSeconds(filePath)
     };
 
     return { text, usage: usageMetadata };
@@ -164,6 +181,7 @@ class OpenRouterTelephonist implements ITelephonist {
       input_tokens: usage?.prompt_tokens ?? 0,
       output_tokens: usage?.completion_tokens ?? 0,
       total_tokens: usage?.total_tokens ?? 0,
+      audio_duration_seconds: estimateAudioDurationSeconds(filePath)
     };
 
     return { text, usage: usageMetadata };

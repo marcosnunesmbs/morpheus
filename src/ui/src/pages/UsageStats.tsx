@@ -1,10 +1,8 @@
 import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
-import { BarChart3, Database, MessageSquare } from 'lucide-react';
+import { BarChart3, Database, MessageSquare, DollarSign } from 'lucide-react';
 import { statsService } from '../services/stats';
-import type { ProviderModelUsageStats } from '../services/stats';
-// @ts-ignore
-import type { UsageStats } from '../../../../specs/016-ui-config-stats/contracts/api-stats';
+import type { ProviderModelUsageStats, UsageStats } from '../services/stats';
 
 export function UsageStats() {
   const [globalStats, setGlobalStats] = useState<UsageStats | null>(null);
@@ -81,7 +79,7 @@ export function UsageStats() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <motion.div variants={item} className="p-6 bg-azure-surface dark:bg-black/40 border border-azure-border dark:border-matrix-primary rounded-lg shadow-sm backdrop-blur-sm">
           <div className="flex items-center gap-3 mb-2 text-azure-text-muted dark:text-matrix-secondary">
             <MessageSquare className="w-5 h-5" />
@@ -99,6 +97,18 @@ export function UsageStats() {
           </div>
           <p className="text-3xl font-bold text-azure-primary dark:text-matrix-highlight font-mono">
             {globalStats?.totalOutputTokens.toLocaleString() ?? 0}
+          </p>
+        </motion.div>
+
+        <motion.div variants={item} className="p-6 bg-azure-surface dark:bg-black/40 border border-azure-border dark:border-matrix-primary rounded-lg shadow-sm backdrop-blur-sm">
+          <div className="flex items-center gap-3 mb-2 text-azure-text-muted dark:text-matrix-secondary">
+            <DollarSign className="w-5 h-5" />
+            <h3 className="font-mono text-sm font-bold uppercase">Est. Total Cost</h3>
+          </div>
+          <p className="text-3xl font-bold text-green-600 dark:text-green-400 font-mono">
+            {globalStats?.totalEstimatedCostUsd != null
+              ? `$${globalStats.totalEstimatedCostUsd.toFixed(4)}`
+              : '—'}
           </p>
         </motion.div>
       </div>
@@ -119,12 +129,14 @@ export function UsageStats() {
                 <th className="p-4 text-right">Input Tokens</th>
                 <th className="p-4 text-right">Output Tokens</th>
                 <th className="p-4 text-right">Total Tokens</th>
+                <th className="p-4 text-right">Audio (s)</th>
+                <th className="p-4 text-right">Est. Cost (USD)</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-azure-border dark:divide-matrix-primary/30">
               {groupedStats.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="p-8 text-center text-azure-text-muted dark:text-matrix-secondary italic">
+                  <td colSpan={8} className="p-8 text-center text-azure-text-muted dark:text-matrix-secondary italic">
                     NO_DATA_AVAILABLE
                   </td>
                 </tr>
@@ -137,6 +149,12 @@ export function UsageStats() {
                     <td className="p-4 text-right text-azure-text-primary dark:text-gray-300">{stat.totalInputTokens.toLocaleString()}</td>
                     <td className="p-4 text-right text-azure-text-primary dark:text-gray-300">{stat.totalOutputTokens.toLocaleString()}</td>
                     <td className="p-4 text-right font-bold text-azure-text-primary dark:text-matrix-highlight">{stat.totalTokens.toLocaleString()}</td>
+                    <td className="p-4 text-right text-azure-text-primary dark:text-gray-300">
+                      {stat.totalAudioSeconds > 0 ? stat.totalAudioSeconds.toLocaleString() : '—'}
+                    </td>
+                    <td className="p-4 text-right font-bold text-green-600 dark:text-green-400">
+                      {stat.estimatedCostUsd != null ? `$${stat.estimatedCostUsd.toFixed(4)}` : '—'}
+                    </td>
                   </tr>
                 ))
               )}
