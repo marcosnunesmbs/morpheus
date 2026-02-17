@@ -190,50 +190,50 @@ export class SatiRepository {
 
 
   // 🔥 NOVO — Busca vetorial
-  private searchByVector(
-    embedding: number[],
-    limit: number
-  ): IMemoryRecord[] {
-    if (!this.db) return [];
+  // private searchByVector(
+  //   embedding: number[],
+  //   limit: number
+  // ): IMemoryRecord[] {
+  //   if (!this.db) return [];
 
-    const SIMILARITY_THRESHOLD = 0.5; // ajuste fino depois
+  //   const SIMILARITY_THRESHOLD = 0.5; // ajuste fino depois
 
-    const stmt = this.db.prepare(`
-    SELECT 
-      m.*,
-      vec_distance_cosine(v.embedding, ?) as distance
-    FROM memory_vec v
-    JOIN memory_embedding_map map ON map.vec_rowid = v.rowid
-    JOIN long_term_memory m ON m.id = map.memory_id
-    WHERE m.archived = 0
-    ORDER BY distance ASC
-    LIMIT ?
-  `);
+  //   const stmt = this.db.prepare(`
+  //   SELECT 
+  //     m.*,
+  //     vec_distance_cosine(v.embedding, ?) as distance
+  //   FROM memory_vec v
+  //   JOIN memory_embedding_map map ON map.vec_rowid = v.rowid
+  //   JOIN long_term_memory m ON m.id = map.memory_id
+  //   WHERE m.archived = 0
+  //   ORDER BY distance ASC
+  //   LIMIT ?
+  // `);
 
-    const rows = stmt.all(
-      new Float32Array(embedding),
-      limit
-    ) as any[];
+  //   const rows = stmt.all(
+  //     new Float32Array(embedding),
+  //     limit
+  //   ) as any[];
 
-    // 🔥 Filtrar por similaridade real
-    const ranked = rows
-      .map(r => ({
-        ...r,
-        similarity: 1 - r.distance
-      }));
+  //   // 🔥 Filtrar por similaridade real
+  //   const ranked = rows
+  //     .map(r => ({
+  //       ...r,
+  //       similarity: 1 - r.distance
+  //     }));
 
-    const filtered = ranked
-      .filter(r => r.distance >= SIMILARITY_THRESHOLD)
-      .sort((a, b) => b.similarity - a.similarity);
+  //   const filtered = ranked
+  //     .filter(r => r.distance >= SIMILARITY_THRESHOLD)
+  //     .sort((a, b) => b.similarity - a.similarity);
 
-    if (filtered.length > 0) {
-      console.log(
-        `[SatiRepository] Vector hit (${filtered.length})`
-      );
-    }
+  //   if (filtered.length > 0) {
+  //     console.log(
+  //       `[SatiRepository] Vector hit (${filtered.length})`
+  //     );
+  //   }
 
-    return filtered.map(this.mapRowToRecord);
-  }
+  //   return filtered.map(this.mapRowToRecord);
+  // }
 
   private searchUnifiedVector(
     embedding: number[],
