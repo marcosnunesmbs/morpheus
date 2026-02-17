@@ -250,18 +250,16 @@ You maintain intent until resolution.
       const newGeneratedMessages = response.messages.slice(startNewMessagesIndex);
       // console.log('New generated messages', newGeneratedMessages);
 
-      // Persist User Message first
-      await this.history.addMessage(userMessage);
-
-      // Persist all new intermediate tool calls and responses
+      // Inject provider/model metadata into all new messages
       for (const msg of newGeneratedMessages) {
-        // Inject provider/model metadata search interactors
         (msg as any).provider_metadata = {
           provider: this.config.llm.provider,
           model: this.config.llm.model
         };
-        await this.history.addMessage(msg);
       }
+
+      // Persist user message + all generated messages in a single transaction
+      await this.history.addMessages([userMessage, ...newGeneratedMessages]);
 
       this.display.log('Response generated.', { source: 'Oracle' });
 
@@ -347,6 +345,9 @@ You maintain intent until resolution.
       // This is safe and clean.
 
       await (this.history as SQLiteChatMessageHistory).switchSession(sessionId);
+
+      // Close previous connection before re-instantiating to avoid file handle leaks
+      (this.history as SQLiteChatMessageHistory).close();
 
       // Re-instantiate to point to new session
       this.history = new SQLiteChatMessageHistory({

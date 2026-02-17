@@ -34,6 +34,7 @@ export class SQLiteChatMessageHistory extends BaseListChatMessageHistory {
   private dbSati?: Database.Database; // Optional separate DB for Sati memory, if needed in the future
   private sessionId: string;
   private limit?: number;
+  private titleSet = false; // cache: skip setSessionTitleIfNeeded after title is set
 
   constructor(fields: SQLiteChatMessageHistoryInput) {
     super();
@@ -143,8 +144,11 @@ export class SQLiteChatMessageHistory extends BaseListChatMessageHistory {
           model TEXT
         );
         
-        CREATE INDEX IF NOT EXISTS idx_messages_session_id 
+        CREATE INDEX IF NOT EXISTS idx_messages_session_id
         ON messages(session_id);
+
+        CREATE INDEX IF NOT EXISTS idx_messages_session_id_id
+        ON messages(session_id, id DESC);
 
         CREATE TABLE IF NOT EXISTS sessions (
           id TEXT PRIMARY KEY,
@@ -394,10 +398,74 @@ export class SQLiteChatMessageHistory extends BaseListChatMessageHistory {
   }
 
   /**
+   * Adds multiple messages in a single SQLite transaction for better performance.
+   * Replaces calling addMessage() in a loop when inserting agent-generated messages.
+   */
+  async addMessages(messages: BaseMessage[]): Promise<void> {
+    if (messages.length === 0) return;
+
+    const stmt = this.db.prepare(
+      "INSERT INTO messages (session_id, type, content, created_at, input_tokens, output_tokens, total_tokens, cache_read_tokens, provider, model) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+    );
+
+    const insertAll = this.db.transaction((msgs: BaseMessage[]) => {
+      for (const message of msgs) {
+        let type: string;
+        if (message instanceof HumanMessage) type = "human";
+        else if (message instanceof AIMessage) type = "ai";
+        else if (message instanceof SystemMessage) type = "system";
+        else if (message instanceof ToolMessage) type = "tool";
+        else throw new Error(`Unsupported message type: ${message.constructor.name}`);
+
+        const anyMsg = message as any;
+        const usage = anyMsg.usage_metadata || anyMsg.response_metadata?.usage || anyMsg.response_metadata?.tokenUsage || anyMsg.usage;
+
+        let finalContent: string;
+        if (type === 'ai' && ((message as AIMessage).tool_calls?.length ?? 0) > 0) {
+          finalContent = JSON.stringify({ text: message.content, tool_calls: (message as AIMessage).tool_calls });
+        } else if (type === 'tool') {
+          const tm = message as ToolMessage;
+          finalContent = JSON.stringify({ content: tm.content, tool_call_id: tm.tool_call_id, name: tm.name });
+        } else {
+          finalContent = typeof message.content === "string" ? message.content : JSON.stringify(message.content);
+        }
+
+        stmt.run(
+          this.sessionId,
+          type,
+          finalContent,
+          Date.now(),
+          usage?.input_tokens ?? null,
+          usage?.output_tokens ?? null,
+          usage?.total_tokens ?? null,
+          usage?.input_token_details?.cache_read ?? usage?.cache_read_tokens ?? null,
+          anyMsg.provider_metadata?.provider ?? null,
+          anyMsg.provider_metadata?.model ?? null
+        );
+      }
+    });
+
+    try {
+      insertAll(messages);
+      await this.setSessionTitleIfNeeded();
+    } catch (error) {
+      if (error instanceof Error) {
+        if (error.message.includes('SQLITE_BUSY')) throw new Error(`Database is locked. Please try again. Original error: ${error.message}`);
+        if (error.message.includes('SQLITE_READONLY')) throw new Error(`Database is read-only. Check file permissions. Original error: ${error.message}`);
+        if (error.message.includes('SQLITE_FULL')) throw new Error(`Database is full or disk space is exhausted. Original error: ${error.message}`);
+      }
+      throw new Error(`Failed to add messages in batch: ${error}`);
+    }
+  }
+
+  /**
    * Verifies if the session has a title, and if not, sets it automatically
    * using the first 50 characters of the oldest human message.
    */
   private async setSessionTitleIfNeeded(): Promise<void> {
+    // Fast path: skip DB query if we already set the title this session
+    if (this.titleSet) return;
+
     // Verificar se a sessão já tem título
     const session = this.db.prepare(`
       SELECT title FROM sessions
@@ -406,6 +474,7 @@ export class SQLiteChatMessageHistory extends BaseListChatMessageHistory {
 
     if (session && session.title) {
       // A sessão já tem título, não precisa fazer nada
+      this.titleSet = true;
       return;
     }
 
@@ -432,6 +501,7 @@ export class SQLiteChatMessageHistory extends BaseListChatMessageHistory {
 
       // Chamar a função renameSession para definir o título automaticamente
       await this.renameSession(this.sessionId, title);
+      this.titleSet = true;
     }
   }
 
@@ -596,6 +666,7 @@ export class SQLiteChatMessageHistory extends BaseListChatMessageHistory {
 
       // Atualizar o ID da sessão atual desta instância
       this.sessionId = newId;
+      this.titleSet = false; // reset cache for new session
     });
 
     tx(); // Executar a transação

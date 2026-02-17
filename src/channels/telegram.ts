@@ -26,6 +26,17 @@ export class TelegramAdapter {
   private telephonistModel: string | null = null;
   private history = new SQLiteChatMessageHistory({ sessionId: '' });
 
+  private readonly RATE_LIMIT_MS = 3000; // minimum ms between requests per user
+  private rateLimiter = new Map<string, number>(); // userId -> last request timestamp
+
+  private isRateLimited(userId: string): boolean {
+    const now = Date.now();
+    const last = this.rateLimiter.get(userId);
+    if (last !== undefined && now - last < this.RATE_LIMIT_MS) return true;
+    this.rateLimiter.set(userId, now);
+    return false;
+  }
+
   private HELP_MESSAGE = `/start - Show this welcome message and available commands
 /status - Check the status of the Morpheus agent
 /doctor - Diagnose environment and configuration issues
@@ -72,9 +83,15 @@ export class TelegramAdapter {
 
         this.display.log(`@${user}: ${text}`, { source: 'Telegram' });
 
-        // Handle system commands
+        // Handle system commands (commands bypass rate limit)
         if (text.startsWith('/')) {
           await this.handleSystemCommand(ctx, text, user);
+          return;
+        }
+
+        // Rate limit check
+        if (this.isRateLimited(userId)) {
+          await ctx.reply('Please wait a moment before sending another message.');
           return;
         }
 
@@ -108,6 +125,12 @@ export class TelegramAdapter {
         // AUTH GUARD
         if (!this.isAuthorized(userId, allowedUsers)) {
           this.display.log(`Unauthorized audio attempt by @${user} (ID: ${userId})`, { source: 'Telegram', level: 'warning' });
+          return;
+        }
+
+        // Rate limit check
+        if (this.isRateLimited(userId)) {
+          await ctx.reply('Please wait a moment before sending another message.');
           return;
         }
 

@@ -93,6 +93,9 @@ export class SatiRepository {
       vec_rowid INTEGER NOT NULL
     );
 
+    CREATE INDEX IF NOT EXISTS idx_embedding_map_vec_rowid
+    ON memory_embedding_map(vec_rowid);
+
     -- ===============================
     -- 4️⃣ TRIGGERS FTS
     -- ===============================
@@ -138,6 +141,9 @@ export class SatiRepository {
       session_chunk_id TEXT PRIMARY KEY,
       vec_rowid INTEGER NOT NULL
     );
+
+    CREATE INDEX IF NOT EXISTS idx_session_embedding_map_vec_rowid
+    ON session_embedding_map(vec_rowid);
 
   `);
   }
@@ -214,12 +220,11 @@ export class SatiRepository {
       .map(r => ({
         ...r,
         similarity: 1 - r.distance
-      }))
-      .sort((a, b) => b.distance - a.distance);
+      }));
 
     const filtered = ranked
       .filter(r => r.distance >= SIMILARITY_THRESHOLD)
-      .sort((a, b) => b.distance - a.distance);
+      .sort((a, b) => b.similarity - a.similarity);
 
     if (filtered.length > 0) {
       console.log(
@@ -236,7 +241,7 @@ export class SatiRepository {
   ): IMemoryRecord[] {
     if (!this.db) return [];
 
-    const SIMILARITY_THRESHOLD = 0.75;
+    const SIMILARITY_THRESHOLD = 0.8;
 
     const stmt = this.db.prepare(`
     SELECT *
@@ -249,7 +254,7 @@ export class SatiRepository {
         m.category as category,
         m.importance as importance,
         'long_term' as source_type,
-        (1 - vec_distance_cosine(v.embedding, ?)) * 0.7 as distance
+        (1 - vec_distance_cosine(v.embedding, ?)) * 1.7 as distance
       FROM memory_vec v
       JOIN memory_embedding_map map ON map.vec_rowid = v.rowid
       JOIN long_term_memory m ON m.id = map.memory_id
@@ -265,7 +270,7 @@ export class SatiRepository {
         'session' as category,
         'medium' as importance,
         'session_chunk' as source_type,
-        (1 - vec_distance_cosine(v.embedding, ?)) * 0.3 as distance
+        (1 - vec_distance_cosine(v.embedding, ?)) * 0.5 as distance
       FROM session_vec v
       JOIN session_embedding_map map ON map.vec_rowid = v.rowid
       JOIN session_chunks sc ON sc.id = map.session_chunk_id
@@ -288,6 +293,8 @@ export class SatiRepository {
     //   console.log(`[SatiRepository] Row ${index + 1}:`, row);
     // });
 
+    // Note: the SQL query already computes distance as (1 - cosine_distance) * weight,
+    // so higher values mean higher similarity. Use distance directly as similarity score.
     const ranked = rows
       .map(r => ({
         ...r,

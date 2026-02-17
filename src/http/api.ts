@@ -86,14 +86,12 @@ export function createApiRouter(oracle: IOracle) {
   });
 
   router.get('/sessions/:id/messages', async (req, res) => {
+    const { id } = req.params;
+    const sessionHistory = new SQLiteChatMessageHistory({ sessionId: id, limit: 100 });
     try {
-      const { id } = req.params;
-      const sessionHistory = new SQLiteChatMessageHistory({ sessionId: id, limit: 100 });
       const messages = await sessionHistory.getMessages();
 
       // Normalize messages for UI
-      const key = (msg: any) => msg._getType(); // Access internal type if available, or infer
-
       const normalizedMessages = messages.map((msg: any) => {
         const type = msg._getType ? msg._getType() : 'unknown';
         return {
@@ -108,72 +106,29 @@ export function createApiRouter(oracle: IOracle) {
       res.json(normalizedMessages.reverse());
     } catch (err: any) {
       res.status(500).json({ error: err.message });
+    } finally {
+      sessionHistory.close();
     }
   });
 
   // --- Chat Interaction ---
 
+  const ChatSchema = z.object({
+    message: z.string().min(1).max(32_000),
+    sessionId: z.string().min(1)
+  });
+
   router.post('/chat', async (req, res) => {
+    const parsed = ChatSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({ error: 'Invalid input', details: parsed.error.errors });
+    }
+
     try {
-      const { message, sessionId } = req.body;
-
-      if (!message || !sessionId) {
-        return res.status(400).json({ error: 'Message and Session ID are required' });
-      }
-
-      // We need to ensure the Oracle uses the correct session history.
-      // The Oracle class uses its own internal history instance.
-      // We might need to refactor Oracle to accept a session ID per request or 
-      // instantiate a temporary Oracle wrapper/context?
-      //
-      // ACTUALLY: The Oracle class uses `this.history`. 
-      // `SQLiteChatMessageHistory` takes `sessionId` in constructor.
-      // To support multi-session chat via API, we should probably allow passing sessionId to `chat()` 
-      // OR (cleaner for now) we can rely on the fact that `Oracle` might not support swapping sessions easily without
-      // re-initialization or we extend `oracle.chat` to support overriding session.
-      //
-      // Let's look at `Oracle.chat`: it uses `this.history`.
-      // And `SQLiteChatMessageHistory` is tied to a sessionId.
-      //
-      // Quick fix for this feature:
-      // We can use a trick: `Oracle` allows `overrides` in constructor but that's for db path.
-      // `Oracle` initializes `this.history` in `initialize`.
-
-      // Better approach:
-      // We can temporarily switch the session of the Oracle's history if it exposes it,
-      // OR we just instantiate a fresh history for the chat request and use the provider?
-      // No, `oracle.chat` encapsulates the provider invocation.
-
-      // Let's check `Oracle` class again. (I viewed it earlier).
-      // It has `private history`.
-
-      // SOLUTION:
-      // I will add a `setSessionId(id: string)` method to `Oracle` interface and class.
-      // OR pass `sessionId` to `chat`.
-
-      // For now, I will assume I can update `Oracle` to support dynamic sessions.
-      // I'll modify `Oracle.chat` signature in a separate step if needed. 
-      // Wait, `Oracle` is a singleton-ish in `start.ts`.
-
-      // Let's modify `Oracle` to accept `sessionId` in `chat`?
-      // `chat(message: string, extraUsage?: UsageMetadata, isTelephonist?: boolean)`
-      //
-      // Adding `sessionId` to `chat` seems invasive if not threaded fast.
-      //
-      // Alternative:
-      // `router.post('/chat')` instantiates a *new* Oracle? No, expensive (provider factory).
-      //
-      // Ideally `Oracle` should be stateless regarding session, or easily switchable.
-      // `SQLiteChatMessageHistory` is cheap to instantiate.
-      //
-      // Let's update `Oracle` to allow switching session.
-      // `oracle.switchSession(sessionId)`
-
-      await (oracle as any).setSessionId(sessionId); // Type cast for now, will implement next
+      const { message, sessionId } = parsed.data;
+      await (oracle as any).setSessionId(sessionId);
       const response = await oracle.chat(message);
-
       res.json({ response });
-
     } catch (err: any) {
       res.status(500).json({ error: err.message });
     }
