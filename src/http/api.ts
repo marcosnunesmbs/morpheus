@@ -121,7 +121,7 @@ export function createApiRouter(oracle: IOracle) {
   router.post('/chat', async (req, res) => {
     const parsed = ChatSchema.safeParse(req.body);
     if (!parsed.success) {
-      return res.status(400).json({ error: 'Invalid input', details: parsed.error.errors });
+      return res.status(400).json({ error: 'Invalid input', details: parsed.error.message });
     }
 
     try {
