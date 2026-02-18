@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **Apoc DevTools Subagent**: New specialized subagent for developer operations, invoked by Oracle
+  - Oracle automatically delegates to Apoc via `apoc_delegate` tool when user requests file, shell, git, network, package, process, or system operations
+  - DevKit tool set: `read_file`, `write_file`, `append_file`, `delete_file`, `run_command`, git ops, npm ops, process listing, ping, curl, system info, and more
+  - Singleton pattern with `Apoc.getInstance()` — one instance per daemon lifecycle
+  - Independently configurable LLM provider, model, temperature, working directory, and timeout
+  - New `apoc` config section in `~/.morpheus/zaion.yaml` (optional, falls back to Oracle config)
+  - API endpoints: `GET/POST/DELETE /api/config/apoc`
+  - Env vars: `MORPHEUS_APOC_PROVIDER`, `MORPHEUS_APOC_MODEL`, `MORPHEUS_APOC_TEMPERATURE`, `MORPHEUS_APOC_API_KEY`, `MORPHEUS_APOC_WORKING_DIR`, `MORPHEUS_APOC_TIMEOUT_MS`
+
+- **`ProviderFactory.createBare()`**: New method for creating clean ReactAgent instances without Oracle's internal tools — used by Apoc and future subagents
+
+- **Settings UI — Agents tab**: Renamed "LLM" tab to "Agents" with three sub-tabs
+  - **Oracle** sub-tab: provider, model, temperature, max tokens, context window, API key
+  - **Sati** sub-tab: memory-specific LLM config + memory limit + archived sessions toggle
+  - **Apoc** sub-tab: provider, model, temperature, API key, working directory, timeout
+
 ## [0.3.1] - 2026-02-14
 
 ### Fixed

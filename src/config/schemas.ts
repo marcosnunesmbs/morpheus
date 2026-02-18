@@ -26,6 +26,11 @@ export const SatiConfigSchema = LLMConfigSchema.extend({
     enabled_archived_sessions: z.boolean().default(true),
 });
 
+export const ApocConfigSchema = LLMConfigSchema.extend({
+    working_dir: z.string().optional(),
+    timeout_ms: z.number().int().positive().optional(),
+});
+
 // Zod Schema matching MorpheusConfig interface
 export const ConfigSchema = z.object({
   agent: z.object({
@@ -34,6 +39,7 @@ export const ConfigSchema = z.object({
   }).default(DEFAULT_CONFIG.agent),
   llm: LLMConfigSchema.default(DEFAULT_CONFIG.llm),
   sati: SatiConfigSchema.optional(),
+  apoc: ApocConfigSchema.optional(),
   audio: AudioConfigSchema.default(DEFAULT_CONFIG.audio),
   memory: z.object({
     limit: z.number().int().positive().optional(),

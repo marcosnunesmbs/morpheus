@@ -33,7 +33,13 @@ Morpheus is a local-first AI operator/agent for developers, distributed as a glo
 │   ├── cli/             # CLI commands and logic
 │   ├── config/          # Configuration management with Zod validation
 │   ├── http/            # Express server for Web UI and API
+│   ├── devkit/          # DevKit tool factories for Apoc (filesystem, shell, git, network, packages, processes, system)
+│   ├── devkit/          # DevKit tool factories (filesystem, shell, git, network, packages, processes, system)
 │   ├── runtime/         # Core agent logic, memory, and providers
+│   │   ├── apoc.ts      # Apoc DevTools subagent
+│   │   └── oracle.ts    # Oracle main agent
+│   │   ├── apoc.ts      # Apoc DevTools subagent (singleton, uses DevKit)
+│   │   ├── oracle.ts    # Oracle main agent (ReactAgent + apoc_delegate tool)
 │   ├── types/           # Shared TypeScript interfaces and types
 │   └── ui/              # React Web Dashboard source
 ├── .github/             # GitHub templates and configurations
@@ -59,6 +65,7 @@ Morpheus is a local-first AI operator/agent for developers, distributed as a glo
 6. **Audio Transcription**: Voice message support via multi-provider Telephonist (Google Gemini, OpenAI Whisper, OpenRouter, Anthropic, Ollama)
 7. **Web Dashboard**: Matrix-themed React UI for management and monitoring
 8. **Declarative Configuration**: YAML-based configuration with environment variable support
+9. **Apoc DevTools Subagent**: Specialized subagent for developer operations (filesystem, shell, git, network, packages, processes, system) — called by Oracle via `apoc_delegate` tool
 
 ## UI Design System
 
@@ -230,10 +237,14 @@ The project follows a specification-driven development approach:
 ## Key Components
 
 ### Runtime Core (`src/runtime/`)
-- **Agent Orchestrator**: Implements the `IAgent` interface, manages conversation loop using LangChain
+- **Oracle (`oracle.ts`)**: Main orchestrator using LangChain ReactAgent. Manages conversation, context window, Sati memory middleware, and delegates dev tasks to Apoc via `apoc_delegate` tool.
+- **Apoc (`apoc.ts`)**: Singleton DevTools subagent. Receives delegated tasks from Oracle and executes them using DevKit tools. Independently configurable LLM provider/model.
+- **DevKit (`src/devkit/`)**: Modular tool factory system. Registers factories for filesystem, shell, git, network, packages, processes, and system. Called via `buildDevKit(ctx)` with `working_dir`, `allowed_commands`, `timeout_ms`.
 - **Memory System**: Uses `SQLiteChatMessageHistory` for persistent conversation storage
-- **LLM Providers**: Factory pattern (`ProviderFactory`) abstracts specific LLM implementations (OpenAI, Anthropic, OpenRouter, Ollama, Google Gemini)
-- **Telephonist**: Multi-provider audio transcription factory (`createTelephonist`). Supports Google Gemini (native file upload), OpenAI Whisper API, and Ollama Whisper (local, via OpenAI-compatible endpoint). Configured via `audio.provider` in `config.yaml`.
+- **LLM Providers**: Factory pattern (`ProviderFactory`). Two modes:
+  - `create()`: Full Oracle agent (internal tools + MCP + `apoc_delegate`)
+  - `createBare()`: Clean subagent context (DevKit tools only, used by Apoc)
+- **Telephonist**: Multi-provider audio transcription. Supports Google Gemini, OpenAI Whisper, and Ollama Whisper. Configured via `audio.provider` in `config.yaml`.
 
 ### Channel Adapters (`src/channels/`)
 - Implement adapter pattern for external communication
@@ -254,7 +265,8 @@ The project follows a specification-driven development approach:
 
 - Tokens stored via environment variables
 - Secrets masked in UI
-- Local tool execution sandboxing
+- Apoc DevKit uses `working_dir` to constrain filesystem operations scope
+- Apoc tool timeout (`timeout_ms`) prevents runaway shell commands
 - Path whitelist enforcement
 - Optional human confirmation for dangerous commands
 - UI authentication via "The Architect Pass"

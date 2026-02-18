@@ -413,6 +413,55 @@ export function createApiRouter(oracle: IOracle) {
     }
   });
 
+  // Apoc config endpoints
+  router.get('/config/apoc', (req, res) => {
+    try {
+      const apocConfig = configManager.getApocConfig();
+      res.json(apocConfig);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  router.post('/config/apoc', async (req, res) => {
+    try {
+      const config = configManager.get();
+      await configManager.save({ ...config, apoc: req.body });
+
+      const display = DisplayManager.getInstance();
+      display.log('Apoc configuration updated via UI', {
+        source: 'Zaion',
+        level: 'info'
+      });
+
+      res.json({ success: true });
+    } catch (error: any) {
+      if (error.name === 'ZodError') {
+        res.status(400).json({ error: 'Validation failed', details: error.errors });
+      } else {
+        res.status(500).json({ error: error.message });
+      }
+    }
+  });
+
+  router.delete('/config/apoc', async (req, res) => {
+    try {
+      const config = configManager.get();
+      const { apoc: _apoc, ...restConfig } = config;
+      await configManager.save(restConfig);
+
+      const display = DisplayManager.getInstance();
+      display.log('Apoc configuration removed via UI (falling back to Oracle config)', {
+        source: 'Zaion',
+        level: 'info'
+      });
+
+      res.json({ success: true });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   // Sati memories endpoints
   router.get('/sati/memories', async (req, res) => {
     try {

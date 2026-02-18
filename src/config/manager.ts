@@ -1,7 +1,7 @@
 import fs from 'fs-extra';
 import yaml from 'js-yaml';
 import { z } from 'zod';
-import { MorpheusConfig, DEFAULT_CONFIG, SatiConfig, LLMProvider } from '../types/config.js';
+import { MorpheusConfig, DEFAULT_CONFIG, SatiConfig, ApocConfig, LLMProvider } from '../types/config.js';
 import { PATHS } from './paths.js';
 import { setByPath } from './utils.js';
 import { ConfigSchema } from './schemas.js';
@@ -88,6 +88,23 @@ export class ConfigManager {
       };
     }
 
+    // Apply precedence to Apoc config
+    let apocConfig: ApocConfig | undefined;
+    if (config.apoc) {
+      const apocProvider = resolveProvider('MORPHEUS_APOC_PROVIDER', config.apoc.provider, llmConfig.provider);
+      apocConfig = {
+        provider: apocProvider,
+        model: resolveModel(apocProvider, 'MORPHEUS_APOC_MODEL', config.apoc.model || llmConfig.model),
+        temperature: resolveNumeric('MORPHEUS_APOC_TEMPERATURE', config.apoc.temperature, llmConfig.temperature),
+        max_tokens: config.apoc.max_tokens !== undefined ? resolveNumeric('MORPHEUS_APOC_MAX_TOKENS', config.apoc.max_tokens, config.apoc.max_tokens!) : llmConfig.max_tokens,
+        api_key: resolveApiKey(apocProvider, 'MORPHEUS_APOC_API_KEY', config.apoc.api_key || llmConfig.api_key),
+        base_url: config.apoc.base_url || config.llm.base_url,
+        context_window: config.apoc.context_window !== undefined ? resolveNumeric('MORPHEUS_APOC_CONTEXT_WINDOW', config.apoc.context_window, config.apoc.context_window!) : llmConfig.context_window,
+        working_dir: resolveString('MORPHEUS_APOC_WORKING_DIR', config.apoc.working_dir, process.cwd()),
+        timeout_ms: config.apoc.timeout_ms !== undefined ? resolveNumeric('MORPHEUS_APOC_TIMEOUT_MS', config.apoc.timeout_ms, 30_000) : 30_000
+      };
+    }
+
     // Apply precedence to audio config
     const audioProvider = resolveString('MORPHEUS_AUDIO_PROVIDER', config.audio.provider, DEFAULT_CONFIG.audio.provider) as typeof config.audio.provider;
     // AudioProvider uses 'google' but resolveApiKey expects LLMProvider which uses 'gemini'
@@ -136,6 +153,7 @@ export class ConfigManager {
       agent: agentConfig,
       llm: llmConfig,
       sati: satiConfig,
+      apoc: apocConfig,
       audio: audioConfig,
       channels: channelsConfig,
       ui: uiConfig,
@@ -177,11 +195,28 @@ export class ConfigManager {
         ...this.config.sati
       };
     }
-    
+
     // Fallback to main LLM config
     return {
       ...this.config.llm,
       memory_limit: 10 // Default fallback
+    };
+  }
+
+  public getApocConfig(): ApocConfig {
+    if (this.config.apoc) {
+      return {
+        working_dir: process.cwd(),
+        timeout_ms: 30_000,
+        ...this.config.apoc
+      };
+    }
+
+    // Fallback to main LLM config with Apoc defaults
+    return {
+      ...this.config.llm,
+      working_dir: process.cwd(),
+      timeout_ms: 30_000
     };
   }
 }

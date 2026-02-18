@@ -59,6 +59,11 @@ export interface SatiConfig extends LLMConfig {
   enabled_archived_sessions?: boolean;
 }
 
+export interface ApocConfig extends LLMConfig {
+  working_dir?: string;
+  timeout_ms?: number;
+}
+
 export interface MemoryConfig {
   /**
    * @deprecated Use llm.context_window instead. This field is kept for backward compatibility.
@@ -70,6 +75,7 @@ export interface MorpheusConfig {
   agent: AgentConfig;
   llm: LLMConfig;
   sati?: SatiConfig;
+  apoc?: ApocConfig;
   channels: ChannelsConfig;
   ui: UIConfig;
   logging: LogConfig;
@@ -118,5 +124,11 @@ export const DEFAULT_CONFIG: MorpheusConfig = {
     context_window: 100,
     memory_limit: 100,
     enabled_archived_sessions: true,
+  },
+  apoc: {
+    provider: 'openai',
+    model: 'gpt-4',
+    temperature: 0.2,
+    timeout_ms: 30000,
   }
 };

@@ -16,15 +16,14 @@ import {
   DiagnosticTool,
   MessageCountTool,
   TokenUsageTool,
-  ProviderModelUsageTool
+  ProviderModelUsageTool,
+  ApocDelegateTool
 } from "../tools/index.js";
 
 export class ProviderFactory {
-  static async create(config: LLMConfig, tools: StructuredTool[] = []): Promise<ReactAgent> {
-
-    let display = DisplayManager.getInstance();
-
-    const toolMonitoringMiddleware = createMiddleware({
+  private static buildMonitoringMiddleware() {
+    const display = DisplayManager.getInstance();
+    return createMiddleware({
       name: "ToolMonitoringMiddleware",
       wrapToolCall: (request, handler) => {
         display.log(`Executing tool: ${request.toolCall.name}`, { level: "warning", source: 'ConstructLoad' });
@@ -39,59 +38,85 @@ export class ProviderFactory {
         }
       },
     });
+  }
 
-    let model: BaseChatModel;
+  private static buildModel(config: LLMConfig): BaseChatModel {
+    switch (config.provider) {
+      case 'openai':
+        return new ChatOpenAI({
+          modelName: config.model,
+          temperature: config.temperature,
+          apiKey: process.env.OPENAI_API_KEY || config.api_key,
+        });
+      case 'anthropic':
+        return new ChatAnthropic({
+          modelName: config.model,
+          temperature: config.temperature,
+          apiKey: process.env.ANTHROPIC_API_KEY || config.api_key,
+        });
+      case 'openrouter':
+        return new ChatOpenAI({
+          modelName: config.model,
+          temperature: config.temperature,
+          apiKey: process.env.OPENROUTER_API_KEY || config.api_key,
+          configuration: {
+            baseURL: config.base_url || 'https://openrouter.ai/api/v1'
+          }
+        });
+      case 'ollama':
+        return new ChatOllama({
+          model: config.model,
+          temperature: config.temperature,
+          baseUrl: config.base_url || config.api_key,
+        });
+      case 'gemini':
+        return new ChatGoogleGenerativeAI({
+          model: config.model,
+          temperature: config.temperature,
+          apiKey: process.env.GOOGLE_API_KEY || config.api_key
+        });
+      default:
+        throw new Error(`Unsupported provider: ${config.provider}`);
+    }
+  }
 
-    const responseSchema = z.object({
-      content: z.string().describe("The main response content from the agent"),
-    });
+  private static handleProviderError(config: LLMConfig, error: any): never {
+    let suggestion = "Check your configuration and API keys.";
+    const msg = error.message?.toLowerCase() || '';
 
-    // Removed direct MCP client instantiation
+    if (msg.includes("api key") && (msg.includes("missing") || msg.includes("not found"))) {
+      suggestion = `API Key is missing for ${config.provider}. Run 'morpheus config' or set it in .env.`;
+    } else if (msg.includes("401") || msg.includes("unauthorized")) {
+      suggestion = `Run 'morpheus config' to update your ${config.provider} API key.`;
+    } else if ((msg.includes("econnrefused") || msg.includes("fetch failed")) && config.provider === 'ollama') {
+      suggestion = "Is Ollama running? Try 'ollama serve'.";
+    } else if (msg.includes("model not found") || msg.includes("404")) {
+      suggestion = `Model '${config.model}' may not be available. Check provider docs.`;
+    } else if (msg.includes("unsupported provider")) {
+      suggestion = "Edit your config file to use a supported provider (openai, anthropic, openrouter, ollama, gemini).";
+    }
 
+    throw new ProviderError(config.provider, error, suggestion);
+  }
+
+  /**
+   * Creates a ReactAgent with only the provided tools — no internal Oracle tools injected.
+   * Used by subagents like Apoc that need a clean, isolated tool context.
+   */
+  static async createBare(config: LLMConfig, tools: StructuredTool[] = []): Promise<ReactAgent> {
     try {
-      switch (config.provider) {
-        case 'openai':
-          model = new ChatOpenAI({
-            modelName: config.model,
-            temperature: config.temperature,
-            apiKey: process.env.OPENAI_API_KEY || config.api_key, // Check env var first, then config
-          });
-          break;
-        case 'anthropic':
-          model = new ChatAnthropic({
-            modelName: config.model,
-            temperature: config.temperature,
-            apiKey: process.env.ANTHROPIC_API_KEY || config.api_key, // Check env var first, then config
-          });
-          break;
-        case 'openrouter':
-          model = new ChatOpenAI({
-            modelName: config.model,
-            temperature: config.temperature,
-            apiKey: process.env.OPENROUTER_API_KEY || config.api_key, // Check env var first, then config
-            configuration: {
-              baseURL: config.base_url || 'https://openrouter.ai/api/v1'
-            }
-          });
-          break;
-        case 'ollama':
-          // Ollama usually runs locally, api_key optional
-          model = new ChatOllama({
-            model: config.model,
-            temperature: config.temperature,
-            baseUrl: config.api_key, // Sometimes users might overload api_key for base URL or similar, but simplified here
-          });
-          break;
-        case 'gemini':
-          model = new ChatGoogleGenerativeAI({
-            model: config.model,
-            temperature: config.temperature,
-            apiKey: process.env.GOOGLE_API_KEY || config.api_key // Check env var first, then config
-          });
-          break;
-        default:
-          throw new Error(`Unsupported provider: ${config.provider}`);
-      }
+      const model = ProviderFactory.buildModel(config);
+      const middleware = ProviderFactory.buildMonitoringMiddleware();
+      return createAgent({ model, tools, middleware: [middleware] });
+    } catch (error: any) {
+      ProviderFactory.handleProviderError(config, error);
+    }
+  }
+
+  static async create(config: LLMConfig, tools: StructuredTool[] = []): Promise<ReactAgent> {
+    try {
+      const model = ProviderFactory.buildModel(config);
+      const middleware = ProviderFactory.buildMonitoringMiddleware();
 
       const toolsForAgent = [
         ...tools,
@@ -100,41 +125,13 @@ export class ProviderFactory {
         DiagnosticTool,
         MessageCountTool,
         TokenUsageTool,
-        ProviderModelUsageTool
+        ProviderModelUsageTool,
+        ApocDelegateTool
       ];
 
-      return createAgent({
-        model: model,
-        tools: toolsForAgent,
-        middleware: [toolMonitoringMiddleware]
-      });
-
-
+      return createAgent({ model, tools: toolsForAgent, middleware: [middleware] });
     } catch (error: any) {
-      let suggestion = "Check your configuration and API keys.";
-
-      const msg = error.message?.toLowerCase() || '';
-
-      // Constructor validation errors (Missing Keys)
-      if (msg.includes("api key") && (msg.includes("missing") || msg.includes("not found"))) {
-        suggestion = `API Key is missing for ${config.provider}. Run 'morpheus config' or set it in .env.`;
-      }
-      // Network/Auth errors (unlikely in constructor, but possible if pre-validation exists)
-      else if (msg.includes("401") || msg.includes("unauthorized")) {
-        suggestion = `Run 'morpheus config' to update your ${config.provider} API key.`;
-      } else if ((msg.includes("econnrefused") || msg.includes("fetch failed")) && config.provider === 'ollama') {
-        suggestion = "Is Ollama running? Try 'ollama serve'.";
-      } else if (msg.includes("model not found") || msg.includes("404")) {
-        suggestion = `Model '${config.model}' may not be available. Check provider docs.`;
-      } else if (msg.includes("unsupported provider")) {
-        suggestion = "Edit your config file to use a supported provider (openai, anthropic, openrouter, ollama, gemini).";
-      }
-
-      throw new ProviderError(
-        config.provider,
-        error,
-        suggestion
-      );
+      ProviderFactory.handleProviderError(config, error);
     }
   }
 }

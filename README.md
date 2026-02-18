@@ -153,6 +153,13 @@ The system also supports generic environment variables that apply to all provide
 | `MORPHEUS_SATI_MEMORY_LIMIT` | Memory retrieval limit for Sati | santi.memory_limit |
 | `MORPHEUS_SATI_MEMORY_LIMIT` | Memory retrieval limit for Sati | santi.memory_limit |
 | `MORPHEUS_SATI_ENABLED_ARCHIVED_SESSIONS`| Enable/disable retrieval of archived sessions in Sati | santi.enableArchivedSessions |
+| `MORPHEUS_APOC_PROVIDER` | Apoc LLM provider | apoc.provider |
+| `MORPHEUS_APOC_MODEL` | Model name for Apoc | apoc.model |
+| `MORPHEUS_APOC_TEMPERATURE` | Temperature for Apoc | apoc.temperature |
+| `MORPHEUS_APOC_MAX_TOKENS` | Maximum tokens for Apoc | apoc.max_tokens |
+| `MORPHEUS_APOC_API_KEY` | API key for Apoc (falls back to provider-specific key) | apoc.api_key |
+| `MORPHEUS_APOC_WORKING_DIR` | Working directory for Apoc file/shell operations | apoc.working_dir |
+| `MORPHEUS_APOC_TIMEOUT_MS` | Timeout in ms for Apoc shell operations (default: 30000) | apoc.timeout_ms |
 | `MORPHEUS_AUDIO_MODEL` | Model name for audio processing | audio.model |
 | `MORPHEUS_AUDIO_ENABLED` | Enable/disable audio processing | audio.enabled |
 | `MORPHEUS_AUDIO_API_KEY` | Generic API key for audio (lower precedence than provider-specific keys) | audio.apiKey |
@@ -205,6 +212,28 @@ When enabled:
 
 ### 🧩 MCP Support (Model Context Protocol)
 Full integration with [Model Context Protocol](https://modelcontextprotocol.io/), allowing Morpheus to use standardized tools from any MCP-compatible server.
+
+### 🛠️ Apoc (DevTools Subagent)
+
+Morpheus includes **Apoc**, a specialized subagent invoked by Oracle whenever the user requests developer-level operations. Apoc runs with access to the **DevKit** tool set:
+
+| Tool Group | Capabilities |
+|---|---|
+| **Filesystem** | Read, write, append, delete files and directories |
+| **Shell** | Execute shell commands and scripts with timeout control |
+| **Git** | status, log, diff, commit, push, pull, clone, branch |
+| **Packages** | npm/yarn install, update, audit, package.json inspection |
+| **Processes** | List running processes, check ports, terminate processes |
+| **Network** | curl, ping, DNS lookups, HTTP requests |
+| **System** | Environment variables, OS info, disk space, memory usage |
+
+Oracle delegates to Apoc via the `apoc_delegate` tool when you ask things like:
+- *"Run npm install and show me any errors"*
+- *"What's the git status of this repo?"*
+- *"Read the contents of config.json"*
+- *"Execute the build script and tell me what happened"*
+
+Apoc is independently configurable — use a different (e.g., faster, cheaper) model than Oracle for tool execution tasks.
 
 ### 🧠 Sati (Long-Term Memory)
 Morpheus features a dedicated middleware system called **Sati** (Mindfulness) that provides long-term memory capabilities.
@@ -309,6 +338,12 @@ santi: # Optional: Sati (Long-Term Memory) specific settings
   provider: "openai" # defaults to llm.provider
   model: "gpt-4o"
   memory_limit: 1000 # Number of messages/items to retrieve
+apoc: # Optional: Apoc DevTools subagent settings
+  provider: "openai" # defaults to llm.provider (can use a cheaper/faster model)
+  model: "gpt-4o-mini"
+  temperature: 0.2
+  working_dir: "/home/user/projects" # root dir for file/shell ops (defaults to process cwd)
+  timeout_ms: 30000 # shell command timeout in ms
 channels:
   telegram:
     enabled: true
@@ -559,6 +594,55 @@ Update the Sati (long-term memory) configuration.
 
 #### DELETE `/api/config/sati`
 Remove the Sati (long-term memory) configuration (falls back to Oracle config).
+
+*   **Authentication:** Requires `Authorization` header with the password set in `THE_ARCHITECT_PASS`.
+*   **Response:**
+    ```json
+    {
+      "success": true
+    }
+    ```
+
+
+#### GET `/api/config/apoc`
+Retrieve the Apoc (DevTools subagent) configuration. Falls back to Oracle (LLM) config if not explicitly set.
+
+*   **Authentication:** Requires `Authorization` header with the password set in `THE_ARCHITECT_PASS`.
+*   **Response:**
+    ```json
+    {
+      "provider": "openai",
+      "model": "gpt-4o-mini",
+      "temperature": 0.2,
+      "api_key": "***",
+      "working_dir": "/home/user/projects",
+      "timeout_ms": 30000
+    }
+    ```
+
+#### POST `/api/config/apoc`
+Update the Apoc (DevTools subagent) configuration.
+
+*   **Authentication:** Requires `Authorization` header with the password set in `THE_ARCHITECT_PASS`.
+*   **Body:**
+    ```json
+    {
+      "provider": "openai",
+      "model": "gpt-4o-mini",
+      "temperature": 0.2,
+      "working_dir": "/home/user/projects",
+      "timeout_ms": 30000
+    }
+    ```
+*   **Response:**
+    ```json
+    {
+      "success": true
+    }
+    ```
+
+#### DELETE `/api/config/apoc`
+Remove the Apoc configuration (falls back to Oracle config).
 
 *   **Authentication:** Requires `Authorization` header with the password set in `THE_ARCHITECT_PASS`.
 *   **Response:**
@@ -860,6 +944,10 @@ npm run test:watch
 │   ├── cli/         # CLI commands and logic
 │   ├── config/      # Configuration management
 │   ├── runtime/     # Core agent logic, lifecycle, and providers
+│   ├── apoc.ts       # Apoc DevTools subagent (filesystem, shell, git, etc.)
+│   ├── oracle.ts     # Oracle main agent (LangChain ReactAgent)
+│   └── providers/    # LLM provider factory (createBare for subagents)
+├── devkit/      # DevKit tool factories (filesystem, shell, git, network, packages, processes, system)
 │   ├── types/       # Shared TypeScript definitions
 │   └── ui/          # React Web UI Dashboard
 └── package.json
