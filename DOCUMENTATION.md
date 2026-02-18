@@ -23,13 +23,22 @@ The project solves the problem of fragmentation and lack of agency in current AI
 
 *   **Persistent Agent**: Node.js daemon that maintains state and context across restarts.
 *   **Multi-LLM Support**: Agnostic integration with OpenAI, OpenRouter, Anthropic, Google Gemini, and Ollama.
+*   **Multi-Agent Architecture**: Three specialized agents with independent LLM configurations:
+    *   **Oracle** — main orchestrator, handles all user-facing conversation and reasoning.
+    *   **Sati** — background memory agent, extracts and consolidates long-term facts after each conversation.
+    *   **Apoc** — DevTools executor, runs file/shell/git/network operations delegated by Oracle.
+*   **Apoc DevTools Subagent**:
+    *   Oracle automatically delegates dev operations to Apoc via the `apoc_delegate` tool.
+    *   DevKit capabilities: read/write/delete files, run shell commands, git operations, network (curl/ping/DNS), package management (npm/yarn), process inspection, system info.
+    *   Independently configurable LLM provider, model, working directory, and timeout.
 *   **Sati Memory (Mindfulness)**:
-    *   Middleware that intercepts conversations to extract and store important facts in `santi-memory.db`.
+    *   Middleware that intercepts conversations to extract and store important facts in `sati-memory.db`.
     *   Independent configuration (allows using a smarter/cheaper model just for memory management).
 *   **MCP Protocol**: Dynamic tool loading via the `~/.morpheus/mcps.json` file.
 *   **Matrix Web Interface**: Local dashboard for monitoring, configuration, and **interactive chat**, password-protected (`THE_ARCHITECT_PASS`).
     *   **Web Chat**: Full-featured chat interface accessible from the browser with session management (create, archive, delete, rename).
     *   **Cross-Channel Sessions**: View and interact with sessions started on any channel (Telegram, Web, etc.).
+    *   **Agents Settings**: Configure Oracle, Sati, and Apoc independently via dedicated sub-tabs under the "Agents" settings section.
 *   **Telegram/Discord Chatbot**: Mobile interface with voice transcription support via Google GenAI and session management commands.
 *   **Hot-Reload Configuration**: APIs for dynamic agent parameter adjustment without restarting the process.
 *   **Usage Analytics**: Granular monitoring of token consumption by provider and model.
@@ -64,26 +73,54 @@ Morpheus uses a **Modular Monolith** architecture with a middleware-based contro
 graph TD
     User(["User"]) -->|Chat/Voice| Channel["Channel Adapters<br/>(Telegram/Discord/UI)"]
     Channel -->|Normalized Event| Oracle["Oracle Agent<br/>(Runtime Core)"]
-    
+
     subgraph "Cognitive Cycle"
         Oracle -->|1. Retrieval| Sati["Sati Middleware<br/>(Long-Term Memory)"]
         Sati <-->|Query| GraphDB[("Sati DB")]
-        
+
         Oracle -->|2. Context| ShortMem[("Session DB")]
-        
+
         Oracle -->|3. Inference| LLM["LLM Provider<br/>(OpenAI/Ollama/etc)"]
-        
-        Oracle -->|4. Optional Action| ToolManager["Tool Manager"]
+
+        Oracle -->|4a. MCP Action| ToolManager["Tool Manager"]
         ToolManager <-->|Execution| MCP["MCP Servers"]
-        
+
+        Oracle -->|4b. Dev Operation| Apoc["Apoc Subagent<br/>(DevTools)"]
+        Apoc <-->|DevKit Tools| DevKit["Filesystem / Shell<br/>Git / Network / Packages<br/>Processes / System"]
+
         Oracle -->|5. Consolidation| Sati
     end
-    
+
     Oracle -->|Response| Channel
 ```
 
+### Multi-Agent Architecture
+
+Morpheus implements a **two-tier multi-agent pattern** where each agent has a specific role and can use a different LLM:
+
+| Agent | Role | Tools |
+|-------|------|-------|
+| **Oracle** | Orchestrator — handles all user-facing conversation, reasoning, and delegation | MCP servers, internal tools, `apoc_delegate` |
+| **Sati** | Background evaluator — consolidates long-term memories after each conversation | LLM only (no tools) |
+| **Apoc** | DevTools executor — runs file/shell/git/network ops on Oracle's behalf | DevKit (filesystem, shell, git, network, packages, processes, system) |
+
+Each agent can independently use a different LLM provider/model, configured under `llm`, `sati`, and `apoc` sections in `config.yaml`.
+
+### Apoc DevKit Tools
+
+| Category | Tools |
+|----------|-------|
+| **Filesystem** | `read_file`, `write_file`, `append_file`, `delete_file`, `list_directory`, `create_directory` |
+| **Shell** | `run_command` (with configurable timeout and working directory) |
+| **Git** | `git_status`, `git_log`, `git_diff`, `git_clone`, `git_commit`, `git_checkout`, and more |
+| **Network** | `curl`, `ping`, `dns_lookup` |
+| **Packages** | `npm_install`, `npm_run`, `yarn_add`, `yarn_run` |
+| **Processes** | `list_processes`, `kill_process` |
+| **System** | `system_info`, `disk_usage`, `env_vars` |
+
 ### Architectural Decisions
 *   **Oracle**: The orchestrator core that implements the thinking interface. It is agnostic to the AI provider.
+*   **Apoc**: A singleton subagent (`Apoc.getInstance()`) created once per daemon lifecycle. Oracle calls it via the `apoc_delegate` tool, passing a natural language task description. Apoc uses `ProviderFactory.createBare()` for a clean agent context with only DevKit tools — no Oracle internal tools.
 *   **Sati Middleware**: An independent "sub-agent" that runs before and after the main cycle to manage memory without polluting business logic.
 *   **Isolated Channels**: Each channel (Telegram, CLI, HTTP) is an isolated module that only emits and receives standardized events.
 
@@ -96,12 +133,15 @@ graph TD
   /channels     # Input/output adapters (Telegram, Discord)
   /cli          # Terminal commands and daemon process management
   /config       # Schema definitions (Zod) and YAML loading
+  /devkit       # DevKit tool factories (filesystem, shell, git, network, packages, processes, system)
   /http         # Express API server and REST routes
   /runtime      # Core business logic
     /memory     # Storage implementations (SQLite, Sati)
-    /providers  # Factory for LLM clients (OpenAI, etc)
-    /tools      # MCP client and local tool manager
-    oracle.ts   # Main agent class
+    /providers  # Factory for LLM clients — create() and createBare()
+    /tools      # MCP client, local tools, and apoc-tool.ts (apoc_delegate)
+    apoc.ts     # Apoc DevTools subagent (singleton, uses DevKit)
+    oracle.ts   # Oracle main agent (ReactAgent + apoc_delegate tool)
+  /types        # Shared TypeScript interfaces (MorpheusConfig, ApocConfig, etc.)
   /ui           # Frontend source code (React/Vite)
 ```
 
@@ -153,6 +193,12 @@ The system also supports generic environment variables that apply to all provide
 | `MORPHEUS_SATI_API_KEY` | Generic API key for Sati (lower precedence than provider-specific keys) | santi.api_key |
 | `MORPHEUS_SATI_MEMORY_LIMIT` | Memory retrieval limit for Sati | santi.memory_limit |
 | `MORPHEUS_SATI_ENABLED_ARCHIVED_SESSIONS`| Enable/disable retrieval of archived sessions in Sati | santi.enableArchivedSessions |
+| `MORPHEUS_APOC_PROVIDER` | LLM provider for Apoc subagent | apoc.provider |
+| `MORPHEUS_APOC_MODEL` | Model name for Apoc subagent | apoc.model |
+| `MORPHEUS_APOC_TEMPERATURE` | Temperature setting for Apoc | apoc.temperature |
+| `MORPHEUS_APOC_API_KEY` | API key for Apoc (falls back to provider-specific key) | apoc.api_key |
+| `MORPHEUS_APOC_WORKING_DIR` | Working directory for Apoc shell/file operations | apoc.working_dir |
+| `MORPHEUS_APOC_TIMEOUT_MS` | Timeout in milliseconds for Apoc tool execution | apoc.timeout_ms |
 | `MORPHEUS_AUDIO_MODEL` | Model name for audio processing | audio.model |
 | `MORPHEUS_AUDIO_ENABLED` | Enable/disable audio processing | audio.enabled |
 | `MORPHEUS_AUDIO_API_KEY` | Generic API key for audio (lower precedence than provider-specific keys) | audio.apiKey |
@@ -185,6 +231,61 @@ Before running for the first time, generate the configuration files:
 morpheus init
 ```
 This will create the `~/.morpheus` folder containing `config.yaml` (general config) and `mcps.json` (tools).
+
+### Configuration File Reference
+
+Full example of `~/.morpheus/config.yaml` with all three agents configured:
+
+```yaml
+agent:
+  name: Morpheus
+  personality: "Stoic, precise, and helpful AI operator."
+
+llm:                          # Oracle agent (main orchestrator)
+  provider: openai
+  model: gpt-4o
+  temperature: 0.7
+  max_tokens: 4096
+  context_window: 100         # Number of recent messages sent to LLM
+  api_key: env:OPENAI_API_KEY
+
+sati:                         # Sati memory agent (optional, falls back to llm)
+  provider: openai
+  model: gpt-4o-mini
+  temperature: 0.3
+  memory_limit: 1000
+  enableArchivedSessions: false
+
+apoc:                         # Apoc DevTools subagent (optional, falls back to llm)
+  provider: anthropic
+  model: claude-3-5-sonnet-20241022
+  temperature: 0.2
+  api_key: env:ANTHROPIC_API_KEY
+  working_dir: /home/user/projects   # Constrain filesystem operations to this path
+  timeout_ms: 30000                  # Max time for shell command execution
+
+channels:
+  telegram:
+    enabled: true
+    token: env:TELEGRAM_BOT_TOKEN
+    allowedUsers:
+      - "123456789"
+
+ui:
+  enabled: true
+  port: 3333
+
+audio:
+  enabled: true
+  provider: gemini
+  apiKey: env:GOOGLE_API_KEY
+  maxDurationSeconds: 300
+
+logging:
+  enabled: true
+  level: info
+  retention: 7d
+```
 
 ### Production (Daemon)
 Starts the agent in the background and frees the terminal.
@@ -267,15 +368,19 @@ The flow of an interaction follows these steps:
     *   The Sati `beforeAgent` endpoint is triggered.
     *   It searches `santi-memory.db` for facts semantically relevant to the current input.
     *   Found facts are injected as `SystemMessage` in the message array.
-3.  **Deliberation (Oracle)**:
-    *   Oracle queries the configured LLM.
-    *   If the LLM requests a tool (e.g., `read_file`), Oracle executes it via the MCP client.
-    *   The process repeats until the LLM generates a final response.
-4.  **Post-Processing (Middleware)**:
+3.  **Deliberation (Oracle — ReAct Loop)**:
+    *   Oracle queries the configured LLM with the assembled prompt.
+    *   If the LLM requests an MCP tool (e.g., GitHub, database), Oracle executes it via the MCP client.
+    *   If the LLM requests a **dev operation** (file, shell, git, network, process, or system), Oracle calls the `apoc_delegate` tool.
+4.  **Delegation (Apoc)**:
+    *   Apoc receives the delegated task (natural language description + optional context).
+    *   Apoc runs its own ReAct loop using only **DevKit tools** (no Oracle internal tools).
+    *   Apoc returns the result to Oracle, which integrates it and continues its own ReAct loop.
+5.  **Post-Processing (Middleware)**:
     *   The Sati `afterAgent` endpoint is triggered with the full interaction history.
     *   A parallel (fire-and-forget) process analyzes the conversation to extract new facts.
     *   New facts are saved in the long-term database.
-5.  **Delivery**: The final response is sent to the user via the Telegram adapter.
+6.  **Delivery**: The final response is sent to the user via the Telegram adapter.
 
 ---
 
@@ -457,6 +562,56 @@ Update the Sati (long-term memory) configuration.
 
 #### DELETE `/api/config/sati`
 Remove the Sati (long-term memory) configuration (falls back to Oracle config).
+
+*   **Authentication:** Requires `Authorization` header with the password set in `THE_ARCHITECT_PASS`.
+*   **Response:**
+    ```json
+    {
+      "success": true
+    }
+    ```
+
+#### GET `/api/config/apoc`
+Retrieve the Apoc (DevTools subagent) configuration.
+
+*   **Authentication:** Requires `Authorization` header with the password set in `THE_ARCHITECT_PASS`.
+*   **Response:**
+    ```json
+    {
+      "provider": "openai",
+      "model": "gpt-4o",
+      "temperature": 0.2,
+      "api_key": "***",
+      "working_dir": "/home/user/projects",
+      "timeout_ms": 30000
+    }
+    ```
+*   **Note:** If no dedicated Apoc config exists, this endpoint returns the Oracle (`llm`) config values as fallback, with Apoc-specific defaults for `temperature` (0.2) and `timeout_ms` (30000).
+
+#### POST `/api/config/apoc`
+Update the Apoc (DevTools subagent) configuration.
+
+*   **Authentication:** Requires `Authorization` header with the password set in `THE_ARCHITECT_PASS`.
+*   **Body:**
+    ```json
+    {
+      "provider": "anthropic",
+      "model": "claude-3-5-sonnet-20241022",
+      "temperature": 0.1,
+      "api_key": "sk-ant-...",
+      "working_dir": "/home/user/projects",
+      "timeout_ms": 60000
+    }
+    ```
+*   **Response:**
+    ```json
+    {
+      "success": true
+    }
+    ```
+
+#### DELETE `/api/config/apoc`
+Remove the Apoc configuration (falls back to Oracle config).
 
 *   **Authentication:** Requires `Authorization` header with the password set in `THE_ARCHITECT_PASS`.
 *   **Response:**
@@ -873,9 +1028,10 @@ Send a message to the agent and get a response.
 *   [x] Telegram integration.
 *   [x] Web UI Dashboard.
 *   [x] Long-Term Memory (Sati).
-*   [ ] Discord support
-*   [ ] Iteration tools with Local Filesystem.
-*   [ ] Iteration with local terminal.
+*   [x] Apoc DevTools Subagent (filesystem, shell, git, network, packages, processes, system).
+*   [x] Multi-Agent Architecture (Oracle + Sati + Apoc with independent LLM configs).
+*   [ ] Discord support.
+*   [ ] Plugin system for dynamic channel/tool loading.
 
 ---
 
