@@ -10,6 +10,8 @@ import { AuthGuard } from './components/AuthGuard';
 import { SatiMemories } from './pages/SatiMemories';
 import { MCPManager } from './pages/MCPManager';
 import { ModelPricing } from './pages/ModelPricing';
+import { Projects } from './pages/Projects';
+import { Tasks } from './pages/Tasks';
 
 function App() {
   return (
@@ -30,6 +32,8 @@ function App() {
                   <Route path="/sati-memories" element={<SatiMemories />} />
                   <Route path="/mcp-servers" element={<MCPManager />} />
                   <Route path="/model-pricing" element={<ModelPricing />} />
+                  <Route path="/projects" element={<Projects />} />
+                  <Route path="/tasks" element={<Tasks />} />
                   <Route path="*" element={<Navigate to="/" replace />} />
                 </Routes>
               </Layout>

@@ -14,6 +14,7 @@ import type {
   SatiConfig,
 } from '../../../types/config';
 import { ZodError } from 'zod';
+import { agentConfigService, type AgentsConfig, type SubAgentConfig } from '../services/agentConfig';
 
 const TABS = [
   { id: 'general', label: 'General' },
@@ -22,6 +23,26 @@ const TABS = [
   { id: 'channels', label: 'Channels' },
   { id: 'ui', label: 'Interface' },
   { id: 'logging', label: 'Logging' },
+  { id: 'agents', label: 'Agents' },
+];
+
+const AGENT_NAMES = ['architect', 'keymaker', 'apoc', 'merovingian'] as const;
+type AgentName = typeof AGENT_NAMES[number];
+
+const AGENT_LABELS: Record<AgentName, string> = {
+  architect: 'The Architect',
+  keymaker: 'The Keymaker',
+  apoc: 'Apoc',
+  merovingian: 'The Merovingian',
+};
+
+const PROVIDER_OPTIONS = [
+  { value: '', label: 'Inherit from Oracle' },
+  { value: 'anthropic', label: 'Anthropic' },
+  { value: 'openai', label: 'OpenAI' },
+  { value: 'openrouter', label: 'OpenRouter' },
+  { value: 'ollama', label: 'Ollama' },
+  { value: 'gemini', label: 'Gemini' },
 ];
 
 export default function Settings() {
@@ -33,11 +54,17 @@ export default function Settings() {
     '/api/config/sati',
     configService.getSatiConfig
   );
+  const { data: agentServerConfig } = useSWR(
+    '/api/config/agents',
+    agentConfigService.get
+  );
   const [localConfig, setLocalConfig] = useState<MorpheusConfig | null>(null);
   const [localSatiConfig, setLocalSatiConfig] = useState<SatiConfig | null>(
     null
   );
+  const [localAgentsConfig, setLocalAgentsConfig] = useState<AgentsConfig>({});
   const [activeTab, setActiveTab] = useState('general');
+  const [activeAgentTab, setActiveAgentTab] = useState<AgentName>('architect');
   const [saving, setSaving] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [notification, setNotification] = useState<{
@@ -59,9 +86,17 @@ export default function Settings() {
     }
   }, [satiServerConfig]);
 
+  // Initialize Agents config
+  useEffect(() => {
+    if (agentServerConfig) {
+      setLocalAgentsConfig(agentServerConfig);
+    }
+  }, [agentServerConfig]);
+
   const isDirty =
     JSON.stringify(serverConfig) !== JSON.stringify(localConfig) ||
-    JSON.stringify(satiServerConfig) !== JSON.stringify(localSatiConfig);
+    JSON.stringify(satiServerConfig) !== JSON.stringify(localSatiConfig) ||
+    JSON.stringify(agentServerConfig) !== JSON.stringify(localAgentsConfig);
 
   const handleUpdate = (path: string[], value: any) => {
     if (!localConfig) return;
@@ -121,8 +156,12 @@ export default function Settings() {
         await configService.updateSatiConfig(localSatiConfig);
       }
 
+      // Save agents config
+      await agentConfigService.update(localAgentsConfig);
+
       mutate('/api/config'); // Refresh SWR
       mutate('/api/config/sati');
+      mutate('/api/config/agents');
       setNotification({
         type: 'success',
         message:
@@ -574,6 +613,116 @@ export default function Settings() {
               ]}
             />
           </Section>
+        )}
+
+        {/* ── Agents Tab ────────────────────────────────────────────────── */}
+        {activeTab === 'agents' && (
+          <div className="space-y-4">
+            {/* Agent sub-tabs */}
+            <div className="flex space-x-1 border-b border-azure-border dark:border-matrix-primary/50 pb-px">
+              {AGENT_NAMES.map((name) => (
+                <button
+                  key={name}
+                  onClick={() => setActiveAgentTab(name)}
+                  className={`px-4 py-2 text-sm font-medium rounded-t-md transition-colors ${
+                    activeAgentTab === name
+                      ? 'bg-azure-surface/50 text-azure-primary border-t border-x border-azure-border dark:bg-matrix-primary/20 dark:text-matrix-highlight dark:border-matrix-primary'
+                      : 'text-azure-text-secondary hover:text-azure-primary dark:text-matrix-secondary dark:hover:text-matrix-highlight'
+                  }`}
+                >
+                  {AGENT_LABELS[name]}
+                </button>
+              ))}
+            </div>
+
+            {AGENT_NAMES.map((name) => {
+              if (activeAgentTab !== name) return null;
+              const agentCfg: SubAgentConfig = localAgentsConfig[name] ?? {};
+              const update = (field: keyof SubAgentConfig, value: any) => {
+                setLocalAgentsConfig((prev) => ({
+                  ...prev,
+                  [name]: { ...(prev[name] ?? {}), [field]: value || undefined },
+                }));
+              };
+
+              return (
+                <Section key={name} title={`${AGENT_LABELS[name]} Configuration`}>
+                  <p className="text-xs text-azure-text-secondary dark:text-matrix-secondary mb-2">
+                    Leave fields empty to inherit from Oracle's LLM configuration.
+                  </p>
+                  <SelectInput
+                    label="Provider"
+                    value={agentCfg.provider ?? ''}
+                    onChange={(e) => update('provider', e.target.value)}
+                    options={PROVIDER_OPTIONS}
+                  />
+                  <TextInput
+                    label="Model"
+                    value={agentCfg.model ?? ''}
+                    onChange={(e) => update('model', e.target.value)}
+                    placeholder="Inherit from Oracle"
+                  />
+                  <NumberInput
+                    label="Temperature"
+                    value={agentCfg.temperature ?? ''}
+                    onChange={(e) =>
+                      update('temperature', e.target.value ? parseFloat(e.target.value) : undefined)
+                    }
+                    min={0}
+                    max={2}
+                    step={0.1}
+                    placeholder="Inherit"
+                  />
+                  <NumberInput
+                    label="Max Tokens"
+                    value={agentCfg.max_tokens ?? ''}
+                    onChange={(e) =>
+                      update('max_tokens', e.target.value ? parseInt(e.target.value) : undefined)
+                    }
+                    placeholder="Inherit"
+                  />
+                  <TextInput
+                    label="API Key"
+                    value={agentCfg.api_key ?? ''}
+                    onChange={(e) => update('api_key', e.target.value)}
+                    placeholder="Inherit from Oracle"
+                    type="password"
+                  />
+                  <TextInput
+                    label="Base URL"
+                    value={agentCfg.base_url ?? ''}
+                    onChange={(e) => update('base_url', e.target.value)}
+                    placeholder="Inherit from Oracle"
+                  />
+                  {(name === 'apoc' || name === 'merovingian') && (
+                    <NumberInput
+                      label="Timeout (ms)"
+                      value={agentCfg.timeout_ms ?? ''}
+                      onChange={(e) =>
+                        update('timeout_ms', e.target.value ? parseInt(e.target.value) : undefined)
+                      }
+                      placeholder="120000"
+                    />
+                  )}
+                  <div>
+                    <label className="block text-sm font-medium text-azure-text-primary dark:text-matrix-secondary mb-1">
+                      System Prompt (extra instructions)
+                    </label>
+                    <textarea
+                      value={agentCfg.system_prompt ?? ''}
+                      onChange={(e) => update('system_prompt', e.target.value)}
+                      rows={6}
+                      placeholder="Additional instructions appended to the agent's default system prompt..."
+                      className="w-full bg-azure-surface dark:bg-black border border-azure-border dark:border-matrix-primary/50 rounded px-3 py-2 text-sm font-mono text-azure-text-primary dark:text-matrix-secondary focus:outline-none focus:border-azure-primary dark:focus:border-matrix-highlight resize-y"
+                    />
+                    <p className="text-xs text-azure-text-secondary dark:text-matrix-secondary mt-1">
+                      You can also place instructions in <code className="font-mono">~/.morpheus/agents/{name}/instructions.md</code>
+                    </p>
+                  </div>
+                </Section>
+              );
+            })}
+          </div>
         )}
       </div>
     </div>

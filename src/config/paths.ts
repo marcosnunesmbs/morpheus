@@ -15,4 +15,7 @@ export const PATHS = {
   cache: path.join(MORPHEUS_ROOT, 'cache'),
   commands: path.join(MORPHEUS_ROOT, 'commands'),
   mcps: path.join(MORPHEUS_ROOT, 'mcps.json'),
+  agents: path.join(MORPHEUS_ROOT, 'agents'),
+  agentInstructions: (name: string) =>
+    path.join(MORPHEUS_ROOT, 'agents', name, 'instructions.md'),
 };

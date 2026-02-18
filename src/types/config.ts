@@ -66,10 +66,23 @@ export interface MemoryConfig {
   limit: number;
 }
 
+export interface SubAgentConfig extends LLMConfig {
+  system_prompt?: string;
+  timeout_ms?: number;
+}
+
+export interface AgentsConfig {
+  architect?: SubAgentConfig;
+  keymaker?: SubAgentConfig;
+  apoc?: SubAgentConfig;
+  merovingian?: SubAgentConfig;
+}
+
 export interface MorpheusConfig {
   agent: AgentConfig;
   llm: LLMConfig;
   sati?: SatiConfig;
+  agents?: AgentsConfig;
   channels: ChannelsConfig;
   ui: UIConfig;
   logging: LogConfig;

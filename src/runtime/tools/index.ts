@@ -2,3 +2,4 @@
 export * from './config-tools.js';
 export * from './diagnostic-tools.js';
 export * from './analytics-tools.js';
+export * from './agent-tools.js';

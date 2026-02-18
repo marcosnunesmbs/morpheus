@@ -195,6 +195,79 @@ export class SQLiteChatMessageHistory extends BaseListChatMessageHistory {
           ('google', 'gemini-1.5-pro', 1.25, 5.0),
           ('google', 'gemini-1.5-flash', 0.075, 0.3);
 
+        CREATE TABLE IF NOT EXISTS projects (
+          id TEXT PRIMARY KEY,
+          name TEXT NOT NULL,
+          path TEXT NOT NULL,
+          description TEXT,
+          git_remote TEXT,
+          active_worktree TEXT,
+          allowed_commands TEXT NOT NULL DEFAULT '[]',
+          created_at INTEGER NOT NULL,
+          updated_at INTEGER NOT NULL
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_projects_name ON projects(name);
+
+        CREATE TABLE IF NOT EXISTS tasks (
+          id TEXT PRIMARY KEY,
+          project_id TEXT,
+          session_id TEXT NOT NULL,
+          parent_task_id TEXT,
+          created_by TEXT NOT NULL,
+          assigned_to TEXT,
+          title TEXT NOT NULL,
+          description TEXT,
+          blueprint TEXT,
+          status TEXT NOT NULL DEFAULT 'pending',
+          requires_approval INTEGER NOT NULL DEFAULT 0,
+          approved_at INTEGER,
+          approved_by TEXT,
+          result TEXT,
+          error TEXT,
+          working_dir TEXT,
+          started_at INTEGER,
+          completed_at INTEGER,
+          created_at INTEGER NOT NULL,
+          updated_at INTEGER NOT NULL,
+          FOREIGN KEY (project_id) REFERENCES projects(id),
+          FOREIGN KEY (parent_task_id) REFERENCES tasks(id)
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_tasks_session ON tasks(session_id);
+        CREATE INDEX IF NOT EXISTS idx_tasks_project ON tasks(project_id);
+        CREATE INDEX IF NOT EXISTS idx_tasks_status ON tasks(status);
+        CREATE INDEX IF NOT EXISTS idx_tasks_assigned ON tasks(assigned_to);
+
+        CREATE TABLE IF NOT EXISTS permissions (
+          id TEXT PRIMARY KEY,
+          action_type TEXT NOT NULL,
+          scope TEXT NOT NULL,
+          scope_id TEXT,
+          granted_at INTEGER NOT NULL,
+          expires_at INTEGER
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_permissions_scope ON permissions(scope, scope_id);
+        CREATE INDEX IF NOT EXISTS idx_permissions_action ON permissions(action_type);
+
+        CREATE TABLE IF NOT EXISTS approval_requests (
+          id TEXT PRIMARY KEY,
+          task_id TEXT NOT NULL,
+          session_id TEXT NOT NULL,
+          action_type TEXT NOT NULL,
+          action_description TEXT NOT NULL,
+          status TEXT NOT NULL DEFAULT 'pending',
+          scope TEXT,
+          created_at INTEGER NOT NULL,
+          resolved_at INTEGER,
+          resolved_by TEXT,
+          FOREIGN KEY (task_id) REFERENCES tasks(id)
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_approval_requests_status ON approval_requests(status);
+        CREATE INDEX IF NOT EXISTS idx_approval_requests_session ON approval_requests(session_id);
+
       `);
 
       this.migrateTable();
@@ -322,7 +395,22 @@ export class SQLiteChatMessageHistory extends BaseListChatMessageHistory {
             }
             break;
           default:
-            throw new Error(`Unknown message type: ${row.type}`);
+            // Handle agent message types: agent_architect, agent_keymaker, etc.
+            if (row.type.startsWith('agent_')) {
+              try {
+                const parsed = JSON.parse(row.content);
+                if (parsed && typeof parsed === 'object' && Array.isArray(parsed.tool_calls)) {
+                  msg = new AIMessage({ content: parsed.text || "", tool_calls: parsed.tool_calls });
+                } else {
+                  msg = new AIMessage(row.content);
+                }
+              } catch {
+                msg = new AIMessage(row.content);
+              }
+              (msg as any).agent_source = row.type;
+            } else {
+              throw new Error(`Unknown message type: ${row.type}`);
+            }
         }
 
         if (usage_metadata) {
@@ -354,7 +442,8 @@ export class SQLiteChatMessageHistory extends BaseListChatMessageHistory {
       if (message instanceof HumanMessage) {
         type = "human";
       } else if (message instanceof AIMessage) {
-        type = "ai";
+        // Support agent-specific type override (agent_architect, agent_apoc, etc.)
+        type = (message as any).agent_type ?? "ai";
       } else if (message instanceof SystemMessage) {
         type = "system";
       } else if (message instanceof ToolMessage) {
@@ -447,7 +536,7 @@ export class SQLiteChatMessageHistory extends BaseListChatMessageHistory {
       for (const message of msgs) {
         let type: string;
         if (message instanceof HumanMessage) type = "human";
-        else if (message instanceof AIMessage) type = "ai";
+        else if (message instanceof AIMessage) type = (message as any).agent_type ?? "ai";
         else if (message instanceof SystemMessage) type = "system";
         else if (message instanceof ToolMessage) type = "tool";
         else throw new Error(`Unsupported message type: ${message.constructor.name}`);

@@ -12,18 +12,52 @@ import { SQLiteChatMessageHistory } from "./memory/sqlite.js";
 import { ReactAgent } from "langchain";
 import { UsageMetadata } from "../types/usage.js";
 import { SatiMemoryMiddleware } from "./memory/sati/index.js";
+import { AGENT_TOOLS } from "./tools/agent-tools.js";
+import { approvalEventEmitter, type ApprovalNeededPayload } from "../agents/notifier.js";
+import { EventEmitter } from "events";
 
-export class Oracle implements IOracle {
+export class Oracle extends EventEmitter implements IOracle {
   private provider?: ReactAgent;
   private config: MorpheusConfig;
   private history?: BaseListChatMessageHistory;
   private display = DisplayManager.getInstance();
   private databasePath?: string;
   private satiMiddleware = SatiMemoryMiddleware.getInstance();
+  private currentSessionId?: string;
 
   constructor(config?: MorpheusConfig, overrides?: { databasePath?: string }) {
+    super();
     this.config = config || ConfigManager.getInstance().get();
     this.databasePath = overrides?.databasePath;
+    this.setupApprovalHook();
+  }
+
+  private setupApprovalHook(): void {
+    approvalEventEmitter.on('approval_needed', (payload: ApprovalNeededPayload) => {
+      if (!this.currentSessionId || payload.sessionId !== this.currentSessionId) return;
+
+      const message =
+        `⚠️ **Aprovação necessária**\n\n` +
+        `O agente precisa executar: **${payload.actionDescription}**\n` +
+        `Tipo: \`${payload.actionType}\` | ID: \`${payload.approvalId}\`\n\n` +
+        `Responda com:\n` +
+        `- **"aprovar"** — aprova esta ação uma vez\n` +
+        `- **"aprovar sempre"** — aprova este tipo de ação para sempre nesta sessão\n` +
+        `- **"negar"** — cancela esta ação`;
+
+      this.emit('proactive_message', { sessionId: this.currentSessionId, message });
+
+      // Persist as AI message in history so the proactive message appears in chat
+      if (this.history) {
+        const aiMsg = new AIMessage(message);
+        (aiMsg as any).agent_type = 'agent_oracle';
+        (aiMsg as any).provider_metadata = {
+          provider: this.config.llm.provider,
+          model: this.config.llm.model,
+        };
+        this.history.addMessage(aiMsg).catch(() => {});
+      }
+    });
   }
 
   async initialize(): Promise<void> {
@@ -40,7 +74,8 @@ export class Oracle implements IOracle {
     // to allow for Environment Variable fallback supported by LangChain.
 
     try {
-      const tools = await Construtor.create();
+      const mcpTools = await Construtor.create();
+      const tools = [...mcpTools, ...AGENT_TOOLS];
       this.provider = await ProviderFactory.create(this.config.llm, tools);
       if (!this.provider) {
         throw new Error("Provider factory returned undefined");
@@ -56,6 +91,11 @@ export class Oracle implements IOracle {
         databasePath: this.databasePath,
         limit: contextWindow,
       });
+
+      // Track active session for approval hook
+      if (this.history instanceof SQLiteChatMessageHistory) {
+        this.currentSessionId = this.history.currentSessionId || undefined;
+      }
     } catch (err) {
       if (err instanceof ProviderError) throw err; // Re-throw known errors
 
@@ -358,6 +398,9 @@ You maintain intent until resolution.
         databasePath: this.databasePath,
         limit: this.config.llm?.context_window ?? 100
       });
+
+      // Update approval hook session tracking
+      this.currentSessionId = sessionId;
 
     } else {
       throw new Error("Current history provider does not support session switching.");

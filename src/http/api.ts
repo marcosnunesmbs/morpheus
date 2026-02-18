@@ -14,6 +14,14 @@ import { MCPManager } from '../config/mcp-manager.js';
 import { MCPServerConfigSchema } from '../config/schemas.js';
 import { IOracle } from '../runtime/types.js';
 import { Construtor } from '../runtime/tools/factory.js';
+import { getDb } from '../runtime/memory/db.js';
+import { ProjectStore } from '../projects/store.js';
+import { TaskStore } from '../tasks/store.js';
+import { PermissionStore } from '../permissions/store.js';
+import type { CreateProjectInput, UpdateProjectInput } from '../projects/types.js';
+import type { TaskFilter } from '../tasks/types.js';
+import type { GrantPermissionInput } from '../permissions/types.js';
+import { Oracle } from '../runtime/oracle.js';
 
 async function readLastLines(filePath: string, n: number): Promise<string[]> {
   try {
@@ -612,6 +620,283 @@ export function createApiRouter(oracle: IOracle) {
 
     const lines = await readLastLines(filePath, limit);
     res.json({ lines: lines.reverse() });
+  });
+
+  // ── Projects ────────────────────────────────────────────────────────────────
+
+  const ProjectInputSchema = z.object({
+    name: z.string().min(1),
+    path: z.string().min(1),
+    description: z.string().optional(),
+    git_remote: z.string().optional(),
+    allowed_commands: z.array(z.string()).optional(),
+  });
+
+  router.get('/projects', (_req, res) => {
+    try {
+      const db = getDb();
+      const store = new ProjectStore(db);
+      res.json(store.list());
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  router.post('/projects', (req, res) => {
+    const parsed = ProjectInputSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({ error: 'Validation failed', issues: parsed.error.issues });
+    }
+    try {
+      const db = getDb();
+      const store = new ProjectStore(db);
+      const project = store.create(parsed.data as CreateProjectInput);
+      res.status(201).json(project);
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  router.get('/projects/:id', (req, res) => {
+    try {
+      const db = getDb();
+      const store = new ProjectStore(db);
+      const project = store.getById(req.params.id);
+      if (!project) return res.status(404).json({ error: 'Project not found' });
+      res.json(project);
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  router.put('/projects/:id', (req, res) => {
+    const parsed = ProjectInputSchema.partial().safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({ error: 'Validation failed', issues: parsed.error.issues });
+    }
+    try {
+      const db = getDb();
+      const store = new ProjectStore(db);
+      const project = store.update(req.params.id, parsed.data as UpdateProjectInput);
+      if (!project) return res.status(404).json({ error: 'Project not found' });
+      res.json(project);
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  router.delete('/projects/:id', (req, res) => {
+    try {
+      const db = getDb();
+      const store = new ProjectStore(db);
+      const ok = store.delete(req.params.id);
+      if (!ok) return res.status(404).json({ error: 'Project not found' });
+      res.json({ success: true });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // ── Tasks ───────────────────────────────────────────────────────────────────
+
+  router.get('/tasks', (req, res) => {
+    try {
+      const db = getDb();
+      const store = new TaskStore(db);
+      const filter: TaskFilter = {
+        project_id: req.query.project_id as string | undefined,
+        session_id: req.query.session_id as string | undefined,
+        status: req.query.status as any,
+        assigned_to: req.query.assigned_to as any,
+      };
+      res.json(store.list(filter));
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  router.get('/tasks/:id', (req, res) => {
+    try {
+      const db = getDb();
+      const store = new TaskStore(db);
+      const task = store.getById(req.params.id);
+      if (!task) return res.status(404).json({ error: 'Task not found' });
+      res.json(task);
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  router.post('/tasks/:id/approve', (req, res) => {
+    try {
+      const db = getDb();
+      const store = new TaskStore(db);
+      const task = store.update(req.params.id, {
+        status: 'pending',
+        approved_at: Date.now(),
+        approved_by: 'user',
+      });
+      if (!task) return res.status(404).json({ error: 'Task not found' });
+      res.json(task);
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  router.post('/tasks/:id/cancel', (req, res) => {
+    try {
+      const db = getDb();
+      const store = new TaskStore(db);
+      const task = store.getById(req.params.id);
+      if (!task) return res.status(404).json({ error: 'Task not found' });
+      if (['done', 'failed', 'cancelled'].includes(task.status)) {
+        return res.status(400).json({ error: `Cannot cancel task in status: ${task.status}` });
+      }
+      const updated = store.update(req.params.id, { status: 'cancelled' });
+      res.json(updated);
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // ── Config / Agents ──────────────────────────────────────────────────────────
+
+  router.get('/config/agents', (_req, res) => {
+    try {
+      res.json(configManager.getAgentsConfig());
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  router.post('/config/agents', async (req, res) => {
+    try {
+      await configManager.save({ agents: req.body });
+      res.json({ success: true });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // ── Permissions ─────────────────────────────────────────────────────────────
+
+  const PermissionInputSchema = z.object({
+    action_type: z.string().min(1),
+    scope: z.enum(['session', 'project', 'global']),
+    scope_id: z.string().optional(),
+    expires_at: z.number().optional(),
+  });
+
+  router.get('/permissions', (req, res) => {
+    try {
+      const db = getDb();
+      const store = new PermissionStore(db);
+      res.json(store.list(req.query.scope as any, req.query.scope_id as string | undefined));
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  router.post('/permissions', (req, res) => {
+    const parsed = PermissionInputSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({ error: 'Validation failed', issues: parsed.error.issues });
+    }
+    try {
+      const db = getDb();
+      const store = new PermissionStore(db);
+      const permission = store.grant(parsed.data as GrantPermissionInput);
+      res.status(201).json(permission);
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  router.delete('/permissions/:id', (req, res) => {
+    try {
+      const db = getDb();
+      const store = new PermissionStore(db);
+      store.revoke(req.params.id);
+      res.json({ success: true });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // ── Approvals ────────────────────────────────────────────────────────────────
+
+  router.get('/approvals', (req, res) => {
+    try {
+      const db = getDb();
+      const store = new PermissionStore(db);
+      const status = (req.query.status as string) || 'pending';
+      const session_id = req.query.session_id as string | undefined;
+      res.json(store.listApprovalRequests(session_id, status as any));
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  const ResolveApprovalSchema = z.object({
+    decision: z.enum(['approve', 'deny', 'approve_always']),
+    scope: z.enum(['session', 'project', 'global']).optional(),
+  });
+
+  router.post('/approvals/:id/resolve', (req, res) => {
+    const parsed = ResolveApprovalSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({ error: 'Validation failed', issues: parsed.error.issues });
+    }
+    try {
+      const db = getDb();
+      const store = new PermissionStore(db);
+      const { decision, scope } = parsed.data;
+
+      let approvalStatus: 'approved' | 'denied' | 'approved_always';
+      if (decision === 'approve') approvalStatus = 'approved';
+      else if (decision === 'approve_always') approvalStatus = 'approved_always';
+      else approvalStatus = 'denied';
+
+      const updated = store.resolveApprovalRequest(req.params.id, approvalStatus, scope);
+      res.json(updated);
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // ── SSE — Proactive Messages ─────────────────────────────────────────────────
+
+  router.get('/chat/events/:sessionId', (req, res) => {
+    const { sessionId } = req.params;
+
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
+    res.setHeader('X-Accel-Buffering', 'no');
+    res.flushHeaders();
+
+    // Listen for proactive messages from Oracle
+    const oracleInstance = oracle as Oracle;
+    const onMessage = (payload: { sessionId: string; message: string }) => {
+      if (payload.sessionId !== sessionId) return;
+      res.write(`data: ${JSON.stringify({ type: 'message', content: payload.message })}\n\n`);
+    };
+
+    if (typeof oracleInstance.on === 'function') {
+      oracleInstance.on('proactive_message', onMessage);
+    }
+
+    // Heartbeat every 30s
+    const heartbeat = setInterval(() => {
+      res.write(': heartbeat\n\n');
+    }, 30_000);
+
+    req.on('close', () => {
+      clearInterval(heartbeat);
+      if (typeof oracleInstance.off === 'function') {
+        oracleInstance.off('proactive_message', onMessage);
+      }
+    });
   });
 
   return router;

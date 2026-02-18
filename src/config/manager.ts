@@ -1,7 +1,8 @@
 import fs from 'fs-extra';
 import yaml from 'js-yaml';
 import { z } from 'zod';
-import { MorpheusConfig, DEFAULT_CONFIG, SatiConfig, LLMProvider } from '../types/config.js';
+import { MorpheusConfig, DEFAULT_CONFIG, SatiConfig, LLMProvider, SubAgentConfig } from '../types/config.js';
+import type { AgentName } from '../agents/types.js';
 import { PATHS } from './paths.js';
 import { setByPath } from './utils.js';
 import { ConfigSchema } from './schemas.js';
@@ -136,6 +137,7 @@ export class ConfigManager {
       agent: agentConfig,
       llm: llmConfig,
       sati: satiConfig,
+      agents: config.agents,
       audio: audioConfig,
       channels: channelsConfig,
       ui: uiConfig,
@@ -168,6 +170,21 @@ export class ConfigManager {
 
   public getLLMConfig() {
     return this.config.llm;
+  }
+
+  /**
+   * Returns the config for a named subagent, falling back to the main LLM config.
+   */
+  public getAgentConfig(name: AgentName): SubAgentConfig {
+    const agentSpecific = this.config.agents?.[name];
+    return {
+      ...this.config.llm,
+      ...agentSpecific,
+    };
+  }
+
+  public getAgentsConfig() {
+    return this.config.agents ?? {};
   }
 
   public getSatiConfig(): SatiConfig {

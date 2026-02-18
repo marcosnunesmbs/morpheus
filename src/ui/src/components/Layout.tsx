@@ -13,6 +13,8 @@ import {
   Puzzle,
   MessageSquare,
   DollarSign,
+  FolderOpen,
+  ListTodo,
 } from 'lucide-react';
 import { Footer } from './Footer';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -60,6 +62,8 @@ export function Layout({ children }: { children: React.ReactNode }) {
   const navItems = [
     { icon: LayoutDashboard, label: 'Dashboard', path: '/' },
     { icon: MessageSquare, label: 'Chat', path: '/chat' },
+    { icon: FolderOpen, label: 'Projects', path: '/projects' },
+    { icon: ListTodo, label: 'Tasks', path: '/tasks' },
     { icon: Settings, label: 'Zaion', path: '/zaion' },
     { icon: Puzzle, label: 'MCP Servers', path: '/mcp-servers' },
     { icon: BarChart3, label: 'Usage Stats', path: '/stats' },
@@ -70,6 +74,8 @@ export function Layout({ children }: { children: React.ReactNode }) {
   const mobileNavItems = [
     { icon: LayoutDashboard, label: 'Dashboard', path: '/' },
     { icon: MessageSquare, label: 'Chat', path: '/chat' },
+    { icon: FolderOpen, label: 'Projects', path: '/projects' },
+    { icon: ListTodo, label: 'Tasks', path: '/tasks' },
     { icon: Settings, label: 'Zaion', path: '/zaion' },
     { icon: Puzzle, label: 'MCP Servers', path: '/mcp-servers' },
     { icon: BarChart3, label: 'Usage Stats', path: '/stats' },
