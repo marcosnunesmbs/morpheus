@@ -1,6 +1,6 @@
 {
   "name": "morpheus-cli",
-  "version": "0.4.7",
+  "version": "0.4.8",
   "description": "Morpheus is a local AI agent for developers, running as a CLI daemon that connects to LLMs, local tools, and MCPs, enabling interaction via Terminal, Telegram, and Discord. Inspired by the character Morpheus from *The Matrix*, the project acts as an intelligent orchestrator, bridging the gap between the developer and complex systems.",
   "bin": {
     "morpheus": "./bin/morpheus.js"
