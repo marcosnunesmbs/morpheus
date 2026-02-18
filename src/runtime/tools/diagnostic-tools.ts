@@ -12,119 +12,150 @@ export const DiagnosticTool = tool(
       const timestamp = new Date().toISOString();
       const components: Record<string, any> = {};
 
-      // Check configuration
+      const morpheusRoot = path.join(homedir(), ".morpheus");
+
+      // ── Configuration ──────────────────────────────────────────────
       try {
         const configManager = ConfigManager.getInstance();
         await configManager.load();
         const config = configManager.get();
 
-        // Basic validation - check if required fields exist
-        const requiredFields = ['llm', 'logging', 'ui'];
+        const requiredFields = ["llm", "logging", "ui"];
         const missingFields = requiredFields.filter(field => !(field in config));
 
         if (missingFields.length === 0) {
+          const sati = (config as any).sati;
+          const apoc = (config as any).apoc;
           components.config = {
             status: "healthy",
             message: "Configuration is valid and complete",
             details: {
-              llmProvider: config.llm?.provider,
+              oracleProvider: config.llm?.provider,
+              oracleModel: config.llm?.model,
+              satiProvider: sati?.provider ?? `${config.llm?.provider} (inherited)`,
+              satiModel: sati?.model ?? `${config.llm?.model} (inherited)`,
+              apocProvider: apoc?.provider ?? `${config.llm?.provider} (inherited)`,
+              apocModel: apoc?.model ?? `${config.llm?.model} (inherited)`,
+              apocWorkingDir: apoc?.working_dir ?? "not set",
               uiEnabled: config.ui?.enabled,
-              uiPort: config.ui?.port
-            }
+              uiPort: config.ui?.port,
+            },
           };
         } else {
           components.config = {
             status: "warning",
-            message: `Missing required configuration fields: ${missingFields.join(', ')}`,
-            details: { missingFields }
+            message: `Missing required configuration fields: ${missingFields.join(", ")}`,
+            details: { missingFields },
           };
         }
       } catch (error) {
         components.config = {
           status: "error",
           message: `Configuration error: ${(error as Error).message}`,
-          details: {}
+          details: {},
         };
       }
 
-      // Check storage/database
+      // ── Short-term memory DB ────────────────────────────────────────
       try {
-        // For now, we'll check if the data directory exists
-      const dbPath = path.join(homedir(), ".morpheus", "memory", "short-memory.db");
-
+        const dbPath = path.join(morpheusRoot, "memory", "short-memory.db");
         await fsPromises.access(dbPath);
-        components.storage = {
+        const stat = await fsPromises.stat(dbPath);
+        components.shortMemoryDb = {
           status: "healthy",
-          message: "Database file is accessible",
-          details: { path: dbPath }
+          message: "Short-memory database is accessible",
+          details: { path: dbPath, sizeBytes: stat.size },
         };
       } catch (error) {
-        components.storage = {
+        components.shortMemoryDb = {
           status: "error",
-          message: `Storage error: ${(error as Error).message}`,
-          details: {}
+          message: `Short-memory DB not accessible: ${(error as Error).message}`,
+          details: {},
         };
       }
 
-      // Check network connectivity (basic check)
+      // ── Sati long-term memory DB ────────────────────────────────────
       try {
-        // For now, we'll just check if we can reach the LLM provider configuration
+        const satiDbPath = path.join(morpheusRoot, "memory", "sati-memory.db");
+        await fsPromises.access(satiDbPath);
+        const stat = await fsPromises.stat(satiDbPath);
+        components.satiMemoryDb = {
+          status: "healthy",
+          message: "Sati memory database is accessible",
+          details: { path: satiDbPath, sizeBytes: stat.size },
+        };
+      } catch {
+        // Sati DB may not exist yet if no memories have been stored — treat as warning
+        components.satiMemoryDb = {
+          status: "warning",
+          message: "Sati memory database does not exist yet (no memories stored yet)",
+          details: {},
+        };
+      }
+
+      // ── LLM provider configured ─────────────────────────────────────
+      try {
         const configManager = ConfigManager.getInstance();
-        await configManager.load();
         const config = configManager.get();
 
-        if (config.llm && config.llm.provider) {
+        if (config.llm?.provider) {
           components.network = {
             status: "healthy",
-            message: `LLM provider configured: ${config.llm.provider}`,
-            details: { provider: config.llm.provider }
+            message: `Oracle LLM provider configured: ${config.llm.provider}`,
+            details: { provider: config.llm.provider, model: config.llm.model },
           };
         } else {
           components.network = {
             status: "warning",
-            message: "No LLM provider configured",
-            details: {}
+            message: "No Oracle LLM provider configured",
+            details: {},
           };
         }
       } catch (error) {
         components.network = {
           status: "error",
           message: `Network check error: ${(error as Error).message}`,
-          details: {}
+          details: {},
         };
       }
 
-      // Check if the agent is running
+      // ── Agent process ───────────────────────────────────────────────
+      components.agent = {
+        status: "healthy",
+        message: "Agent is running (this tool is executing inside the agent process)",
+        details: { pid: process.pid, uptime: `${Math.floor(process.uptime())}s` },
+      };
+
+      // ── Logs directory ──────────────────────────────────────────────
       try {
-        // This is a basic check - in a real implementation, we might check if the agent process is running
-        components.agent = {
+        const logsDir = path.join(morpheusRoot, "logs");
+        await fsPromises.access(logsDir);
+        components.logs = {
           status: "healthy",
-          message: "Agent is running",
-          details: { uptime: "N/A - runtime information not available in this context" }
+          message: "Logs directory is accessible",
+          details: { path: logsDir },
         };
-      } catch (error) {
-        components.agent = {
-          status: "error",
-          message: `Agent check error: ${(error as Error).message}`,
-          details: {}
+      } catch {
+        components.logs = {
+          status: "warning",
+          message: "Logs directory not found (will be created on first log write)",
+          details: {},
         };
       }
 
-      return JSON.stringify({
-        timestamp,
-        components
-      });
+      return JSON.stringify({ timestamp, components });
     } catch (error) {
       console.error("Error in DiagnosticTool:", error);
       return JSON.stringify({
         timestamp: new Date().toISOString(),
-        error: "Failed to run diagnostics"
+        error: "Failed to run diagnostics",
       });
     }
   },
   {
     name: "diagnostic_check",
-    description: "Performs system health diagnostics and returns a comprehensive report on system components.",
+    description:
+      "Performs system health diagnostics and returns a comprehensive report covering configuration (Oracle/Sati/Apoc), short-memory DB, Sati long-term memory DB, LLM provider, agent process, and logs directory.",
     schema: z.object({}),
   }
 );

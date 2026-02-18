@@ -593,7 +593,6 @@ How can I assist you today?`;
   }
 
   private async handleDoctorCommand(ctx: any, user: string) {
-    // Implementação simplificada do diagnóstico
     const config = this.config.get();
     let response = '*Morpheus Doctor*\n\n';
 
@@ -601,38 +600,73 @@ How can I assist you today?`;
     const nodeVersion = process.version;
     const majorVersion = parseInt(nodeVersion.replace('v', '').split('.')[0], 10);
     if (majorVersion >= 18) {
-      response += '✅ Node.js Version: ' + nodeVersion + ' (Satisfied)\n';
+      response += '✅ Node.js: ' + nodeVersion + '\n';
     } else {
-      response += '❌ Node.js Version: ' + nodeVersion + ' (Required: >=18)\n';
+      response += '❌ Node.js: ' + nodeVersion + ' (Required: >=18)\n';
     }
 
-    // Verificar configuração
     if (config) {
       response += '✅ Configuration: Valid\n';
 
-      // Verificar se há chave de API disponível para o provedor ativo
+      // Helper para verificar API key de um provider
+      const hasApiKey = (provider: string, apiKey?: string) => {
+        if (apiKey) return true;
+        if (provider === 'openai') return !!process.env.OPENAI_API_KEY;
+        if (provider === 'anthropic') return !!process.env.ANTHROPIC_API_KEY;
+        if (provider === 'gemini' || provider === 'google') return !!process.env.GOOGLE_API_KEY;
+        if (provider === 'openrouter') return !!process.env.OPENROUTER_API_KEY;
+        return false; // ollama and others don't need keys
+      };
+
+      // Oracle (LLM)
       const llmProvider = config.llm?.provider;
       if (llmProvider && llmProvider !== 'ollama') {
-        const hasLlmApiKey = config.llm?.api_key ||
-          (llmProvider === 'openai' && process.env.OPENAI_API_KEY) ||
-          (llmProvider === 'anthropic' && process.env.ANTHROPIC_API_KEY) ||
-          (llmProvider === 'gemini' && process.env.GOOGLE_API_KEY) ||
-          (llmProvider === 'openrouter' && process.env.OPENROUTER_API_KEY);
-
-        if (hasLlmApiKey) {
-          response += `✅ LLM API key available for ${llmProvider}\n`;
+        if (hasApiKey(llmProvider, config.llm?.api_key)) {
+          response += `✅ Oracle API key (${llmProvider})\n`;
         } else {
-          response += `❌ LLM API key missing for ${llmProvider}. Either set in config or define environment variable.\n`;
+          response += `❌ Oracle API key missing (${llmProvider})\n`;
         }
       }
 
-      // Verificar token do Telegram se ativado
+      // Sati
+      const sati = (config as any).sati;
+      const satiProvider = sati?.provider || llmProvider;
+      if (satiProvider && satiProvider !== 'ollama') {
+        if (hasApiKey(satiProvider, sati?.api_key ?? config.llm?.api_key)) {
+          response += `✅ Sati API key (${satiProvider})\n`;
+        } else {
+          response += `❌ Sati API key missing (${satiProvider})\n`;
+        }
+      }
+
+      // Apoc
+      const apoc = (config as any).apoc;
+      const apocProvider = apoc?.provider || llmProvider;
+      if (apocProvider && apocProvider !== 'ollama') {
+        if (hasApiKey(apocProvider, apoc?.api_key ?? config.llm?.api_key)) {
+          response += `✅ Apoc API key (${apocProvider})\n`;
+        } else {
+          response += `❌ Apoc API key missing (${apocProvider})\n`;
+        }
+      }
+
+      // Telegram token
       if (config.channels?.telegram?.enabled) {
         const hasTelegramToken = config.channels.telegram?.token || process.env.TELEGRAM_BOT_TOKEN;
         if (hasTelegramToken) {
-          response += '✅ Telegram bot token available\n';
+          response += '✅ Telegram token\n';
         } else {
-          response += '❌ Telegram bot token missing. Either set in config or define TELEGRAM_BOT_TOKEN environment variable.\n';
+          response += '❌ Telegram token missing\n';
+        }
+      }
+
+      // Audio API key
+      if (config.audio?.enabled) {
+        const audioKey = (config.audio as any)?.apiKey || process.env.GOOGLE_API_KEY;
+        if (audioKey) {
+          response += '✅ Audio API key\n';
+        } else {
+          response += '❌ Audio API key missing\n';
         }
       }
     } else {
@@ -644,33 +678,51 @@ How can I assist you today?`;
 
   private async handleStatsCommand(ctx: any, user: string) {
     try {
-      // Criar instância temporária do histórico para obter estatísticas
       const history = new SQLiteChatMessageHistory({
         sessionId: "default",
-        databasePath: undefined, // Usará o caminho padrão
-        limit: 100, // Limite arbitrário para esta operação
+        databasePath: undefined,
+        limit: 100,
       });
 
       const stats = await history.getGlobalUsageStats();
       const groupedStats = await history.getUsageStatsByProviderAndModel();
 
+      // Totals from global stats
+      const totalTokens = stats.totalInputTokens + stats.totalOutputTokens;
+
+      // Aggregate audio seconds and cost from grouped stats
+      const totalAudioSeconds = groupedStats.reduce((sum, s) => sum + (s.totalAudioSeconds || 0), 0);
+      const totalCost = stats.totalEstimatedCostUsd;
+
       let response = '*Token Usage Statistics*\n\n';
-      response += `Total Input Tokens: ${stats.totalInputTokens}\n`;
-      response += `Total Output Tokens: ${stats.totalOutputTokens}\n`;
-      response += `Total Tokens: ${stats.totalInputTokens + stats.totalOutputTokens}\n\n`;
+      response += `Input Tokens: ${stats.totalInputTokens.toLocaleString()}\n`;
+      response += `Output Tokens: ${stats.totalOutputTokens.toLocaleString()}\n`;
+      response += `Total Tokens: ${totalTokens.toLocaleString()}\n`;
+      if (totalAudioSeconds > 0) {
+        response += `Audio Processed: ${totalAudioSeconds.toFixed(1)}s\n`;
+      }
+      if (totalCost != null) {
+        response += `Estimated Cost: $${totalCost.toFixed(4)}\n`;
+      }
+      response += '\n';
 
       if (groupedStats.length > 0) {
-        response += '*Breakdown by Provider and Model:*\n';
+        response += '*By Provider/Model:*\n';
         for (const stat of groupedStats) {
-          response += `- ${stat.provider}/${stat.model}:\n ${stat.totalTokens} tokens\n(${stat.messageCount} messages)\n\n`;
+          response += `\n*${stat.provider}/${stat.model}*\n`;
+          response += `  Tokens: ${stat.totalTokens.toLocaleString()} (${stat.messageCount} msgs)\n`;
+          if (stat.totalAudioSeconds > 0) {
+            response += `  Audio: ${stat.totalAudioSeconds.toFixed(1)}s\n`;
+          }
+          if (stat.estimatedCostUsd != null) {
+            response += `  Cost: $${stat.estimatedCostUsd.toFixed(4)}\n`;
+          }
         }
       } else {
         response += 'No detailed usage statistics available.';
       }
 
       await ctx.reply(response, { parse_mode: 'Markdown' });
-
-      // Fechar conexão com o banco de dados
       history.close();
     } catch (error: any) {
       await ctx.reply(`Failed to retrieve statistics: ${error.message}`);
@@ -715,11 +767,38 @@ How can I assist you today?`;
     response += `- Name: ${config.agent.name}\n`;
     response += `- Personality: ${config.agent.personality}\n\n`;
 
-    response += `*LLM:*\n`;
+    response += `*Oracle (LLM):*\n`;
     response += `- Provider: ${config.llm.provider}\n`;
     response += `- Model: ${config.llm.model}\n`;
     response += `- Temperature: ${config.llm.temperature}\n`;
     response += `- Context Window: ${config.llm.context_window || 100}\n\n`;
+
+    // Sati config (falls back to llm if not set)
+    const sati = (config as any).sati;
+    response += `*Sati (Memory):*\n`;
+    if (sati?.provider) {
+      response += `- Provider: ${sati.provider}\n`;
+      response += `- Model: ${sati.model || config.llm.model}\n`;
+      response += `- Temperature: ${sati.temperature ?? config.llm.temperature}\n`;
+      response += `- Memory Limit: ${sati.memory_limit ?? 1000}\n`;
+    } else {
+      response += `- Inherits Oracle config\n`;
+    }
+    response += '\n';
+
+    // Apoc config (falls back to llm if not set)
+    const apoc = (config as any).apoc;
+    response += `*Apoc (DevTools):*\n`;
+    if (apoc?.provider) {
+      response += `- Provider: ${apoc.provider}\n`;
+      response += `- Model: ${apoc.model || config.llm.model}\n`;
+      response += `- Temperature: ${apoc.temperature ?? 0.2}\n`;
+      if (apoc.working_dir) response += `- Working Dir: ${apoc.working_dir}\n`;
+      response += `- Timeout: ${apoc.timeout_ms ?? 30000}ms\n`;
+    } else {
+      response += `- Inherits Oracle config\n`;
+    }
+    response += '\n';
 
     response += `*Channels:*\n`;
     response += `- Telegram Enabled: ${config.channels.telegram.enabled}\n`;
