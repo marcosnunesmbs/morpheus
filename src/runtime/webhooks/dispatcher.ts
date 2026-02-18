@@ -1,11 +1,12 @@
-import { Apoc } from '../apoc.js';
 import { WebhookRepository } from './repository.js';
 import { DisplayManager } from '../display.js';
+import type { IOracle } from '../types.js';
 import type { Webhook } from './types.js';
 import type { TelegramAdapter } from '../../channels/telegram.js';
 
 export class WebhookDispatcher {
   private static telegramAdapter: TelegramAdapter | null = null;
+  private static oracle: IOracle | null = null;
   private display = DisplayManager.getInstance();
 
   /**
@@ -17,9 +18,17 @@ export class WebhookDispatcher {
   }
 
   /**
+   * Called at boot time with the Oracle instance so webhooks can use
+   * the full Oracle (MCPs, apoc_delegate, memory, etc.).
+   */
+  public static setOracle(oracle: IOracle): void {
+    WebhookDispatcher.oracle = oracle;
+  }
+
+  /**
    * Main orchestration method — runs in background (fire-and-forget).
    * 1. Builds the agent prompt from webhook.prompt + payload
-   * 2. Executes Apoc agent
+   * 2. Sends to Oracle (which can use MCPs or delegate to Apoc)
    * 3. Persists result to DB
    * 4. Dispatches to configured channels
    */
@@ -29,14 +38,22 @@ export class WebhookDispatcher {
     notificationId: string,
   ): Promise<void> {
     const repo = WebhookRepository.getInstance();
-    const task = this.buildPrompt(webhook.prompt, payload);
+    const oracle = WebhookDispatcher.oracle;
+
+    if (!oracle) {
+      const errMsg = 'Oracle not available — webhook cannot be processed.';
+      this.display.log(errMsg, { source: 'Webhooks', level: 'error' });
+      repo.updateNotificationResult(notificationId, 'failed', errMsg);
+      return;
+    }
+
+    const message = this.buildPrompt(webhook.prompt, payload);
 
     let result: string;
     let status: 'completed' | 'failed';
 
     try {
-      const apoc = Apoc.getInstance();
-      result = await apoc.execute(task, 'Webhook trigger — analyze the payload and follow instructions.');
+      result = await oracle.chat(message);
       status = 'completed';
       this.display.log(
         `Webhook "${webhook.name}" completed (notification: ${notificationId})`,

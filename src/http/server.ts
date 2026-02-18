@@ -9,6 +9,7 @@ import { createApiRouter } from './api.js';
 import { createWebhooksRouter } from './webhooks-router.js';
 import { authMiddleware } from './middleware/auth.js';
 import { IOracle } from '../runtime/types.js';
+import { WebhookDispatcher } from '../runtime/webhooks/dispatcher.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -21,6 +22,8 @@ export class HttpServer {
   constructor(oracle: IOracle) {
     this.app = express();
     this.oracle = oracle;
+    // Wire Oracle into the webhook dispatcher so triggers use the full agent
+    WebhookDispatcher.setOracle(oracle);
     this.setupMiddleware();
     this.setupRoutes();
   }
