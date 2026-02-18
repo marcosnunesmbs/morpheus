@@ -36,7 +36,10 @@ EXPOSE 3333
 ENTRYPOINT ["dumb-init", "--"]
 
 # Comando padrão
-CMD ["sh", "-c", "npx morpheus start -y"]
+# Remove stale PID file left from a previous container run before starting.
+# Without this, a container restart can find a leftover PID that coincidentally
+# matches a new process (PID reuse), causing an infinite kill → restart loop.
+CMD ["sh", "-c", "rm -f /root/.morpheus/morpheus.pid && npx morpheus start -y"]
 
 # Health check para o Docker
 HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \

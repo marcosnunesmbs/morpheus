@@ -4,7 +4,7 @@ import fs from 'fs-extra';
 import { confirm } from '@inquirer/prompts';
 import { scaffold } from '../../runtime/scaffold.js';
 import { DisplayManager } from '../../runtime/display.js';
-import { writePid, readPid, isProcessRunning, clearPid, checkStalePid, killProcess } from '../../runtime/lifecycle.js';
+import { writePid, readPid, isProcessRunning, clearPid, checkStalePid, killProcess, waitForProcessDeath } from '../../runtime/lifecycle.js';
 import { ConfigManager } from '../../config/manager.js';
 import { renderBanner } from '../utils/render.js';
 import { TelegramAdapter } from '../../channels/telegram.js';
@@ -34,7 +34,8 @@ export const startCommand = new Command('start')
 
 
       const existingPid = await readPid();
-      if (existingPid !== null && isProcessRunning(existingPid)) {
+      // Guard: skip if the stored PID is our own (container restart PID reuse scenario)
+      if (existingPid !== null && existingPid !== process.pid && isProcessRunning(existingPid)) {
         display.log(chalk.yellow(`Morpheus is already running (PID: ${existingPid})`));
 
         let shouldKill = options.yes;
@@ -56,10 +57,13 @@ export const startCommand = new Command('start')
           display.log(chalk.cyan(`Stopping existing process (PID: ${existingPid})...`));
           const killed = killProcess(existingPid);
           if (killed) {
-            display.log(chalk.green('✓ Process stopped successfully'));
+            display.log(chalk.green('Terminated'));
             await clearPid();
-            // Give a moment for the process to fully terminate
-            await new Promise(resolve => setTimeout(resolve, 1000));
+            // Wait up to 5 s for the process to actually die before continuing
+            const died = await waitForProcessDeath(existingPid, 5000);
+            if (!died) {
+              display.log(chalk.yellow('Warning: process may still be running. Proceeding anyway.'));
+            }
           } else {
             display.log(chalk.red('Failed to stop the process'));
             await clearPid();

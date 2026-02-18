@@ -34,9 +34,28 @@ export function isProcessRunning(pid: number): boolean {
   }
 }
 
+/**
+ * Waits until the given PID is no longer running, or until timeout is reached.
+ * Returns true if the process died, false if timeout was reached.
+ */
+export async function waitForProcessDeath(pid: number, timeoutMs = 5000, intervalMs = 200): Promise<boolean> {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    if (!isProcessRunning(pid)) return true;
+    await new Promise(resolve => setTimeout(resolve, intervalMs));
+  }
+  return !isProcessRunning(pid);
+}
+
 export async function checkStalePid(): Promise<void> {
     const pid = await readPid();
     if (pid !== null) {
+        // Never treat our own PID as stale — this avoids self-kill loops in containers
+        // where a restarted process may inherit the same PID that was previously written.
+        if (pid === process.pid) {
+            await clearPid();
+            return;
+        }
         if (!isProcessRunning(pid)) {
             await clearPid();
         }
@@ -44,6 +63,9 @@ export async function checkStalePid(): Promise<void> {
 }
 
 export function killProcess(pid: number): boolean {
+  // Safety guard: never kill ourselves
+  if (pid === process.pid) return false;
+
   try {
     process.kill(pid, 'SIGTERM');
     return true;
