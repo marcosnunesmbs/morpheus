@@ -31,6 +31,10 @@ export const ApocConfigSchema = LLMConfigSchema.extend({
     timeout_ms: z.number().int().positive().optional(),
 });
 
+export const WebhookConfigSchema = z.object({
+  telegram_notify_all: z.boolean().optional(),
+}).optional();
+
 // Zod Schema matching MorpheusConfig interface
 export const ConfigSchema = z.object({
   agent: z.object({
@@ -40,6 +44,7 @@ export const ConfigSchema = z.object({
   llm: LLMConfigSchema.default(DEFAULT_CONFIG.llm),
   sati: SatiConfigSchema.optional(),
   apoc: ApocConfigSchema.optional(),
+  webhooks: WebhookConfigSchema,
   audio: AudioConfigSchema.default(DEFAULT_CONFIG.audio),
   memory: z.object({
     limit: z.number().int().positive().optional(),

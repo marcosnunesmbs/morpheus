@@ -64,6 +64,11 @@ export interface ApocConfig extends LLMConfig {
   timeout_ms?: number;
 }
 
+export interface WebhookConfig {
+  /** If true, all webhook notifications are also sent to Telegram by default */
+  telegram_notify_all?: boolean;
+}
+
 export interface MemoryConfig {
   /**
    * @deprecated Use llm.context_window instead. This field is kept for backward compatibility.
@@ -76,6 +81,7 @@ export interface MorpheusConfig {
   llm: LLMConfig;
   sati?: SatiConfig;
   apoc?: ApocConfig;
+  webhooks?: WebhookConfig;
   channels: ChannelsConfig;
   ui: UIConfig;
   logging: LogConfig;

@@ -13,11 +13,15 @@ import {
   Puzzle,
   MessageSquare,
   DollarSign,
+  Webhook,
+  Bell,
 } from 'lucide-react';
 import { Footer } from './Footer';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '../hooks/useAuth';
 import { MobileHeader } from './MobileHeader';
+import useSWR from 'swr';
+import { webhookService } from '../services/webhooks';
 import { RestartConfirmationModal } from './RestartConfirmationModal';
 import { httpClient } from '../services/httpClient';
 
@@ -30,6 +34,13 @@ export function Layout({ children }: { children: React.ReactNode }) {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isRestartModalOpen, setIsRestartModalOpen] = useState(false);
   const { logout } = useAuth();
+
+  const { data: unreadData } = useSWR(
+    '/webhooks/notifications/unread-count',
+    () => webhookService.unreadCount(),
+    { refreshInterval: 10_000 },
+  );
+  const unreadCount = unreadData?.count ?? 0;
 
   const handleRestart = async () => {
     try {
@@ -65,6 +76,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
     { icon: BarChart3, label: 'Usage Stats', path: '/stats' },
     { icon: DollarSign, label: 'Model Pricing', path: '/model-pricing' },
     { icon: Activity, label: 'Sati Memories', path: '/sati-memories' },
+    { icon: Webhook, label: 'Webhooks', path: '/webhooks' },
   ];
 
   const mobileNavItems = [
@@ -75,6 +87,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
     { icon: BarChart3, label: 'Usage Stats', path: '/stats' },
     { icon: DollarSign, label: 'Model Pricing', path: '/model-pricing' },
     { icon: Activity, label: 'Sati Memories', path: '/sati-memories' },
+    { icon: Webhook, label: 'Webhooks', path: '/webhooks' },
   ];
 
   return (
@@ -137,6 +150,30 @@ export function Layout({ children }: { children: React.ReactNode }) {
             >
               <Terminal className="w-5 h-5" />
               <span>Logs</span>
+            </Link>
+            <Link
+              key="/notifications"
+              to="/notifications"
+              className={`flex items-center gap-3 px-4 py-3 rounded transition-colors ${
+                location.pathname === '/notifications'
+                  ? 'bg-azure-active text-azure-primary dark:bg-matrix-primary dark:text-matrix-highlight'
+                  : 'hover:bg-azure-hover dark:hover:bg-matrix-primary/50 text-azure-text-secondary dark:text-matrix-secondary'
+              }`}
+            >
+              <div className="relative">
+                <Bell className="w-5 h-5" />
+                {unreadCount > 0 && (
+                  <span className="absolute -top-1.5 -right-1.5 bg-red-500 text-white text-[9px] font-bold rounded-full w-3.5 h-3.5 flex items-center justify-center leading-none">
+                    {unreadCount > 9 ? '9+' : unreadCount}
+                  </span>
+                )}
+              </div>
+              <span>Notifications</span>
+              {unreadCount > 0 && (
+                <span className="ml-auto bg-red-500 text-white text-[10px] font-bold rounded-full px-1.5 py-0.5 leading-none">
+                  {unreadCount > 99 ? '99+' : unreadCount}
+                </span>
+              )}
             </Link>
           </nav>
 
@@ -236,6 +273,30 @@ export function Layout({ children }: { children: React.ReactNode }) {
                   >
                     <Terminal className="w-5 h-5" />
                     <span>Logs</span>
+                  </Link>
+                  <Link
+                    to="/notifications"
+                    className={`flex items-center gap-3 px-4 py-3 rounded transition-colors ${
+                      location.pathname === '/notifications'
+                        ? 'bg-azure-active text-azure-primary dark:bg-matrix-primary dark:text-matrix-highlight'
+                        : 'hover:bg-azure-hover dark:hover:bg-matrix-primary/50 text-azure-text-secondary dark:text-matrix-secondary'
+                    }`}
+                    onClick={() => setIsSidebarOpen(false)}
+                  >
+                    <div className="relative">
+                      <Bell className="w-5 h-5" />
+                      {unreadCount > 0 && (
+                        <span className="absolute -top-1.5 -right-1.5 bg-red-500 text-white text-[9px] font-bold rounded-full w-3.5 h-3.5 flex items-center justify-center leading-none">
+                          {unreadCount > 9 ? '9+' : unreadCount}
+                        </span>
+                      )}
+                    </div>
+                    <span>Notifications</span>
+                    {unreadCount > 0 && (
+                      <span className="ml-auto bg-red-500 text-white text-[10px] font-bold rounded-full px-1.5 py-0.5 leading-none">
+                        {unreadCount > 99 ? '99+' : unreadCount}
+                      </span>
+                    )}
                   </Link>
                 </nav>
 

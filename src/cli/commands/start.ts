@@ -8,6 +8,7 @@ import { writePid, readPid, isProcessRunning, clearPid, checkStalePid, killProce
 import { ConfigManager } from '../../config/manager.js';
 import { renderBanner } from '../utils/render.js';
 import { TelegramAdapter } from '../../channels/telegram.js';
+import { WebhookDispatcher } from '../../runtime/webhooks/dispatcher.js';
 import { PATHS } from '../../config/paths.js';
 import { Oracle } from '../../runtime/oracle.js';
 import { ProviderError } from '../../runtime/errors.js';
@@ -153,6 +154,8 @@ export const startCommand = new Command('start')
               config.channels.telegram.token,
               config.channels.telegram.allowedUsers || []
             );
+            // Wire Telegram adapter to webhook dispatcher for proactive notifications
+            WebhookDispatcher.setTelegramAdapter(telegram);
             adapters.push(telegram);
           } catch (e) {
             display.log(chalk.red('Failed to initialize Telegram adapter. Continuing...'));

@@ -6,6 +6,7 @@ import { fileURLToPath } from 'url';
 import { ConfigManager } from '../config/manager.js';
 import { DisplayManager } from '../runtime/display.js';
 import { createApiRouter } from './api.js';
+import { createWebhooksRouter } from './webhooks-router.js';
 import { authMiddleware } from './middleware/auth.js';
 import { IOracle } from '../runtime/types.js';
 
@@ -53,6 +54,11 @@ export class HttpServer {
         uptime: process.uptime()
       });
     });
+
+    // Webhooks router — mounted BEFORE the auth-guarded /api block.
+    // The trigger endpoint is public (validated via x-api-key header internally).
+    // All other webhook management endpoints apply authMiddleware internally.
+    this.app.use('/api/webhooks', createWebhooksRouter());
 
     this.app.use('/api', authMiddleware, createApiRouter(this.oracle));
 

@@ -412,6 +412,40 @@ export class TelegramAdapter {
     return filePath;
   }
 
+  /**
+   * Sends a proactive message to all allowed Telegram users.
+   * Used by the webhook notification system to push results.
+   */
+  public async sendMessage(text: string): Promise<void> {
+    if (!this.isConnected || !this.bot) {
+      this.display.log(
+        'Cannot send message: Telegram bot not connected.',
+        { source: 'Telegram', level: 'warning' },
+      );
+      return;
+    }
+
+    const allowedUsers = this.config.get().channels.telegram.allowedUsers;
+    if (allowedUsers.length === 0) {
+      this.display.log(
+        'No allowed Telegram users configured — skipping notification.',
+        { source: 'Telegram', level: 'warning' },
+      );
+      return;
+    }
+
+    for (const userId of allowedUsers) {
+      try {
+        await this.bot.telegram.sendMessage(userId, text, { parse_mode: 'Markdown' });
+      } catch (err: any) {
+        this.display.log(
+          `Failed to send message to Telegram user ${userId}: ${err.message}`,
+          { source: 'Telegram', level: 'error' },
+        );
+      }
+    }
+  }
+
   public async disconnect(): Promise<void> {
     if (!this.isConnected || !this.bot) {
       return;
