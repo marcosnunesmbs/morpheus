@@ -385,9 +385,9 @@ Edit `~/.morpheus/mcps.json` to add servers. The system supports `stdio` (local 
 
 ## 🧩 How It Works Internally
 
-The flow of an interaction follows these steps:
+### Standard Interaction Flow (Telegram / Web Chat)
 
-1.  **Reception**: The `TelegramAdapter` receives a webhook, validates the `chat_id` against the allowlist defined in the configuration.
+1.  **Reception**: The `TelegramAdapter` receives a message, validates the `chat_id` against the allowlist defined in the configuration.
 2.  **Pre-Processing (Middleware)**:
     *   The Sati `beforeAgent` endpoint is triggered.
     *   It searches `santi-memory.db` for facts semantically relevant to the current input.
@@ -405,6 +405,19 @@ The flow of an interaction follows these steps:
     *   A parallel (fire-and-forget) process analyzes the conversation to extract new facts.
     *   New facts are saved in the long-term database.
 6.  **Delivery**: The final response is sent to the user via the Telegram adapter.
+
+### Webhook Trigger Flow
+
+1.  **External Call**: An external system posts to `POST /api/webhooks/trigger/:webhook_name` with the `x-api-key` header.
+2.  **Validation**: The router looks up the webhook by slug, verifies the api_key matches and `enabled = 1`.
+3.  **Immediate Acknowledgement**: A `Notification` record is created with `status: pending`. The HTTP response `202 Accepted` is returned immediately — the caller does **not** wait for Oracle.
+4.  **Async Execution (fire-and-forget via `setImmediate`)**:
+    *   `WebhookDispatcher.dispatch()` builds the prompt: `webhook.prompt + "\n\n---\nRECEIVED WEBHOOK PAYLOAD:\n```json\n<payload>\n```"`.
+    *   `oracle.chat(message)` is called — Oracle has full access to MCPs, `apoc_delegate`, and all tools.
+5.  **Result Persistence**: The Notification is updated with `status: completed | failed` and the agent's response text.
+6.  **Channel Dispatch**:
+    *   **UI channel**: Notification is visible immediately in the Web UI inbox (frontend polls every 5s).
+    *   **Telegram channel**: `TelegramAdapter.sendMessage()` pushes a formatted message to all `allowedUsers`.
 
 ---
 
