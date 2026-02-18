@@ -63,7 +63,7 @@ jobs:
           IMAGE="${{ secrets.DOCKERHUB_USERNAME }}/morpheus"
           STATUS="${{ steps.docker_build.outcome }}"
           DIGEST="${{ steps.docker_build.outputs.digest }}"
-          curl -s -o /dev/null -w "%{http_code}" -X POST "https://morpheus.mnunes.xyz/api/webhooks/trigger/github-actions" \
+          curl -s -o /dev/null -w "%{http_code}" -X POST "https://morph.mnunes.xyz/api/webhooks/trigger/github-actions" \
             -H "x-api-key: ${{ secrets.MORPHEUS_WEBHOOK_KEY }}" \
             -H "Content-Type: application/json" \
             -d "{
