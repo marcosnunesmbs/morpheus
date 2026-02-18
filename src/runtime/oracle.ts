@@ -14,6 +14,7 @@ import { UsageMetadata } from "../types/usage.js";
 import { SatiMemoryMiddleware } from "./memory/sati/index.js";
 import { AGENT_TOOLS } from "./tools/agent-tools.js";
 import { approvalEventEmitter, type ApprovalNeededPayload } from "../agents/notifier.js";
+import { taskCompletionEmitter, type TasksDonePayload } from "../tasks/emitter.js";
 import { EventEmitter } from "events";
 
 export class Oracle extends EventEmitter implements IOracle {
@@ -48,6 +49,34 @@ export class Oracle extends EventEmitter implements IOracle {
       this.emit('proactive_message', { sessionId: this.currentSessionId, message });
 
       // Persist as AI message in history so the proactive message appears in chat
+      if (this.history) {
+        const aiMsg = new AIMessage(message);
+        (aiMsg as any).agent_type = 'agent_oracle';
+        (aiMsg as any).provider_metadata = {
+          provider: this.config.llm.provider,
+          model: this.config.llm.model,
+        };
+        this.history.addMessage(aiMsg).catch(() => {});
+      }
+    });
+
+    taskCompletionEmitter.on('tasks_done', (payload: TasksDonePayload) => {
+      // Only notify if this Oracle instance owns the session
+      if (payload.sessionId && this.currentSessionId && payload.sessionId !== this.currentSessionId) return;
+
+      const count = payload.taskIds.length;
+      const message =
+        `✅ **${count} task${count !== 1 ? 's' : ''} concluída${count !== 1 ? 's' : ''}.**\n\n` +
+        `Use \`get_task_status\` com os IDs abaixo para ver os resultados, ` +
+        `ou acesse a página de Tasks na UI.\n\n` +
+        `IDs: ${payload.taskIds.map((id) => `\`${id.slice(0, 8)}\``).join(', ')}`;
+
+      const sessionId = payload.sessionId ?? this.currentSessionId;
+      if (sessionId) {
+        this.emit('proactive_message', { sessionId, message });
+      }
+
+      // Persist as AI message so it appears in chat history
       if (this.history) {
         const aiMsg = new AIMessage(message);
         (aiMsg as any).agent_type = 'agent_oracle';
@@ -138,7 +167,7 @@ export class Oracle extends EventEmitter implements IOracle {
         `
 You are  ${this.config.agent.name}, ${this.config.agent.personality}, the Oracle.
 
-Your role is to orchestrate tools, MCPs, and language models to accurately fulfill the Architect’s request.
+Your role is to orchestrate tools, MCPs, and language models to accurately fulfill the Architect's request.
 
 You are an operator, not a guesser.
 Accuracy, verification, and task completion are more important than speed.
@@ -241,6 +270,22 @@ Provide a natural language answer only if:
 - The request is purely conceptual
 
 Otherwise, use tools first.
+
+
+8. PROJECT MANAGEMENT
+
+When the user asks to implement, modify, or automate something in a codebase:
+
+- Use list_projects to check registered projects FIRST.
+- If no project exists for the target codebase, use create_project to register it
+  (requires: name + absolute path on the filesystem).
+- Apoc ONLY works within registered projects — you MUST include project_id in create_plan
+  when any task is assigned to Apoc.
+- Merovingian can handle system-wide, research, or ad-hoc tasks without a project.
+- After dispatching tasks with run_all_tasks or run_next_task, inform the user that tasks
+  are running in the background and they can check progress with get_task_status or the
+  Tasks page in the UI.
+- You will receive an automatic notification when tasks complete.
 
 --------------------------------------------------
 

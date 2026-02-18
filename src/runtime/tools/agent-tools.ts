@@ -13,6 +13,159 @@ import { TheKeymaker } from '../../agents/keymaker.js';
 import { TheMerovingian } from '../../agents/merovingian.js';
 import { getPendingApprovals } from '../../agents/notifier.js';
 import type { TaskFilter } from '../../tasks/types.js';
+import type { CreateProjectInput, UpdateProjectInput } from '../../projects/types.js';
+
+// ─── list_projects ────────────────────────────────────────────────────────────
+
+const ListProjectsTool = tool(
+  async () => {
+    const db = getDb();
+    const projectStore = new ProjectStore(db);
+    const projects = projectStore.list();
+    return JSON.stringify({
+      success: true,
+      count: projects.length,
+      projects: projects.map((p) => ({
+        id: p.id,
+        name: p.name,
+        path: p.path,
+        description: p.description,
+        git_remote: p.git_remote,
+        allowed_commands: p.allowed_commands,
+        created_at: p.created_at,
+      })),
+    });
+  },
+  {
+    name: 'list_projects',
+    description:
+      'List all registered projects. Always call this before creating tasks for Apoc to find the correct project_id.',
+    schema: z.object({}),
+  },
+);
+
+// ─── create_project ───────────────────────────────────────────────────────────
+
+const CreateProjectTool = tool(
+  async ({ name, path, description, git_remote, allowed_commands }) => {
+    const db = getDb();
+    const projectStore = new ProjectStore(db);
+    try {
+      const project = projectStore.create({
+        name,
+        path,
+        description,
+        git_remote,
+        allowed_commands: allowed_commands ?? [],
+      } as CreateProjectInput);
+      return JSON.stringify({
+        success: true,
+        project: {
+          id: project.id,
+          name: project.name,
+          path: project.path,
+          allowed_commands: project.allowed_commands,
+        },
+        message: `Project '${project.name}' registered with ID ${project.id}. Use this project_id when creating tasks for Apoc.`,
+      });
+    } catch (err: any) {
+      return JSON.stringify({ success: false, error: err.message });
+    }
+  },
+  {
+    name: 'create_project',
+    description:
+      'Register a new project in the database. Apoc can only work within registered projects — always register a project before creating Apoc tasks.',
+    schema: z.object({
+      name: z.string().describe('Human-readable project name'),
+      path: z.string().describe('Absolute path to the project directory on the filesystem'),
+      description: z.string().optional().describe('Brief description of the project'),
+      git_remote: z.string().optional().describe('Git remote URL (e.g. https://github.com/...)'),
+      allowed_commands: z
+        .array(z.string())
+        .optional()
+        .describe(
+          'Commands Apoc is allowed to run (e.g. ["npm", "git", "python"]). Empty = block all commands.',
+        ),
+    }),
+  },
+);
+
+// ─── get_project ──────────────────────────────────────────────────────────────
+
+const GetProjectTool = tool(
+  async ({ project_id }) => {
+    const db = getDb();
+    const projectStore = new ProjectStore(db);
+    const project = projectStore.getById(project_id);
+    if (!project) return JSON.stringify({ success: false, error: `Project '${project_id}' not found` });
+    return JSON.stringify({ success: true, project });
+  },
+  {
+    name: 'get_project',
+    description: 'Get detailed information about a specific project by ID.',
+    schema: z.object({ project_id: z.string() }),
+  },
+);
+
+// ─── update_project ───────────────────────────────────────────────────────────
+
+const UpdateProjectTool = tool(
+  async ({ project_id, name, path, description, git_remote, allowed_commands }) => {
+    const db = getDb();
+    const projectStore = new ProjectStore(db);
+    const existing = projectStore.getById(project_id);
+    if (!existing) return JSON.stringify({ success: false, error: `Project '${project_id}' not found` });
+
+    const updates: UpdateProjectInput = {};
+    if (name !== undefined) updates.name = name;
+    if (path !== undefined) updates.path = path;
+    if (description !== undefined) updates.description = description;
+    if (git_remote !== undefined) updates.git_remote = git_remote;
+    if (allowed_commands !== undefined) updates.allowed_commands = allowed_commands;
+
+    const updated = projectStore.update(project_id, updates);
+    return JSON.stringify({
+      success: true,
+      project: updated ?? existing,
+      message: `Project '${(updated ?? existing).name}' updated.`,
+    });
+  },
+  {
+    name: 'update_project',
+    description: 'Update an existing project (name, path, description, allowed commands, etc.).',
+    schema: z.object({
+      project_id: z.string(),
+      name: z.string().optional(),
+      path: z.string().optional(),
+      description: z.string().optional(),
+      git_remote: z.string().optional(),
+      allowed_commands: z.array(z.string()).optional(),
+    }),
+  },
+);
+
+// ─── delete_project ───────────────────────────────────────────────────────────
+
+const DeleteProjectTool = tool(
+  async ({ project_id }) => {
+    const db = getDb();
+    const projectStore = new ProjectStore(db);
+    const existing = projectStore.getById(project_id);
+    if (!existing) return JSON.stringify({ success: false, error: `Project '${project_id}' not found` });
+    projectStore.delete(project_id);
+    return JSON.stringify({
+      success: true,
+      message: `Project '${existing.name}' removed from the database. No files were deleted.`,
+    });
+  },
+  {
+    name: 'delete_project',
+    description:
+      'Remove a project from the database. Does NOT delete files from the filesystem. Only removes the registration.',
+    schema: z.object({ project_id: z.string() }),
+  },
+);
 
 // ─── create_plan ──────────────────────────────────────────────────────────────
 
@@ -22,6 +175,17 @@ const CreatePlanTool = tool(
     const projectStore = new ProjectStore(db);
     const taskStore = new TaskStore(db);
 
+    // Validate project_id if provided
+    if (project_id) {
+      const proj = projectStore.getById(project_id);
+      if (!proj) {
+        return JSON.stringify({
+          success: false,
+          error: `Project '${project_id}' not found. Use list_projects to see available projects or create_project to register one.`,
+        });
+      }
+    }
+
     const architect = new TheArchitect();
     const keymaker = new TheKeymaker();
 
@@ -29,17 +193,28 @@ const CreatePlanTool = tool(
       // 1. Architect creates the strategic plan
       const plan = await architect.createPlan(objective, session_id);
 
-      // 2. Keymaker creates technical blueprints
+      // 2. Validate: Apoc tasks require a project
+      const hasApocTasks = plan.tasks.some((t) => t.assigned_to === 'apoc');
+      if (hasApocTasks && !project_id) {
+        return JSON.stringify({
+          success: false,
+          error:
+            'This plan includes tasks for Apoc, which requires a registered project. ' +
+            'Use list_projects to find a project or create_project to register one, then include project_id.',
+        });
+      }
+
+      // 3. Keymaker creates technical blueprints
       const blueprints = await keymaker.createBlueprints(plan, session_id);
 
-      // 3. Determine working_dir from project (if provided)
+      // 4. Determine working_dir from project (if provided)
       let workingDir: string | undefined;
       if (project_id) {
         const project = projectStore.getById(project_id);
         workingDir = project?.path;
       }
 
-      // 4. Persist tasks to DB
+      // 5. Persist tasks to DB
       const createdTasks = plan.tasks.map((pt, i) => {
         const blueprint = blueprints.find((b) => b.task_index === i);
         return taskStore.create({
@@ -64,6 +239,10 @@ const CreatePlanTool = tool(
           assigned_to: t.assigned_to,
           status: t.status,
         })),
+        message:
+          `Plan created with ${createdTasks.length} task(s). ` +
+          `Use run_all_tasks or run_next_task to start execution. ` +
+          `Tasks run in background — use get_task_status to check progress.`,
       });
     } catch (err: any) {
       return JSON.stringify({ success: false, error: err.message });
@@ -72,10 +251,13 @@ const CreatePlanTool = tool(
   {
     name: 'create_plan',
     description:
-      'Decompose an objective into tasks using The Architect (strategic plan) and The Keymaker (technical blueprints). Tasks are persisted to the database.',
+      'Decompose an objective into tasks using The Architect (strategic plan) and The Keymaker (technical blueprints). Tasks are persisted to the database. For Apoc tasks, project_id is required.',
     schema: z.object({
       objective: z.string().describe('The objective to decompose into tasks'),
-      project_id: z.string().optional().describe('Project ID to associate tasks with'),
+      project_id: z
+        .string()
+        .optional()
+        .describe('Project ID to associate tasks with (required for Apoc tasks)'),
       session_id: z.string().optional().describe('Session ID for message history tracking'),
     }),
   },
@@ -144,16 +326,23 @@ const RunNextTaskTool = tool(
     }
 
     const executor = new TaskExecutor(taskStore, projectStore);
-    try {
-      const result = await executor.runTask(task.id);
-      return JSON.stringify({ success: true, task: result });
-    } catch (err: any) {
-      return JSON.stringify({ success: false, error: err.message });
-    }
+
+    // Fire-and-forget: dispatch in background, return immediately
+    executor.runInBackground([task.id], false, session_id);
+
+    return JSON.stringify({
+      success: true,
+      message: `Task '${task.title}' dispatched to ${task.assigned_to ?? 'apoc'} in background.`,
+      task_id: task.id,
+      task_title: task.title,
+      assigned_to: task.assigned_to,
+      note: 'Use get_task_status to check progress. You will be notified when it completes.',
+    });
   },
   {
     name: 'run_next_task',
-    description: 'Execute the next pending task (optionally filtered by project or session).',
+    description:
+      'Dispatch the next pending task to the appropriate agent in background (non-blocking). Returns immediately with the task ID. Use get_task_status to poll progress.',
     schema: z.object({
       project_id: z.string().optional(),
       session_id: z.string().optional(),
@@ -180,23 +369,28 @@ const RunAllTasksTool = tool(
     }
 
     const executor = new TaskExecutor(taskStore, projectStore);
-    try {
-      const results = await executor.runAll(tasks, parallel ?? false);
-      const summary = {
-        total: results.length,
-        done: results.filter((t) => t.status === 'done').length,
-        failed: results.filter((t) => t.status === 'failed').length,
-        awaiting_approval: results.filter((t) => t.status === 'awaiting_approval').length,
-      };
-      return JSON.stringify({ success: true, summary, tasks: results });
-    } catch (err: any) {
-      return JSON.stringify({ success: false, error: err.message });
-    }
+    const taskIds = tasks.map((t) => t.id);
+
+    // Fire-and-forget: dispatch all in background, return immediately
+    executor.runInBackground(taskIds, parallel ?? false, session_id);
+
+    return JSON.stringify({
+      success: true,
+      message: `${taskIds.length} task(s) dispatched in background (${parallel ? 'parallel' : 'serial'}).`,
+      task_ids: taskIds,
+      tasks: tasks.map((t) => ({
+        id: t.id,
+        title: t.title,
+        assigned_to: t.assigned_to,
+        status: t.status,
+      })),
+      note: 'Tasks are running in background. Use get_task_status to check individual progress, or get_tasks to see all. You will be notified when all tasks complete.',
+    });
   },
   {
     name: 'run_all_tasks',
     description:
-      'Execute all pending tasks. Can run in parallel (faster but no dependency order) or serial (respects order).',
+      'Dispatch all pending tasks to their agents in background (non-blocking). Returns immediately with task IDs. Can run in parallel or serial order.',
     schema: z.object({
       project_id: z.string().optional(),
       session_id: z.string().optional(),
@@ -360,6 +554,11 @@ const ResolveApprovalTool = tool(
 // ─── Exports ─────────────────────────────────────────────────────────────────
 
 export const AGENT_TOOLS: StructuredTool[] = [
+  ListProjectsTool,
+  CreateProjectTool,
+  GetProjectTool,
+  UpdateProjectTool,
+  DeleteProjectTool,
   CreatePlanTool,
   GetTasksTool,
   GetTaskStatusTool,
@@ -372,6 +571,11 @@ export const AGENT_TOOLS: StructuredTool[] = [
 ];
 
 export {
+  ListProjectsTool,
+  CreateProjectTool,
+  GetProjectTool,
+  UpdateProjectTool,
+  DeleteProjectTool,
   CreatePlanTool,
   GetTasksTool,
   GetTaskStatusTool,
