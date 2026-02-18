@@ -117,7 +117,7 @@ Analyze the payload above and follow the instructions provided. Be concise and a
     try {
       const icon = status === 'completed' ? '✅' : '❌';
       const truncated = result.length > 3500 ? result.slice(0, 3500) + '…' : result;
-      const message = `${icon} *Webhook: ${webhookName}*\n\n${truncated}`;
+      const message = `${icon} Webhook: ${webhookName}\n\n${truncated}`;
       await adapter.sendMessage(message);
     } catch (err: any) {
       this.display.log(

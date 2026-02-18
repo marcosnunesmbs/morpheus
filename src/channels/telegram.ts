@@ -413,8 +413,18 @@ export class TelegramAdapter {
   }
 
   /**
+   * Escapes a string for Telegram MarkdownV2 format.
+   * All special characters outside code spans must be escaped with a backslash.
+   */
+  private escapeMarkdownV2(text: string): string {
+    // Characters that must be escaped in MarkdownV2 outside of code/pre blocks
+    return text.replace(/([_*[\]()~`>#+\-=|{}.!\\])/g, '\\$1');
+  }
+
+  /**
    * Sends a proactive message to all allowed Telegram users.
    * Used by the webhook notification system to push results.
+   * Tries plain text first to avoid Markdown parse errors from LLM output.
    */
   public async sendMessage(text: string): Promise<void> {
     if (!this.isConnected || !this.bot) {
@@ -434,9 +444,15 @@ export class TelegramAdapter {
       return;
     }
 
+    // Truncate to Telegram's 4096 char limit
+    const MAX_LEN = 4096;
+    const safeText = text.length > MAX_LEN ? text.slice(0, MAX_LEN - 3) + '...' : text;
+
     for (const userId of allowedUsers) {
       try {
-        await this.bot.telegram.sendMessage(userId, text, { parse_mode: 'Markdown' });
+        // Send as plain text — LLM output often has unbalanced markdown that
+        // causes "Can't find end of entity" errors with parse_mode: 'Markdown'.
+        await this.bot.telegram.sendMessage(userId, safeText);
       } catch (err: any) {
         this.display.log(
           `Failed to send message to Telegram user ${userId}: ${err.message}`,
