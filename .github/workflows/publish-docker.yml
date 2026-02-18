@@ -45,6 +45,7 @@ jobs:
 
       - name: Build and push
         if: steps.version_check.outputs.changed == 'true' || github.event_name == 'workflow_dispatch'
+        id: docker_build
         uses: docker/build-push-action@v6
         with:
           context: .
@@ -54,3 +55,27 @@ jobs:
             ${{ secrets.DOCKERHUB_USERNAME }}/morpheus:latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+      - name: Notify Morpheus — Docker image published
+        if: always() && (steps.version_check.outputs.changed == 'true' || github.event_name == 'workflow_dispatch')
+        run: |
+          VERSION="${{ steps.version_check.outputs.version }}"
+          IMAGE="${{ secrets.DOCKERHUB_USERNAME }}/morpheus"
+          STATUS="${{ steps.docker_build.outcome }}"
+          DIGEST="${{ steps.docker_build.outputs.digest }}"
+          curl -s -o /dev/null -w "%{http_code}" -X POST "https://morpheus.mnunes.xyz/api/webhooks/trigger/github-actions" \
+            -H "x-api-key: ${{ secrets.MORPHEUS_WEBHOOK_KEY }}" \
+            -H "Content-Type: application/json" \
+            -d "{
+              \"event\": \"docker_publish\",
+              \"status\": \"$STATUS\",
+              \"image\": \"$IMAGE\",
+              \"tags\": [\"$IMAGE:$VERSION\", \"$IMAGE:latest\"],
+              \"digest\": \"$DIGEST\",
+              \"registry\": \"https://hub.docker.com/r/$IMAGE\",
+              \"triggered_by\": \"${{ github.event_name }}\",
+              \"actor\": \"${{ github.actor }}\",
+              \"ref\": \"${{ github.ref_name }}\",
+              \"commit\": \"${{ github.sha }}\",
+              \"run_url\": \"${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}\"
+            }"

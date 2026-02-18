@@ -44,6 +44,29 @@ jobs:
 
       - name: Publish
         if: steps.version_check.outputs.changed == 'true' || github.event_name == 'workflow_dispatch'
+        id: publish
         run: npm publish --access public
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Notify Morpheus — npm published
+        if: always() && (steps.version_check.outputs.changed == 'true' || github.event_name == 'workflow_dispatch')
+        run: |
+          VERSION=$(jq -r '.version' package.json)
+          PACKAGE=$(jq -r '.name' package.json)
+          STATUS="${{ steps.publish.outcome }}"
+          curl -s -o /dev/null -w "%{http_code}" -X POST "https://morpheus.mnunes.xyz/api/webhooks/trigger/github-actions" \
+            -H "x-api-key: ${{ secrets.MORPHEUS_WEBHOOK_KEY }}" \
+            -H "Content-Type: application/json" \
+            -d "{
+              \"event\": \"npm_publish\",
+              \"status\": \"$STATUS\",
+              \"package\": \"$PACKAGE\",
+              \"version\": \"$VERSION\",
+              \"registry\": \"https://www.npmjs.com/package/$PACKAGE/v/$VERSION\",
+              \"triggered_by\": \"${{ github.event_name }}\",
+              \"actor\": \"${{ github.actor }}\",
+              \"ref\": \"${{ github.ref_name }}\",
+              \"commit\": \"${{ github.sha }}\",
+              \"run_url\": \"${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}\"
+            }"
