@@ -100,6 +100,84 @@ Morpheus implements a **two-tier multi-agent pattern**:
 
 Each agent can independently use a different LLM provider/model, configured under `llm`, `sati`, and `apoc` sections in `zaion.yaml`.
 
-## 10. Future Considerations
+## 10. Webhook System
+
+Morpheus includes a complete **Webhook System** that allows external services to trigger the Oracle agent and receive results asynchronously.
+
+### Architecture
+
+```
+External Trigger (CI/CD, GitHub Actions, etc.)
+    │
+    ▼
+POST /api/webhooks/trigger/:webhook_name
+    │  Header: x-api-key: <webhook_api_key>
+    │
+    ├─ Validates: api_key + enabled status
+    ├─ Creates Notification (status: pending)
+    ├─ Responds 202 Accepted immediately
+    │
+    ▼ (async, fire-and-forget via setImmediate)
+WebhookDispatcher.dispatch()
+    │
+    ├─ oracle.chat(webhook.prompt + payload)
+    │     └─ Oracle uses full capabilities (MCPs, apoc_delegate, etc.)
+    │
+    ├─ Updates Notification (status: completed/failed)
+    │
+    └─ Dispatches to channels:
+          ├─ UI: stored in SQLite, polled by frontend every 5s
+          └─ Telegram: proactive push via TelegramAdapter.sendMessage()
+```
+
+### Security Model
+*   Each webhook has its own **unique api_key** (UUIDv4), validated via the `x-api-key` header (never in the URL, preventing log leakage).
+*   A webhook's **name** (slug) serves as its URL identifier. Disabled webhooks return `404` — same as not-found — to prevent enumeration.
+*   Management endpoints (`GET /api/webhooks`, `POST /api/webhooks`, etc.) are protected by the standard `x-architect-pass` middleware.
+*   The trigger endpoint (`POST /api/webhooks/trigger/:name`) is **intentionally public** — security relies solely on the per-webhook `api_key`.
+
+### Data Model (SQLite — `short-memory.db`)
+
+**`webhooks` table:**
+```sql
+id, name (slug/unique), api_key (unique), prompt, enabled,
+notification_channels (JSON array), created_at,
+last_triggered_at, trigger_count
+```
+
+**`webhook_notifications` table:**
+```sql
+id, webhook_id (FK), webhook_name, status (pending/completed/failed),
+payload (raw JSON string), result (agent output), read (bool),
+created_at, completed_at
+```
+
+### Key Components
+
+| Component | File | Responsibility |
+|---|---|---|
+| `WebhookRepository` | `src/runtime/webhooks/repository.ts` | SQLite CRUD, trigger recording, unread count |
+| `WebhookDispatcher` | `src/runtime/webhooks/dispatcher.ts` | Async orchestration — Oracle call, notification update, channel dispatch |
+| Webhooks Router | `src/http/webhooks-router.ts` | Express routes for trigger + management + notifications |
+| WebhookManager UI | `src/ui/src/pages/WebhookManager.tsx` | CRUD page with curl copy helper |
+| Notifications UI | `src/ui/src/pages/Notifications.tsx` | Notification inbox with unread badge |
+
+### Express Route Ordering (Critical)
+```
+/api/webhooks/trigger/:name  ← public, no authMiddleware
+/api/webhooks/notifications  ← declared before /:id
+/api/webhooks/notifications/read
+router.use(authMiddleware)   ← all management routes below are protected
+/api/webhooks/               ← list / create
+/api/webhooks/:id            ← get / update / delete
+```
+The webhooks router is mounted **before** the auth-guarded `/api` block in `server.ts` so the trigger endpoint is accessible without a global auth check.
+
+### Oracle Integration
+`WebhookDispatcher` receives the `IOracle` instance via a static setter (`WebhookDispatcher.setOracle(oracle)`) called at boot time in `HttpServer`. This gives webhooks full Oracle capabilities — MCP tools, `apoc_delegate`, memory context — with no runtime coupling.
+
+## 11. Future Considerations
 *   **Plugin System:** Dynamic loading of channels and tools without rebuilding the core.
 *   **Discord Adapter:** Support for Discord interactions.
+*   **Webhook Retry Logic:** Exponential backoff for failed dispatches.
+*   **Webhook Secrets Rotation:** UI-driven api_key regeneration.

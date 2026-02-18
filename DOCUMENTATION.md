@@ -42,6 +42,11 @@ The project solves the problem of fragmentation and lack of agency in current AI
 *   **Telegram/Discord Chatbot**: Mobile interface with voice transcription support via Google GenAI and session management commands.
 *   **Hot-Reload Configuration**: APIs for dynamic agent parameter adjustment without restarting the process.
 *   **Usage Analytics**: Granular monitoring of token consumption by provider and model.
+*   **Webhook System**: External triggers that queue Oracle agent executions and deliver results as notifications.
+    *   Each webhook has a unique slug (URL identifier) and an independent `api_key` (validated via `x-api-key` header).
+    *   Fire-and-forget execution: the HTTP endpoint responds `202 Accepted` immediately; Oracle runs asynchronously.
+    *   Notification channels: **UI** (inbox with unread badge, 5s polling) and/or **Telegram** (proactive push).
+    *   Full CRUD management via Web UI and REST API.
 
 ---
 
@@ -74,6 +79,11 @@ graph TD
     User(["User"]) -->|Chat/Voice| Channel["Channel Adapters<br/>(Telegram/Discord/UI)"]
     Channel -->|Normalized Event| Oracle["Oracle Agent<br/>(Runtime Core)"]
 
+    External(["External Service<br/>(CI/CD, GitHub Actions)"]) -->|POST /api/webhooks/trigger/:name<br/>x-api-key header| WebhookRouter["Webhook Router<br/>(Express)"]
+    WebhookRouter -->|202 Accepted| External
+    WebhookRouter -->|async dispatch| Dispatcher["WebhookDispatcher"]
+    Dispatcher -->|oracle.chat(prompt + payload)| Oracle
+
     subgraph "Cognitive Cycle"
         Oracle -->|1. Retrieval| Sati["Sati Middleware<br/>(Long-Term Memory)"]
         Sati <-->|Query| GraphDB[("Sati DB")]
@@ -92,6 +102,8 @@ graph TD
     end
 
     Oracle -->|Response| Channel
+    Dispatcher -->|Save result| NotifDB[("Notifications<br/>short-memory.db")]
+    Dispatcher -->|Push message| TelegramBot["Telegram Bot<br/>(optional)"]
 ```
 
 ### Multi-Agent Architecture
@@ -135,14 +147,26 @@ Each agent can independently use a different LLM provider/model, configured unde
   /config       # Schema definitions (Zod) and YAML loading
   /devkit       # DevKit tool factories (filesystem, shell, git, network, packages, processes, system)
   /http         # Express API server and REST routes
+    api.ts                # Main auth-guarded API router
+    server.ts             # HttpServer (mounts all routers)
+    webhooks-router.ts    # Webhook trigger + management endpoints
   /runtime      # Core business logic
     /memory     # Storage implementations (SQLite, Sati)
     /providers  # Factory for LLM clients — create() and createBare()
     /tools      # MCP client, local tools, and apoc-tool.ts (apoc_delegate)
+    /webhooks   # Webhook subsystem
+      types.ts        # Webhook & WebhookNotification interfaces
+      repository.ts   # SQLite CRUD (webhooks + webhook_notifications tables)
+      dispatcher.ts   # Async orchestration — Oracle call, notification update, channel dispatch
     apoc.ts     # Apoc DevTools subagent (singleton, uses DevKit)
     oracle.ts   # Oracle main agent (ReactAgent + apoc_delegate tool)
   /types        # Shared TypeScript interfaces (MorpheusConfig, ApocConfig, etc.)
   /ui           # Frontend source code (React/Vite)
+    /pages
+      WebhookManager.tsx   # CRUD page for managing webhooks
+      Notifications.tsx    # Notification inbox with unread badge
+    /services
+      webhooks.ts          # API client for webhook endpoints
 ```
 
 ---
@@ -1006,6 +1030,103 @@ Send a message to the agent and get a response.
 
 ---
 
+### Webhook Endpoints
+
+The Webhook System allows external services to trigger Oracle agent executions asynchronously. Each webhook has a unique slug (URL identifier) and its own `api_key`.
+
+**Authentication model:**
+- **Trigger endpoint**: public — authenticated only via `x-api-key` header (no `x-architect-pass` needed).
+- **Management + notification endpoints**: protected via standard `x-architect-pass` middleware.
+
+#### POST `/api/webhooks/trigger/:webhook_name`
+Trigger a webhook. Responds immediately with `202 Accepted`; Oracle runs asynchronously in the background.
+
+*   **Authentication:** `x-api-key: <webhook_api_key>` header.
+*   **Parameters:** `webhook_name` — slug of the target webhook.
+*   **Body:** Any JSON payload — forwarded to Oracle as context alongside the webhook's prompt.
+*   **Response (202):**
+    ```json
+    { "accepted": true, "notification_id": "uuid-..." }
+    ```
+*   **Errors:** `401` for missing/invalid api_key; `404` for webhook not found or disabled.
+
+**Example (GitHub Actions):**
+```yaml
+- name: Notify Morpheus
+  run: |
+    curl -s -X POST https://your-host/api/webhooks/trigger/deploy-done \
+      -H "x-api-key: ${{ secrets.MORPHEUS_WEBHOOK_KEY }}" \
+      -H "Content-Type: application/json" \
+      -d '{"workflow":"${{ github.workflow }}","status":"success","ref":"${{ github.ref }}"}'
+```
+
+#### GET `/api/webhooks`
+List all configured webhooks (includes `api_key`, trigger stats).
+
+*   **Authentication:** `x-architect-pass` header.
+
+#### POST `/api/webhooks`
+Create a new webhook. Returns the complete object including the generated `api_key`.
+
+*   **Authentication:** `x-architect-pass` header.
+*   **Body:**
+    ```json
+    {
+      "name": "deploy-done",
+      "prompt": "A deployment just finished. Summarize the result and flag any failures.",
+      "notification_channels": ["ui", "telegram"],
+      "enabled": true
+    }
+    ```
+*   **Response (201):** Complete webhook object with `api_key`.
+*   **Note:** `name` must be unique and URL-safe (lowercase, hyphens). Returns `409 Conflict` if already taken.
+
+#### PUT `/api/webhooks/:id`
+Update prompt, channels, or enabled status. The `name` (slug) and `api_key` are immutable.
+
+*   **Authentication:** `x-architect-pass` header.
+
+#### DELETE `/api/webhooks/:id`
+Delete a webhook and all associated notifications (cascade).
+
+*   **Authentication:** `x-architect-pass` header.
+
+#### GET `/api/webhooks/notifications`
+List webhook execution notifications.
+
+*   **Authentication:** `x-architect-pass` header.
+*   **Query Parameters:** `unreadOnly=true` to filter unread entries only.
+*   **Response:**
+    ```json
+    [
+      {
+        "id": "uuid",
+        "webhook_id": "uuid",
+        "webhook_name": "deploy-done",
+        "status": "completed",
+        "payload": "{\"ref\":\"main\",\"status\":\"success\"}",
+        "result": "Deployment of main to production completed successfully...",
+        "read": false,
+        "created_at": 1700001000000,
+        "completed_at": 1700001008000
+      }
+    ]
+    ```
+
+#### POST `/api/webhooks/notifications/read`
+Mark one or more notifications as read.
+
+*   **Authentication:** `x-architect-pass` header.
+*   **Body:** `{ "ids": ["uuid1", "uuid2"] }`
+
+#### GET `/api/webhooks/notifications/unread-count`
+Return the count of unread notifications (used by the sidebar badge in the Web UI).
+
+*   **Authentication:** `x-architect-pass` header.
+*   **Response:** `{ "count": 3 }`
+
+---
+
 ## 🏗 Patterns and Technical Decisions
 
 *   **Spec-Driven Development**: No code is written without an approved `spec` in the `specs/` folder. This ensures traceability and architectural clarity.
@@ -1030,8 +1151,10 @@ Send a message to the agent and get a response.
 *   [x] Long-Term Memory (Sati).
 *   [x] Apoc DevTools Subagent (filesystem, shell, git, network, packages, processes, system).
 *   [x] Multi-Agent Architecture (Oracle + Sati + Apoc with independent LLM configs).
+*   [x] Webhook System — external triggers with Oracle execution, UI inbox, and Telegram notifications.
 *   [ ] Discord support.
 *   [ ] Plugin system for dynamic channel/tool loading.
+*   [ ] Webhook retry logic with exponential backoff.
 
 ---
 

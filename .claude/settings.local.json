@@ -11,7 +11,9 @@
       "Bash(magick:*)",
       "Bash(node scripts/generate-pwa-icons.mjs:*)",
       "Bash(powershell:*)",
-      "Bash(node:*)"
+      "Bash(node:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)"
     ]
   }
 }

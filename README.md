@@ -242,6 +242,31 @@ Morpheus features a dedicated middleware system called **Sati** (Mindfulness) th
 -   **Data Privacy**: Stored in a local, independent SQLite database (`santi-memory.db`), ensuring sensitive data is handled securely and reducing context window usage.
 -   **Memory Management**: View and manage your long-term memories through the Web UI or via API endpoints.
 
+### 🪝 Webhooks & Notifications
+
+Morpheus includes a **Webhook System** that lets any external service (GitHub Actions, CI/CD pipelines, monitoring tools, etc.) trigger Oracle and receive the result asynchronously.
+
+**How it works:**
+1. Create a webhook via the Web UI or API — give it a name (slug) and a prompt.
+2. You receive a unique `api_key` for that webhook.
+3. Trigger it from anywhere by posting JSON to `POST /api/webhooks/trigger/<name>` with the `x-api-key` header.
+4. Morpheus runs Oracle with your prompt + the received payload in the background.
+5. The result is saved as a **Notification** and optionally pushed to Telegram.
+
+**Example — trigger from GitHub Actions:**
+```yaml
+- name: Notify Morpheus of deployment
+  run: |
+    curl -s -X POST https://your-morpheus-host/api/webhooks/trigger/deploy-done \
+      -H "x-api-key: ${{ secrets.MORPHEUS_WEBHOOK_KEY }}" \
+      -H "Content-Type: application/json" \
+      -d '{"workflow":"${{ github.workflow }}","status":"success","ref":"${{ github.ref }}"}'
+```
+
+**Security:** Each webhook has its own `api_key` (UUID). The key is sent in the `x-api-key` header — never in the URL — to prevent leakage in server logs. Management endpoints remain protected by `THE_ARCHITECT_PASS`.
+
+**Notification channels:** `ui` (Web UI inbox with unread badge) and/or `telegram` (proactive push message).
+
 ### 📊 Usage Analytics
 Track your token usage across different providers and models directly from the Web UI. View detailed breakdowns of input/output tokens and message counts to monitor costs and activity.
 
@@ -920,6 +945,106 @@ Restart the Morpheus agent.
     }
     ```
 
+### Webhook Endpoints
+
+All management endpoints require `x-architect-pass` authentication. The trigger endpoint is **public** — authenticated only by the per-webhook `x-api-key` header.
+
+#### POST `/api/webhooks/trigger/:webhook_name`
+Trigger a webhook and queue an Oracle agent execution in the background.
+
+*   **Authentication:** `x-api-key: <webhook_api_key>` header (no `x-architect-pass` required).
+*   **Parameters:** `webhook_name` — the slug of the webhook to trigger.
+*   **Body:** Any JSON payload (forwarded to the agent as context).
+*   **Response (202 Accepted):**
+    ```json
+    {
+      "accepted": true,
+      "notification_id": "uuid-..."
+    }
+    ```
+*   **Errors:** `401` for missing/invalid api_key; `404` for webhook not found or disabled.
+
+#### GET `/api/webhooks`
+List all configured webhooks.
+
+*   **Authentication:** `x-architect-pass` header.
+*   **Response:**
+    ```json
+    [
+      {
+        "id": "uuid",
+        "name": "deploy-done",
+        "api_key": "uuid",
+        "prompt": "Analyze the deployment result...",
+        "enabled": true,
+        "notification_channels": ["ui", "telegram"],
+        "created_at": 1700000000000,
+        "last_triggered_at": 1700001000000,
+        "trigger_count": 42
+      }
+    ]
+    ```
+
+#### POST `/api/webhooks`
+Create a new webhook.
+
+*   **Authentication:** `x-architect-pass` header.
+*   **Body:**
+    ```json
+    {
+      "name": "deploy-done",
+      "prompt": "A deployment just finished. Analyze the payload and summarize what happened.",
+      "notification_channels": ["ui", "telegram"],
+      "enabled": true
+    }
+    ```
+*   **Response (201):** The created webhook object including the generated `api_key`.
+
+#### PUT `/api/webhooks/:id`
+Update an existing webhook (prompt, channels, enabled status).
+
+*   **Authentication:** `x-architect-pass` header.
+*   **Note:** The `name` (slug) and `api_key` fields are immutable via this endpoint.
+
+#### DELETE `/api/webhooks/:id`
+Delete a webhook and all its associated notifications.
+
+*   **Authentication:** `x-architect-pass` header.
+
+#### GET `/api/webhooks/notifications`
+List webhook execution notifications.
+
+*   **Authentication:** `x-architect-pass` header.
+*   **Query Parameters:** `unreadOnly=true` to filter unread notifications.
+*   **Response:**
+    ```json
+    [
+      {
+        "id": "uuid",
+        "webhook_id": "uuid",
+        "webhook_name": "deploy-done",
+        "status": "completed",
+        "payload": "{\"ref\":\"main\"}",
+        "result": "Deployment of main to production succeeded...",
+        "read": false,
+        "created_at": 1700001000000,
+        "completed_at": 1700001005000
+      }
+    ]
+    ```
+
+#### POST `/api/webhooks/notifications/read`
+Mark notifications as read.
+
+*   **Authentication:** `x-architect-pass` header.
+*   **Body:** `{ "ids": ["uuid1", "uuid2"] }`
+
+#### GET `/api/webhooks/notifications/unread-count`
+Get the count of unread notifications (used by the sidebar badge).
+
+*   **Authentication:** `x-architect-pass` header.
+*   **Response:** `{ "count": 3 }`
+
 ## Testing
 
 We use **Vitest** for testing.
@@ -957,8 +1082,10 @@ npm run test:watch
 
 - [x] **Web Dashboard**: Local UI for management and logs.
 - [x] **MCP Support**: Full integration with Model Context Protocol.
+- [x] **Webhook System**: External triggers with Oracle execution and multi-channel notifications.
 - [ ] **Discord Adapter**: Support for Discord interactions.
 - [ ] **Plugin System**: Extend functionality via external modules.
+- [ ] **Webhook Retry Logic**: Exponential backoff for failed Oracle executions.
 
 ## 🕵️ Privacy Protection
 

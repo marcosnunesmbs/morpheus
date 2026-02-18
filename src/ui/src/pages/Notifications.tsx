@@ -110,7 +110,7 @@ export const Notifications = () => {
               Notifications
             </h1>
             <p className="text-sm text-azure-text-secondary dark:text-matrix-dim mt-0.5">
-              Webhook execution results from the Apoc agent.
+              Webhook execution results from the Oracle agent.
             </p>
           </div>
         </div>

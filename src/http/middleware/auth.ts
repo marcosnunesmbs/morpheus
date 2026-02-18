@@ -13,7 +13,7 @@ export const authMiddleware = (req: Request, res: Response, next: NextFunction) 
   // If password is not configured (using default), log a warning
   if (!process.env.THE_ARCHITECT_PASS) {
     const display = DisplayManager.getInstance();
-    display.log('Using default password for dashboard access. For security, set THE_ARCHITECT_PASS environment variable.', { source: 'http', level: 'warning' });
+    // display.log('Using default password for dashboard access. For security, set THE_ARCHITECT_PASS environment variable.', { source: 'http', level: 'warning' });
   }
 
   const providedPass = req.headers[AUTH_HEADER];

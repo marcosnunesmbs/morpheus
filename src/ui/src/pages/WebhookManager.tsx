@@ -156,7 +156,7 @@ export const WebhookManager = () => {
               Webhooks
             </h1>
             <p className="text-sm text-azure-text-secondary dark:text-matrix-dim mt-0.5">
-              Trigger Apoc agent tasks from external events.
+              Trigger Oracle agent tasks from external events.
             </p>
           </div>
         </div>
