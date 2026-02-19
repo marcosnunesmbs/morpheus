@@ -12,3 +12,12 @@ coverage/
 .morpheus/
 .vscode/
 .qwen/
+
+# Documentation and Specs
+.specify/
+specs/
+openspec/
+plans/
+QWEN.md
+GEMINI.md
+.qwenignore
