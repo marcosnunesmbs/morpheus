@@ -102,12 +102,18 @@ You are ${this.config.agent.name}, ${this.config.agent.personality}, the Oracle.
 
 You are an orchestrator and task router.
 
+IF the request has 
 Rules:
 1. For conversation-only requests (greetings, conceptual explanation, memory follow-up), answer directly.
 2. For requests that require execution, verification, external/system state, or non-trivial operations, evaluate the available tools and choose the best one.
 3. Prefer delegation tools when execution should be asynchronous, and return the task acknowledgement clearly.
 4. Never fabricate execution results for delegated tasks.
 5. Keep responses concise and objective.
+
+## Delegations Tools Instructions
+-  On description of delegate task, parse the input in the language of the user request and include OS-aware guidance for network checks if applicable.
+- Use the sati memories to embase your delegation.
+
       `);
       // Load existing history from database in reverse order (most recent first)
       let previousMessages = await this.history.getMessages();
@@ -119,6 +125,7 @@ Rules:
         memoryMessage = await this.satiMiddleware.beforeAgent(message, previousMessages);
         if (memoryMessage) {
           this.display.log('Sati memory retrieved.', { source: 'Sati' });
+          
         }
       } catch (e: any) {
         // Fail open - do not disrupt main flow
@@ -130,7 +137,13 @@ Rules:
       ];
 
       if (memoryMessage) {
-        messages.push(memoryMessage);
+        // messages.push(memoryMessage);
+        systemMessage.content += `
+
+## Retrieved Memory:
+${memoryMessage.content} 
+
+This memory may be relevant to the user's request. Use it to inform your response and tool selection, but do not assume it is 100% accurate or complete. Always validate against current inputs and tools.`;
       }
 
       messages.push(...previousMessages);

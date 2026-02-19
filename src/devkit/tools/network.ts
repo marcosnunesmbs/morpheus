@@ -75,7 +75,7 @@ export function createNetworkTools(ctx: ToolContext): StructuredTool[] {
       },
       {
         name: 'ping',
-        description: 'Check if a host is reachable on a given port (TCP connect check).',
+        description: 'Preferred connectivity check tool. Verify if a host is reachable on a given port (TCP connect check). Use this instead of shell ping for routine reachability checks.',
         schema: z.object({
           host: z.string().describe('Hostname or IP'),
           port: z.number().int().optional().describe('Port to check, default 80'),

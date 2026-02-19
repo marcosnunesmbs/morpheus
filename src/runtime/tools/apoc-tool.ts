@@ -55,8 +55,8 @@ Use this tool when the user asks for ANY of the following:
 Provide a clear natural language task description. Optionally provide context
 from the current conversation to help Apoc understand the broader goal.`,
     schema: z.object({
-      task: z.string().describe("Clear description of the devtools task to execute"),
-      context: z.string().optional().describe("Optional context from the conversation to help Apoc understand the goal"),
+      task: z.string().describe("Clear description of the devtools task to execute **in the user's language**"),
+      context: z.string().optional().describe("Optional context from the conversation to help Apoc understand the goal **in the user's language**"),
     }),
   }
 );

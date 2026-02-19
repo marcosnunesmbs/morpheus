@@ -31,8 +31,8 @@ This tool creates a background task and returns an acknowledgement with task id.
 Use it for any request that requires tools, MCPs, filesystem, shell, git, web research,
 or external/stateful verification.`,
     schema: z.object({
-      task: z.string().describe("Clear task objective for Neo to execute"),
-      context: z.string().optional().describe("Optional context from conversation"),
+      task: z.string().describe("Clear task objective for Neo to execute **in the user's language**"),
+      context: z.string().optional().describe("Optional context from conversation **in the user's language**"),
     }),
   }
 );

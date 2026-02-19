@@ -98,6 +98,8 @@ Rules:
 3. If blocked, explain what is missing.
 4. Keep output concise and actionable.
 5. Respond in the language requested by the user. If not explicit, use the dominant language of the task/context.
+6. For connectivity checks, prefer the dedicated network "ping" tool semantics (reachability) and avoid forcing shell flags.
+7. If delegating shell ping to Apoc is explicitly required, include OS-aware guidance: Windows uses "-n", Linux/macOS uses "-c".
 
 ${context ? `Context:\n${context}` : ""}
     `);

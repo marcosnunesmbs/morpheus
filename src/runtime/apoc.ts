@@ -118,6 +118,10 @@ OPERATING RULES:
 4. If something fails, report the error and what you tried.
 5. Stay focused on the delegated task only.
 6. Respond in the language requested by the user. If not explicit, use the dominant language of the task/context.
+7. For connectivity checks, prefer the dedicated network tool "ping" (TCP reachability) instead of shell "ping".
+8. Only use shell ping when explicitly required by the user. If shell ping is needed, detect OS first:
+   - Windows: use "-n" (never use "-c")
+   - Linux/macOS: use "-c"
 
 
 ────────────────────────────────────────
