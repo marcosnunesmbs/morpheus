@@ -304,7 +304,7 @@ export class TelegramAdapter {
         const sessionId = data.replace('ask_archive_session_', '');
         // Fetch session title for better UX (optional, but nice) - for now just use ID
 
-        await ctx.reply(`⚠️ **ARCHIVE SESSION?**\n\nAre you sure you want to archive session \`${sessionId}\`?\n\nIt will be moved to long-term memory (SATI) and removed from the active list. This action cannot be easily undone via Telegram.`, {
+        await ctx.reply(`⚠️ *ARCHIVE SESSION?*\n\nAre you sure you want to archive session \`${escMd(sessionId)}\`?\n\nIt will be moved to long\\-term memory \\(SATI\\) and removed from the active list\\. This action cannot be easily undone via Telegram\\.`, {
           parse_mode: 'MarkdownV2',
           reply_markup: {
             inline_keyboard: [
@@ -330,7 +330,7 @@ export class TelegramAdapter {
           if (ctx.updateType === 'callback_query') {
             ctx.deleteMessage().catch(() => { });
           }
-          await ctx.reply(`✅ Session \`${sessionId}\` has been archived and moved to long-term memory.`, { parse_mode: 'MarkdownV2' });
+          await ctx.reply(`✅ Session \`${escMd(sessionId)}\` has been archived and moved to long\\-term memory\\.`, { parse_mode: 'MarkdownV2' });
         } catch (error: any) {
           await ctx.answerCbQuery(`Error archiving: ${error.message}`, { show_alert: true });
         }
@@ -341,7 +341,7 @@ export class TelegramAdapter {
         const data = (ctx.callbackQuery as any).data;
         const sessionId = data.replace('ask_delete_session_', '');
 
-        await ctx.reply(`🚫 **DELETE SESSION?**\n\nAre you sure you want to PERMANENTLY DELETE session \`${sessionId}\`?\n\nThis action is **IRREVERSIBLE**. All data will be lost.`, {
+        await ctx.reply(`🚫 *DELETE SESSION?*\n\nAre you sure you want to PERMANENTLY DELETE session \`${escMd(sessionId)}\`?\n\nThis action is *IRREVERSIBLE*\\. All data will be lost\\.`, {
           parse_mode: 'MarkdownV2',
           reply_markup: {
             inline_keyboard: [
@@ -367,7 +367,7 @@ export class TelegramAdapter {
           if (ctx.updateType === 'callback_query') {
             ctx.deleteMessage().catch(() => { });
           }
-          await ctx.reply(`🗑️ Session \`${sessionId}\` has been permanently deleted.`, { parse_mode: 'MarkdownV2' });
+          await ctx.reply(`🗑️ Session \`${escMd(sessionId)}\` has been permanently deleted\\.`, { parse_mode: 'MarkdownV2' });
         } catch (error: any) {
           await ctx.answerCbQuery(`Error deleting: ${error.message}`, { show_alert: true });
         }
@@ -578,7 +578,7 @@ export class TelegramAdapter {
 
   private async handleNewSessionCommand(ctx: any, user: string) {
     try {
-      await ctx.reply("Are you ready to start a new session? Please confirm.", {
+      await ctx.reply("Are you ready to start a new session\\? Please confirm\\.", {
         parse_mode: 'MarkdownV2', reply_markup: {
           inline_keyboard: [
             [{ text: 'Yes, start new session', callback_data: 'confirm_new_session' }, { text: 'No, cancel', callback_data: 'cancel_new_session' }]]
@@ -606,7 +606,7 @@ export class TelegramAdapter {
       const sessions = await history.listSessions();
 
       if (sessions.length === 0) {
-        await ctx.reply('No active or paused sessions found.', { parse_mode: 'MarkdownV2' });
+        await ctx.reply('No active or paused sessions found\\.', { parse_mode: 'MarkdownV2' });
         return;
       }
 
@@ -692,9 +692,9 @@ How can I assist you today?`;
     const nodeVersion = process.version;
     const majorVersion = parseInt(nodeVersion.replace('v', '').split('.')[0], 10);
     if (majorVersion >= 18) {
-      response += '✅ Node.js: ' + nodeVersion + '\n';
+      response += `✅ Node\\.js: ${escMd(nodeVersion)}\n`;
     } else {
-      response += '❌ Node.js: ' + nodeVersion + ' (Required: >=18)\n';
+      response += `❌ Node\\.js: ${escMd(nodeVersion)} \\(Required: >=18\\)\n`;
     }
 
     if (config) {
@@ -714,9 +714,9 @@ How can I assist you today?`;
       const llmProvider = config.llm?.provider;
       if (llmProvider && llmProvider !== 'ollama') {
         if (hasApiKey(llmProvider, config.llm?.api_key)) {
-          response += `✅ Oracle API key (${llmProvider})\n`;
+          response += `✅ Oracle API key \\(${escMd(llmProvider)}\\)\n`;
         } else {
-          response += `❌ Oracle API key missing (${llmProvider})\n`;
+          response += `❌ Oracle API key missing \\(${escMd(llmProvider)}\\)\n`;
         }
       }
 
@@ -725,9 +725,9 @@ How can I assist you today?`;
       const satiProvider = sati?.provider || llmProvider;
       if (satiProvider && satiProvider !== 'ollama') {
         if (hasApiKey(satiProvider, sati?.api_key ?? config.llm?.api_key)) {
-          response += `✅ Sati API key (${satiProvider})\n`;
+          response += `✅ Sati API key \\(${escMd(satiProvider)}\\)\n`;
         } else {
-          response += `❌ Sati API key missing (${satiProvider})\n`;
+          response += `❌ Sati API key missing \\(${escMd(satiProvider)}\\)\n`;
         }
       }
 
@@ -736,9 +736,9 @@ How can I assist you today?`;
       const apocProvider = apoc?.provider || llmProvider;
       if (apocProvider && apocProvider !== 'ollama') {
         if (hasApiKey(apocProvider, apoc?.api_key ?? config.llm?.api_key)) {
-          response += `✅ Apoc API key (${apocProvider})\n`;
+          response += `✅ Apoc API key \\(${escMd(apocProvider)}\\)\n`;
         } else {
-          response += `❌ Apoc API key missing (${apocProvider})\n`;
+          response += `❌ Apoc API key missing \\(${escMd(apocProvider)}\\)\n`;
         }
       }
 
@@ -841,12 +841,7 @@ How can I assist you today?`;
   }
 
   private async handleHelpCommand(ctx: any, user: string) {
-    const helpMessage = `
-*Available Commands:*
-
-${this.HELP_MESSAGE}
-
-How can I assist you today?`;
+    const helpMessage = `*Available Commands:*\n\n${this.HELP_MESSAGE}\n\nHow can I assist you today\\?`;
 
     await ctx.reply(helpMessage, { parse_mode: 'MarkdownV2' });
   }
@@ -1050,7 +1045,7 @@ How can I assist you today?`;
 
       if (servers.length === 0) {
         await ctx.reply(
-          '*No MCP Servers Configured*\n\nThere are currently no MCP servers configured in the system.',
+          '*No MCP Servers Configured*\n\nThere are currently no MCP servers configured in the system\\.',
           { parse_mode: 'MarkdownV2' }
         );
         return;
@@ -1106,7 +1101,7 @@ How can I assist you today?`;
     } catch (error) {
       this.display.log('Error listing MCP servers: ' + (error instanceof Error ? error.message : String(error)), { source: 'Telegram', level: 'error' });
       await ctx.reply(
-        'An error occurred while retrieving the list of MCP servers. Please check the logs for more details.',
+        'An error occurred while retrieving the list of MCP servers\\. Please check the logs for more details\\.',
         { parse_mode: 'MarkdownV2' }
       );
     }
