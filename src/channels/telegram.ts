@@ -21,12 +21,23 @@ import { Construtor } from '../runtime/tools/factory.js';
  * Unsupported tags (e.g. tables) have their special chars escaped so they
  * render as plain text instead of breaking the parse.
  * Truncates to Telegram's 4096-char hard limit.
+ * Use for dynamic LLM/Oracle output.
  */
 function toMd(text: string): { text: string; parse_mode: 'MarkdownV2' } {
   const MAX = 4096;
   const converted = convert(text, 'escape');
   const safe = converted.length > MAX ? converted.slice(0, MAX - 3) + '\\.\\.\\.' : converted;
   return { text: safe, parse_mode: 'MarkdownV2' };
+}
+
+/**
+ * Escapes special characters in a plain string segment so it's safe to embed
+ * inside a manually-built MarkdownV2 message. Does NOT touch * _ ` [ ] chars
+ * (those are intentional MarkdownV2 formatting from our own code).
+ * Use for dynamic values (usernames, numbers, paths) interpolated into fixed templates.
+ */
+function escMd(value: string | number | boolean): string {
+  return String(value).replace(/([.!?()\[\]{}<>+\-=#|~$^@\\])/g, '\\$1');
 }
 
 export class TelegramAdapter {
@@ -466,20 +477,24 @@ export class TelegramAdapter {
       return;
     }
 
-    // Truncate to Telegram's 4096 char limit
-    const MAX_LEN = 4096;
-    const safeText = text.length > MAX_LEN ? text.slice(0, MAX_LEN - 3) + '...' : text;
+    // toMd() already truncates to 4096 chars (Telegram's hard limit)
+    const { text: mdText, parse_mode } = toMd(text);
 
     for (const userId of allowedUsers) {
       try {
-        // Send as plain text — LLM output often has unbalanced markdown that
-        // causes "Can't find end of entity" errors with parse_mode: 'MarkdownV2'.
-        await this.bot.telegram.sendMessage(userId, safeText);
-      } catch (err: any) {
-        this.display.log(
-          `Failed to send message to Telegram user ${userId}: ${err.message}`,
-          { source: 'Telegram', level: 'error' },
-        );
+        await this.bot.telegram.sendMessage(userId, mdText, { parse_mode });
+      } catch {
+        // Fallback to plain text if MarkdownV2 conversion still fails
+        try {
+          const MAX_LEN = 4096;
+          const plain = text.length > MAX_LEN ? text.slice(0, MAX_LEN - 3) + '...' : text;
+          await this.bot.telegram.sendMessage(userId, plain);
+        } catch (err: any) {
+          this.display.log(
+            `Failed to send message to Telegram user ${userId}: ${err.message}`,
+            { source: 'Telegram', level: 'error' },
+          );
+        }
       }
     }
   }
@@ -596,10 +611,10 @@ export class TelegramAdapter {
       for (const session of sessions) {
         const title = session.title || 'Untitled Session';
         const statusEmoji = session.status === 'active' ? '🟢' : '🟡';
-        response += `${statusEmoji} *${title}*\n`;
-        response += `- ID: ${session.id}\n`;
-        response += `- Status: ${session.status}\n`;
-        response += `- Started: ${new Date(session.started_at).toLocaleString()}\n\n`;
+        response += `${statusEmoji} *${escMd(title)}*\n`;
+        response += `- ID: ${escMd(session.id)}\n`;
+        response += `- Status: ${escMd(session.status)}\n`;
+        response += `- Started: ${escMd(new Date(session.started_at).toLocaleString())}\n\n`;
 
         // Adicionar botão inline para alternar para esta sessão
         const sessionButtons = [];
@@ -767,31 +782,31 @@ How can I assist you today?`;
       const totalCost = stats.totalEstimatedCostUsd;
 
       let response = '*Token Usage Statistics*\n\n';
-      response += `Input Tokens: ${stats.totalInputTokens.toLocaleString()}\n`;
-      response += `Output Tokens: ${stats.totalOutputTokens.toLocaleString()}\n`;
-      response += `Total Tokens: ${totalTokens.toLocaleString()}\n`;
+      response += `Input Tokens: ${escMd(stats.totalInputTokens.toLocaleString())}\n`;
+      response += `Output Tokens: ${escMd(stats.totalOutputTokens.toLocaleString())}\n`;
+      response += `Total Tokens: ${escMd(totalTokens.toLocaleString())}\n`;
       if (totalAudioSeconds > 0) {
-        response += `Audio Processed: ${totalAudioSeconds.toFixed(1)}s\n`;
+        response += `Audio Processed: ${escMd(totalAudioSeconds.toFixed(1))}s\n`;
       }
       if (totalCost != null) {
-        response += `Estimated Cost: $${totalCost.toFixed(4)}\n`;
+        response += `Estimated Cost: \\$${escMd(totalCost.toFixed(4))}\n`;
       }
       response += '\n';
 
       if (groupedStats.length > 0) {
         response += '*By Provider/Model:*\n';
         for (const stat of groupedStats) {
-          response += `\n*${stat.provider}/${stat.model}*\n`;
-          response += `  Tokens: ${stat.totalTokens.toLocaleString()} (${stat.messageCount} msgs)\n`;
+          response += `\n*${escMd(stat.provider)}/${escMd(stat.model)}*\n`;
+          response += `  Tokens: ${escMd(stat.totalTokens.toLocaleString())} \\(${escMd(stat.messageCount)} msgs\\)\n`;
           if (stat.totalAudioSeconds > 0) {
-            response += `  Audio: ${stat.totalAudioSeconds.toFixed(1)}s\n`;
+            response += `  Audio: ${escMd(stat.totalAudioSeconds.toFixed(1))}s\n`;
           }
           if (stat.estimatedCostUsd != null) {
-            response += `  Cost: $${stat.estimatedCostUsd.toFixed(4)}\n`;
+            response += `  Cost: \\$${escMd(stat.estimatedCostUsd.toFixed(4))}\n`;
           }
         }
       } else {
-        response += 'No detailed usage statistics available.';
+        response += 'No detailed usage statistics available\\.';
       }
 
       await ctx.reply(response, { parse_mode: 'MarkdownV2' });
@@ -812,7 +827,7 @@ How can I assist you today?`;
 
     if (response) {
       try {
-        await ctx.reply(response, { parse_mode: 'MarkdownV2' });
+        await ctx.reply(toMd(response).text, { parse_mode: 'MarkdownV2' });
       } catch {
         await ctx.reply(response);
       }
@@ -836,23 +851,23 @@ How can I assist you today?`;
 
     let response = '*System Configuration*\n\n';
     response += `*Agent:*\n`;
-    response += `- Name: ${config.agent.name}\n`;
-    response += `- Personality: ${config.agent.personality}\n\n`;
+    response += `- Name: ${escMd(config.agent.name)}\n`;
+    response += `- Personality: ${escMd(config.agent.personality)}\n\n`;
 
-    response += `*Oracle (LLM):*\n`;
-    response += `- Provider: ${config.llm.provider}\n`;
-    response += `- Model: ${config.llm.model}\n`;
-    response += `- Temperature: ${config.llm.temperature}\n`;
-    response += `- Context Window: ${config.llm.context_window || 100}\n\n`;
+    response += `*Oracle \\(LLM\\):*\n`;
+    response += `- Provider: ${escMd(config.llm.provider)}\n`;
+    response += `- Model: ${escMd(config.llm.model)}\n`;
+    response += `- Temperature: ${escMd(config.llm.temperature)}\n`;
+    response += `- Context Window: ${escMd(config.llm.context_window || 100)}\n\n`;
 
     // Sati config (falls back to llm if not set)
     const sati = (config as any).sati;
-    response += `*Sati (Memory):*\n`;
+    response += `*Sati \\(Memory\\):*\n`;
     if (sati?.provider) {
-      response += `- Provider: ${sati.provider}\n`;
-      response += `- Model: ${sati.model || config.llm.model}\n`;
-      response += `- Temperature: ${sati.temperature ?? config.llm.temperature}\n`;
-      response += `- Memory Limit: ${sati.memory_limit ?? 1000}\n`;
+      response += `- Provider: ${escMd(sati.provider)}\n`;
+      response += `- Model: ${escMd(sati.model || config.llm.model)}\n`;
+      response += `- Temperature: ${escMd(sati.temperature ?? config.llm.temperature)}\n`;
+      response += `- Memory Limit: ${escMd(sati.memory_limit ?? 1000)}\n`;
     } else {
       response += `- Inherits Oracle config\n`;
     }
@@ -860,29 +875,29 @@ How can I assist you today?`;
 
     // Apoc config (falls back to llm if not set)
     const apoc = (config as any).apoc;
-    response += `*Apoc (DevTools):*\n`;
+    response += `*Apoc \\(DevTools\\):*\n`;
     if (apoc?.provider) {
-      response += `- Provider: ${apoc.provider}\n`;
-      response += `- Model: ${apoc.model || config.llm.model}\n`;
-      response += `- Temperature: ${apoc.temperature ?? 0.2}\n`;
-      if (apoc.working_dir) response += `- Working Dir: ${apoc.working_dir}\n`;
-      response += `- Timeout: ${apoc.timeout_ms ?? 30000}ms\n`;
+      response += `- Provider: ${escMd(apoc.provider)}\n`;
+      response += `- Model: ${escMd(apoc.model || config.llm.model)}\n`;
+      response += `- Temperature: ${escMd(apoc.temperature ?? 0.2)}\n`;
+      if (apoc.working_dir) response += `- Working Dir: ${escMd(apoc.working_dir)}\n`;
+      response += `- Timeout: ${escMd(apoc.timeout_ms ?? 30000)}ms\n`;
     } else {
       response += `- Inherits Oracle config\n`;
     }
     response += '\n';
 
     response += `*Channels:*\n`;
-    response += `- Telegram Enabled: ${config.channels.telegram.enabled}\n`;
-    response += `- Discord Enabled: ${config.channels.discord.enabled}\n\n`;
+    response += `- Telegram Enabled: ${escMd(config.channels.telegram.enabled)}\n`;
+    response += `- Discord Enabled: ${escMd(config.channels.discord.enabled)}\n\n`;
 
     response += `*UI:*\n`;
-    response += `- Enabled: ${config.ui.enabled}\n`;
-    response += `- Port: ${config.ui.port}\n\n`;
+    response += `- Enabled: ${escMd(config.ui.enabled)}\n`;
+    response += `- Port: ${escMd(config.ui.port)}\n\n`;
 
     response += `*Audio:*\n`;
-    response += `- Enabled: ${config.audio.enabled}\n`;
-    response += `- Max Duration: ${config.audio.maxDurationSeconds}s\n`;
+    response += `- Enabled: ${escMd(config.audio.enabled)}\n`;
+    response += `- Max Duration: ${escMd(config.audio.maxDurationSeconds)}s\n`;
 
     await ctx.reply(response, { parse_mode: 'MarkdownV2' });
   }
@@ -914,13 +929,16 @@ How can I assist you today?`;
         selectedMemories = memories.slice(0, Math.min(limit, memories.length));
       }
 
-      let response = `*${selectedMemories.length} SATI Memories${limit !== null ? ` (Showing first ${selectedMemories.length})` : ''}:*\n\n`;
+      const countLabel = limit !== null
+        ? `${escMd(selectedMemories.length)} SATI Memories \\(Showing first ${escMd(selectedMemories.length)}\\)`
+        : `${escMd(selectedMemories.length)} SATI Memories`;
+      let response = `*${countLabel}:*\n\n`;
 
       for (const memory of selectedMemories) {
         // Limitar o tamanho do resumo para evitar mensagens muito longas
         const truncatedSummary = memory.summary.length > 200 ? memory.summary.substring(0, 200) + '...' : memory.summary;
 
-        response += `*${memory.category} (${memory.importance}):* ${truncatedSummary}\n\n`;
+        response += `*${escMd(memory.category)} \\(${escMd(memory.importance)}\\):* ${escMd(truncatedSummary)}\n\n`;
       }
 
       await ctx.reply(response, { parse_mode: 'MarkdownV2' });
@@ -1035,7 +1053,7 @@ How can I assist you today?`;
 
       const probeMap = new Map(probeResults.map(r => [r.name, r]));
 
-      let response = `*MCP Servers (${servers.length})*\n\n`;
+      let response = `*MCP Servers \\(${escMd(servers.length)}\\)*\n\n`;
       const keyboard: { text: string; callback_data: string }[][] = [];
 
       servers.forEach((server, index) => {
@@ -1044,27 +1062,27 @@ How can I assist you today?`;
         const probe = probeMap.get(server.name);
         const connectionStatus = probe
           ? probe.ok
-            ? `🟢 Connected (${probe.toolCount} tools)`
+            ? `🟢 Connected \\(${escMd(probe.toolCount)} tools\\)`
             : `🔴 Failed`
           : '⚪ Unknown';
 
-        response += `*${index + 1}. ${server.name}*\n`;
+        response += `*${escMd(index + 1)}\\. ${escMd(server.name)}*\n`;
         response += `Status: ${enabledStatus}\n`;
         response += `Connection: ${connectionStatus}\n`;
-        response += `Transport: ${transport}\n`;
+        response += `Transport: ${escMd(transport)}\n`;
 
         if (server.config.transport === 'stdio') {
-          response += `Command: \`${server.config.command}\`\n`;
+          response += `Command: \`${escMd(server.config.command)}\`\n`;
           if (server.config.args && server.config.args.length > 0) {
-            response += `Args: \`${server.config.args.join(' ')}\`\n`;
+            response += `Args: \`${escMd(server.config.args.join(' '))}\`\n`;
           }
         } else if (server.config.transport === 'http') {
-          response += `URL: \`${server.config.url}\`\n`;
+          response += `URL: \`${escMd(server.config.url)}\`\n`;
         }
 
         if (probe && !probe.ok && probe.error) {
           const shortError = probe.error.length > 80 ? probe.error.slice(0, 80) + '…' : probe.error;
-          response += `Error: \`${shortError}\`\n`;
+          response += `Error: \`${escMd(shortError)}\`\n`;
         }
 
         response += '\n';
