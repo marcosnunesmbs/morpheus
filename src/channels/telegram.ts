@@ -37,7 +37,12 @@ function toMd(text: string): { text: string; parse_mode: 'MarkdownV2' } {
  * Use for dynamic values (usernames, numbers, paths) interpolated into fixed templates.
  */
 function escMd(value: string | number | boolean): string {
-  return String(value).replace(/([.!?()\[\]{}<>+\-=#|~$^@\\])/g, '\\$1');
+  // Escape all MarkdownV2 special characters that are NOT used as intentional
+  // formatters in our static templates (*bold*, _italic_, `code`, [link]).
+  // Per Telegram docs: _ * [ ] ( ) ~ ` # + - = | { } . !  must be escaped.
+  // We skip * _ ` [ ] here because those are our intentional formatters.
+  // The - must be at end of character class to avoid being treated as a range.
+  return String(value).replace(/([.!?(){}#+~|=>$@\\-])/g, '\\$1');
 }
 
 export class TelegramAdapter {
