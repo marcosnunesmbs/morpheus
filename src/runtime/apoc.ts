@@ -6,6 +6,7 @@ import { ReactAgent } from "langchain";
 import { ProviderError } from "./errors.js";
 import { DisplayManager } from "./display.js";
 import { buildDevKit } from "../devkit/index.js";
+import { SQLiteChatMessageHistory } from "./memory/sqlite.js";
 
 /**
  * Apoc is a subagent of Oracle specialized in devtools operations.
@@ -113,6 +114,22 @@ ${context ? `CONTEXT FROM ORACLE:\n${context}` : ""}
 
     try {
       const response = await this.agent!.invoke({ messages });
+
+      // Persist Apoc-generated messages so token usage is tracked in short-memory.db
+      const apocConfig = this.config.apoc || this.config.llm;
+      const newMessages = response.messages.slice(messages.length);
+      if (newMessages.length > 0) {
+        const history = new SQLiteChatMessageHistory({ sessionId: '' });
+        for (const msg of newMessages) {
+          (msg as any).provider_metadata = {
+            provider: apocConfig.provider,
+            model: apocConfig.model,
+          };
+        }
+        await history.addMessages(newMessages);
+        history.close();
+      }
+
       const lastMessage = response.messages[response.messages.length - 1];
       const content =
         typeof lastMessage.content === "string"
