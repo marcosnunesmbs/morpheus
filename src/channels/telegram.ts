@@ -5,6 +5,7 @@ import fs from 'fs-extra';
 import path from 'path';
 import os from 'os';
 import { spawn } from 'child_process';
+import { convert } from 'telegram-markdown-v2';
 import { ConfigManager } from '../config/manager.js';
 import { DisplayManager } from '../runtime/display.js';
 import { Oracle } from '../runtime/oracle.js';
@@ -14,6 +15,19 @@ import { SQLiteChatMessageHistory } from '../runtime/memory/sqlite.js';
 import { SatiRepository } from '../runtime/memory/sati/repository.js';
 import { MCPManager } from '../config/mcp-manager.js';
 import { Construtor } from '../runtime/tools/factory.js';
+
+/**
+ * Converts standard Markdown (as produced by LLMs) to Telegram MarkdownV2.
+ * Unsupported tags (e.g. tables) have their special chars escaped so they
+ * render as plain text instead of breaking the parse.
+ * Truncates to Telegram's 4096-char hard limit.
+ */
+function toMd(text: string): { text: string; parse_mode: 'MarkdownV2' } {
+  const MAX = 4096;
+  const converted = convert(text, 'escape');
+  const safe = converted.length > MAX ? converted.slice(0, MAX - 3) + '\\.\\.\\.' : converted;
+  return { text: safe, parse_mode: 'MarkdownV2' };
+}
 
 export class TelegramAdapter {
   private bot: Telegraf | null = null;
@@ -103,7 +117,11 @@ export class TelegramAdapter {
           const response = await this.oracle.chat(text);
 
           if (response) {
-            await ctx.reply(response);
+            try {
+              await ctx.reply(toMd(response).text, { parse_mode: 'MarkdownV2' });
+            } catch {
+              await ctx.reply(response);
+            }
             this.display.log(`Responded to @${user}: ${response}`, { source: 'Telegram' });
           }
         } catch (error: any) {
@@ -184,7 +202,7 @@ export class TelegramAdapter {
           // "Transcribe them... and process the resulting text as a standard user prompt."
 
           // So I should treat 'text' as if it was a text message.
-          await ctx.reply(`🎤 *Transcription*: _"${text}"_`, { parse_mode: 'Markdown' });
+          await ctx.reply(`🎤 Transcription: "${text}"`);
           await ctx.sendChatAction('typing');
 
           // Process with Agent
@@ -199,7 +217,11 @@ export class TelegramAdapter {
           // }
 
           if (response) {
-            await ctx.reply(response);
+            try {
+              await ctx.reply(toMd(response).text, { parse_mode: 'MarkdownV2' });
+            } catch {
+              await ctx.reply(response);
+            }
             this.display.log(`Responded to @${user} (via audio)`, { source: 'Telegram' });
           }
 
@@ -267,7 +289,7 @@ export class TelegramAdapter {
         // Fetch session title for better UX (optional, but nice) - for now just use ID
 
         await ctx.reply(`⚠️ **ARCHIVE SESSION?**\n\nAre you sure you want to archive session \`${sessionId}\`?\n\nIt will be moved to long-term memory (SATI) and removed from the active list. This action cannot be easily undone via Telegram.`, {
-          parse_mode: 'Markdown',
+          parse_mode: 'MarkdownV2',
           reply_markup: {
             inline_keyboard: [
               [
@@ -292,7 +314,7 @@ export class TelegramAdapter {
           if (ctx.updateType === 'callback_query') {
             ctx.deleteMessage().catch(() => { });
           }
-          await ctx.reply(`✅ Session \`${sessionId}\` has been archived and moved to long-term memory.`, { parse_mode: 'Markdown' });
+          await ctx.reply(`✅ Session \`${sessionId}\` has been archived and moved to long-term memory.`, { parse_mode: 'MarkdownV2' });
         } catch (error: any) {
           await ctx.answerCbQuery(`Error archiving: ${error.message}`, { show_alert: true });
         }
@@ -304,7 +326,7 @@ export class TelegramAdapter {
         const sessionId = data.replace('ask_delete_session_', '');
 
         await ctx.reply(`🚫 **DELETE SESSION?**\n\nAre you sure you want to PERMANENTLY DELETE session \`${sessionId}\`?\n\nThis action is **IRREVERSIBLE**. All data will be lost.`, {
-          parse_mode: 'Markdown',
+          parse_mode: 'MarkdownV2',
           reply_markup: {
             inline_keyboard: [
               [
@@ -329,7 +351,7 @@ export class TelegramAdapter {
           if (ctx.updateType === 'callback_query') {
             ctx.deleteMessage().catch(() => { });
           }
-          await ctx.reply(`🗑️ Session \`${sessionId}\` has been permanently deleted.`, { parse_mode: 'Markdown' });
+          await ctx.reply(`🗑️ Session \`${sessionId}\` has been permanently deleted.`, { parse_mode: 'MarkdownV2' });
         } catch (error: any) {
           await ctx.answerCbQuery(`Error deleting: ${error.message}`, { show_alert: true });
         }
@@ -451,7 +473,7 @@ export class TelegramAdapter {
     for (const userId of allowedUsers) {
       try {
         // Send as plain text — LLM output often has unbalanced markdown that
-        // causes "Can't find end of entity" errors with parse_mode: 'Markdown'.
+        // causes "Can't find end of entity" errors with parse_mode: 'MarkdownV2'.
         await this.bot.telegram.sendMessage(userId, safeText);
       } catch (err: any) {
         this.display.log(
@@ -537,7 +559,7 @@ export class TelegramAdapter {
   private async handleNewSessionCommand(ctx: any, user: string) {
     try {
       await ctx.reply("Are you ready to start a new session? Please confirm.", {
-        parse_mode: 'Markdown', reply_markup: {
+        parse_mode: 'MarkdownV2', reply_markup: {
           inline_keyboard: [
             [{ text: 'Yes, start new session', callback_data: 'confirm_new_session' }, { text: 'No, cancel', callback_data: 'cancel_new_session' }]]
         }
@@ -564,7 +586,7 @@ export class TelegramAdapter {
       const sessions = await history.listSessions();
 
       if (sessions.length === 0) {
-        await ctx.reply('No active or paused sessions found.', { parse_mode: 'Markdown' });
+        await ctx.reply('No active or paused sessions found.', { parse_mode: 'MarkdownV2' });
         return;
       }
 
@@ -603,7 +625,7 @@ export class TelegramAdapter {
       }
 
       await ctx.reply(response, {
-        parse_mode: 'Markdown',
+        parse_mode: 'MarkdownV2',
         reply_markup: {
           inline_keyboard: keyboard
         }
@@ -723,7 +745,7 @@ How can I assist you today?`;
       response += '⚠️ Configuration: Missing\n';
     }
 
-    await ctx.reply(response, { parse_mode: 'Markdown' });
+    await ctx.reply(response, { parse_mode: 'MarkdownV2' });
   }
 
   private async handleStatsCommand(ctx: any, user: string) {
@@ -772,7 +794,7 @@ How can I assist you today?`;
         response += 'No detailed usage statistics available.';
       }
 
-      await ctx.reply(response, { parse_mode: 'Markdown' });
+      await ctx.reply(response, { parse_mode: 'MarkdownV2' });
       history.close();
     } catch (error: any) {
       await ctx.reply(`Failed to retrieve statistics: ${error.message}`);
@@ -790,7 +812,7 @@ How can I assist you today?`;
 
     if (response) {
       try {
-        await ctx.reply(response, { parse_mode: 'Markdown' });
+        await ctx.reply(response, { parse_mode: 'MarkdownV2' });
       } catch {
         await ctx.reply(response);
       }
@@ -806,7 +828,7 @@ ${this.HELP_MESSAGE}
 
 How can I assist you today?`;
 
-    await ctx.reply(helpMessage, { parse_mode: 'Markdown' });
+    await ctx.reply(helpMessage, { parse_mode: 'MarkdownV2' });
   }
 
   private async handleZaionCommand(ctx: any, user: string) {
@@ -862,7 +884,7 @@ How can I assist you today?`;
     response += `- Enabled: ${config.audio.enabled}\n`;
     response += `- Max Duration: ${config.audio.maxDurationSeconds}s\n`;
 
-    await ctx.reply(response, { parse_mode: 'Markdown' });
+    await ctx.reply(response, { parse_mode: 'MarkdownV2' });
   }
 
   private async handleSatiCommand(ctx: any, user: string, args: string[]) {
@@ -901,7 +923,7 @@ How can I assist you today?`;
         response += `*${memory.category} (${memory.importance}):* ${truncatedSummary}\n\n`;
       }
 
-      await ctx.reply(response, { parse_mode: 'Markdown' });
+      await ctx.reply(response, { parse_mode: 'MarkdownV2' });
     } catch (error: any) {
       await ctx.reply(`Failed to retrieve memories: ${error.message}`);
     }
@@ -1006,7 +1028,7 @@ How can I assist you today?`;
       if (servers.length === 0) {
         await ctx.reply(
           '*No MCP Servers Configured*\n\nThere are currently no MCP servers configured in the system.',
-          { parse_mode: 'Markdown' }
+          { parse_mode: 'MarkdownV2' }
         );
         return;
       }
@@ -1055,14 +1077,14 @@ How can I assist you today?`;
       });
 
       await ctx.reply(response, {
-        parse_mode: 'Markdown',
+        parse_mode: 'MarkdownV2',
         reply_markup: { inline_keyboard: keyboard },
       });
     } catch (error) {
       this.display.log('Error listing MCP servers: ' + (error instanceof Error ? error.message : String(error)), { source: 'Telegram', level: 'error' });
       await ctx.reply(
         'An error occurred while retrieving the list of MCP servers. Please check the logs for more details.',
-        { parse_mode: 'Markdown' }
+        { parse_mode: 'MarkdownV2' }
       );
     }
   }
