@@ -67,18 +67,18 @@ export class TelegramAdapter {
     return false;
   }
 
-  private HELP_MESSAGE = `/start - Show this welcome message and available commands
-/status - Check the status of the Morpheus agent
-/doctor - Diagnose environment and configuration issues
-/stats - Show token usage statistics
-/help - Show available commands
-/zaion - Show system configurations
-/sati <qnt> - Show specific memories
-/newsession - Archive current session and start fresh
-/sessions - List all sessions with titles and switch between them
-/restart - Restart the Morpheus agent
-/mcpreload - Reload MCP servers without restarting
-/mcp or /mcps - List registered MCP servers`;
+  private HELP_MESSAGE = `/start \\- Show this welcome message and available commands
+/status \\- Check the status of the Morpheus agent
+/doctor \\- Diagnose environment and configuration issues
+/stats \\- Show token usage statistics
+/help \\- Show available commands
+/zaion \\- Show system configurations
+/sati <qnt> \\- Show specific memories
+/newsession \\- Archive current session and start fresh
+/sessions \\- List all sessions with titles and switch between them
+/restart \\- Restart the Morpheus agent
+/mcpreload \\- Reload MCP servers without restarting
+/mcp or /mcps \\- List registered MCP servers`;
 
   constructor(oracle: Oracle) {
     this.oracle = oracle;
@@ -617,9 +617,9 @@ export class TelegramAdapter {
         const title = session.title || 'Untitled Session';
         const statusEmoji = session.status === 'active' ? '🟢' : '🟡';
         response += `${statusEmoji} *${escMd(title)}*\n`;
-        response += `- ID: ${escMd(session.id)}\n`;
-        response += `- Status: ${escMd(session.status)}\n`;
-        response += `- Started: ${escMd(new Date(session.started_at).toLocaleString())}\n\n`;
+        response += `\\- ID: ${escMd(session.id)}\n`;
+        response += `\\- Status: ${escMd(session.status)}\n`;
+        response += `\\- Started: ${escMd(new Date(session.started_at).toLocaleString())}\n\n`;
 
         // Adicionar botão inline para alternar para esta sessão
         const sessionButtons = [];
@@ -856,25 +856,25 @@ How can I assist you today?`;
 
     let response = '*System Configuration*\n\n';
     response += `*Agent:*\n`;
-    response += `- Name: ${escMd(config.agent.name)}\n`;
-    response += `- Personality: ${escMd(config.agent.personality)}\n\n`;
+    response += `\\- Name: ${escMd(config.agent.name)}\n`;
+    response += `\\- Personality: ${escMd(config.agent.personality)}\n\n`;
 
     response += `*Oracle \\(LLM\\):*\n`;
-    response += `- Provider: ${escMd(config.llm.provider)}\n`;
-    response += `- Model: ${escMd(config.llm.model)}\n`;
-    response += `- Temperature: ${escMd(config.llm.temperature)}\n`;
-    response += `- Context Window: ${escMd(config.llm.context_window || 100)}\n\n`;
+    response += `\\- Provider: ${escMd(config.llm.provider)}\n`;
+    response += `\\- Model: ${escMd(config.llm.model)}\n`;
+    response += `\\- Temperature: ${escMd(config.llm.temperature)}\n`;
+    response += `\\- Context Window: ${escMd(config.llm.context_window || 100)}\n\n`;
 
     // Sati config (falls back to llm if not set)
     const sati = (config as any).sati;
     response += `*Sati \\(Memory\\):*\n`;
     if (sati?.provider) {
-      response += `- Provider: ${escMd(sati.provider)}\n`;
-      response += `- Model: ${escMd(sati.model || config.llm.model)}\n`;
-      response += `- Temperature: ${escMd(sati.temperature ?? config.llm.temperature)}\n`;
-      response += `- Memory Limit: ${escMd(sati.memory_limit ?? 1000)}\n`;
+      response += `\\- Provider: ${escMd(sati.provider)}\n`;
+      response += `\\- Model: ${escMd(sati.model || config.llm.model)}\n`;
+      response += `\\- Temperature: ${escMd(sati.temperature ?? config.llm.temperature)}\n`;
+      response += `\\- Memory Limit: ${escMd(sati.memory_limit ?? 1000)}\n`;
     } else {
-      response += `- Inherits Oracle config\n`;
+      response += `\\- Inherits Oracle config\n`;
     }
     response += '\n';
 
@@ -882,27 +882,27 @@ How can I assist you today?`;
     const apoc = (config as any).apoc;
     response += `*Apoc \\(DevTools\\):*\n`;
     if (apoc?.provider) {
-      response += `- Provider: ${escMd(apoc.provider)}\n`;
-      response += `- Model: ${escMd(apoc.model || config.llm.model)}\n`;
-      response += `- Temperature: ${escMd(apoc.temperature ?? 0.2)}\n`;
-      if (apoc.working_dir) response += `- Working Dir: ${escMd(apoc.working_dir)}\n`;
-      response += `- Timeout: ${escMd(apoc.timeout_ms ?? 30000)}ms\n`;
+      response += `\\- Provider: ${escMd(apoc.provider)}\n`;
+      response += `\\- Model: ${escMd(apoc.model || config.llm.model)}\n`;
+      response += `\\- Temperature: ${escMd(apoc.temperature ?? 0.2)}\n`;
+      if (apoc.working_dir) response += `\\- Working Dir: ${escMd(apoc.working_dir)}\n`;
+      response += `\\- Timeout: ${escMd(apoc.timeout_ms ?? 30000)}ms\n`;
     } else {
-      response += `- Inherits Oracle config\n`;
+      response += `\\- Inherits Oracle config\n`;
     }
     response += '\n';
 
     response += `*Channels:*\n`;
-    response += `- Telegram Enabled: ${escMd(config.channels.telegram.enabled)}\n`;
-    response += `- Discord Enabled: ${escMd(config.channels.discord.enabled)}\n\n`;
+    response += `\\- Telegram Enabled: ${escMd(config.channels.telegram.enabled)}\n`;
+    response += `\\- Discord Enabled: ${escMd(config.channels.discord.enabled)}\n\n`;
 
     response += `*UI:*\n`;
-    response += `- Enabled: ${escMd(config.ui.enabled)}\n`;
-    response += `- Port: ${escMd(config.ui.port)}\n\n`;
+    response += `\\- Enabled: ${escMd(config.ui.enabled)}\n`;
+    response += `\\- Port: ${escMd(config.ui.port)}\n\n`;
 
     response += `*Audio:*\n`;
-    response += `- Enabled: ${escMd(config.audio.enabled)}\n`;
-    response += `- Max Duration: ${escMd(config.audio.maxDurationSeconds)}s\n`;
+    response += `\\- Enabled: ${escMd(config.audio.enabled)}\n`;
+    response += `\\- Max Duration: ${escMd(config.audio.maxDurationSeconds)}s\n`;
 
     await ctx.reply(response, { parse_mode: 'MarkdownV2' });
   }
