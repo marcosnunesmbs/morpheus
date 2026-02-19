@@ -12,6 +12,7 @@ coverage/
 .morpheus/
 .vscode/
 .qwen/
+.claude/
 
 # Documentation and Specs
 .specify/
