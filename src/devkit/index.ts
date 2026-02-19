@@ -7,6 +7,7 @@ import './tools/network.js';
 import './tools/git.js';
 import './tools/packages.js';
 import './tools/system.js';
+import './tools/browser.js';
 
 export { buildDevKit } from './registry.js';
 export type { ToolContext, ToolResult } from './types.js';

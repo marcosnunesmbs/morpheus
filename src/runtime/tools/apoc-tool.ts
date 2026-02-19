@@ -35,6 +35,8 @@ Use this tool when the user asks for ANY of the following:
 - Process management: list processes, kill processes, check ports
 - Network: ping hosts, curl URLs, DNS lookups
 - System info: environment variables, OS info, disk space, memory
+- Internet search: search DuckDuckGo and verify facts by reading at least 3 sources via browser_navigate before reporting results.
+- Browser automation: navigate websites (JS/SPA), inspect DOM, click elements, fill forms. Apoc will ask for missing user input (e.g. credentials, form fields) before proceeding.
 
 Provide a clear natural language task description. Optionally provide context
 from the current conversation to help Apoc understand the broader goal.`,

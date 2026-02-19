@@ -13,6 +13,7 @@ export const PATHS = {
   logs: LOGS_DIR,
   memory: path.join(MORPHEUS_ROOT, 'memory'),
   cache: path.join(MORPHEUS_ROOT, 'cache'),
+  browser: path.join(MORPHEUS_ROOT, 'cache', 'browser'),
   commands: path.join(MORPHEUS_ROOT, 'commands'),
   mcps: path.join(MORPHEUS_ROOT, 'mcps.json'),
 };

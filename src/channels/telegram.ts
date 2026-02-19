@@ -5,7 +5,6 @@ import fs from 'fs-extra';
 import path from 'path';
 import os from 'os';
 import { spawn } from 'child_process';
-import { convert } from 'telegram-markdown-v2';
 import { ConfigManager } from '../config/manager.js';
 import { DisplayManager } from '../runtime/display.js';
 import { Oracle } from '../runtime/oracle.js';
@@ -23,8 +22,21 @@ import { Construtor } from '../runtime/tools/factory.js';
  * Truncates to Telegram's 4096-char hard limit.
  * Use for dynamic LLM/Oracle output.
  */
-function toMd(text: string): { text: string; parse_mode: 'MarkdownV2' } {
+// Cached dynamic import of telegram-markdown-v2 (ESM-safe, loaded once on first use)
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+let _convertFn: ((text: string, strategy: any) => string) | null = null;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function getConvert(): Promise<(text: string, strategy: any) => string> {
+  if (!_convertFn) {
+    const mod = await import('telegram-markdown-v2');
+    _convertFn = mod.convert as any;
+  }
+  return _convertFn!;
+}
+
+async function toMd(text: string): Promise<{ text: string; parse_mode: 'MarkdownV2' }> {
   const MAX = 4096;
+  const convert = await getConvert();
   const converted = convert(text, 'escape');
   const safe = converted.length > MAX ? converted.slice(0, MAX - 3) + '\\.\\.\\.' : converted;
   return { text: safe, parse_mode: 'MarkdownV2' };
@@ -134,7 +146,7 @@ export class TelegramAdapter {
 
           if (response) {
             try {
-              await ctx.reply(toMd(response).text, { parse_mode: 'MarkdownV2' });
+              await ctx.reply((await toMd(response)).text, { parse_mode: 'MarkdownV2' });
             } catch {
               await ctx.reply(response);
             }
@@ -234,7 +246,7 @@ export class TelegramAdapter {
 
           if (response) {
             try {
-              await ctx.reply(toMd(response).text, { parse_mode: 'MarkdownV2' });
+              await ctx.reply((await toMd(response)).text, { parse_mode: 'MarkdownV2' });
             } catch {
               await ctx.reply(response);
             }
@@ -483,7 +495,7 @@ export class TelegramAdapter {
     }
 
     // toMd() already truncates to 4096 chars (Telegram's hard limit)
-    const { text: mdText, parse_mode } = toMd(text);
+    const { text: mdText, parse_mode } = await toMd(text);
 
     for (const userId of allowedUsers) {
       try {
@@ -832,7 +844,7 @@ How can I assist you today?`;
 
     if (response) {
       try {
-        await ctx.reply(toMd(response).text, { parse_mode: 'MarkdownV2' });
+        await ctx.reply((await toMd(response)).text, { parse_mode: 'MarkdownV2' });
       } catch {
         await ctx.reply(response);
       }

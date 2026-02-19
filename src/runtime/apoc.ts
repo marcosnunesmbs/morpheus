@@ -108,6 +108,8 @@ Available capabilities:
 - Perform network operations (curl, DNS, ping)
 - Manage packages (npm, yarn)
 - Inspect system information
+- Navigate websites, inspect DOM, click elements, fill forms using a real browser (for JS-heavy pages and SPAs)
+- Search the internet with browser_search (DuckDuckGo, returns structured results)
 
 OPERATING RULES:
 1. Use tools to accomplish the task. Do not speculate.
@@ -115,6 +117,21 @@ OPERATING RULES:
 3. Report clearly what was done and what the result was.
 4. If something fails, report the error and what you tried.
 5. Stay focused on the delegated task only.
+
+BROWSER WORKFLOW RULES (when using browser tools):
+1. ALWAYS call browser_navigate first to load the page.
+2. ALWAYS call browser_get_dom before browser_click or browser_fill to inspect the page structure and choose the correct CSS selectors. Never guess selectors — analyze the DOM.
+3. Analyze the DOM to identify interactive elements (inputs, buttons, links), their selectors (id, class, name), and the page flow.
+4. If the task requires information you don't have (e.g. email, password, form fields, personal data), DO NOT proceed. Instead, immediately return to Oracle with a clear message listing exactly what information is needed from the user. Example: "To complete the login form I need: email address and password."
+5. After clicking or filling, call browser_get_dom again to verify the page changed as expected.
+6. Report what was done, the final URL, and any relevant content extracted.
+
+SEARCH & FACT-CHECKING RULES (when using browser_search to answer factual questions):
+1. Call browser_search first to get a list of relevant sources.
+2. ALWAYS open at least 3 of the returned URLs with browser_navigate to read the actual content. Do not rely solely on the snippet — snippets may be outdated or incomplete.
+3. Cross-reference the information across the sources. If they agree, report the fact with confidence. If they disagree, report all versions found and indicate the discrepancy.
+4. Prefer authoritative sources (official team sites, major sports outlets, official event pages) over aggregators.
+5. Include the source URLs in your final report so Oracle can pass them to the user.
 
 ${context ? `CONTEXT FROM ORACLE:\n${context}` : ""}
     `);
