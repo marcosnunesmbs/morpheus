@@ -28,9 +28,8 @@ export class WebhookDispatcher {
   /**
    * Main orchestration method — runs in background (fire-and-forget).
    * 1. Builds the agent prompt from webhook.prompt + payload
-   * 2. Sends to Oracle (which can use MCPs or delegate to Apoc)
-   * 3. Persists result to DB
-   * 4. Dispatches to configured channels
+   * 2. Sends to Oracle for async task enqueue
+   * 3. Final result is persisted by TaskNotifier through TaskDispatcher
    */
   public async dispatch(
     webhook: Webhook,
@@ -49,34 +48,23 @@ export class WebhookDispatcher {
 
     const message = this.buildPrompt(webhook.prompt, payload);
 
-    let result: string;
-    let status: 'completed' | 'failed';
-
     try {
-      result = await oracle.chat(message);
-      status = 'completed';
+      await oracle.chat(message, undefined, false, {
+        origin_channel: 'webhook',
+        session_id: `webhook-${webhook.id}`,
+        origin_message_id: notificationId,
+      });
       this.display.log(
-        `Webhook "${webhook.name}" completed (notification: ${notificationId})`,
+        `Webhook "${webhook.name}" accepted and queued (notification: ${notificationId})`,
         { source: 'Webhooks', level: 'success' },
       );
     } catch (err: any) {
-      result = `Execution error: ${err.message}`;
-      status = 'failed';
+      const result = `Execution error: ${err.message}`;
       this.display.log(
         `Webhook "${webhook.name}" failed: ${err.message}`,
         { source: 'Webhooks', level: 'error' },
       );
-    }
-
-    // Persist result
-    repo.updateNotificationResult(notificationId, status, result);
-
-    // Dispatch to configured channels
-    for (const channel of webhook.notification_channels) {
-      if (channel === 'telegram') {
-        await this.sendTelegram(webhook.name, result, status);
-      }
-      // 'ui' channel is handled by UI polling — nothing extra needed here
+      repo.updateNotificationResult(notificationId, 'failed', result);
     }
   }
 

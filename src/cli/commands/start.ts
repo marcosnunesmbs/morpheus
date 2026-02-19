@@ -15,6 +15,9 @@ import { ProviderError } from '../../runtime/errors.js';
 import { HttpServer } from '../../http/server.js';
 import { getVersion } from '../utils/version.js';
 import { startSessionEmbeddingScheduler } from '../../runtime/session-embedding-scheduler.js';
+import { TaskWorker } from '../../runtime/tasks/worker.js';
+import { TaskNotifier } from '../../runtime/tasks/notifier.js';
+import { TaskDispatcher } from '../../runtime/tasks/dispatcher.js';
 
 export const startCommand = new Command('start')
   .description('Start the Morpheus agent')
@@ -132,6 +135,9 @@ export const startCommand = new Command('start')
 
       const adapters: any[] = [];
       let httpServer: HttpServer | undefined;
+      const taskWorker = new TaskWorker();
+      const taskNotifier = new TaskNotifier();
+      const asyncTasksEnabled = config.runtime?.async_tasks?.enabled !== false;
 
       // Initialize Web UI
       if (options.ui && config.ui.enabled) {
@@ -156,6 +162,7 @@ export const startCommand = new Command('start')
             );
             // Wire Telegram adapter to webhook dispatcher for proactive notifications
             WebhookDispatcher.setTelegramAdapter(telegram);
+            TaskDispatcher.setTelegramAdapter(telegram);
             adapters.push(telegram);
           } catch (e) {
             display.log(chalk.red('Failed to initialize Telegram adapter. Continuing...'));
@@ -167,6 +174,10 @@ export const startCommand = new Command('start')
 
       // Start Background Services
       startSessionEmbeddingScheduler();
+      if (asyncTasksEnabled) {
+        taskWorker.start();
+        taskNotifier.start();
+      }
 
       // Handle graceful shutdown
       const shutdown = async (signal: string) => {
@@ -179,6 +190,10 @@ export const startCommand = new Command('start')
 
         for (const adapter of adapters) {
           await adapter.disconnect();
+        }
+        if (asyncTasksEnabled) {
+          taskWorker.stop();
+          taskNotifier.stop();
         }
 
         await clearPid();

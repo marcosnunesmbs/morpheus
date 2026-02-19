@@ -15,6 +15,7 @@ import {
   DollarSign,
   Webhook,
   Bell,
+  ListChecks,
 } from 'lucide-react';
 import { Footer } from './Footer';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -24,6 +25,7 @@ import useSWR from 'swr';
 import { webhookService } from '../services/webhooks';
 import { RestartConfirmationModal } from './RestartConfirmationModal';
 import { httpClient } from '../services/httpClient';
+import { taskService } from '../services/tasks';
 
 export function Layout({ children }: { children: React.ReactNode }) {
   const location = useLocation();
@@ -41,6 +43,12 @@ export function Layout({ children }: { children: React.ReactNode }) {
     { refreshInterval: 10_000 },
   );
   const unreadCount = unreadData?.count ?? 0;
+  const { data: taskStats } = useSWR(
+    '/tasks/stats',
+    () => taskService.stats(),
+    { refreshInterval: 5000 },
+  );
+  const activeTasks = (taskStats?.pending ?? 0) + (taskStats?.running ?? 0);
 
   const handleRestart = async () => {
     try {
@@ -77,6 +85,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
     { icon: DollarSign, label: 'Model Pricing', path: '/model-pricing' },
     { icon: Activity, label: 'Sati Memories', path: '/sati-memories' },
     { icon: Webhook, label: 'Webhooks', path: '/webhooks' },
+    { icon: ListChecks, label: 'Tasks', path: '/tasks' },
   ];
 
   const mobileNavItems = [
@@ -88,6 +97,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
     { icon: DollarSign, label: 'Model Pricing', path: '/model-pricing' },
     { icon: Activity, label: 'Sati Memories', path: '/sati-memories' },
     { icon: Webhook, label: 'Webhooks', path: '/webhooks' },
+    { icon: ListChecks, label: 'Tasks', path: '/tasks' },
   ];
 
   return (
@@ -136,6 +146,11 @@ export function Layout({ children }: { children: React.ReactNode }) {
                 >
                   <item.icon className="w-5 h-5" />
                   <span>{item.label}</span>
+                  {item.path === '/tasks' && activeTasks > 0 && (
+                    <span className="ml-auto bg-yellow-500 text-black text-[10px] font-bold rounded-full px-1.5 py-0.5 leading-none">
+                      {activeTasks > 99 ? '99+' : activeTasks}
+                    </span>
+                  )}
                 </Link>
               );
             })}
@@ -262,6 +277,11 @@ export function Layout({ children }: { children: React.ReactNode }) {
                       >
                         <item.icon className="w-5 h-5" />
                         <span>{item.label}</span>
+                        {item.path === '/tasks' && activeTasks > 0 && (
+                          <span className="ml-auto bg-yellow-500 text-black text-[10px] font-bold rounded-full px-1.5 py-0.5 leading-none">
+                            {activeTasks > 99 ? '99+' : activeTasks}
+                          </span>
+                        )}
                       </Link>
                     );
                   })}

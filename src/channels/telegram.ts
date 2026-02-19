@@ -15,30 +15,12 @@ import { SatiRepository } from '../runtime/memory/sati/repository.js';
 import { MCPManager } from '../config/mcp-manager.js';
 import { Construtor } from '../runtime/tools/factory.js';
 
-/**
- * Converts standard Markdown (as produced by LLMs) to Telegram MarkdownV2.
- * Unsupported tags (e.g. tables) have their special chars escaped so they
- * render as plain text instead of breaking the parse.
- * Truncates to Telegram's 4096-char hard limit.
- * Use for dynamic LLM/Oracle output.
- */
-// Cached dynamic import of telegram-markdown-v2 (ESM-safe, loaded once on first use)
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-let _convertFn: ((text: string, strategy: any) => string) | null = null;
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function getConvert(): Promise<(text: string, strategy: any) => string> {
-  if (!_convertFn) {
-    const mod = await import('telegram-markdown-v2');
-    _convertFn = mod.convert as any;
-  }
-  return _convertFn!;
-}
-
 async function toMd(text: string): Promise<{ text: string; parse_mode: 'MarkdownV2' }> {
   const MAX = 4096;
-  const convert = await getConvert();
-  const converted = convert(text, 'escape');
-  const safe = converted.length > MAX ? converted.slice(0, MAX - 3) + '\\.\\.\\.' : converted;
+  // Avoid external markdown converter runtime incompatibilities (CJS/ESM).
+  // For dynamic outputs we prefer strict escaping over rich formatting.
+  const escaped = text.replace(/([_*\[\]()~`>#+\-=|{}.!\\])/g, '\\$1');
+  const safe = escaped.length > MAX ? escaped.slice(0, MAX - 3) + '\\.\\.\\.' : escaped;
   return { text: safe, parse_mode: 'MarkdownV2' };
 }
 
@@ -141,18 +123,22 @@ export class TelegramAdapter {
           // Send "typing" status
           await ctx.sendChatAction('typing');
 
+          const sessionId = await this.history.getCurrentSessionOrCreate();
+          await this.oracle.setSessionId(sessionId);
+
           // Process with Agent
-          const response = await this.oracle.chat(text);
+          const response = await this.oracle.chat(text, undefined, false, {
+            origin_channel: 'telegram',
+            session_id: sessionId,
+            origin_message_id: String(ctx.message.message_id),
+            origin_user_id: userId,
+          });
 
           if (response) {
             try {
               await ctx.reply((await toMd(response)).text, { parse_mode: 'MarkdownV2' });
             } catch {
-              try {
-                ctx.reply(response, {parse_mode: 'MarkdownV2'});
-              } catch {
-                await ctx.reply(response);
-              }
+              await ctx.reply(response);
             }
             this.display.log(`Responded to @${user}: ${response}`, { source: 'Telegram' });
           }
@@ -237,8 +223,16 @@ export class TelegramAdapter {
           await ctx.reply(`🎤 Transcription: "${text}"`);
           await ctx.sendChatAction('typing');
 
+          const sessionId = await this.history.getCurrentSessionOrCreate();
+          await this.oracle.setSessionId(sessionId);
+
           // Process with Agent
-          const response = await this.oracle.chat(text, usage, true);
+          const response = await this.oracle.chat(text, usage, true, {
+            origin_channel: 'telegram',
+            session_id: sessionId,
+            origin_message_id: String(ctx.message.message_id),
+            origin_user_id: userId,
+          });
 
           // if (listeningMsg) {
           //   try {
@@ -517,6 +511,25 @@ export class TelegramAdapter {
           );
         }
       }
+    }
+  }
+
+  public async sendMessageToUser(userId: string, text: string): Promise<void> {
+    if (!this.isConnected || !this.bot) {
+      this.display.log(
+        'Cannot send direct message: Telegram bot not connected.',
+        { source: 'Telegram', level: 'warning' },
+      );
+      return;
+    }
+
+    const { text: mdText, parse_mode } = await toMd(text);
+    try {
+      await this.bot.telegram.sendMessage(userId, mdText, { parse_mode });
+    } catch {
+      const MAX_LEN = 4096;
+      const plain = text.length > MAX_LEN ? text.slice(0, MAX_LEN - 3) + '...' : text;
+      await this.bot.telegram.sendMessage(userId, plain);
     }
   }
 

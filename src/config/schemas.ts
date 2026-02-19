@@ -49,6 +49,11 @@ export const ConfigSchema = z.object({
   memory: z.object({
     limit: z.number().int().positive().optional(),
   }).default(DEFAULT_CONFIG.memory),
+  runtime: z.object({
+    async_tasks: z.object({
+      enabled: z.boolean().default(DEFAULT_CONFIG.runtime?.async_tasks.enabled ?? true),
+    }).default(DEFAULT_CONFIG.runtime?.async_tasks ?? { enabled: true }),
+  }).optional(),
   channels: z.object({
     telegram: z.object({
       enabled: z.boolean().default(false),

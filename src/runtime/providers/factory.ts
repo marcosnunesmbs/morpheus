@@ -9,16 +9,7 @@ import { createAgent, createMiddleware, ReactAgent, toolCallLimitMiddleware } fr
 // import { MultiServerMCPClient, } from "@langchain/mcp-adapters"; // REMOVED
 import { z } from "zod";
 import { DisplayManager } from "../display.js";
-import { StructuredTool, tool } from "@langchain/core/tools";
-import {
-  ConfigQueryTool,
-  ConfigUpdateTool,
-  DiagnosticTool,
-  MessageCountTool,
-  TokenUsageTool,
-  ProviderModelUsageTool,
-  ApocDelegateTool
-} from "../tools/index.js";
+import { StructuredTool } from "@langchain/core/tools";
 
 export class ProviderFactory {
   private static buildMonitoringMiddleware() {
@@ -117,19 +108,7 @@ export class ProviderFactory {
     try {
       const model = ProviderFactory.buildModel(config);
       const middleware = ProviderFactory.buildMonitoringMiddleware();
-
-      const toolsForAgent = [
-        ...tools,
-        ConfigQueryTool,
-        ConfigUpdateTool,
-        DiagnosticTool,
-        MessageCountTool,
-        TokenUsageTool,
-        ProviderModelUsageTool,
-        ApocDelegateTool
-      ];
-
-      return createAgent({ model, tools: toolsForAgent, middleware: [middleware] });
+      return createAgent({ model, tools, middleware: [middleware] });
     } catch (error: any) {
       ProviderFactory.handleProviderError(config, error);
     }

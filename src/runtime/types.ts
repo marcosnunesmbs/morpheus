@@ -1,5 +1,6 @@
 import { BaseMessage } from "@langchain/core/messages";
 import { UsageMetadata } from "../types/usage.js";
+import type { OracleTaskContext } from "./tasks/types.js";
 
 export interface IOracle {
   /**
@@ -14,7 +15,7 @@ export interface IOracle {
    * @param message - The user's input text
    * @param extraUsage - Optional usage metadata to attribute to this message (e.g. from Audio transcription)
    */
-  chat(message: string, extraUsage?: UsageMetadata): Promise<string>;
+  chat(message: string, extraUsage?: UsageMetadata, isTelephonist?: boolean, taskContext?: OracleTaskContext): Promise<string>;
 
   /**
    * Get the current conversation history.

@@ -1,6 +1,7 @@
 import { tool } from "@langchain/core/tools";
 import { z } from "zod";
-import { Apoc } from "../apoc.js";
+import { TaskRepository } from "../tasks/repository.js";
+import { TaskRequestContext } from "../tasks/context.js";
 
 /**
  * Tool that Oracle uses to delegate devtools tasks to Apoc.
@@ -16,16 +17,29 @@ import { Apoc } from "../apoc.js";
 export const ApocDelegateTool = tool(
   async ({ task, context }: { task: string; context?: string }) => {
     try {
-      const apoc = Apoc.getInstance();
-      const result = await apoc.execute(task, context);
-      return result;
+      const ctx = TaskRequestContext.get();
+      const repository = TaskRepository.getInstance();
+      const created = repository.createTask({
+        agent: "apoc",
+        input: task,
+        context: context ?? null,
+        origin_channel: ctx?.origin_channel ?? "api",
+        session_id: ctx?.session_id ?? "default",
+        origin_message_id: ctx?.origin_message_id ?? null,
+        origin_user_id: ctx?.origin_user_id ?? null,
+        max_attempts: 3,
+      });
+      return `Task ${created.id} queued for Apoc execution.`;
     } catch (err: any) {
-      return `Apoc execution failed: ${err.message}`;
+      return `Apoc task enqueue failed: ${err.message}`;
     }
   },
   {
     name: "apoc_delegate",
-    description: `Delegate a devtools task to Apoc, the specialized development subagent.
+    description: `Delegate a devtools task to Apoc, the specialized development subagent, asynchronously.
+
+This tool enqueues a background task and returns an acknowledgement with task id.
+Do not expect final execution output in the same response.
 
 Use this tool when the user asks for ANY of the following:
 - File operations: read, write, create, delete files or directories

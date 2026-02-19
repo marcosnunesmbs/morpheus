@@ -12,6 +12,7 @@ import { MCPManager } from './pages/MCPManager';
 import { ModelPricing } from './pages/ModelPricing';
 import { WebhookManager } from './pages/WebhookManager';
 import { Notifications } from './pages/Notifications';
+import { TasksPage } from './pages/Tasks';
 
 function App() {
   return (
@@ -34,6 +35,7 @@ function App() {
                   <Route path="/model-pricing" element={<ModelPricing />} />
                   <Route path="/webhooks" element={<WebhookManager />} />
                   <Route path="/notifications" element={<Notifications />} />
+                  <Route path="/tasks" element={<TasksPage />} />
                   <Route path="*" element={<Navigate to="/" replace />} />
                 </Routes>
               </Layout>

@@ -12,6 +12,10 @@ import { Oracle } from '../../runtime/oracle.js';
 import { ProviderError } from '../../runtime/errors.js';
 import { HttpServer } from '../../http/server.js';
 import { getVersion } from '../utils/version.js';
+import { TaskWorker } from '../../runtime/tasks/worker.js';
+import { TaskNotifier } from '../../runtime/tasks/notifier.js';
+import { TaskDispatcher } from '../../runtime/tasks/dispatcher.js';
+import { WebhookDispatcher } from '../../runtime/webhooks/dispatcher.js';
 
 export const restartCommand = new Command('restart')
   .description('Restart the Morpheus agent')
@@ -110,6 +114,9 @@ export const restartCommand = new Command('restart')
 
       const adapters: any[] = [];
       let httpServer: HttpServer | undefined;
+      const taskWorker = new TaskWorker();
+      const taskNotifier = new TaskNotifier();
+      const asyncTasksEnabled = config.runtime?.async_tasks?.enabled !== false;
 
       // Initialize Web UI
       if (options.ui && config.ui.enabled) {
@@ -132,6 +139,8 @@ export const restartCommand = new Command('restart')
               config.channels.telegram.token,
               config.channels.telegram.allowedUsers || []
             );
+            WebhookDispatcher.setTelegramAdapter(telegram);
+            TaskDispatcher.setTelegramAdapter(telegram);
             adapters.push(telegram);
           } catch (e) {
             display.log(chalk.red('Failed to initialize Telegram adapter. Continuing...'));
@@ -139,6 +148,11 @@ export const restartCommand = new Command('restart')
         } else {
           display.log(chalk.yellow('Telegram enabled but no token provided. Skipping.'));
         }
+      }
+
+      if (asyncTasksEnabled) {
+        taskWorker.start();
+        taskNotifier.start();
       }
 
       // Handle graceful shutdown
@@ -152,6 +166,10 @@ export const restartCommand = new Command('restart')
 
         for (const adapter of adapters) {
           await adapter.disconnect();
+        }
+        if (asyncTasksEnabled) {
+          taskWorker.stop();
+          taskNotifier.stop();
         }
 
         await clearPid();

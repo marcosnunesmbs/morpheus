@@ -76,6 +76,14 @@ export interface MemoryConfig {
   limit: number;
 }
 
+export interface RuntimeAsyncTasksConfig {
+  enabled: boolean;
+}
+
+export interface RuntimeConfig {
+  async_tasks: RuntimeAsyncTasksConfig;
+}
+
 export interface MorpheusConfig {
   agent: AgentConfig;
   llm: LLMConfig;
@@ -87,6 +95,7 @@ export interface MorpheusConfig {
   logging: LogConfig;
   audio: AudioConfig;
   memory: MemoryConfig;
+  runtime?: RuntimeConfig;
 }
 
 export const DEFAULT_CONFIG: MorpheusConfig = {
@@ -108,6 +117,11 @@ export const DEFAULT_CONFIG: MorpheusConfig = {
   },
   memory: {
     limit: 100
+  },
+  runtime: {
+    async_tasks: {
+      enabled: true,
+    },
   },
   llm: {
     provider: 'openai',

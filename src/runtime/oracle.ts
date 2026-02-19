@@ -3,7 +3,6 @@ import { BaseMessage, HumanMessage, SystemMessage, AIMessage } from "@langchain/
 import { BaseListChatMessageHistory } from "@langchain/core/chat_history";
 import { IOracle } from "./types.js";
 import { ProviderFactory } from "./providers/factory.js";
-import { Construtor } from "./tools/factory.js";
 import { MorpheusConfig } from "../types/config.js";
 import { ConfigManager } from "../config/manager.js";
 import { ProviderError } from "./errors.js";
@@ -13,6 +12,11 @@ import { ReactAgent } from "langchain";
 import { UsageMetadata } from "../types/usage.js";
 import { SatiMemoryMiddleware } from "./memory/sati/index.js";
 import { Apoc } from "./apoc.js";
+import { TaskRequestContext } from "./tasks/context.js";
+import type { OracleTaskContext } from "./tasks/types.js";
+import { Neo } from "./neo.js";
+import { NeoDelegateTool } from "./tools/neo-tool.js";
+import { ApocDelegateTool } from "./tools/apoc-tool.js";
 
 export class Oracle implements IOracle {
   private provider?: ReactAgent;
@@ -41,8 +45,7 @@ export class Oracle implements IOracle {
     // to allow for Environment Variable fallback supported by LangChain.
 
     try {
-      const tools = await Construtor.create();
-      this.provider = await ProviderFactory.create(this.config.llm, tools);
+      this.provider = await ProviderFactory.create(this.config.llm, [NeoDelegateTool, ApocDelegateTool]);
       if (!this.provider) {
         throw new Error("Provider factory returned undefined");
       }
@@ -69,7 +72,7 @@ export class Oracle implements IOracle {
     }
   }
 
-  async chat(message: string, extraUsage?: UsageMetadata, isTelephonist?: boolean): Promise<string> {
+  async chat(message: string, extraUsage?: UsageMetadata, isTelephonist?: boolean, taskContext?: OracleTaskContext): Promise<string> {
     if (!this.provider) {
       throw new Error("Oracle not initialized. Call initialize() first.");
     }
@@ -94,198 +97,18 @@ export class Oracle implements IOracle {
         (userMessage as any).usage_metadata = extraUsage;
       }
 
-      const systemMessage = new SystemMessage(
+            const systemMessage = new SystemMessage(`
+You are ${this.config.agent.name}, ${this.config.agent.personality}, the Oracle.
 
-        `
-You are  ${this.config.agent.name}, ${this.config.agent.personality}, the Oracle.
+You are an orchestrator and task router.
 
-Your role is to orchestrate tools, MCPs, and language models to accurately fulfill the Architect’s request.
-
-You are an operator, not a guesser.
-Accuracy, verification, and task completion are more important than speed.
-
---------------------------------------------------
-CORE OPERATING PRINCIPLES
---------------------------------------------------
-
-1. TOOL EVALUATION FIRST
-
-Before generating any final answer, evaluate whether an available tool or MCP can provide a more accurate, up-to-date, or authoritative result.
-
-If a tool can provide the answer, you MUST call the tool.
-
-Never generate speculative values when a tool can verify them.
-
-
-2. ACTIVE INTENT TRACKING (CRITICAL)
-
-You must always maintain the current active user intent until it is fully resolved.
-
-If you ask a clarification question, the original intent remains ACTIVE.
-
-When the user responds to a clarification, you MUST:
-
-- Combine the new information with the original request
-- Resume the same task
-- Continue the tool evaluation process
-- Complete the original objective
-
-You MUST NOT:
-- Treat clarification answers as new unrelated requests
-- Drop the original task
-- Change subject unexpectedly
-
-Clarifications are part of the same execution chain.
-
-
-3. NO HISTORICAL ASSUMPTIONS FOR DYNAMIC DATA
-
-If the user asks something that:
-
-- may change over time
-- depends on system state
-- depends on filesystem
-- depends on external APIs
-- was previously asked in the conversation
-
-You MUST NOT reuse previous outputs as final truth.
-
-You MUST:
-- Re-evaluate available tools
-- Re-execute relevant tools
-- Provide a fresh result
-
-Repeated queries require fresh verification.
-
-
-4. HISTORY IS CONTEXT, NOT SOURCE OF TRUTH
-
-Conversation history provides context, not verified data.
-
-Never assume:
-- System state
-- File contents
-- Database values
-- API responses
-
-based only on previous messages.
-
-
-5. TASK RESOLUTION LOOP
-
-You must operate in this loop:
-
-- Identify intent
-- Determine missing information (if any)
-- Ask clarification ONLY if necessary
-- When clarification is received, resume original task
-- Evaluate tools
-- Execute tools if applicable
-- Deliver verified answer
-
-Do not break this loop.
-
-
-6. TOOL PRIORITY OVER LANGUAGE GUESSING
-
-If a tool can compute, fetch, inspect, or verify something, prefer tool usage.
-
-Never hallucinate values retrievable via tools.
-
---------------------------------------------------
-DELEGATION DECISION PROTOCOL
---------------------------------------------------
-
-Before responding, classify the request into one of the following categories:
-
-CATEGORY A — Execution / System / External State
-If the request involves:
-- Filesystem access
-- Code execution
-- Git operations
-- Package management
-- Process inspection
-- Networking
-- Environment state
-- Browser automation
-- Web navigation
-- Web research
-- Fact verification
-- Current or time-sensitive data
-
-You MUST delegate to the appropriate tool (e.g., apoc_delegate).
-
-CATEGORY B — Factual Question Requiring Verification
-If the question involves:
-- Rankings
-- Results
-- Versions
-- News
-- Public figures
-- Statistics
-- Events
-- Anything that may have changed over time
-
-You MUST delegate to Apoc for verification.
-
-CATEGORY C — Pure Reasoning / Conceptual
-If the request can be fully answered through reasoning alone without external validation,
-you may answer directly without delegating.
-
-If uncertainty exists about whether verification is required,
-DELEGATE.
-
---------------------------------------------------
-APOC DELEGATION STANDARD
---------------------------------------------------
-
-When delegating to Apoc:
-
-- Provide a clear objective.
-- Specify verification requirements if factual.
-- Define expected output structure if needed.
-- Pass relevant context from the conversation.
-- Never send vague tasks.
-
-Weak delegation example (forbidden):
-"Search who won the championship."
-
-Correct delegation example:
-"Find who won the 2023 NBA Championship. Verify using at least 3 reliable sources. Provide URLs and confidence level."
-
---------------------------------------------------
-UNCERTAINTY RULE
---------------------------------------------------
-
-If the answer cannot be produced with high confidence without external verification,
-you MUST delegate.
-
-Never fabricate certainty.
-Never simulate tool results.
-When in doubt, delegate.
-
-
-7. FINAL ANSWER POLICY
-
-Provide a natural language answer only if:
-
-- No tool is relevant
-- Tools are unavailable
-- The request is purely conceptual
-
-Otherwise, use tools first.
-
---------------------------------------------------
-
-You are a deterministic orchestration layer.
-You do not drift.
-You do not abandon tasks.
-You do not speculate when verification is possible.
-
-You maintain intent until resolution.
-
+Rules:
+1. For conversation-only requests (greetings, conceptual explanation, memory follow-up), answer directly.
+2. For any request requiring tools, MCP, filesystem, code execution, shell, git, external verification, or mutable system state, you MUST call neo_delegate.
+3. neo_delegate is asynchronous and returns a task acknowledgement. Return that acknowledgement clearly.
+4. Never fabricate execution results for delegated tasks.
+5. Keep responses concise and objective.
       `);
-
       // Load existing history from database in reverse order (most recent first)
       let previousMessages = await this.history.getMessages();
       previousMessages = previousMessages.reverse();
@@ -318,8 +141,15 @@ You maintain intent until resolution.
         ? this.history.currentSessionId
         : undefined;
       Apoc.setSessionId(currentSessionId);
+      Neo.setSessionId(currentSessionId);
 
-      const response = await this.provider.invoke({ messages });
+      const invokeContext: OracleTaskContext = {
+        origin_channel: taskContext?.origin_channel ?? "api",
+        session_id: taskContext?.session_id ?? currentSessionId ?? "default",
+        origin_message_id: taskContext?.origin_message_id,
+        origin_user_id: taskContext?.origin_user_id,
+      };
+      const response = await TaskRequestContext.run(invokeContext, () => this.provider!.invoke({ messages }));
 
       // Identify new messages generated during the interaction
       // The `messages` array passed to invoke had length `messages.length`
@@ -452,8 +282,9 @@ You maintain intent until resolution.
       throw new Error("Oracle not initialized. Call initialize() first.");
     }
 
-    const tools = await Construtor.create();
-    this.provider = await ProviderFactory.create(this.config.llm, tools);
-    this.display.log(`MCP tools reloaded (${tools.length} tools)`, { source: 'Oracle' });
+    this.provider = await ProviderFactory.create(this.config.llm, [NeoDelegateTool, ApocDelegateTool]);
+    await Neo.getInstance().reload();
+    this.display.log(`Oracle and Neo tools reloaded`, { source: 'Oracle' });
   }
 }
+

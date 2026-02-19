@@ -179,7 +179,7 @@ The system also supports generic environment variables that apply to all provide
 3. Configuration file value (e.g., `config.llm.api_key`) - Lower priority
 4. Default value - Lowest priority
 
-> **Note**: If `THE_ARCHITECT_PASS` is not set, the system will use the default password `iamthearchitect`. This is less secure and it's recommended to set your own password in production environments.
+> **Note**: If `THE_ARCHITECT_PASS` is not set, the system will use the default password ` `. This is less secure and it's recommended to set your own password in production environments.
 
 **Option 1: Using a `.env` file**
 Create a `.env` file in the root of your project:

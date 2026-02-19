@@ -14,6 +14,8 @@ import { MCPManager } from '../config/mcp-manager.js';
 import { MCPServerConfigSchema } from '../config/schemas.js';
 import { IOracle } from '../runtime/types.js';
 import { Construtor } from '../runtime/tools/factory.js';
+import { TaskRepository } from '../runtime/tasks/repository.js';
+import type { OriginChannel, TaskAgent, TaskStatus } from '../runtime/tasks/types.js';
 
 async function readLastLines(filePath: string, n: number): Promise<string[]> {
   try {
@@ -29,6 +31,7 @@ export function createApiRouter(oracle: IOracle) {
   const router = Router();
   const configManager = ConfigManager.getInstance();
   const history = new SQLiteChatMessageHistory({ sessionId: 'api-reader' });
+  const taskRepository = TaskRepository.getInstance();
 
   // --- Session Management ---
 
@@ -127,8 +130,73 @@ export function createApiRouter(oracle: IOracle) {
     try {
       const { message, sessionId } = parsed.data;
       await (oracle as any).setSessionId(sessionId);
-      const response = await oracle.chat(message);
+      const response = await oracle.chat(message, undefined, false, {
+        origin_channel: 'ui',
+        session_id: sessionId,
+      });
       res.json({ response });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  const TaskStatusSchema = z.enum(['pending', 'running', 'completed', 'failed', 'cancelled']);
+  const TaskAgentSchema = z.enum(['apoc', 'neo', 'trinit']);
+  const OriginChannelSchema = z.enum(['telegram', 'discord', 'ui', 'api', 'webhook', 'cli']);
+
+  router.get('/tasks', (req, res) => {
+    try {
+      const status = req.query.status;
+      const agent = req.query.agent;
+      const originChannel = req.query.origin_channel;
+      const sessionId = req.query.session_id;
+      const limit = req.query.limit;
+
+      const parsedStatus = typeof status === 'string' ? TaskStatusSchema.safeParse(status) : null;
+      const parsedAgent = typeof agent === 'string' ? TaskAgentSchema.safeParse(agent) : null;
+      const parsedOrigin = typeof originChannel === 'string' ? OriginChannelSchema.safeParse(originChannel) : null;
+
+      const tasks = taskRepository.listTasks({
+        status: parsedStatus?.success ? (parsedStatus.data as TaskStatus) : undefined,
+        agent: parsedAgent?.success ? (parsedAgent.data as TaskAgent) : undefined,
+        origin_channel: parsedOrigin?.success ? (parsedOrigin.data as OriginChannel) : undefined,
+        session_id: typeof sessionId === 'string' ? sessionId : undefined,
+        limit: typeof limit === 'string' ? Math.max(1, Math.min(500, Number(limit) || 200)) : 200,
+      });
+
+      res.json(tasks);
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  router.get('/tasks/stats', (req, res) => {
+    try {
+      res.json(taskRepository.getStats());
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  router.get('/tasks/:id', (req, res) => {
+    try {
+      const task = taskRepository.getTaskById(req.params.id);
+      if (!task) {
+        return res.status(404).json({ error: 'Task not found' });
+      }
+      res.json(task);
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  router.post('/tasks/:id/retry', (req, res) => {
+    try {
+      const ok = taskRepository.retryTask(req.params.id);
+      if (!ok) {
+        return res.status(404).json({ error: 'Failed task not found for retry' });
+      }
+      res.json({ success: true });
     } catch (err: any) {
       res.status(500).json({ error: err.message });
     }
