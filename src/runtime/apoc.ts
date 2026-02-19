@@ -19,6 +19,7 @@ import { SQLiteChatMessageHistory } from "./memory/sqlite.js";
  */
 export class Apoc {
   private static instance: Apoc | null = null;
+  private static currentSessionId: string | undefined = undefined;
 
   private agent?: ReactAgent;
   private config: MorpheusConfig;
@@ -26,6 +27,14 @@ export class Apoc {
 
   private constructor(config?: MorpheusConfig) {
     this.config = config || ConfigManager.getInstance().get();
+  }
+
+  /**
+   * Called by Oracle before each chat() so Apoc knows which session to
+   * attribute its token usage to.
+   */
+  public static setSessionId(sessionId: string | undefined): void {
+    Apoc.currentSessionId = sessionId;
   }
 
   public static getInstance(config?: MorpheusConfig): Apoc {
@@ -74,8 +83,9 @@ export class Apoc {
    * Execute a devtools task delegated by Oracle.
    * @param task Natural language task description
    * @param context Optional additional context from the ongoing conversation
+   * @param sessionId Session to attribute token usage to (defaults to 'apoc')
    */
-  async execute(task: string, context?: string): Promise<string> {
+  async execute(task: string, context?: string, sessionId?: string): Promise<string> {
     if (!this.agent) {
       await this.initialize();
     }
@@ -115,11 +125,14 @@ ${context ? `CONTEXT FROM ORACLE:\n${context}` : ""}
     try {
       const response = await this.agent!.invoke({ messages });
 
-      // Persist Apoc-generated messages so token usage is tracked in short-memory.db
+      // Persist Apoc-generated messages so token usage is tracked in short-memory.db.
+      // Use the caller's session when provided, then the static session set by Oracle,
+      // otherwise fall back to 'apoc'.
       const apocConfig = this.config.apoc || this.config.llm;
       const newMessages = response.messages.slice(messages.length);
       if (newMessages.length > 0) {
-        const history = new SQLiteChatMessageHistory({ sessionId: '' });
+        const targetSession = sessionId ?? Apoc.currentSessionId ?? 'apoc';
+        const history = new SQLiteChatMessageHistory({ sessionId: targetSession });
         for (const msg of newMessages) {
           (msg as any).provider_metadata = {
             provider: apocConfig.provider,

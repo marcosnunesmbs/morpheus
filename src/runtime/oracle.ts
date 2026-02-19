@@ -12,6 +12,7 @@ import { SQLiteChatMessageHistory } from "./memory/sqlite.js";
 import { ReactAgent } from "langchain";
 import { UsageMetadata } from "../types/usage.js";
 import { SatiMemoryMiddleware } from "./memory/sati/index.js";
+import { Apoc } from "./apoc.js";
 
 export class Oracle implements IOracle {
   private provider?: ReactAgent;
@@ -240,6 +241,12 @@ You maintain intent until resolution.
       messages.push(...previousMessages);
       messages.push(userMessage);
 
+      // Propagate current session to Apoc so its token usage lands in the right session
+      const currentSessionId = (this.history instanceof SQLiteChatMessageHistory)
+        ? this.history.currentSessionId
+        : undefined;
+      Apoc.setSessionId(currentSessionId);
+
       const response = await this.provider.invoke({ messages });
 
       // Identify new messages generated during the interaction
@@ -267,9 +274,6 @@ You maintain intent until resolution.
       const responseContent = (typeof lastMessage.content === 'string') ? lastMessage.content : JSON.stringify(lastMessage.content);
 
       // Sati Middleware: Evaluation (Fire and forget)
-      const currentSessionId = (this.history instanceof SQLiteChatMessageHistory)
-        ? this.history.currentSessionId
-        : undefined;
       this.satiMiddleware.afterAgent(responseContent, [...previousMessages, userMessage], currentSessionId)
         .catch((e: any) => this.display.log(`Sati memory evaluation failed: ${e.message}`, { source: 'Sati' }));
 
