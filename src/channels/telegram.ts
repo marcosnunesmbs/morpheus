@@ -148,7 +148,11 @@ export class TelegramAdapter {
             try {
               await ctx.reply((await toMd(response)).text, { parse_mode: 'MarkdownV2' });
             } catch {
-              await ctx.reply(response);
+              try {
+                ctx.reply(response, {parse_mode: 'MarkdownV2'});
+              } catch {
+                await ctx.reply(response);
+              }
             }
             this.display.log(`Responded to @${user}: ${response}`, { source: 'Telegram' });
           }
