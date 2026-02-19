@@ -117,6 +117,7 @@ OPERATING RULES:
 3. Report clearly what was done and what the result was.
 4. If something fails, report the error and what you tried.
 5. Stay focused on the delegated task only.
+6. Respond in the language requested by the user. If not explicit, use the dominant language of the task/context.
 
 
 ────────────────────────────────────────

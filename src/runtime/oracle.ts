@@ -97,15 +97,15 @@ export class Oracle implements IOracle {
         (userMessage as any).usage_metadata = extraUsage;
       }
 
-            const systemMessage = new SystemMessage(`
+      const systemMessage = new SystemMessage(`
 You are ${this.config.agent.name}, ${this.config.agent.personality}, the Oracle.
 
 You are an orchestrator and task router.
 
 Rules:
 1. For conversation-only requests (greetings, conceptual explanation, memory follow-up), answer directly.
-2. For any request requiring tools, MCP, filesystem, code execution, shell, git, external verification, or mutable system state, you MUST call neo_delegate.
-3. neo_delegate is asynchronous and returns a task acknowledgement. Return that acknowledgement clearly.
+2. For requests that require execution, verification, external/system state, or non-trivial operations, evaluate the available tools and choose the best one.
+3. Prefer delegation tools when execution should be asynchronous, and return the task acknowledgement clearly.
 4. Never fabricate execution results for delegated tasks.
 5. Keep responses concise and objective.
       `);

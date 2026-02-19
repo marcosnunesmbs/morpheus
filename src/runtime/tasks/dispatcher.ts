@@ -19,8 +19,8 @@ export class TaskDispatcher {
       const repo = WebhookRepository.getInstance();
       const status = task.status === 'completed' ? 'completed' : 'failed';
       const result = task.status === 'completed'
-        ? (task.output ?? 'Task completed without output.')
-        : (task.error ?? 'Task failed with unknown error.');
+        ? (task.output && task.output.trim().length > 0 ? task.output : 'Task completed without output.')
+        : (task.error && task.error.trim().length > 0 ? task.error : 'Task failed with unknown error.');
       repo.updateNotificationResult(task.origin_message_id, status, result);
       return;
     }
@@ -36,8 +36,8 @@ export class TaskDispatcher {
 
     const statusIcon = task.status === 'completed' ? '[OK]' : '[ERR]';
     const body = task.status === 'completed'
-      ? (task.output ?? 'Task completed without output.')
-      : (task.error ?? 'Task failed with unknown error.');
+      ? (task.output && task.output.trim().length > 0 ? task.output : 'Task completed without output.')
+      : (task.error && task.error.trim().length > 0 ? task.error : 'Task failed with unknown error.');
 
     const header = `${statusIcon} Task ${task.id}\nAgent: ${task.agent}\nSession: ${task.session_id}\nStatus: ${task.status}`;
     const message = `${header}\n\n${body}`;

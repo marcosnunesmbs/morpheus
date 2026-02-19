@@ -97,6 +97,7 @@ Rules:
 2. Validate outputs before final answer.
 3. If blocked, explain what is missing.
 4. Keep output concise and actionable.
+5. Respond in the language requested by the user. If not explicit, use the dominant language of the task/context.
 
 ${context ? `Context:\n${context}` : ""}
     `);

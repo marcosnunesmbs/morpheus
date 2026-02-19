@@ -250,6 +250,7 @@ export class TaskRepository {
 
   markCompleted(id: string, output: string): void {
     const now = Date.now();
+    const normalizedOutput = (output ?? '').trim();
     this.db.prepare(`
       UPDATE tasks
       SET status = 'completed',
@@ -261,7 +262,7 @@ export class TaskRepository {
           notify_last_error = NULL,
           notified_at = NULL
       WHERE id = ?
-    `).run(output, now, now, id);
+    `).run(normalizedOutput.length > 0 ? normalizedOutput : 'Task completed without output.', now, now, id);
   }
 
   markFailed(id: string, error: string): void {
@@ -355,6 +356,26 @@ export class TaskRepository {
     });
 
     return tx();
+  }
+
+  recoverNotificationQueue(maxAttempts: number, staleSendingMs: number): number {
+    const now = Date.now();
+    const staleThreshold = now - Math.max(0, staleSendingMs);
+
+    const result = this.db.prepare(`
+      UPDATE tasks
+      SET notify_status = 'pending',
+          notify_last_error = COALESCE(notify_last_error, 'Recovered notification queue state'),
+          updated_at = ?
+      WHERE status IN ('completed', 'failed')
+        AND (
+          (notify_status = 'sending' AND updated_at <= ?)
+          OR
+          (notify_status = 'failed' AND notify_attempts < ?)
+        )
+    `).run(now, staleThreshold, Math.max(1, maxAttempts));
+
+    return result.changes;
   }
 
   markNotificationSent(taskId: string): void {
