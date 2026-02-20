@@ -1,14 +1,74 @@
 import { AsyncLocalStorage } from 'node:async_hooks';
 import type { OracleTaskContext } from './types.js';
 
-const storage = new AsyncLocalStorage<OracleTaskContext>();
+type DelegationAck = {
+  task_id: string;
+  agent: string;
+  task: string;
+};
+
+type RequestContext = OracleTaskContext & {
+  delegation_acks?: DelegationAck[];
+};
+
+const storage = new AsyncLocalStorage<RequestContext>();
 
 export class TaskRequestContext {
+  private static readonly MAX_DELEGATIONS_PER_TURN = 6;
+
   static run<T>(ctx: OracleTaskContext, fn: () => Promise<T>): Promise<T> {
-    return storage.run(ctx, fn);
+    return storage.run({ ...ctx }, fn);
   }
 
   static get(): OracleTaskContext | undefined {
     return storage.getStore();
+  }
+
+  static getDelegationAck(): DelegationAck | undefined {
+    const acks = storage.getStore()?.delegation_acks ?? [];
+    return acks[0];
+  }
+
+  static setDelegationAck(ack: DelegationAck): void {
+    const current = storage.getStore();
+    if (!current) return;
+    if (!current.delegation_acks) {
+      current.delegation_acks = [];
+    }
+    current.delegation_acks.push(ack);
+  }
+
+  static getDelegationAcks(): DelegationAck[] {
+    return storage.getStore()?.delegation_acks ?? [];
+  }
+
+  static canEnqueueDelegation(): boolean {
+    return this.getDelegationAcks().length < this.MAX_DELEGATIONS_PER_TURN;
+  }
+
+  static findDuplicateDelegation(agent: string, task: string): DelegationAck | undefined {
+    const acks = this.getDelegationAcks();
+    if (acks.length === 0) return undefined;
+    const normalized = this.normalizeTask(task);
+
+    for (const ack of acks) {
+      if (ack.agent !== agent) {
+        continue;
+      }
+      const existing = this.normalizeTask(ack.task);
+      if (existing === normalized) {
+        return ack;
+      }
+    }
+
+    return undefined;
+  }
+
+  private static normalizeTask(task: string): string {
+    return task
+      .toLowerCase()
+      .replace(/[^\p{L}\p{N}\s]/gu, " ")
+      .replace(/\s+/g, " ")
+      .trim();
   }
 }

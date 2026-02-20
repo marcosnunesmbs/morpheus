@@ -17,6 +17,14 @@ import { TaskRequestContext } from "../tasks/context.js";
 export const ApocDelegateTool = tool(
   async ({ task, context }: { task: string; context?: string }) => {
     try {
+      const existingAck = TaskRequestContext.findDuplicateDelegation("apoc", task);
+      if (existingAck) {
+        return `Task ${existingAck.task_id} already queued for ${existingAck.agent} execution.`;
+      }
+      if (!TaskRequestContext.canEnqueueDelegation()) {
+        return "Delegation limit reached for this user turn. Split the request or wait for current tasks.";
+      }
+
       const ctx = TaskRequestContext.get();
       const repository = TaskRepository.getInstance();
       const created = repository.createTask({
@@ -29,6 +37,7 @@ export const ApocDelegateTool = tool(
         origin_user_id: ctx?.origin_user_id ?? null,
         max_attempts: 3,
       });
+      TaskRequestContext.setDelegationAck({ task_id: created.id, agent: "apoc", task });
       return `Task ${created.id} queued for Apoc execution.`;
     } catch (err: any) {
       return `Apoc task enqueue failed: ${err.message}`;
@@ -40,6 +49,7 @@ export const ApocDelegateTool = tool(
 
 This tool enqueues a background task and returns an acknowledgement with task id.
 Do not expect final execution output in the same response.
+Each task must contain a single atomic action with a clear expected result.
 
 Use this tool when the user asks for ANY of the following:
 - File operations: read, write, create, delete files or directories

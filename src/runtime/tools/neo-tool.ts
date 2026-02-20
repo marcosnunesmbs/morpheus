@@ -8,7 +8,8 @@ const NEO_BASE_DESCRIPTION = `Delegate execution to Neo asynchronously.
 
 This tool creates a background task and returns an acknowledgement with task id.
 Use it for requests that require tools, MCPs, filesystem, shell, git, web research,
-or external/stateful verification.`;
+or external/stateful verification.
+Each delegated task must contain one atomic objective.`;
 
 function normalizeDescription(text: string | undefined): string {
   if (!text) return "No description";
@@ -41,6 +42,14 @@ export function updateNeoDelegateToolDescription(tools: StructuredTool[]): void 
 export const NeoDelegateTool = tool(
   async ({ task, context }: { task: string; context?: string }) => {
     try {
+      const existingAck = TaskRequestContext.findDuplicateDelegation("neo", task);
+      if (existingAck) {
+        return `Task ${existingAck.task_id} already queued for ${existingAck.agent} execution.`;
+      }
+      if (!TaskRequestContext.canEnqueueDelegation()) {
+        return "Delegation limit reached for this user turn. Split the request or wait for current tasks.";
+      }
+
       const ctx = TaskRequestContext.get();
       const repository = TaskRepository.getInstance();
       const created = repository.createTask({
@@ -53,6 +62,7 @@ export const NeoDelegateTool = tool(
         origin_user_id: ctx?.origin_user_id ?? null,
         max_attempts: 3,
       });
+      TaskRequestContext.setDelegationAck({ task_id: created.id, agent: "neo", task });
       return `Task ${created.id} queued for Neo execution.`;
     } catch (err: any) {
       return `Neo task enqueue failed: ${err.message}`;
