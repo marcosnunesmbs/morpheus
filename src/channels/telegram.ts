@@ -15,13 +15,65 @@ import { SatiRepository } from '../runtime/memory/sati/repository.js';
 import { MCPManager } from '../config/mcp-manager.js';
 import { Construtor } from '../runtime/tools/factory.js';
 
-async function toMd(text: string): Promise<{ text: string; parse_mode: 'MarkdownV2' }> {
+function escapeHtml(text: string): string {
+  return text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+}
+
+async function toTelegramRichText(text: string): Promise<{ text: string; parse_mode: 'HTML' }> {
   const MAX = 4096;
-  // Avoid external markdown converter runtime incompatibilities (CJS/ESM).
-  // For dynamic outputs we prefer strict escaping over rich formatting.
-  const escaped = text.replace(/([_*\[\]()~`>#+\-=|{}.!\\])/g, '\\$1');
-  const safe = escaped.length > MAX ? escaped.slice(0, MAX - 3) + '\\.\\.\\.' : escaped;
-  return { text: safe, parse_mode: 'MarkdownV2' };
+  let source = String(text ?? '').replace(/\r\n/g, '\n');
+
+  const codeBlocks: string[] = [];
+  source = source.replace(/```([a-zA-Z0-9_-]+)?\n?([\s\S]*?)```/g, (_m, _lang, code) => {
+    const idx = codeBlocks.push(`<pre><code>${escapeHtml(String(code).trimEnd())}</code></pre>`) - 1;
+    return `@@CODEBLOCK_${idx}@@`;
+  });
+
+  const inlineCodes: string[] = [];
+  source = source.replace(/`([^`\n]+)`/g, (_m, code) => {
+    const idx = inlineCodes.push(`<code>${escapeHtml(code)}</code>`) - 1;
+    return `@@INLINECODE_${idx}@@`;
+  });
+
+  const links: string[] = [];
+  source = source.replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g, (_m, label, url) => {
+    const safeUrl = String(url).replace(/"/g, '&quot;');
+    const idx = links.push(`<a href="${safeUrl}">${escapeHtml(label)}</a>`) - 1;
+    return `@@LINK_${idx}@@`;
+  });
+
+  // Markdown bullets become visible bullets in Telegram HTML mode.
+  source = source.replace(/^(\s*)[-*]\s+/gm, '$1• ');
+
+  // Escape user/model content before reinserting HTML tags.
+  source = escapeHtml(source);
+
+  // Headings -> bold lines
+  source = source.replace(/^#{1,6}\s+(.+)$/gm, (_m, title) => `<b>${title.trim()}</b>`);
+
+  // Bold
+  source = source.replace(/\*\*([\s\S]+?)\*\*/g, '<b>$1</b>');
+  source = source.replace(/__([\s\S]+?)__/g, '<b>$1</b>');
+
+  // Italic (conservative)
+  source = source.replace(/(^|[\s(])\*([^*\n]+)\*(?=[$\s).,!?:;])/gm, '$1<i>$2</i>');
+  source = source.replace(/(^|[\s(])_([^_\n]+)_(?=[$\s).,!?:;])/gm, '$1<i>$2</i>');
+
+  // Restore placeholders
+  source = source.replace(/@@CODEBLOCK_(\d+)@@/g, (_m, idx) => codeBlocks[Number(idx)] || '');
+  source = source.replace(/@@INLINECODE_(\d+)@@/g, (_m, idx) => inlineCodes[Number(idx)] || '');
+  source = source.replace(/@@LINK_(\d+)@@/g, (_m, idx) => links[Number(idx)] || '');
+
+  let safe = source.trim();
+  if (safe.length > MAX) {
+    // Keep dynamic rich formatting when possible; fallback path exists at call site.
+    safe = safe.slice(0, MAX - 3) + '...';
+  }
+
+  return { text: safe, parse_mode: 'HTML' };
 }
 
 /**
@@ -136,7 +188,8 @@ export class TelegramAdapter {
 
           if (response) {
             try {
-              await ctx.reply((await toMd(response)).text, { parse_mode: 'MarkdownV2' });
+              const rich = await toTelegramRichText(response);
+              await ctx.reply(rich.text, { parse_mode: rich.parse_mode });
             } catch {
               await ctx.reply(response);
             }
@@ -244,7 +297,8 @@ export class TelegramAdapter {
 
           if (response) {
             try {
-              await ctx.reply((await toMd(response)).text, { parse_mode: 'MarkdownV2' });
+              const rich = await toTelegramRichText(response);
+              await ctx.reply(rich.text, { parse_mode: rich.parse_mode });
             } catch {
               await ctx.reply(response);
             }
@@ -461,18 +515,9 @@ export class TelegramAdapter {
   }
 
   /**
-   * Escapes a string for Telegram MarkdownV2 format.
-   * All special characters outside code spans must be escaped with a backslash.
-   */
-  private escapeMarkdownV2(text: string): string {
-    // Characters that must be escaped in MarkdownV2 outside of code/pre blocks
-    return text.replace(/([_*[\]()~`>#+\-=|{}.!\\])/g, '\\$1');
-  }
-
-  /**
    * Sends a proactive message to all allowed Telegram users.
    * Used by the webhook notification system to push results.
-   * Tries plain text first to avoid Markdown parse errors from LLM output.
+   * Uses Telegram HTML parse mode for richer formatting, with plain-text fallback.
    */
   public async sendMessage(text: string): Promise<void> {
     if (!this.isConnected || !this.bot) {
@@ -492,14 +537,13 @@ export class TelegramAdapter {
       return;
     }
 
-    // toMd() already truncates to 4096 chars (Telegram's hard limit)
-    const { text: mdText, parse_mode } = await toMd(text);
+    const rich = await toTelegramRichText(text);
 
     for (const userId of allowedUsers) {
       try {
-        await this.bot.telegram.sendMessage(userId, mdText, { parse_mode });
+        await this.bot.telegram.sendMessage(userId, rich.text, { parse_mode: rich.parse_mode });
       } catch {
-        // Fallback to plain text if MarkdownV2 conversion still fails
+        // Fallback to plain text if rich conversion fails
         try {
           const MAX_LEN = 4096;
           const plain = text.length > MAX_LEN ? text.slice(0, MAX_LEN - 3) + '...' : text;
@@ -523,9 +567,9 @@ export class TelegramAdapter {
       return;
     }
 
-    const { text: mdText, parse_mode } = await toMd(text);
+    const rich = await toTelegramRichText(text);
     try {
-      await this.bot.telegram.sendMessage(userId, mdText, { parse_mode });
+      await this.bot.telegram.sendMessage(userId, rich.text, { parse_mode: rich.parse_mode });
     } catch {
       const MAX_LEN = 4096;
       const plain = text.length > MAX_LEN ? text.slice(0, MAX_LEN - 3) + '...' : text;
@@ -872,7 +916,8 @@ How can I assist you today?`;
 
     if (response) {
       try {
-        await ctx.reply((await toMd(response)).text, { parse_mode: 'MarkdownV2' });
+        const rich = await toTelegramRichText(response);
+        await ctx.reply(rich.text, { parse_mode: rich.parse_mode });
       } catch {
         await ctx.reply(response);
       }
