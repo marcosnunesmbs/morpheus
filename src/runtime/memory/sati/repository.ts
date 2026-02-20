@@ -254,7 +254,7 @@ export class SatiRepository {
         m.category as category,
         m.importance as importance,
         'long_term' as source_type,
-        (1 - vec_distance_cosine(v.embedding, ?)) * 1.7 as distance
+        (1 - vec_distance_cosine(v.embedding, ?)) * 0.8 as distance
       FROM memory_vec v
       JOIN memory_embedding_map map ON map.vec_rowid = v.rowid
       JOIN long_term_memory m ON m.id = map.memory_id
@@ -270,7 +270,7 @@ export class SatiRepository {
         'session' as category,
         'medium' as importance,
         'session_chunk' as source_type,
-        (1 - vec_distance_cosine(v.embedding, ?)) * 0.5 as distance
+        (1 - vec_distance_cosine(v.embedding, ?)) * 0.2 as distance
       FROM session_vec v
       JOIN session_embedding_map map ON map.vec_rowid = v.rowid
       JOIN session_chunks sc ON sc.id = map.session_chunk_id

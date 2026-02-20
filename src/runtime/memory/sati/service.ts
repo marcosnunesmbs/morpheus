@@ -89,7 +89,7 @@ export class SatiService implements ISatiService {
 
       // Get existing memories for context (Simulated "Working Memory" or full list if small)
       const allMemories = this.repository.getAllMemories();
-      const existingSummaries = allMemories.slice(0, 50).map(m => m.summary);
+      const existingSummaries = allMemories.map(m => m.summary);
 
       // Map conversation to strict types and sanitize
       const recentConversation = conversation.map(c => ({

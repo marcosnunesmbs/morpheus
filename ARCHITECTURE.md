@@ -1,183 +1,141 @@
-# Morpheus Architecture Reference
+﻿# Morpheus Architecture Reference
 
-## 1. High-Level System Overview
-Morpheus is a **local-first AI Operator** designed as a persistent background service (Daemon). It functions as an orchestration layer that bridges Large Language Models (LLMs) with the user's local environment, external communication channels (like Telegram), and developer tools.
+## 1. System Overview
+Morpheus is a local-first AI operator running as a long-lived daemon. It orchestrates:
+- LLM inference
+- asynchronous task execution
+- persistent memory and token accounting
+- multi-channel delivery (UI, Telegram, webhooks)
 
-Unlike a simple chatbot, Morpheus is architected to be a long-running "OS for AI" that maintains state, identity, and memory across different interaction sessions and modalities (text, voice, terminal).
+The runtime is a modular monolith built on Node.js + TypeScript, with SQLite as the source of truth for sessions, messages, usage, and tasks.
 
-## 2. Architectural Style
-The system follows a **Modular Monolith** architecture with a clear separation of concerns, orchestrated by a central event loop:
-*   **Daemon Process:** A single Node.js process manages the lifecycle of all components.
-*   **Event-Driven Channels:** External interfaces (Telegram, HTTP) act as event producers for the central agent.
-*   **Agentic Core:** The "Oracle" acts as the central brain, executing a retrieve-think-act loop.
+## 2. Core Architecture
 
-## 3. Main Components & Responsibilities
+### 2.1 Runtime Core (`src/runtime`)
+- `oracle.ts`: orchestration brain. Routes requests, decides whether to answer directly or enqueue delegated work.
+- `neo.ts`: execution subagent for MCP + Morpheus internal tools (config, diagnostics, analytics).
+- `apoc.ts`: execution subagent for DevKit operations (filesystem, shell, git, network, processes, packages, system).
+- `memory/sati/*`: long-term memory pipeline (retrieval + post-response memory evaluation).
+- `tasks/*`: async task queue repository, worker, notifier, dispatcher, and request context.
 
-### Core Runtime (`src/runtime/`)
-The "Central Nervous System" of Morpheus.
-*   **Oracle Engine (`oracle.ts`):** Implements the main conversation loop using LangChain ReactAgent. Handles prompt construction, context window management, tool execution, and delegation to subagents via the `apoc_delegate` tool.
-*   **Apoc Subagent (`apoc.ts`):** Specialized DevTools subagent called by Oracle. Executes filesystem, shell, git, network, package, process, and system operations using **DevKit** tool factories (`src/devkit/`). Uses `ProviderFactory.createBare()` for a clean isolated agent context.
-*   **Memory Systems:**
-    *   **Short-Term:** SQLite-based chat history for active session context.
-    *   **Long-Term (Sati):** A dedicated sub-agent and database (`sati-memory.db`) for storing semantic facts, user preferences, and project context.
-    *   **Embeddings:** Background workers allowing semantic search over past conversations.
-*   **Provider Factory (`providers/factory.ts`):** Abstracts LLM providers (OpenAI, Anthropic, Gemini, Ollama). Two creation modes:
-    *   `create()` — Full Oracle agent (internal tools + MCP tools + `apoc_delegate`).
-    *   `createBare()` — Clean subagent context (DevKit tools only, used by Apoc).
-*   **Tool Manager:** Loads and executes Model Context Protocol (MCP) servers and local function calls.
+### 2.2 Interfaces
+- `src/channels/telegram.ts`: Telegram adapter (commands, chat, voice transcription, proactive task notifications).
+- `src/http/*`: Express API + UI hosting + webhooks.
+- `src/ui/*`: React dashboard for chat, tasks, settings, logs, stats, MCP, webhooks.
 
-### Interfaces & Channels (`src/channels/`, `src/http/`)
-The methods by which users interact with Morpheus.
-*   **Channel Adapters:** Protocol translators (e.g., `TelegramAdapter`) that convert external platform events into normalized Oracle messages.
-*   **HTTP Server:** Express.js server providing a REST API for the UI and external integrations.
-*   **Web UI (`src/ui/`):** A React/Vite SPA for system monitoring, configuration, and direct chat.
+### 2.3 Infrastructure
+- `src/config/*`: zod-validated config + env precedence.
+- `src/cli/commands/*`: lifecycle control (`start`, `stop`, `restart`, `status`, `doctor`).
 
-### Infrastructure (`src/cli/`, `src/config/`)
-*   **CLI:** Commander.js based tool for process management (`start`, `stop`, `status`).
-*   **Config Manager:** Zod-validated configuration loader handling `~/.morpheus/config.yaml`.
+## 3. Multi-Agent Model
 
-## 4. Folder Structure
-```
-bin/                # Executable entry point
-src/
-├── channels/       # Adapters for external platforms (Telegram, etc.)
-├── cli/            # CLI Command definitions and lifecycle management
-├── config/         # Configuration logic and Zod schemas
-├── devkit/         # DevKit tool factories (filesystem, shell, git, network, packages, processes, system)
-├── http/           # Express API server & static asset serving
-├── runtime/        # Core business logic (Agent, Memory, Tools)
-│   ├── apoc.ts     # Apoc DevTools subagent (singleton, uses DevKit)
-│   ├── oracle.ts   # Oracle main agent (ReactAgent + apoc_delegate tool)
-│   ├── memory/     # SQLite & Vector storage implementations
-│   ├── providers/  # LLM API wrappers (create / createBare)
-│   └── tools/      # Internal tools + apoc-tool.ts (apoc_delegate)
-├── types/          # Shared TypeScript interfaces
-└── ui/             # React Frontend application
-```
-
-## 5. Data Flow
-
-1.  **Ingestion:** User sends a message via **Telegram**.
-2.  **Normalization:** `TelegramAdapter` receives the webhook, verifies the user, and converts the payload to a standard internal message format.
-3.  **Context Assembly (Pre-Agent):**
-    *   **Sati Middleware** queries the Vector DB for relevant past memories.
-    *   Recent chat history is loaded from SQLite.
-4.  **Cognition (The Oracle):**
-    *   The **LLM** receives the prompt (System prompt + Context + User query).
-    *   The LLM may decide to call **Tools** (e.g., MCP servers, internal config/diagnostic tools).
-    *   For dev operations (files, shell, git, etc.), Oracle calls the **`apoc_delegate`** tool.
-    *   **Apoc** receives the delegated task, executes it with DevKit tools, and returns the result.
-    *   Oracle integrates the result and continues the ReAct loop until complete.
-5.  **Response:** The LLM generates a final text response.
-6.  **Consolidation (Post-Agent):**
-    *   **Sati Middleware** analyzes the interaction to extract new facts/preferences and stores them in the Long-Term Memory DB.
-7.  **Delivery:** `TelegramAdapter` formats the response and sends it back to the user.
-
-## 6. External Integrations
-*   **LLM Providers:** OpenAI, Anthropic, Google Gemini, Ollama (Local).
-*   **Messaging Platforms:** Telegram Bot API.
-*   **MCP Servers:** Connects to any standard Model Context Protocol server (Filesystem, GitHub, Databases).
-
-## 7. Authentication & Security
-*   **Daemon Security:** The HTTP API is protected by `THE_ARCHITECT_PASS`, validated via the `x-architect-pass` header.
-*   **Channel Security:** Messaging adapters enforce strict **Allowlists**. Only User IDs defined in `config.yaml` can trigger the agent. Unauthorized messages are silently ignored or logged.
-*   **Local-First:** All data acts locally. Use of external LLMs is optional (via Ollama).
-
-## 8. Scalability & Deployment
-*   **Single-User Focus:** Currently designed as a personal single-user daemon.
-*   **Deployment:** Runs on local dev machines, home servers, or VPS.
-*   **Resource Management:** Uses `better-sqlite3` for efficient local storage and manages child processes for MCP servers.
-
-## 9. Multi-Agent Architecture
-
-Morpheus implements a **two-tier multi-agent pattern**:
-
-| Agent | Role | Tools |
+| Agent | Responsibility | Tool Scope |
 |---|---|---|
-| **Oracle** | Orchestrator — handles all user-facing conversation, reasoning, and delegation | MCP servers, internal tools, `apoc_delegate` |
-| **Sati** | Background evaluator — consolidates long-term memories after each conversation | LLM only (no tools) |
-| **Apoc** | DevTools executor — runs file/shell/git/network ops on Oracle's behalf | DevKit (filesystem, shell, git, network, packages, processes, system) |
+| Oracle | Conversation orchestrator and router | `task_query`, `neo_delegate`, `apoc_delegate` |
+| Neo | Analytical/operational execution | Runtime MCP tools + config/diagnostic/analytics tools |
+| Apoc | DevTools and browser execution | DevKit toolchain |
+| Sati | Long-term memory evaluator | No execution tools (memory-focused reasoning) |
 
-Each agent can independently use a different LLM provider/model, configured under `llm`, `sati`, and `apoc` sections in `zaion.yaml`.
+Key design choice: Oracle no longer carries MCP tool load directly. It delegates execution asynchronously and stays responsive.
 
-## 10. Webhook System
+## 4. Async Task Orchestration
 
-Morpheus includes a complete **Webhook System** that allows external services to trigger the Oracle agent and receive results asynchronously.
+### 4.1 Delegation Lifecycle
+1. User request arrives at Oracle.
+2. Oracle decides:
+   - direct response (conversation only), or
+   - delegated execution via `neo_delegate` / `apoc_delegate`.
+3. Delegate tool writes a task into `tasks` table (`status = pending`) with full origin context:
+   - `origin_channel`
+   - `session_id`
+   - `origin_message_id`
+   - `origin_user_id`
+4. Oracle returns an acknowledgement (no execution output) and remains available.
+5. `TaskWorker` claims pending tasks and executes subagent work.
+6. Worker marks task `completed` or `failed`.
+7. `TaskNotifier` picks finished tasks awaiting notification.
+8. `TaskDispatcher` delivers result:
+   - Telegram proactive message for telegram-origin tasks
+   - webhook notification update for webhook-origin tasks
 
-### Architecture
+### 4.2 Queue and Reliability
+Implemented in `src/runtime/tasks/repository.ts`:
+- durable fields: `available_at`, `attempt_count`, `max_attempts`, `worker_id`
+- notification lifecycle: `notify_status`, `notify_attempts`, `notify_last_error`, `notified_at`
+- retry/backoff for execution failures
+- stale-running and stale-notification recovery
 
-```
-External Trigger (CI/CD, GitHub Actions, etc.)
-    │
-    ▼
-POST /api/webhooks/trigger/:webhook_name
-    │  Header: x-api-key: <webhook_api_key>
-    │
-    ├─ Validates: api_key + enabled status
-    ├─ Creates Notification (status: pending)
-    ├─ Responds 202 Accepted immediately
-    │
-    ▼ (async, fire-and-forget via setImmediate)
-WebhookDispatcher.dispatch()
-    │
-    ├─ oracle.chat(webhook.prompt + payload)
-    │     └─ Oracle uses full capabilities (MCPs, apoc_delegate, etc.)
-    │
-    ├─ Updates Notification (status: completed/failed)
-    │
-    └─ Dispatches to channels:
-          ├─ UI: stored in SQLite, polled by frontend every 5s
-          └─ Telegram: proactive push via TelegramAdapter.sendMessage()
-```
+### 4.3 Delegation Guards
+- Atomic-only delegation: composite multi-action task payloads are rejected.
+- Per-turn delegation cap via `TaskRequestContext`.
+- Duplicate delegation deduplication in the same request context.
+- Oracle validates task IDs against DB before acknowledging creation.
+- Synthetic/fabricated "task created" responses are blocked if no valid task exists.
 
-### Security Model
-*   Each webhook has its own **unique api_key** (UUIDv4), validated via the `x-api-key` header (never in the URL, preventing log leakage).
-*   A webhook's **name** (slug) serves as its URL identifier. Disabled webhooks return `404` — same as not-found — to prevent enumeration.
-*   Management endpoints (`GET /api/webhooks`, `POST /api/webhooks`, etc.) are protected by the standard `x-architect-pass` middleware.
-*   The trigger endpoint (`POST /api/webhooks/trigger/:name`) is **intentionally public** — security relies solely on the per-webhook `api_key`.
+## 5. Session, Memory, and Usage Persistence
 
-### Data Model (SQLite — `short-memory.db`)
+### 5.1 Short-Term Memory (`short-memory.db`)
+`SQLiteChatMessageHistory` stores message rows with:
+- `session_id`, `type`, `content`, `created_at`
+- token columns: `input_tokens`, `output_tokens`, `total_tokens`, `cache_read_tokens`
+- model provenance: `provider`, `model`
+- `audio_duration_seconds` when applicable
 
-**`webhooks` table:**
-```sql
-id, name (slug/unique), api_key (unique), prompt, enabled,
-notification_channels (JSON array), created_at,
-last_triggered_at, trigger_count
-```
+### 5.2 Long-Term Memory (`sati-memory.db`)
+Sati retrieval enriches Oracle context before execution. Sati post-processing extracts durable memory facts after non-delegation turns.
 
-**`webhook_notifications` table:**
-```sql
-id, webhook_id (FK), webhook_name, status (pending/completed/failed),
-payload (raw JSON string), result (agent output), read (bool),
-created_at, completed_at
-```
+### 5.3 Token Accounting
+- Oracle persists both direct answers and delegation acknowledgements.
+- Neo and Apoc persist their final task outputs as AI messages under the task session.
+- UI can render per-message token badges from stored usage metadata.
 
-### Key Components
+## 6. HTTP/API and UI
 
-| Component | File | Responsibility |
-|---|---|---|
-| `WebhookRepository` | `src/runtime/webhooks/repository.ts` | SQLite CRUD, trigger recording, unread count |
-| `WebhookDispatcher` | `src/runtime/webhooks/dispatcher.ts` | Async orchestration — Oracle call, notification update, channel dispatch |
-| Webhooks Router | `src/http/webhooks-router.ts` | Express routes for trigger + management + notifications |
-| WebhookManager UI | `src/ui/src/pages/WebhookManager.tsx` | CRUD page with curl copy helper |
-| Notifications UI | `src/ui/src/pages/Notifications.tsx` | Notification inbox with unread badge |
+### 6.1 API Surface
+Main API router (`src/http/api.ts`) provides:
+- sessions and chat
+- tasks listing/stats/detail/retry
+- config management (`/config`, `/config/sati`, `/config/neo`, `/config/apoc`)
+- usage statistics and model pricing
+- MCP management and reload
+- logs
 
-### Express Route Ordering (Critical)
-```
-/api/webhooks/trigger/:name  ← public, no authMiddleware
-/api/webhooks/notifications  ← declared before /:id
-/api/webhooks/notifications/read
-router.use(authMiddleware)   ← all management routes below are protected
-/api/webhooks/               ← list / create
-/api/webhooks/:id            ← get / update / delete
-```
-The webhooks router is mounted **before** the auth-guarded `/api` block in `server.ts` so the trigger endpoint is accessible without a global auth check.
+Webhooks router (`src/http/webhooks-router.ts`) provides:
+- public trigger endpoint by webhook key
+- authenticated webhook CRUD + notifications
 
-### Oracle Integration
-`WebhookDispatcher` receives the `IOracle` instance via a static setter (`WebhookDispatcher.setOracle(oracle)`) called at boot time in `HttpServer`. This gives webhooks full Oracle capabilities — MCP tools, `apoc_delegate`, memory context — with no runtime coupling.
+### 6.2 UI Capabilities
+- Tasks page with live queue visibility, filters, status cards, and retry action.
+- Chat page with:
+  - tool-call message visibility
+  - SATI messages grouped as collapsible `SATI Memory`
+  - markdown rendering for AI responses
+  - per-message token badges (input/output)
+- Agents settings with dedicated Oracle/Sati/Neo/Apoc tabs.
 
-## 11. Future Considerations
-*   **Plugin System:** Dynamic loading of channels and tools without rebuilding the core.
-*   **Discord Adapter:** Support for Discord interactions.
-*   **Webhook Retry Logic:** Exponential backoff for failed dispatches.
-*   **Webhook Secrets Rotation:** UI-driven api_key regeneration.
+## 7. Telegram Delivery Model
+
+Telegram adapter uses rich HTML formatting conversion for dynamic responses:
+- markdown-like bold/italic/lists/code support
+- code blocks and inline code preservation
+- UUID auto-wrapping in `<code>` for easier copy
+
+Task completion notifications are proactive and include task metadata (id, agent, status) plus output/error body.
+
+## 8. Security Model
+- Local-first storage by default.
+- `x-architect-pass` protects `/api/*` management routes.
+- webhook trigger uses per-webhook `x-api-key`.
+- Telegram allowlist enforces authorized user IDs.
+- Apoc execution constrained by configurable `working_dir` and `timeout_ms`.
+
+## 9. Runtime Lifecycle
+At daemon boot (`start` / `restart` commands):
+- load config and initialize Oracle
+- start HTTP server (optional)
+- connect Telegram (optional)
+- start background workers when `runtime.async_tasks.enabled != false`:
+  - `TaskWorker`
+  - `TaskNotifier`
+
+Graceful shutdown stops HTTP, adapters, workers, and clears PID state.

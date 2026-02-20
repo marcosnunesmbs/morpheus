@@ -1,16 +1,25 @@
-<div align="center">
+﻿<div align="center">
   <img src="./assets/logo.png" alt="Morpheus Logo" width="220" />
 </div>
 
 # Morpheus
 
-> **Morpheus is a local-first AI operator that bridges developers and machines.**
+Morpheus is a local-first AI operator for developers.
+It runs as a daemon and orchestrates LLMs, MCP tools, DevKit tools, memory, and channels (Web UI, Telegram, API, webhooks).
 
-Morpheus is a local AI agent for developers, running as a CLI daemon that connects to **LLMs**, **local tools**, and **MCPs**, enabling interaction via **Terminal, Telegram, and Discord**. Inspired by the character Morpheus from *The Matrix*, the project acts as an **intelligent orchestrator**, bridging the gap between the developer and complex systems.
+## Why Morpheus
+- Local-first persistence (sessions, messages, usage, tasks).
+- Multi-agent architecture (Oracle, Neo, Apoc, Sati).
+- Async task execution with queue + worker + notifier.
+- Rich operational visibility in UI (chat traces, tasks, usage, logs).
+
+## Multi-Agent Roles
+- `Oracle`: orchestration and routing. Decides direct answer vs async delegation.
+- `Neo`: MCP and internal operational tools (config, diagnostics, analytics).
+- `Apoc`: DevTools/browser execution (filesystem, shell, git, network, packages, processes, system, browser automation).
+- `Sati`: long-term memory retrieval/evaluation.
 
 ## Installation
-
-Install Morpheus globally via npm:
 
 ```bash
 npm install -g morpheus-cli
@@ -20,1212 +29,356 @@ npm install -g morpheus-cli
 
 ### 1. Initialize
 
-Set up your configuration (API keys, preferences):
-
 ```bash
 morpheus init
 ```
 
-### 2. Start the Agent
+Creates:
+- `~/.morpheus/zaion.yaml`
+- `~/.morpheus/mcps.json`
+- local memory/log folders
 
-Run the background daemon and Web UI:
+### 2. Start
 
 ```bash
 morpheus start
 ```
 
-This will:
-- Start the agent process
-- Launch the Web UI at http://localhost:3333
-- If an instance is already running, prompt whether to stop it and start a new one
-
-#### Auto-approve restart
-
-If you want to automatically stop any running instance and start a new one without prompting:
+Useful flags:
 
 ```bash
-morpheus start -y
-# or
-morpheus start --yes
+morpheus start -y            # auto-restart if another instance is running
+morpheus start --no-ui       # disable web UI
+morpheus start --port 3333   # override UI port
 ```
 
-### Other Commands
+### 3. Control Commands
 
 ```bash
-# Check if Morpheus is running
 morpheus status
-
-# Stop the agent
 morpheus stop
-
-# Restart the agent
 morpheus restart
-
-# Diagnose issues
 morpheus doctor
-
-# Manage sessions
-morpheus session new     # Archive current and start new
-morpheus session status  # Check current session info
+morpheus session new
+morpheus session status
 ```
 
-## Troubleshooting
-
-### Command not found
-
-If you installed successfully but can't run the `morpheus` command:
-
-1.  **Check your PATH**: Ensure your global npm bin directory is in your system PATH.
-    -   Run `npm bin -g` to see the folder.
-    -   On Windows, this is usually `%APPDATA%\npm`.
-    -   On Linux/Mac, verify `echo $PATH`.
-2.  **Restart Terminal**: New installations might not be visible until you restart your shell.
-
-## Using NPX
-You can run Morpheus without installing it globally using `npx`:
-
-```bash
-
-npx morpheus-cli init
-
-npx morpheus-cli start
-
-```
-
-## Technical Overview
-
-Morpheus is built with **Node.js** and **TypeScript**, using **LangChain** as the orchestration engine. It runs as a background daemon process, managing connections to LLM providers (OpenAI, Anthropic, Ollama) and external channels (Telegram, Discord).
-
-### Core Components
-
-- **Runtime (`src/runtime/`)**: The heart of the application. Manages the Oracle (agent) lifecycle, provider instantiation, and command execution.
-- **CLI (`src/cli/`)**: Built with `commander`, handles user interaction, configuration, and daemon control (`start`, `stop`, `status`).
-- **Configuration (`src/config/`)**: Singleton-based configuration manager using `zod` for validation and `js-yaml` for persistence (`~/.morpheus/zaion.yaml`).
-- **Channels (`src/channels/`)**: Adapters for external communication. Currently supports Telegram (`telegraf`) with strict user whitelisting.
-
-## Features
-
-### 🖥️ Web Dashboard
-Local React-based UI to manage recordings, chat history, and system status across your agent instances.
-
-**New: Interactive Web Chat**
-- Full-featured chat interface accessible from the browser
-- Session management: create, archive, delete, and rename sessions
-- Cross-channel visibility: view and interact with sessions started on any channel (Telegram, Web, etc.)
-- Real-time messaging with the Oracle agent
-- Responsive design with collapsible sidebar
-- Full support for Light and Dark (Matrix) themes
-
-#### 🔒 UI Authentication
-To protect your Web UI, use the `THE_ARCHITECT_PASS` environment variable. This ensures only authorized users can access the dashboard and API.
-
-Additionally, you can use environment variables for API keys instead of storing them in the configuration file:
-
-| Variable | Description | Required |
-|----------|-------------|----------|
-| `OPENAI_API_KEY` | OpenAI API key (if using GPT) | No |
-| `ANTHROPIC_API_KEY` | Anthropic API key (if using Claude) | No |
-| `GOOGLE_API_KEY` | Google AI key (for Gemini LLM/Audio) | No |
-| `OPENROUTER_API_KEY` | OpenRouter API key (if using OpenRouter) | No |
-| `THE_ARCHITECT_PASS` | Web Dashboard access password | Recommended |
-| `TELEGRAM_BOT_TOKEN` | Telegram BotFather token | No |
-
-If these environment variables are set, they will take precedence over values stored in the configuration file.
-
-The system also supports generic environment variables that apply to all providers:
-
-| Variable | Description | Applies To |
-|----------|-------------|------------|
-| `MORPHEUS_AGENT_NAME` | Name of the agent | agent.name |
-| `MORPHEUS_AGENT_PERSONALITY` | Personality of the agent | agent.personality |
-| `MORPHEUS_LLM_PROVIDER` | LLM provider to use | llm.provider |
-| `MORPHEUS_LLM_MODEL` | Model name for LLM | llm.model |
-| `MORPHEUS_LLM_TEMPERATURE` | Temperature setting for LLM | llm.temperature |
-| `MORPHEUS_LLM_MAX_TOKENS` | Maximum tokens for LLM | llm.max_tokens |
-| `MORPHEUS_LLM_CONTEXT_WINDOW` | Context window size for LLM | llm.context_window |
-| `MORPHEUS_LLM_API_KEY` | Generic API key for LLM (lower precedence than provider-specific keys) | llm.api_key |
-| `MORPHEUS_SATI_PROVIDER` | Sati provider to use | sati.provider |
-| `MORPHEUS_SATI_MODEL` | Model name for Sati | sati.model |
-| `MORPHEUS_SATI_TEMPERATURE` | Temperature setting for Sati | sati.temperature |
-| `MORPHEUS_SATI_MAX_TOKENS` | Maximum tokens for Sati | sati.max_tokens |
-| `MORPHEUS_SATI_CONTEXT_WINDOW` | Context window size for Sati | sati.context_window |
-| `MORPHEUS_SATI_API_KEY` | Generic API key for Sati (lower precedence than provider-specific keys) | sati.api_key |
-| `MORPHEUS_SATI_MEMORY_LIMIT` | Memory retrieval limit for Sati | sati.memory_limit |
-| `MORPHEUS_SATI_ENABLED_ARCHIVED_SESSIONS`| Enable/disable retrieval of archived sessions in Sati | sati.enableArchivedSessions |
-| `MORPHEUS_APOC_PROVIDER` | Apoc LLM provider | apoc.provider |
-| `MORPHEUS_APOC_MODEL` | Model name for Apoc | apoc.model |
-| `MORPHEUS_APOC_TEMPERATURE` | Temperature for Apoc | apoc.temperature |
-| `MORPHEUS_APOC_MAX_TOKENS` | Maximum tokens for Apoc | apoc.max_tokens |
-| `MORPHEUS_APOC_API_KEY` | API key for Apoc (falls back to provider-specific key) | apoc.api_key |
-| `MORPHEUS_APOC_WORKING_DIR` | Working directory for Apoc file/shell operations | apoc.working_dir |
-| `MORPHEUS_APOC_TIMEOUT_MS` | Timeout in ms for Apoc shell operations (default: 30000) | apoc.timeout_ms |
-| `MORPHEUS_NEO_PROVIDER` | Neo LLM provider | neo.provider |
-| `MORPHEUS_NEO_MODEL` | Model name for Neo | neo.model |
-| `MORPHEUS_NEO_TEMPERATURE` | Temperature for Neo | neo.temperature |
-| `MORPHEUS_NEO_MAX_TOKENS` | Maximum tokens for Neo | neo.max_tokens |
-| `MORPHEUS_NEO_CONTEXT_WINDOW` | Context window size for Neo | neo.context_window |
-| `MORPHEUS_NEO_API_KEY` | API key for Neo (falls back to provider-specific key) | neo.api_key |
-| `MORPHEUS_NEO_BASE_URL` | Base URL override for Neo provider (e.g. OpenRouter) | neo.base_url |
-| `MORPHEUS_AUDIO_MODEL` | Model name for audio processing | audio.model |
-| `MORPHEUS_AUDIO_ENABLED` | Enable/disable audio processing | audio.enabled |
-| `MORPHEUS_AUDIO_API_KEY` | Generic API key for audio (lower precedence than provider-specific keys) | audio.apiKey |
-| `MORPHEUS_AUDIO_MAX_DURATION` | Max duration for audio processing | audio.maxDurationSeconds |
-| `MORPHEUS_TELEGRAM_ENABLED` | Enable/disable Telegram channel | channels.telegram.enabled |
-| `MORPHEUS_TELEGRAM_TOKEN` | Telegram bot token | channels.telegram.token |
-| `MORPHEUS_TELEGRAM_ALLOWED_USERS` | Comma-separated list of allowed Telegram user IDs | channels.telegram.allowedUsers |
-| `MORPHEUS_UI_ENABLED` | Enable/disable Web UI | ui.enabled |
-| `MORPHEUS_UI_PORT` | Port for Web UI | ui.port |
-| `MORPHEUS_LOGGING_ENABLED` | Enable/disable logging | logging.enabled |
-| `MORPHEUS_LOGGING_LEVEL` | Logging level | logging.level |
-| `MORPHEUS_LOGGING_RETENTION` | Log retention period | logging.retention |
-
-**Precedence Order**: The system follows this order of precedence when resolving configuration values:
-1. Provider-specific environment variable (e.g., `OPENAI_API_KEY`) - Highest priority
-2. Generic environment variable (e.g., `MORPHEUS_LLM_API_KEY`) - Medium priority
-3. Configuration file value (e.g., `config.llm.api_key`) - Lower priority
-4. Default value - Lowest priority
-
-> **Note**: If `THE_ARCHITECT_PASS` is not set, the system will use the default password ` `. This is less secure and it's recommended to set your own password in production environments.
-
-**Option 1: Using a `.env` file**
-Create a `.env` file in the root of your project:
-
-```env
-OPENAI_API_KEY="your-openai-api-key"
-ANTHROPIC_API_KEY="your-anthropic-api-key"
-GOOGLE_API_KEY="your-google-api-key"
-THE_ARCHITECT_PASS="your-secure-password"
-TELEGRAM_BOT_TOKEN="your-telegram-bot-token"
-OPENROUTER_API_KEY="your-openrouter-api-key"
-```
-
-**Option 2: Using Shell export**
-
-```bash
-export OPENAI_API_KEY="your-openai-api-key"
-export ANTHROPIC_API_KEY="your-anthropic-api-key"
-export GOOGLE_API_KEY="your-google-api-key"
-export OPENROUTER_API_KEY="your-openrouter-api-key"
-export THE_ARCHITECT_PASS="your-secure-password"
-export TELEGRAM_BOT_TOKEN="your-telegram-bot-token"
-morpheus start
-```
-
-When enabled:
-- The Web UI will redirect to a Login page.
-- API requests require the `x-architect-pass` header.
-- The session is persisted locally in your browser.
-
-### 🧩 MCP Support (Model Context Protocol)
-Full integration with [Model Context Protocol](https://modelcontextprotocol.io/), allowing Morpheus to use standardized tools from any MCP-compatible server.
-
-### 🛠️ Apoc (DevTools Subagent)
-
-Morpheus includes **Apoc**, a specialized subagent invoked by Oracle whenever the user requests developer-level operations. Apoc runs with access to the **DevKit** tool set:
-
-| Tool Group | Capabilities |
-|---|---|
-| **Filesystem** | Read, write, append, delete files and directories |
-| **Shell** | Execute shell commands and scripts with timeout control |
-| **Git** | status, log, diff, commit, push, pull, clone, branch |
-| **Packages** | npm/yarn install, update, audit, package.json inspection |
-| **Processes** | List running processes, check ports, terminate processes |
-| **Network** | curl, ping, DNS lookups, HTTP requests |
-| **System** | Environment variables, OS info, disk space, memory usage |
-
-Oracle delegates to Apoc via the `apoc_delegate` tool when you ask things like:
-- *"Run npm install and show me any errors"*
-- *"What's the git status of this repo?"*
-- *"Read the contents of config.json"*
-- *"Execute the build script and tell me what happened"*
-
-Apoc is independently configurable — use a different (e.g., faster, cheaper) model than Oracle for tool execution tasks.
-
-### 🧠 Sati (Long-Term Memory)
-Morpheus features a dedicated middleware system called **Sati** (Mindfulness) that provides long-term memory capabilities.
--   **Automated Storage**: Automatically extracts and saves preferences, project details, and facts from conversations.
--   **Contextual Retrieval**: Injects relevant memories into the context based on your current query.
--   **Data Privacy**: Stored in a local, independent SQLite database (`santi-memory.db`), ensuring sensitive data is handled securely and reducing context window usage.
--   **Memory Management**: View and manage your long-term memories through the Web UI or via API endpoints.
-
-### 🪝 Webhooks & Notifications
-
-Morpheus includes a **Webhook System** that lets any external service (GitHub Actions, CI/CD pipelines, monitoring tools, etc.) trigger Oracle and receive the result asynchronously.
-
-**How it works:**
-1. Create a webhook via the Web UI or API — give it a name (slug) and a prompt.
-2. You receive a unique `api_key` for that webhook.
-3. Trigger it from anywhere by posting JSON to `POST /api/webhooks/trigger/<name>` with the `x-api-key` header.
-4. Morpheus runs Oracle with your prompt + the received payload in the background.
-5. The result is saved as a **Notification** and optionally pushed to Telegram.
-
-**Example — trigger from GitHub Actions:**
-```yaml
-- name: Notify Morpheus of deployment
-  run: |
-    curl -s -X POST https://your-morpheus-host/api/webhooks/trigger/deploy-done \
-      -H "x-api-key: ${{ secrets.MORPHEUS_WEBHOOK_KEY }}" \
-      -H "Content-Type: application/json" \
-      -d '{"workflow":"${{ github.workflow }}","status":"success","ref":"${{ github.ref }}"}'
-```
-
-**Security:** Each webhook has its own `api_key` (UUID). The key is sent in the `x-api-key` header — never in the URL — to prevent leakage in server logs. Management endpoints remain protected by `THE_ARCHITECT_PASS`.
-
-**Notification channels:** `ui` (Web UI inbox with unread badge) and/or `telegram` (proactive push message).
-
-### 📊 Usage Analytics
-Track your token usage across different providers and models directly from the Web UI. View detailed breakdowns of input/output tokens and message counts to monitor costs and activity.
-
-### 🎙️ Audio Transcription (Telegram)
-Send voice messages directly to the Telegram bot. Morpheus will:
-1. Transcribe the audio using the configured provider.
-2. Process the text as a standard prompt.
-3. Reply with the answer.
-
-Supported audio providers:
-
-| Provider | Method | Model example |
-|---|---|---|
-| **Google Gemini** | Native audio file upload | `gemini-2.5-flash-lite` |
-| **OpenAI** | Whisper API (`/audio/transcriptions`) | `whisper-1` |
-| **OpenRouter** | `input_audio` via `@openrouter/sdk` (multimodal models) | `google/gemini-2.5-flash` |
-| **Ollama** | Whisper local via OpenAI-compatible endpoint | `whisper` |
-
-> Ollama requires a Whisper model loaded: `ollama pull whisper`
-
-*Configure `audio.provider` and `audio.apiKey` in Settings or `config.yaml`.*
-
-### 🤖 Telegram Commands
-The Morpheus Telegram bot supports several commands for interacting with the agent:
-
-- `/start` - Show welcome message and available commands
-- `/status` - Check the status of the Morpheus agent
-- `/doctor` - Diagnose environment and configuration issues
-- `/stats` - Show token usage statistics
-- `/help` - Show available commands
-- `/zaion` - Show system configurations
-- `/sati <qnt>` - Show specific memories
-- `/newsession` - Archive current session and start fresh
-- `/sessions` - List all sessions with options to switch, archive, or delete
-- `/restart` - Restart the Morpheus agent
-- `/mcp` or `/mcps` - List registered MCP servers
-
-## Development Setup
-
-This guide is for developers contributing to the Morpheus codebase.
-
-### Prerequisites
-
-- **Node.js**: >= 18.x
-- **npm**: >= 9.x
-- **TypeScript**: >= 5.x
-
-### 1. Clone & Install
-
-```bash
-git clone https://github.com/your-org/morpheus.git
-cd morpheus
-npm install
-```
-
-### 2. Build
-
-Compile TypeScript source to `dist/` and build the Web UI.
-
-```bash
-npm run build
-```
-
-### 3. Run the CLI
-
-You can run the CLI directly from the source using `npm start`.
-
-```bash
-# Initialize configuration (creates ~/.morpheus)
-npm start -- init
-
-# Start the daemon
-npm start -- start
-
-# Check status
-npm start -- status
-```
-
-### 4. Configuration
-
-The configuration file is located at `~/.morpheus/zaion.yaml`. You can edit it manually or use the `morpheus config` command.
+## Async Task Execution
+
+Morpheus uses asynchronous delegation by default:
+
+1. Oracle receives user request.
+2. If execution is needed, Oracle calls `neo_delegate` or `apoc_delegate`.
+3. Delegate tool creates a row in `tasks` table with origin metadata (`channel`, `session`, `message`, `user`).
+4. Oracle immediately acknowledges task creation.
+5. `TaskWorker` executes pending tasks.
+6. `TaskNotifier` sends completion/failure through `TaskDispatcher`.
+
+Important behavior:
+- Oracle stays responsive while tasks run.
+- Delegations must be atomic (single objective per task).
+- Duplicate/fabricated task acknowledgements are blocked by validation against DB.
+- Status follow-ups are handled by Oracle through `task_query` (no delegation required).
+
+## Telegram Experience
+
+Telegram responses use rich HTML formatting conversion with:
+- bold/italic/list rendering from markdown-like text
+- inline code and fenced code blocks
+- auto-wrapped UUIDs in `<code>` for easier copy
+
+Task results are delivered proactively with metadata (task id, agent, status) and output/error body.
+
+## Web UI
+
+The dashboard includes:
+- Chat with session management
+- Tasks page (stats, filters, details, retry)
+- Agent settings (Oracle/Sati/Neo/Apoc)
+- MCP manager
+- Sati memories
+- Usage stats and model pricing
+- Webhooks and notification inbox
+
+Chat-specific rendering:
+- AI messages rendered as markdown
+- Tool payloads shown in collapsible blocks
+- SATI-related tool content grouped under `SATI Memory`
+- per-message token badge (`input/output`)
+
+## Configuration (`~/.morpheus/zaion.yaml`)
 
 ```yaml
 agent:
-  name: "Morpheus"
-  personality: "stoic, wise, and helpful"
-llm:
-  provider: "openai" # options: openai, anthropic, ollama, gemini
-  model: "gpt-4-turbo"
+  name: morpheus
+  personality: helpful_dev
+
+llm: # Oracle
+  provider: openai
+  model: gpt-4o
   temperature: 0.7
-  context_window: 100 # Number of messages to load into LLM context
-  api_key: "sk-..."
-santi: # Optional: Sati (Long-Term Memory) specific settings
-  provider: "openai" # defaults to llm.provider
-  model: "gpt-4o"
-  memory_limit: 1000 # Number of messages/items to retrieve
-apoc: # Optional: Apoc DevTools subagent settings
-  provider: "openai" # defaults to llm.provider (can use a cheaper/faster model)
-  model: "gpt-4o-mini"
+  context_window: 100
+  api_key: env:OPENAI_API_KEY
+
+sati:
+  provider: openai
+  model: gpt-4o-mini
+  temperature: 0.3
+  memory_limit: 100
+  enabled_archived_sessions: true
+
+neo:
+  provider: openai
+  model: gpt-4o-mini
   temperature: 0.2
-  working_dir: "/home/user/projects" # root dir for file/shell ops (defaults to process cwd)
-  timeout_ms: 30000 # shell command timeout in ms
+  context_window: 100
+
+apoc:
+  provider: openai
+  model: gpt-4o-mini
+  temperature: 0.2
+  working_dir: /home/user/projects
+  timeout_ms: 30000
+
+runtime:
+  async_tasks:
+    enabled: true
+
 channels:
   telegram:
-    enabled: true
-    token: "YOUR_TELEGRAM_BOT_TOKEN"
-    allowedUsers: ["123456789"] # Your Telegram User ID
+    enabled: false
+    token: env:TELEGRAM_BOT_TOKEN
+    allowedUsers: ["123456789"]
   discord:
-    enabled: false # Coming soon
+    enabled: false
 
-# Web UI Dashboard
 ui:
   enabled: true
   port: 3333
 
-# Audio Transcription Support
 audio:
   enabled: true
-  provider: "google"           # google | openai | openrouter | anthropic | ollama
-  model: "gemini-2.5-flash-lite"
-  apiKey: "YOUR_API_KEY"       # Optional if using same provider as LLM
-  base_url: ""                 # Required for openrouter/ollama
+  provider: google
+  model: gemini-2.5-flash-lite
   maxDurationSeconds: 300
+
+logging:
+  enabled: true
+  level: info
+  retention: 14d
 ```
 
-### 5. MCP Configuration
+## Environment Variables
 
-Morpheus supports external tools via **MCP (Model Context Protocol)**. Configure your MCP servers in `~/.morpheus/mcps.json`:
+Provider-specific keys:
+- `OPENAI_API_KEY`
+- `ANTHROPIC_API_KEY`
+- `GOOGLE_API_KEY`
+- `OPENROUTER_API_KEY`
+- `TELEGRAM_BOT_TOKEN`
+- `THE_ARCHITECT_PASS`
+
+Generic Morpheus overrides (selected):
+
+| Variable | Target |
+|---|---|
+| `MORPHEUS_AGENT_NAME` | `agent.name` |
+| `MORPHEUS_AGENT_PERSONALITY` | `agent.personality` |
+| `MORPHEUS_LLM_PROVIDER` | `llm.provider` |
+| `MORPHEUS_LLM_MODEL` | `llm.model` |
+| `MORPHEUS_LLM_TEMPERATURE` | `llm.temperature` |
+| `MORPHEUS_LLM_MAX_TOKENS` | `llm.max_tokens` |
+| `MORPHEUS_LLM_CONTEXT_WINDOW` | `llm.context_window` |
+| `MORPHEUS_LLM_API_KEY` | `llm.api_key` |
+| `MORPHEUS_SATI_PROVIDER` | `sati.provider` |
+| `MORPHEUS_SATI_MODEL` | `sati.model` |
+| `MORPHEUS_SATI_TEMPERATURE` | `sati.temperature` |
+| `MORPHEUS_SATI_MAX_TOKENS` | `sati.max_tokens` |
+| `MORPHEUS_SATI_CONTEXT_WINDOW` | `sati.context_window` |
+| `MORPHEUS_SATI_API_KEY` | `sati.api_key` |
+| `MORPHEUS_SATI_MEMORY_LIMIT` | `sati.memory_limit` |
+| `MORPHEUS_SATI_ENABLED_ARCHIVED_SESSIONS` | `sati.enabled_archived_sessions` |
+| `MORPHEUS_NEO_PROVIDER` | `neo.provider` |
+| `MORPHEUS_NEO_MODEL` | `neo.model` |
+| `MORPHEUS_NEO_TEMPERATURE` | `neo.temperature` |
+| `MORPHEUS_NEO_MAX_TOKENS` | `neo.max_tokens` |
+| `MORPHEUS_NEO_CONTEXT_WINDOW` | `neo.context_window` |
+| `MORPHEUS_NEO_API_KEY` | `neo.api_key` |
+| `MORPHEUS_NEO_BASE_URL` | `neo.base_url` |
+| `MORPHEUS_APOC_PROVIDER` | `apoc.provider` |
+| `MORPHEUS_APOC_MODEL` | `apoc.model` |
+| `MORPHEUS_APOC_TEMPERATURE` | `apoc.temperature` |
+| `MORPHEUS_APOC_MAX_TOKENS` | `apoc.max_tokens` |
+| `MORPHEUS_APOC_CONTEXT_WINDOW` | `apoc.context_window` |
+| `MORPHEUS_APOC_API_KEY` | `apoc.api_key` |
+| `MORPHEUS_APOC_WORKING_DIR` | `apoc.working_dir` |
+| `MORPHEUS_APOC_TIMEOUT_MS` | `apoc.timeout_ms` |
+| `MORPHEUS_AUDIO_PROVIDER` | `audio.provider` |
+| `MORPHEUS_AUDIO_MODEL` | `audio.model` |
+| `MORPHEUS_AUDIO_ENABLED` | `audio.enabled` |
+| `MORPHEUS_AUDIO_API_KEY` | `audio.apiKey` |
+| `MORPHEUS_AUDIO_MAX_DURATION` | `audio.maxDurationSeconds` |
+| `MORPHEUS_TELEGRAM_ENABLED` | `channels.telegram.enabled` |
+| `MORPHEUS_TELEGRAM_TOKEN` | `channels.telegram.token` |
+| `MORPHEUS_TELEGRAM_ALLOWED_USERS` | `channels.telegram.allowedUsers` |
+| `MORPHEUS_UI_ENABLED` | `ui.enabled` |
+| `MORPHEUS_UI_PORT` | `ui.port` |
+| `MORPHEUS_LOGGING_ENABLED` | `logging.enabled` |
+| `MORPHEUS_LOGGING_LEVEL` | `logging.level` |
+| `MORPHEUS_LOGGING_RETENTION` | `logging.retention` |
+
+Precedence order:
+1. Provider-specific environment variable
+2. Generic `MORPHEUS_*` variable
+3. `zaion.yaml`
+4. Defaults
+
+## MCP Configuration
+
+Configure MCP servers in `~/.morpheus/mcps.json`.
 
 ```json
 {
-  "coolify": {
-    "transport": "stdio",
-    "command": "npx",
-    "args": ["-y", "@coolify/mcp-server"],
-    "env": {
-      "COOLIFY_URL": "https://app.coolify.io",
-      "COOLIFY_TOKEN": "your-token"
-    }
-  },
   "coingecko": {
     "transport": "http",
-    "url": "https://mcps.mnunes.xyz/coingecko/mcp"
+    "url": "https://mcps.example.com/coingecko/mcp"
+  },
+  "filesystem": {
+    "transport": "stdio",
+    "command": "npx",
+    "args": ["-y", "@modelcontextprotocol/server-filesystem", "./"]
   }
 }
 ```
 
-## API Endpoints
-
-Morpheus exposes several API endpoints for programmatic access to its features:
-
-### Health Check Endpoints
-
-#### GET `/health`
-Public health check endpoint without authentication.
-
-*   **Response:**
-    ```json
-    {
-      "status": "healthy",
-      "timestamp": "2026-02-05T21:30:00.000Z",
-      "uptime": 123.45
-    }
-    ```
-
-#### GET `/api/health`
-Health check endpoint for the API (requires authentication).
-
-*   **Authentication:** Requires `Authorization` header with the password set in `THE_ARCHITECT_PASS`.
-*   **Response:**
-    ```json
-    {
-      "status": "healthy",
-      "timestamp": "2026-02-05T21:30:00.000Z",
-      "uptime": 123.45
-    }
-    ```
-
-### Status Endpoint
-
-#### GET `/api/status`
-Get the current status of the Morpheus agent.
-
-*   **Authentication:** Requires `Authorization` header with the password set in `THE_ARCHITECT_PASS`.
-*   **Response:**
-    ```json
-    {
-      "status": "online",
-      "uptimeSeconds": 1234.56,
-      "pid": 12345,
-      "projectVersion": "1.0.0",
-      "nodeVersion": "v18.17.0",
-      "agentName": "Morpheus",
-      "llmProvider": "openai",
-      "llmModel": "gpt-4-turbo"
-    }
-    ```
-
-### Session Endpoints
-
-#### POST `/api/session/reset`
-Archive the current session and start a new one.
-
-*   **Authentication:** Requires `Authorization` header with the password set in `THE_ARCHITECT_PASS`.
-*   **Response:**
-    ```json
-    {
-      "success": true,
-      "message": "New session started"
-    }
-    ```
-
-#### POST `/api/session/status`
-Get the status of the current session.
-
-*   **Authentication:** Requires `Authorization` header with the password set in `THE_ARCHITECT_PASS`.
-*   **Response:**
-    ```json
-    {
-      "id": "uuid-...",
-      "messageCount": 42,
-      "embedding_status": "pending"
-    }
-    ```
-
-### Configuration Endpoints
-
-#### GET `/api/config`
-Retrieve the current configuration.
-
-*   **Authentication:** Requires `Authorization` header with the password set in `THE_ARCHITECT_PASS`.
-*   **Response:**
-    ```json
-    {
-      "agent": {
-        "name": "Morpheus",
-        "personality": "stoic, wise, and helpful"
-      },
-      "llm": {
-        "provider": "openai",
-        "model": "gpt-4-turbo",
-        "temperature": 0.7,
-        "context_window": 100,
-        "api_key": "***"
-      },
-      "santi": {
-        "provider": "openai",
-        "model": "gpt-4o",
-        "memory_limit": 1000
-      },
-      "channels": {
-        "telegram": {
-          "enabled": true,
-          "token": "***",
-          "allowedUsers": ["123456789"]
-        },
-        "discord": {
-          "enabled": false
-        }
-      },
-      "ui": {
-        "enabled": true,
-        "port": 3333
-      },
-      "audio": {
-        "enabled": true,
-        "apiKey": "***",
-        "maxDurationSeconds": 300
-      }
-    }
-    ```
-
-#### POST `/api/config`
-Update the configuration.
-
-*   **Authentication:** Requires `Authorization` header with the password set in `THE_ARCHITECT_PASS`.
-*   **Body:** Complete configuration object (same structure as GET response).
-*   **Response:**
-    ```json
-    {
-      "agent": {
-        "name": "Morpheus",
-        "personality": "stoic, wise, and helpful"
-      },
-      "llm": {
-        "provider": "openai",
-        "model": "gpt-4-turbo",
-        "temperature": 0.7,
-        "context_window": 100,
-        "api_key": "***"
-      },
-      "santi": {
-        "provider": "openai",
-        "model": "gpt-4o",
-        "memory_limit": 1000
-      },
-      "channels": {
-        "telegram": {
-          "enabled": true,
-          "token": "***",
-          "allowedUsers": ["123456789"]
-        },
-        "discord": {
-          "enabled": false
-        }
-      },
-      "ui": {
-        "enabled": true,
-        "port": 3333
-      },
-      "audio": {
-        "enabled": true,
-        "apiKey": "***",
-        "maxDurationSeconds": 300
-      }
-    }
-    ```
-
-#### GET `/api/config/sati`
-Retrieve the Sati (long-term memory) configuration.
-
-*   **Authentication:** Requires `Authorization` header with the password set in `THE_ARCHITECT_PASS`.
-*   **Response:**
-    ```json
-    {
-      "provider": "openai",
-      "model": "gpt-4o",
-      "memory_limit": 1000
-    }
-    ```
-
-#### POST `/api/config/sati`
-Update the Sati (long-term memory) configuration.
-
-*   **Authentication:** Requires `Authorization` header with the password set in `THE_ARCHITECT_PASS`.
-*   **Body:**
-    ```json
-    {
-      "provider": "openai",
-      "model": "gpt-4o",
-      "memory_limit": 1000
-    }
-    ```
-*   **Response:**
-    ```json
-    {
-      "success": true
-    }
-    ```
-
-#### DELETE `/api/config/sati`
-Remove the Sati (long-term memory) configuration (falls back to Oracle config).
-
-*   **Authentication:** Requires `Authorization` header with the password set in `THE_ARCHITECT_PASS`.
-*   **Response:**
-    ```json
-    {
-      "success": true
-    }
-    ```
-
-
-#### GET `/api/config/apoc`
-Retrieve the Apoc (DevTools subagent) configuration. Falls back to Oracle (LLM) config if not explicitly set.
-
-*   **Authentication:** Requires `Authorization` header with the password set in `THE_ARCHITECT_PASS`.
-*   **Response:**
-    ```json
-    {
-      "provider": "openai",
-      "model": "gpt-4o-mini",
-      "temperature": 0.2,
-      "api_key": "***",
-      "working_dir": "/home/user/projects",
-      "timeout_ms": 30000
-    }
-    ```
-
-#### POST `/api/config/apoc`
-Update the Apoc (DevTools subagent) configuration.
-
-*   **Authentication:** Requires `Authorization` header with the password set in `THE_ARCHITECT_PASS`.
-*   **Body:**
-    ```json
-    {
-      "provider": "openai",
-      "model": "gpt-4o-mini",
-      "temperature": 0.2,
-      "working_dir": "/home/user/projects",
-      "timeout_ms": 30000
-    }
-    ```
-*   **Response:**
-    ```json
-    {
-      "success": true
-    }
-    ```
-
-#### DELETE `/api/config/apoc`
-Remove the Apoc configuration (falls back to Oracle config).
-
-*   **Authentication:** Requires `Authorization` header with the password set in `THE_ARCHITECT_PASS`.
-*   **Response:**
-    ```json
-    {
-      "success": true
-    }
-    ```
-
-### Statistics Endpoints
-
-#### GET `/api/stats/usage`
-Get global token usage statistics.
-
-*   **Authentication:** Requires `Authorization` header with the password set in `THE_ARCHITECT_PASS`.
-*   **Response:**
-    ```json
-    {
-      "totalInputTokens": 12345,
-      "totalOutputTokens": 6789,
-      "totalTokens": 19134
-    }
-    ```
-
-#### GET `/api/stats/usage/grouped`
-Get token usage statistics grouped by provider and model.
-
-*   **Authentication:** Requires `Authorization` header with the password set in `THE_ARCHITECT_PASS`.
-*   **Response:**
-    ```json
-    [
-      {
-        "provider": "openai",
-        "model": "gpt-4-turbo",
-        "totalTokens": 12345,
-        "inputTokens": 10000,
-        "outputTokens": 2345,
-        "messageCount": 100
-      },
-      {
-        "provider": "anthropic",
-        "model": "claude-3-opus",
-        "totalTokens": 6789,
-        "inputTokens": 5000,
-        "outputTokens": 1789,
-        "messageCount": 50
-      }
-    ]
-    ```
-
-### Sati Memories Endpoints
-
-#### GET `/api/sati/memories`
-Retrieve all memories stored by the Sati agent (long-term memory).
-
-*   **Authentication:** Requires `Authorization` header with the password set in `THE_ARCHITECT_PASS`.
-*   **Response:**
-    ```json
-    [
-      {
-        "id": "unique-id",
-        "category": "work",
-        "importance": "high",
-        "summary": "Memory summary",
-        "details": "Additional details of the memory",
-        "hash": "unique-hash",
-        "source": "source",
-        "created_at": "2023-01-01T00:00:00.000Z",
-        "updated_at": "2023-01-01T00:00:00.000Z",
-        "last_accessed_at": "2023-01-01T00:00:00.000Z",
-        "access_count": 5,
-        "version": 1,
-        "archived": false
-      }
-    ]
-    ```
-
-#### DELETE `/api/sati/memories/:id`
-Archive (soft delete) a specific memory from the Sati agent.
-
-*   **Authentication:** Requires `Authorization` header with the password set in `THE_ARCHITECT_PASS`.
-*   **Parameters:** `id` - ID of the memory to archive.
-*   **Response:**
-    ```json
-    {
-      "success": true,
-      "message": "Memory archived successfully"
-    }
-    ```
-
-#### POST `/api/sati/memories/bulk-delete`
-Archive (soft delete) multiple memories from the Sati agent at once.
-
-*   **Authentication:** Requires `Authorization` header with the password set in `THE_ARCHITECT_PASS`.
-*   **Body:**
-    ```json
-    {
-      "ids": ["id1", "id2", "id3"]
-    }
-    ```
-*   **Response:**
-    ```json
-    {
-      "success": true,
-      "message": "X memories archived successfully",
-      "deletedCount": X
-    }
-    ```
-
-### MCP Server Endpoints
-
-#### GET `/api/mcp/servers`
-List all registered MCP servers.
-
-*   **Authentication:** Requires `Authorization` header with the password set in `THE_ARCHITECT_PASS`.
-*   **Response:**
-    ```json
-    {
-      "servers": [
-        {
-          "name": "coolify",
-          "config": {
-            "transport": "stdio",
-            "command": "npx",
-            "args": ["-y", "@coolify/mcp-server"],
-            "env": {
-              "COOLIFY_URL": "https://app.coolify.io",
-              "COOLIFY_TOKEN": "your-token"
-            }
-          },
-          "enabled": true
-        },
-        {
-          "name": "coingecko",
-          "config": {
-            "transport": "http",
-            "url": "https://mcps.mnunes.xyz/coingecko/mcp"
-          },
-          "enabled": false
-        }
-      ]
-    }
-    ```
-
-#### POST `/api/mcp/servers`
-Add a new MCP server.
-
-*   **Authentication:** Requires `Authorization` header with the password set in `THE_ARCHITECT_PASS`.
-*   **Body:**
-    ```json
-    {
-      "name": "new-server",
-      "config": {
-        "transport": "stdio",
-        "command": "npx",
-        "args": ["-y", "@new-mcp-server"],
-        "env": {
-          "NEW_SERVER_URL": "https://example.com",
-          "NEW_SERVER_TOKEN": "your-token"
-        }
-      }
-    }
-    ```
-*   **Response:**
-    ```json
-    {
-      "ok": true
-    }
-    ```
-
-#### PUT `/api/mcp/servers/:name`
-Update an existing MCP server.
-
-*   **Authentication:** Requires `Authorization` header with the password set in `THE_ARCHITECT_PASS`.
-*   **Parameters:** `name` - Name of the server to update.
-*   **Body:**
-    ```json
-    {
-      "transport": "stdio",
-      "command": "npx",
-      "args": ["-y", "@updated-mcp-server"],
-      "env": {
-        "UPDATED_SERVER_URL": "https://example.com",
-        "UPDATED_SERVER_TOKEN": "your-updated-token"
-      }
-    }
-    ```
-*   **Response:**
-    ```json
-    {
-      "ok": true
-    }
-    ```
-
-#### DELETE `/api/mcp/servers/:name`
-Delete an MCP server.
-
-*   **Authentication:** Requires `Authorization` header with the password set in `THE_ARCHITECT_PASS`.
-*   **Parameters:** `name` - Name of the server to delete.
-*   **Response:**
-    ```json
-    {
-      "ok": true
-    }
-    ```
-
-#### PATCH `/api/mcp/servers/:name/toggle`
-Enable or disable an MCP server.
-
-*   **Authentication:** Requires `Authorization` header with the password set in `THE_ARCHITECT_PASS`.
-*   **Parameters:** `name` - Name of the server to toggle.
-*   **Body:**
-    ```json
-    {
-      "enabled": true
-    }
-    ```
-*   **Response:**
-    ```json
-    {
-      "ok": true
-    }
-    ```
-
-### Logging Endpoints
-
-#### GET `/api/logs`
-List all log files.
-
-*   **Authentication:** Requires `Authorization` header with the password set in `THE_ARCHITECT_PASS`.
-*   **Response:**
-    ```json
-    [
-      {
-        "name": "morpheus.log",
-        "size": 10240,
-        "modified": "2026-02-05T21:30:00.000Z"
-      },
-      {
-        "name": "morpheus-2026-02-04.log",
-        "size": 20480,
-        "modified": "2026-02-04T21:30:00.000Z"
-      }
-    ]
-    ```
-
-#### GET `/api/logs/:filename`
-Get the last lines of a specific log file.
-
-*   **Authentication:** Requires `Authorization` header with the password set in `THE_ARCHITECT_PASS`.
-*   **Parameters:** `filename` - Name of the log file to read.
-*   **Query Parameters:** `limit` - Number of lines to return (default: 50).
-*   **Response:**
-    ```json
-    {
-      "lines": [
-        "2026-02-05T21:30:00.000Z INFO: Starting Morpheus agent...",
-        "2026-02-05T21:30:01.000Z DEBUG: Connected to OpenAI API",
-        "2026-02-05T21:30:02.000Z INFO: Telegram bot initialized"
-      ]
-    }
-    ```
-
-### Control Endpoints
-
-#### POST `/api/restart`
-Restart the Morpheus agent.
-
-*   **Authentication:** Requires `Authorization` header with the password set in `THE_ARCHITECT_PASS`.
-*   **Response:**
-    ```json
-    {
-      "success": true,
-      "message": "Restart initiated. Process will shut down and restart shortly."
-    }
-    ```
-
-### Webhook Endpoints
-
-All management endpoints require `x-architect-pass` authentication. The trigger endpoint is **public** — authenticated only by the per-webhook `x-api-key` header.
-
-#### POST `/api/webhooks/trigger/:webhook_name`
-Trigger a webhook and queue an Oracle agent execution in the background.
-
-*   **Authentication:** `x-api-key: <webhook_api_key>` header (no `x-architect-pass` required).
-*   **Parameters:** `webhook_name` — the slug of the webhook to trigger.
-*   **Body:** Any JSON payload (forwarded to the agent as context).
-*   **Response (202 Accepted):**
-    ```json
-    {
-      "accepted": true,
-      "notification_id": "uuid-..."
-    }
-    ```
-*   **Errors:** `401` for missing/invalid api_key; `404` for webhook not found or disabled.
-
-#### GET `/api/webhooks`
-List all configured webhooks.
-
-*   **Authentication:** `x-architect-pass` header.
-*   **Response:**
-    ```json
-    [
-      {
-        "id": "uuid",
-        "name": "deploy-done",
-        "api_key": "uuid",
-        "prompt": "Analyze the deployment result...",
-        "enabled": true,
-        "notification_channels": ["ui", "telegram"],
-        "created_at": 1700000000000,
-        "last_triggered_at": 1700001000000,
-        "trigger_count": 42
-      }
-    ]
-    ```
-
-#### POST `/api/webhooks`
-Create a new webhook.
-
-*   **Authentication:** `x-architect-pass` header.
-*   **Body:**
-    ```json
-    {
-      "name": "deploy-done",
-      "prompt": "A deployment just finished. Analyze the payload and summarize what happened.",
-      "notification_channels": ["ui", "telegram"],
-      "enabled": true
-    }
-    ```
-*   **Response (201):** The created webhook object including the generated `api_key`.
-
-#### PUT `/api/webhooks/:id`
-Update an existing webhook (prompt, channels, enabled status).
-
-*   **Authentication:** `x-architect-pass` header.
-*   **Note:** The `name` (slug) and `api_key` fields are immutable via this endpoint.
-
-#### DELETE `/api/webhooks/:id`
-Delete a webhook and all its associated notifications.
-
-*   **Authentication:** `x-architect-pass` header.
-
-#### GET `/api/webhooks/notifications`
-List webhook execution notifications.
-
-*   **Authentication:** `x-architect-pass` header.
-*   **Query Parameters:** `unreadOnly=true` to filter unread notifications.
-*   **Response:**
-    ```json
-    [
-      {
-        "id": "uuid",
-        "webhook_id": "uuid",
-        "webhook_name": "deploy-done",
-        "status": "completed",
-        "payload": "{\"ref\":\"main\"}",
-        "result": "Deployment of main to production succeeded...",
-        "read": false,
-        "created_at": 1700001000000,
-        "completed_at": 1700001005000
-      }
-    ]
-    ```
-
-#### POST `/api/webhooks/notifications/read`
-Mark notifications as read.
-
-*   **Authentication:** `x-architect-pass` header.
-*   **Body:** `{ "ids": ["uuid1", "uuid2"] }`
-
-#### GET `/api/webhooks/notifications/unread-count`
-Get the count of unread notifications (used by the sidebar badge).
-
-*   **Authentication:** `x-architect-pass` header.
-*   **Response:** `{ "count": 3 }`
-
-## Testing
-
-We use **Vitest** for testing.
+## API Highlights
+
+Public endpoints:
+- `GET /health`
+- `GET /api/health`
+- `POST /api/webhooks/trigger/:webhook_name` (auth via `x-api-key`)
+
+Authenticated endpoints (`x-architect-pass`):
+- Sessions: `/api/sessions*`
+- Chat: `POST /api/chat`
+- Tasks: `GET /api/tasks`, `GET /api/tasks/stats`, `GET /api/tasks/:id`, `POST /api/tasks/:id/retry`
+- Config: `/api/config`, `/api/config/sati`, `/api/config/neo`, `/api/config/apoc`
+- MCP: `/api/mcp/*`
+- Sati memories: `/api/sati/memories*`
+- Usage/model pricing/logs/restart
+- Webhook management and webhook notifications
+
+## API Payload/Response Examples
+
+Auth header for protected endpoints:
+
+```http
+x-architect-pass: <THE_ARCHITECT_PASS>
+```
+
+Example `POST /api/chat` payload:
+
+```json
+{
+  "sessionId": "d18e23e6-67db-4ec1-b614-95eeaf399827",
+  "message": "faça um ping em 8.8.8.8"
+}
+```
+
+Example `POST /api/chat` response:
+
+```json
+{
+  "response": "Task created: 477fddfc-fab8-49e8-ac00-84b110e7f4ba (apoc)."
+}
+```
+
+Example `GET /api/tasks/:id` response:
+
+```json
+{
+  "id": "477fddfc-fab8-49e8-ac00-84b110e7f4ba",
+  "agent": "apoc",
+  "status": "completed",
+  "input": "Ping 8.8.8.8 and report packet stats",
+  "context": "User asked from Telegram",
+  "output": "Host reachable. 0% loss.",
+  "error": null,
+  "origin_channel": "telegram",
+  "session_id": "d18e23e6-67db-4ec1-b614-95eeaf399827",
+  "origin_message_id": "727",
+  "origin_user_id": "5852279085",
+  "attempt_count": 1,
+  "max_attempts": 3,
+  "available_at": 1771558600000,
+  "created_at": 1771558600000,
+  "started_at": 1771558601050,
+  "finished_at": 1771558603030,
+  "updated_at": 1771558603030,
+  "worker_id": "task-worker-b16cb906",
+  "notify_status": "sent",
+  "notify_attempts": 0,
+  "notify_last_error": null,
+  "notified_at": 1771558604210
+}
+```
+
+Example webhook trigger payload (`POST /api/webhooks/trigger/:webhook_name`):
+
+```json
+{
+  "event": "deploy_finished",
+  "environment": "production",
+  "status": "success",
+  "sha": "b8a6d4f"
+}
+```
+
+Example webhook trigger response:
+
+```json
+{
+  "accepted": true,
+  "notification_id": "17ce970d-cde0-4f06-9c9f-5ef92c48aa48"
+}
+```
+
+Complete payload and response examples for **all** endpoints are in `DOCUMENTATION.md` (Section `8. API Reference (Complete Payloads and Response Examples)`).
+
+## Development
 
 ```bash
-# Run unit tests
+npm install
+npm run build
+npm run dev:cli
+npm run dev:ui
 npm test
-
-# Run tests in watch mode
-npm run test:watch
 ```
 
 ## Project Structure
 
 ```text
-.
-├── assets/          # Static assets
-├── bin/             # CLI entry point (morpheus.js)
-├── specs/           # Technical specifications & documentation
-├── src/
-│   ├── channels/    # Communication adapters (Telegram, etc.)
-│   ├── cli/         # CLI commands and logic
-│   ├── config/      # Configuration management
-│   ├── runtime/     # Core agent logic, lifecycle, and providers
-│   ├── apoc.ts       # Apoc DevTools subagent (filesystem, shell, git, etc.)
-│   ├── oracle.ts     # Oracle main agent (LangChain ReactAgent)
-│   └── providers/    # LLM provider factory (createBare for subagents)
-├── devkit/      # DevKit tool factories (filesystem, shell, git, network, packages, processes, system)
-│   ├── types/       # Shared TypeScript definitions
-│   └── ui/          # React Web UI Dashboard
-└── package.json
+src/
+  channels/    # Telegram adapter
+  cli/         # start/stop/restart/status/doctor
+  config/      # config loading, precedence, schemas
+  devkit/      # Apoc tool factories
+  http/        # API, auth, webhooks, server
+  runtime/
+    apoc.ts
+    neo.ts
+    oracle.ts
+    memory/
+    tasks/
+    tools/
+    webhooks/
+  ui/          # React dashboard
 ```
 
-## Roadmap
-
-- [x] **Web Dashboard**: Local UI for management and logs.
-- [x] **MCP Support**: Full integration with Model Context Protocol.
-- [x] **Webhook System**: External triggers with Oracle execution and multi-channel notifications.
-- [ ] **Discord Adapter**: Support for Discord interactions.
-- [ ] **Plugin System**: Extend functionality via external modules.
-- [ ] **Webhook Retry Logic**: Exponential backoff for failed Oracle executions.
-
-## 🕵️ Privacy Protection
-
-The Web UI includes privacy protection headers to prevent indexing by search engines:
-- HTML meta tags: `<meta name="robots" content="noindex, nofollow">`
-- HTTP header: `X-Robots-Tag: noindex, nofollow`
-
-This ensures that your private agent dashboard remains private and is not discoverable by search engines.
-
-## 🐳 Running with Docker
-
-Morpheus can be easily deployed using Docker and Docker Compose. The container supports all environment variables for configuration.
-The Docker image is publicly available at [Docker Hub](https://hub.docker.com/r/marcosnunesmbs/morpheus).
-
-### Prerequisites
-
-- Docker Engine
-- Docker Compose
-
-### Quick Start
-
-1. Create a `.env` file with your configuration:
-
-```bash
-cp .env.example .env
-# Edit .env with your actual API keys and settings
-```
-
-2. Build and start the container:
-
-```bash
-docker-compose up -d
-```
-
-3. Access the Web UI at `http://localhost:3333`
-
-### Docker Compose Example
-
-Here's a complete example of how to run Morpheus using Docker Compose:
-
-```yaml
-version: '3.8'
-
-services:
-  morpheus:
-    image: marcosnunesmbs/morpheus:latest
-    container_name: morpheus-agent
-    ports:
-      - "3333:3333"
-    volumes:
-      - morpheus_data:/root/.morpheus
-    environment:
-      # LLM Configuration
-      - MORPHEUS_LLM_PROVIDER=openai
-      - MORPHEUS_LLM_MODEL=gpt-4o
-      - MORPHEUS_LLM_TEMPERATURE=0.7
-      
-      # API Keys
-      - OPENAI_API_KEY=your-openai-api-key
-      - ANTHROPIC_API_KEY=your-anthropic-api-key
-      - GOOGLE_API_KEY=your-google-api-key
-      - OPENROUTER_API_KEY=your-openrouter-api-key
-      
-      # Security
-      - THE_ARCHITECT_PASS=your-secure-password
-      
-      # Agent Configuration
-      - MORPHEUS_AGENT_NAME=morpheus
-      - MORPHEUS_AGENT_PERSONALITY=helpful_dev
-      
-      # UI Configuration
-      - MORPHEUS_UI_ENABLED=true
-      - MORPHEUS_UI_PORT=3333
-    restart: unless-stopped
-```
-
-### Using Docker Directly
-
-```bash
-# Build the image
-docker build -t morpheus .
-
-# Run with environment variables
-docker run -d \
-  --name morpheus-agent \
-  -p 3333:3333 \
-  -v morpheus_data:/root/.morpheus \
-  -e MORPHEUS_LLM_PROVIDER=openai \
-  -e OPENAI_API_KEY=your-api-key-here \
-  -e THE_ARCHITECT_PASS=your-password \
-  morpheus
-```
-
-### Environment Variables in Docker
-
-All environment variables described above work in Docker. The precedence order remains the same:
-1. Container environment variables
-2. Configuration file values
-3. Default values
-
-### Persistent Data
-
-The container stores configuration and data in `/root/.morpheus`. Mount a volume to persist data between container restarts:
-
-```yaml
-volumes:
-  - morpheus_data:/root/.morpheus  # Recommended for persistence
-```
-
-### Health Check
-
-The container includes a health check that verifies the health endpoint is accessible. The application exposes a public `/health` endpoint that doesn't require authentication:
-
-```bash
-curl http://localhost:3333/health
-```
-
-Response:
-```json
-{
-  "status": "healthy",
-  "timestamp": "2026-02-05T21:30:00.000Z",
-  "uptime": 123.45
-}
-```
-
-## Contributing
-
-1.  Fork the repository.
-2.  Create a feature branch (`git checkout -b feature/amazing-feature`).
-3.  Commit your changes (`git commit -m 'feat: Add amazing feature'`).
-4.  Push to the branch (`git push origin feature/amazing-feature`).
-5.  Open a Pull Request.
+## Related Docs
+- `ARCHITECTURE.md`
+- `PRODUCT.md`
+- `DOCUMENTATION.md`
 
 ## License
-
 MIT
