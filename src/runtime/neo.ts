@@ -13,11 +13,11 @@ import {
   MessageCountTool,
   TokenUsageTool,
   ProviderModelUsageTool,
-  ApocDelegateTool,
 } from "./tools/index.js";
 import { SQLiteChatMessageHistory } from "./memory/sqlite.js";
 import { TaskRequestContext } from "./tasks/context.js";
 import type { OracleTaskContext } from "./tasks/types.js";
+import { updateNeoDelegateToolDescription } from "./tools/neo-tool.js";
 
 export class Neo {
   private static instance: Neo | null = null;
@@ -46,6 +46,20 @@ export class Neo {
     Neo.instance = null;
   }
 
+  public static async refreshDelegateCatalog(): Promise<void> {
+    const mcpTools = await Construtor.create();
+    const catalogTools = [
+      ...mcpTools,
+      ConfigQueryTool,
+      ConfigUpdateTool,
+      DiagnosticTool,
+      MessageCountTool,
+      TokenUsageTool,
+      ProviderModelUsageTool
+    ];
+    updateNeoDelegateToolDescription(catalogTools);
+  }
+
   async initialize(): Promise<void> {
     const mcpTools = await Construtor.create();
     const tools = [
@@ -57,6 +71,7 @@ export class Neo {
       TokenUsageTool,
       ProviderModelUsageTool
     ];
+    updateNeoDelegateToolDescription(tools);
 
     this.display.log(`Neo initialized with ${tools.length} tools.`, { source: "Neo" });
 

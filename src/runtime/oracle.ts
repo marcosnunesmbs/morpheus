@@ -45,6 +45,9 @@ export class Oracle implements IOracle {
     // to allow for Environment Variable fallback supported by LangChain.
 
     try {
+      // Refresh Neo tool catalog so neo_delegate description contains runtime tools list.
+      // Fail-open: Oracle can still initialize even if catalog refresh fails.
+      await Neo.refreshDelegateCatalog().catch(() => {});
       this.provider = await ProviderFactory.create(this.config.llm, [NeoDelegateTool, ApocDelegateTool]);
       if (!this.provider) {
         throw new Error("Provider factory returned undefined");
@@ -297,6 +300,7 @@ This memory may be relevant to the user's request. Use it to inform your respons
       throw new Error("Oracle not initialized. Call initialize() first.");
     }
 
+    await Neo.refreshDelegateCatalog().catch(() => {});
     this.provider = await ProviderFactory.create(this.config.llm, [NeoDelegateTool, ApocDelegateTool]);
     await Neo.getInstance().reload();
     this.display.log(`Oracle and Neo tools reloaded`, { source: 'Oracle' });
