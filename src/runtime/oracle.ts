@@ -47,7 +47,14 @@ export class Oracle implements IOracle {
     const raw = (text || "").trim();
     if (!raw) return false;
 
-    const hasCreationClaim = /(as\s+tarefas?\s+foram\s+criadas|tarefa\s+criada|nova\s+tarefa\s+criada|deleguei|delegado|delegada|tasks?\s+created|task\s+created|queued\s+for)/i.test(raw);
+    // Detect the structured ack format that Oracle itself generates.
+    // LLMs can learn to reproduce this format from conversation history without calling any tool.
+    const hasAckTaskLine = /Task\s+`[0-9a-fA-F]{8}-[0-9a-fA-F]{4}/i.test(raw);
+    const hasAckAgentLine = /Agent:\s*`(APOC|NEO|apoc|neo)/i.test(raw);
+    const hasAckStatusLine = /Status:\s*`(QUEUED|PENDING|RUNNING|COMPLETED|FAILED)/i.test(raw);
+    if (hasAckTaskLine && hasAckAgentLine && hasAckStatusLine) return true;
+
+    const hasCreationClaim = /(as\s+tarefas?\s+foram\s+criadas|tarefa\s+criada|nova\s+tarefa\s+criada|deleguei|delegado|delegada|tasks?\s+created|task\s+created|queued\s+for|agendei|agendado|agendada|foi\s+agendad)/i.test(raw);
     if (!hasCreationClaim) return false;
 
     const hasAgentMention = /\b(apoc|neo|trinit)\b/i.test(raw);
@@ -63,7 +70,7 @@ export class Oracle implements IOracle {
       return `✅\nTask \`${task_id.toUpperCase()}\`\nAgent: \`${agent.toUpperCase()}\`\nStatus: \`QUEUED\``;
     }
     const lines = acks.map((a) => `• ${a.agent.toUpperCase()}: \`${a.task_id}\``).join('\n');
-    return `Tasks:\n\n${lines} \n\n running...`;
+    return `Tasks:\n${lines} \n\Running...`;
   }
 
   private buildDelegationAckResult(
