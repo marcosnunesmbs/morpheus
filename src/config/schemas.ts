@@ -31,6 +31,8 @@ export const ApocConfigSchema = LLMConfigSchema.extend({
     timeout_ms: z.number().int().positive().optional(),
 });
 
+export const NeoConfigSchema = LLMConfigSchema;
+
 export const WebhookConfigSchema = z.object({
   telegram_notify_all: z.boolean().optional(),
 }).optional();
@@ -43,6 +45,7 @@ export const ConfigSchema = z.object({
   }).default(DEFAULT_CONFIG.agent),
   llm: LLMConfigSchema.default(DEFAULT_CONFIG.llm),
   sati: SatiConfigSchema.optional(),
+  neo: NeoConfigSchema.optional(),
   apoc: ApocConfigSchema.optional(),
   webhooks: WebhookConfigSchema,
   audio: AudioConfigSchema.default(DEFAULT_CONFIG.audio),

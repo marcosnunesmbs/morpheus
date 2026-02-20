@@ -144,15 +144,14 @@ The system also supports generic environment variables that apply to all provide
 | `MORPHEUS_LLM_MAX_TOKENS` | Maximum tokens for LLM | llm.max_tokens |
 | `MORPHEUS_LLM_CONTEXT_WINDOW` | Context window size for LLM | llm.context_window |
 | `MORPHEUS_LLM_API_KEY` | Generic API key for LLM (lower precedence than provider-specific keys) | llm.api_key |
-| `MORPHEUS_SATI_PROVIDER` | Sati provider to use | santi.provider |
-| `MORPHEUS_SATI_MODEL` | Model name for Sati | santi.model |
-| `MORPHEUS_SATI_TEMPERATURE` | Temperature setting for Sati | santi.temperature |
-| `MORPHEUS_SATI_MAX_TOKENS` | Maximum tokens for Sati | santi.max_tokens |
-| `MORPHEUS_SATI_CONTEXT_WINDOW` | Context window size for Sati | santi.context_window |
-| `MORPHEUS_SATI_API_KEY` | Generic API key for Sati (lower precedence than provider-specific keys) | santi.api_key |
-| `MORPHEUS_SATI_MEMORY_LIMIT` | Memory retrieval limit for Sati | santi.memory_limit |
-| `MORPHEUS_SATI_MEMORY_LIMIT` | Memory retrieval limit for Sati | santi.memory_limit |
-| `MORPHEUS_SATI_ENABLED_ARCHIVED_SESSIONS`| Enable/disable retrieval of archived sessions in Sati | santi.enableArchivedSessions |
+| `MORPHEUS_SATI_PROVIDER` | Sati provider to use | sati.provider |
+| `MORPHEUS_SATI_MODEL` | Model name for Sati | sati.model |
+| `MORPHEUS_SATI_TEMPERATURE` | Temperature setting for Sati | sati.temperature |
+| `MORPHEUS_SATI_MAX_TOKENS` | Maximum tokens for Sati | sati.max_tokens |
+| `MORPHEUS_SATI_CONTEXT_WINDOW` | Context window size for Sati | sati.context_window |
+| `MORPHEUS_SATI_API_KEY` | Generic API key for Sati (lower precedence than provider-specific keys) | sati.api_key |
+| `MORPHEUS_SATI_MEMORY_LIMIT` | Memory retrieval limit for Sati | sati.memory_limit |
+| `MORPHEUS_SATI_ENABLED_ARCHIVED_SESSIONS`| Enable/disable retrieval of archived sessions in Sati | sati.enableArchivedSessions |
 | `MORPHEUS_APOC_PROVIDER` | Apoc LLM provider | apoc.provider |
 | `MORPHEUS_APOC_MODEL` | Model name for Apoc | apoc.model |
 | `MORPHEUS_APOC_TEMPERATURE` | Temperature for Apoc | apoc.temperature |
@@ -160,6 +159,13 @@ The system also supports generic environment variables that apply to all provide
 | `MORPHEUS_APOC_API_KEY` | API key for Apoc (falls back to provider-specific key) | apoc.api_key |
 | `MORPHEUS_APOC_WORKING_DIR` | Working directory for Apoc file/shell operations | apoc.working_dir |
 | `MORPHEUS_APOC_TIMEOUT_MS` | Timeout in ms for Apoc shell operations (default: 30000) | apoc.timeout_ms |
+| `MORPHEUS_NEO_PROVIDER` | Neo LLM provider | neo.provider |
+| `MORPHEUS_NEO_MODEL` | Model name for Neo | neo.model |
+| `MORPHEUS_NEO_TEMPERATURE` | Temperature for Neo | neo.temperature |
+| `MORPHEUS_NEO_MAX_TOKENS` | Maximum tokens for Neo | neo.max_tokens |
+| `MORPHEUS_NEO_CONTEXT_WINDOW` | Context window size for Neo | neo.context_window |
+| `MORPHEUS_NEO_API_KEY` | API key for Neo (falls back to provider-specific key) | neo.api_key |
+| `MORPHEUS_NEO_BASE_URL` | Base URL override for Neo provider (e.g. OpenRouter) | neo.base_url |
 | `MORPHEUS_AUDIO_MODEL` | Model name for audio processing | audio.model |
 | `MORPHEUS_AUDIO_ENABLED` | Enable/disable audio processing | audio.enabled |
 | `MORPHEUS_AUDIO_API_KEY` | Generic API key for audio (lower precedence than provider-specific keys) | audio.apiKey |

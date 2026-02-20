@@ -212,6 +212,131 @@ export const initCommand = new Command('init')
         await configManager.set('sati.api_key', satiApiKey);
       }
 
+      // Neo (MCP + Internal Tools Agent) Configuration
+      display.log(chalk.blue('\nNeo (MCP + Internal Tools Agent) Configuration'));
+      const configureNeo = await select({
+        message: 'Configure Neo separately?',
+        choices: [
+          { name: 'No (Use Oracle provider/model defaults)', value: 'no' },
+          { name: 'Yes', value: 'yes' },
+        ],
+        default: currentConfig.neo ? 'yes' : 'no',
+      });
+
+      let neoProvider = provider;
+      let neoModel = model;
+      let neoTemperature = currentConfig.neo?.temperature ?? 0.2;
+      let neoContextWindow = currentConfig.neo?.context_window ?? Number(contextWindow);
+      let neoMaxTokens = currentConfig.neo?.max_tokens;
+      let neoApiKey = currentConfig.neo?.api_key || apiKey || currentConfig.llm.api_key;
+      let neoBaseUrl = provider === 'openrouter'
+        ? (currentConfig.neo?.base_url || currentConfig.llm.base_url || 'https://openrouter.ai/api/v1')
+        : undefined;
+
+      if (configureNeo === 'yes') {
+        neoProvider = await select({
+          message: 'Select Neo LLM Provider:',
+          choices: [
+            { name: 'OpenAI', value: 'openai' },
+            { name: 'Anthropic', value: 'anthropic' },
+            { name: 'OpenRouter', value: 'openrouter' },
+            { name: 'Ollama', value: 'ollama' },
+            { name: 'Google Gemini', value: 'gemini' },
+          ],
+          default: currentConfig.neo?.provider || provider,
+        });
+
+        let defaultNeoModel = 'gpt-3.5-turbo';
+        switch (neoProvider) {
+          case 'openai': defaultNeoModel = 'gpt-4o'; break;
+          case 'anthropic': defaultNeoModel = 'claude-3-5-sonnet-20240620'; break;
+          case 'openrouter': defaultNeoModel = 'openrouter/auto'; break;
+          case 'ollama': defaultNeoModel = 'llama3'; break;
+          case 'gemini': defaultNeoModel = 'gemini-pro'; break;
+        }
+        if (neoProvider === currentConfig.neo?.provider) {
+          defaultNeoModel = currentConfig.neo?.model || defaultNeoModel;
+        }
+
+        neoModel = await input({
+          message: 'Enter Neo Model Name:',
+          default: defaultNeoModel,
+        });
+
+        const neoTemperatureInput = await input({
+          message: 'Neo Temperature (0-1):',
+          default: (currentConfig.neo?.temperature ?? 0.2).toString(),
+          validate: (val) => {
+            const n = Number(val);
+            return (!isNaN(n) && n >= 0 && n <= 1) || 'Must be a number between 0 and 1';
+          },
+        });
+        neoTemperature = Number(neoTemperatureInput);
+
+        const neoContextWindowInput = await input({
+          message: 'Neo Context Window (messages):',
+          default: (currentConfig.neo?.context_window ?? Number(contextWindow)).toString(),
+          validate: (val) => (!isNaN(Number(val)) && Number(val) > 0) || 'Must be a positive number',
+        });
+        neoContextWindow = Number(neoContextWindowInput);
+
+        const neoMaxTokensInput = await input({
+          message: 'Neo Max Tokens (optional, leave empty for model default):',
+          default: currentConfig.neo?.max_tokens?.toString() || '',
+          validate: (val) => {
+            if (val.trim() === '') return true;
+            return (!isNaN(Number(val)) && Number(val) > 0) || 'Must be a positive number';
+          },
+        });
+        neoMaxTokens = neoMaxTokensInput.trim() === '' ? undefined : Number(neoMaxTokensInput);
+
+        if (neoProvider !== 'ollama') {
+          const hasExistingNeoKey = !!currentConfig.neo?.api_key || !!currentConfig.llm?.api_key;
+          let neoKeyMsg = hasExistingNeoKey
+            ? 'Enter Neo API Key (leave empty to preserve existing, or if using env vars):'
+            : 'Enter Neo API Key (leave empty if using env vars):';
+
+          if (neoProvider === 'openai') {
+            neoKeyMsg = `${neoKeyMsg} (Env vars: MORPHEUS_NEO_API_KEY / OPENAI_API_KEY)`;
+          } else if (neoProvider === 'anthropic') {
+            neoKeyMsg = `${neoKeyMsg} (Env vars: MORPHEUS_NEO_API_KEY / ANTHROPIC_API_KEY)`;
+          } else if (neoProvider === 'gemini') {
+            neoKeyMsg = `${neoKeyMsg} (Env vars: MORPHEUS_NEO_API_KEY / GOOGLE_API_KEY)`;
+          } else if (neoProvider === 'openrouter') {
+            neoKeyMsg = `${neoKeyMsg} (Env vars: MORPHEUS_NEO_API_KEY / OPENROUTER_API_KEY)`;
+          }
+
+          const neoKeyInput = await password({ message: neoKeyMsg });
+          if (neoKeyInput) {
+            neoApiKey = neoKeyInput;
+          } else {
+            neoApiKey = currentConfig.neo?.api_key || currentConfig.llm?.api_key;
+          }
+        }
+
+        if (neoProvider === 'openrouter') {
+          neoBaseUrl = await input({
+            message: 'Enter Neo OpenRouter Base URL:',
+            default: currentConfig.neo?.base_url || currentConfig.llm.base_url || 'https://openrouter.ai/api/v1',
+          });
+        } else {
+          neoBaseUrl = undefined;
+        }
+      }
+
+      await configManager.save({
+        ...configManager.get(),
+        neo: {
+          provider: neoProvider as any,
+          model: neoModel,
+          temperature: neoTemperature,
+          context_window: neoContextWindow,
+          max_tokens: neoMaxTokens,
+          api_key: neoApiKey,
+          base_url: neoBaseUrl,
+        },
+      });
+
       // Audio Configuration
       const audioEnabled = await confirm({
         message: 'Enable Audio Transcription? (Requires Gemini)',

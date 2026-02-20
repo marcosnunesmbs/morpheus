@@ -12,6 +12,7 @@ import { ConfigSchema } from '../../../config/schemas';
 import type {
   MorpheusConfig,
   SatiConfig,
+  NeoConfig,
   ApocConfig,
 } from '../../../types/config';
 import { ZodError } from 'zod';
@@ -28,6 +29,7 @@ const TABS = [
 const AGENT_TABS = [
   { id: 'oracle', label: 'Oracle' },
   { id: 'sati', label: 'Sati' },
+  { id: 'neo', label: 'Neo' },
   { id: 'apoc', label: 'Apoc' },
 ];
 
@@ -52,9 +54,14 @@ export default function Settings() {
     '/api/config/apoc',
     configService.getApocConfig
   );
+  const { data: neoServerConfig } = useSWR(
+    '/api/config/neo',
+    configService.getNeoConfig
+  );
 
   const [localConfig, setLocalConfig] = useState<MorpheusConfig | null>(null);
   const [localSatiConfig, setLocalSatiConfig] = useState<SatiConfig | null>(null);
+  const [localNeoConfig, setLocalNeoConfig] = useState<NeoConfig | null>(null);
   const [localApocConfig, setLocalApocConfig] = useState<ApocConfig | null>(null);
   const [activeTab, setActiveTab] = useState('general');
   const [activeAgentTab, setActiveAgentTab] = useState('oracle');
@@ -90,9 +97,21 @@ export default function Settings() {
     }
   }, [apocServerConfig, localConfig]);
 
+  useEffect(() => {
+    if (neoServerConfig && !localNeoConfig) {
+      setLocalNeoConfig(neoServerConfig);
+    } else if (!neoServerConfig && !localNeoConfig && localConfig) {
+      setLocalNeoConfig({
+        ...(localConfig.neo ?? localConfig.llm),
+        temperature: localConfig.neo?.temperature ?? 0.2,
+      } as NeoConfig);
+    }
+  }, [neoServerConfig, localConfig]);
+
   const isDirty =
     JSON.stringify(serverConfig) !== JSON.stringify(localConfig) ||
     JSON.stringify(satiServerConfig) !== JSON.stringify(localSatiConfig) ||
+    JSON.stringify(neoServerConfig) !== JSON.stringify(localNeoConfig) ||
     JSON.stringify(apocServerConfig) !== JSON.stringify(localApocConfig);
 
   const handleUpdate = (path: string[], value: any) => {
@@ -132,6 +151,11 @@ export default function Settings() {
     setLocalApocConfig({ ...localApocConfig, [field]: value });
   };
 
+  const handleNeoUpdate = (field: keyof NeoConfig, value: any) => {
+    if (!localNeoConfig) return;
+    setLocalNeoConfig({ ...localNeoConfig, [field]: value });
+  };
+
   const handleCopyFromOracle = () => {
     if (!localConfig || !localSatiConfig) return;
     setLocalSatiConfig({
@@ -152,6 +176,16 @@ export default function Settings() {
     });
   };
 
+  const handleCopyNeoFromOracle = () => {
+    if (!localConfig || !localNeoConfig) return;
+    setLocalNeoConfig({
+      ...localNeoConfig,
+      provider: localConfig.llm.provider,
+      model: localConfig.llm.model,
+      api_key: localConfig.llm.api_key,
+    });
+  };
+
   const handleSave = async () => {
     if (!localConfig) return;
     setSaving(true);
@@ -163,12 +197,17 @@ export default function Settings() {
         await configService.updateSatiConfig(localSatiConfig);
       }
 
+      if (localNeoConfig) {
+        await configService.updateNeoConfig(localNeoConfig);
+      }
+
       if (localApocConfig) {
         await configService.updateApocConfig(localApocConfig);
       }
 
       mutate('/api/config');
       mutate('/api/config/sati');
+      mutate('/api/config/neo');
       mutate('/api/config/apoc');
       setNotification({
         type: 'success',
@@ -456,6 +495,104 @@ export default function Settings() {
                         handleSatiUpdate('enabled_archived_sessions', checked)
                       }
                     />
+                  </>
+                )}
+              </Section>
+            )}
+
+            {/* Neo */}
+            {activeAgentTab === 'neo' && (
+              <Section title="Neo Agent">
+                <p className="text-sm text-azure-text-secondary dark:text-matrix-secondary mb-4">
+                  MCP + internal tools subagent — executes analytical and operational tasks delegated by Oracle
+                </p>
+
+                <div className="mb-4">
+                  <button
+                    type="button"
+                    onClick={handleCopyNeoFromOracle}
+                    className="px-3 py-1.5 text-sm bg-azure-surface border border-azure-border rounded hover:bg-azure-primary/10 dark:bg-matrix-primary/20 dark:border-matrix-primary dark:hover:bg-matrix-highlight/10 text-azure-primary dark:text-matrix-highlight transition-colors"
+                  >
+                    Copy from Oracle Agent
+                  </button>
+                  <p className="text-xs text-azure-text-secondary dark:text-matrix-secondary mt-1">
+                    Copy Provider, Model, and API Key from Oracle Agent configuration
+                  </p>
+                </div>
+
+                {localNeoConfig && (
+                  <>
+                    <SelectInput
+                      label="Provider"
+                      value={localNeoConfig.provider}
+                      onChange={(e) =>
+                        handleNeoUpdate('provider', e.target.value as any)
+                      }
+                      options={PROVIDER_OPTIONS}
+                    />
+                    <TextInput
+                      label="Model Name"
+                      value={localNeoConfig.model}
+                      onChange={(e) => handleNeoUpdate('model', e.target.value)}
+                    />
+                    <NumberInput
+                      label="Temperature"
+                      value={localNeoConfig.temperature}
+                      onChange={(e) =>
+                        handleNeoUpdate('temperature', parseFloat(e.target.value))
+                      }
+                      step={0.1}
+                      min={0}
+                      max={1}
+                    />
+                    <NumberInput
+                      label="Max Tokens"
+                      value={localNeoConfig.max_tokens ?? ''}
+                      onChange={(e: any) =>
+                        handleNeoUpdate(
+                          'max_tokens',
+                          e.target.value ? parseInt(e.target.value) : undefined
+                        )
+                      }
+                      min={1}
+                      helperText="Maximum tokens per response. Leave empty for model default."
+                    />
+                    <NumberInput
+                      label="Context Window (Messages)"
+                      value={localNeoConfig.context_window ?? 100}
+                      onChange={(e: any) =>
+                        handleNeoUpdate(
+                          'context_window',
+                          parseInt(e.target.value)
+                        )
+                      }
+                      min={1}
+                      step={1}
+                    />
+                    <TextInput
+                      label="API Key"
+                      type="password"
+                      value={localNeoConfig.api_key || ''}
+                      onChange={(e) =>
+                        handleNeoUpdate('api_key', e.target.value)
+                      }
+                      placeholder="sk-..."
+                      helperText="Stored locally."
+                    />
+                    {localNeoConfig.provider === 'openrouter' && (
+                      <TextInput
+                        label="Base URL"
+                        value={
+                          localNeoConfig.base_url ||
+                          'https://openrouter.ai/api/v1'
+                        }
+                        onChange={(e) =>
+                          handleNeoUpdate('base_url', e.target.value)
+                        }
+                        placeholder="https://openrouter.ai/api/v1"
+                        helperText="Base URL for OpenRouter API"
+                      />
+                    )}
                   </>
                 )}
               </Section>

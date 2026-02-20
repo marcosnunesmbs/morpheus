@@ -64,6 +64,8 @@ export interface ApocConfig extends LLMConfig {
   timeout_ms?: number;
 }
 
+export interface NeoConfig extends LLMConfig {}
+
 export interface WebhookConfig {
   /** If true, all webhook notifications are also sent to Telegram by default */
   telegram_notify_all?: boolean;
@@ -88,6 +90,7 @@ export interface MorpheusConfig {
   agent: AgentConfig;
   llm: LLMConfig;
   sati?: SatiConfig;
+  neo?: NeoConfig;
   apoc?: ApocConfig;
   webhooks?: WebhookConfig;
   channels: ChannelsConfig;
@@ -150,5 +153,10 @@ export const DEFAULT_CONFIG: MorpheusConfig = {
     model: 'gpt-4',
     temperature: 0.2,
     timeout_ms: 30000,
+  },
+  neo: {
+    provider: 'openai',
+    model: 'gpt-4',
+    temperature: 0.2,
   }
 };

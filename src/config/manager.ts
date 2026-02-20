@@ -1,7 +1,7 @@
 import fs from 'fs-extra';
 import yaml from 'js-yaml';
 import { z } from 'zod';
-import { MorpheusConfig, DEFAULT_CONFIG, SatiConfig, ApocConfig, LLMProvider } from '../types/config.js';
+import { MorpheusConfig, DEFAULT_CONFIG, SatiConfig, ApocConfig, NeoConfig, LLMProvider } from '../types/config.js';
 import { PATHS } from './paths.js';
 import { setByPath } from './utils.js';
 import { ConfigSchema } from './schemas.js';
@@ -105,6 +105,55 @@ export class ConfigManager {
       };
     }
 
+    // Apply precedence to Neo config
+    const neoEnvVars = [
+      'MORPHEUS_NEO_PROVIDER',
+      'MORPHEUS_NEO_MODEL',
+      'MORPHEUS_NEO_TEMPERATURE',
+      'MORPHEUS_NEO_MAX_TOKENS',
+      'MORPHEUS_NEO_API_KEY',
+      'MORPHEUS_NEO_BASE_URL',
+      'MORPHEUS_NEO_CONTEXT_WINDOW',
+    ];
+    const hasNeoEnvOverrides = neoEnvVars.some((envVar) => process.env[envVar] !== undefined);
+
+    const resolveOptionalNumeric = (
+      envVar: string,
+      configValue: number | undefined,
+      fallbackValue: number | undefined
+    ): number | undefined => {
+      if (fallbackValue !== undefined) {
+        return resolveNumeric(envVar, configValue, fallbackValue);
+      }
+
+      if (process.env[envVar] !== undefined && process.env[envVar] !== '') {
+        const parsed = Number(process.env[envVar]);
+        if (!Number.isNaN(parsed)) {
+          return parsed;
+        }
+      }
+
+      return configValue;
+    };
+
+    let neoConfig: NeoConfig | undefined;
+    if (config.neo || hasNeoEnvOverrides) {
+      const neoProvider = resolveProvider('MORPHEUS_NEO_PROVIDER', config.neo?.provider, llmConfig.provider);
+      const neoBaseUrl = resolveString('MORPHEUS_NEO_BASE_URL', config.neo?.base_url, llmConfig.base_url || '');
+      const neoMaxTokensFallback = config.neo?.max_tokens ?? llmConfig.max_tokens;
+      const neoContextWindowFallback = config.neo?.context_window ?? llmConfig.context_window;
+
+      neoConfig = {
+        provider: neoProvider,
+        model: resolveModel(neoProvider, 'MORPHEUS_NEO_MODEL', config.neo?.model || llmConfig.model),
+        temperature: resolveNumeric('MORPHEUS_NEO_TEMPERATURE', config.neo?.temperature, llmConfig.temperature),
+        max_tokens: resolveOptionalNumeric('MORPHEUS_NEO_MAX_TOKENS', config.neo?.max_tokens, neoMaxTokensFallback),
+        api_key: resolveApiKey(neoProvider, 'MORPHEUS_NEO_API_KEY', config.neo?.api_key || llmConfig.api_key),
+        base_url: neoBaseUrl || undefined,
+        context_window: resolveOptionalNumeric('MORPHEUS_NEO_CONTEXT_WINDOW', config.neo?.context_window, neoContextWindowFallback),
+      };
+    }
+
     // Apply precedence to audio config
     const audioProvider = resolveString('MORPHEUS_AUDIO_PROVIDER', config.audio.provider, DEFAULT_CONFIG.audio.provider) as typeof config.audio.provider;
     // AudioProvider uses 'google' but resolveApiKey expects LLMProvider which uses 'gemini'
@@ -153,6 +202,7 @@ export class ConfigManager {
       agent: agentConfig,
       llm: llmConfig,
       sati: satiConfig,
+      neo: neoConfig,
       apoc: apocConfig,
       audio: audioConfig,
       channels: channelsConfig,
@@ -217,6 +267,19 @@ export class ConfigManager {
       ...this.config.llm,
       working_dir: process.cwd(),
       timeout_ms: 30_000
+    };
+  }
+
+  public getNeoConfig(): NeoConfig {
+    if (this.config.neo) {
+      return {
+        ...this.config.neo
+      };
+    }
+
+    // Fallback to main LLM config
+    return {
+      ...this.config.llm,
     };
   }
 }

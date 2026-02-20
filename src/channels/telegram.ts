@@ -771,6 +771,17 @@ How can I assist you today?`;
         }
       }
 
+      // Neo
+      const neo = (config as any).neo;
+      const neoProvider = neo?.provider || llmProvider;
+      if (neoProvider && neoProvider !== 'ollama') {
+        if (hasApiKey(neoProvider, neo?.api_key ?? config.llm?.api_key)) {
+          response += `✅ Neo API key \\(${escMd(neoProvider)}\\)\n`;
+        } else {
+          response += `❌ Neo API key missing \\(${escMd(neoProvider)}\\)\n`;
+        }
+      }
+
       // Telegram token
       if (config.channels?.telegram?.enabled) {
         const hasTelegramToken = config.channels.telegram?.token || process.env.TELEGRAM_BOT_TOKEN;
@@ -911,6 +922,22 @@ How can I assist you today?`;
       response += `\\- Temperature: ${escMd(apoc.temperature ?? 0.2)}\n`;
       if (apoc.working_dir) response += `\\- Working Dir: ${escMd(apoc.working_dir)}\n`;
       response += `\\- Timeout: ${escMd(apoc.timeout_ms ?? 30000)}ms\n`;
+    } else {
+      response += `\\- Inherits Oracle config\n`;
+    }
+    response += '\n';
+
+    // Neo config (falls back to llm if not set)
+    const neo = (config as any).neo;
+    response += `*Neo \\(MCP \\+ Internal Tools\\):*\n`;
+    if (neo?.provider) {
+      response += `\\- Provider: ${escMd(neo.provider)}\n`;
+      response += `\\- Model: ${escMd(neo.model || config.llm.model)}\n`;
+      response += `\\- Temperature: ${escMd(neo.temperature ?? 0.2)}\n`;
+      response += `\\- Context Window: ${escMd(neo.context_window ?? config.llm.context_window ?? 100)}\n`;
+      if (neo.max_tokens !== undefined) {
+        response += `\\- Max Tokens: ${escMd(neo.max_tokens)}\n`;
+      }
     } else {
       response += `\\- Inherits Oracle config\n`;
     }

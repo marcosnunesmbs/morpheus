@@ -54,6 +54,8 @@ export const doctorCommand = new Command('doctor')
         // Check API keys availability for active providers
         const llmProvider = config.llm?.provider;
         const satiProvider = config.sati?.provider;
+        const apocProvider = config.apoc?.provider || llmProvider;
+        const neoProvider = config.neo?.provider || llmProvider;
         
         // Check LLM provider API key
         if (llmProvider && llmProvider !== 'ollama') {
@@ -83,6 +85,40 @@ export const doctorCommand = new Command('doctor')
             console.log(chalk.green('✓') + ` Sati API key available for ${satiProvider}`);
           } else {
             console.log(chalk.red('✗') + ` Sati API key missing for ${satiProvider}. Either set in config or define environment variable.`);
+            allPassed = false;
+          }
+        }
+
+        // Check Apoc provider API key
+        if (apocProvider && apocProvider !== 'ollama') {
+          const hasApocApiKey = config.apoc?.api_key ||
+                                config.llm?.api_key ||
+                                (apocProvider === 'openai' && process.env.OPENAI_API_KEY) ||
+                                (apocProvider === 'anthropic' && process.env.ANTHROPIC_API_KEY) ||
+                                (apocProvider === 'gemini' && process.env.GOOGLE_API_KEY) ||
+                                (apocProvider === 'openrouter' && process.env.OPENROUTER_API_KEY);
+
+          if (hasApocApiKey) {
+            console.log(chalk.green('✓') + ` Apoc API key available for ${apocProvider}`);
+          } else {
+            console.log(chalk.red('✗') + ` Apoc API key missing for ${apocProvider}. Either set in config or define environment variable.`);
+            allPassed = false;
+          }
+        }
+
+        // Check Neo provider API key
+        if (neoProvider && neoProvider !== 'ollama') {
+          const hasNeoApiKey = config.neo?.api_key ||
+                               config.llm?.api_key ||
+                               (neoProvider === 'openai' && process.env.OPENAI_API_KEY) ||
+                               (neoProvider === 'anthropic' && process.env.ANTHROPIC_API_KEY) ||
+                               (neoProvider === 'gemini' && process.env.GOOGLE_API_KEY) ||
+                               (neoProvider === 'openrouter' && process.env.OPENROUTER_API_KEY);
+
+          if (hasNeoApiKey) {
+            console.log(chalk.green('✓') + ` Neo API key available for ${neoProvider}`);
+          } else {
+            console.log(chalk.red('✗') + ` Neo API key missing for ${neoProvider}. Either set in config or define environment variable.`);
             allPassed = false;
           }
         }

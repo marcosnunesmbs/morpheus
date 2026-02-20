@@ -491,6 +491,55 @@ export function createApiRouter(oracle: IOracle) {
     }
   });
 
+  // Neo config endpoints
+  router.get('/config/neo', (req, res) => {
+    try {
+      const neoConfig = configManager.getNeoConfig();
+      res.json(neoConfig);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  router.post('/config/neo', async (req, res) => {
+    try {
+      const config = configManager.get();
+      await configManager.save({ ...config, neo: req.body });
+
+      const display = DisplayManager.getInstance();
+      display.log('Neo configuration updated via UI', {
+        source: 'Zaion',
+        level: 'info'
+      });
+
+      res.json({ success: true });
+    } catch (error: any) {
+      if (error.name === 'ZodError') {
+        res.status(400).json({ error: 'Validation failed', details: error.errors });
+      } else {
+        res.status(500).json({ error: error.message });
+      }
+    }
+  });
+
+  router.delete('/config/neo', async (req, res) => {
+    try {
+      const config = configManager.get();
+      const { neo: _neo, ...restConfig } = config;
+      await configManager.save(restConfig);
+
+      const display = DisplayManager.getInstance();
+      display.log('Neo configuration removed via UI (falling back to Oracle config)', {
+        source: 'Zaion',
+        level: 'info'
+      });
+
+      res.json({ success: true });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   router.post('/config/apoc', async (req, res) => {
     try {
       const config = configManager.get();

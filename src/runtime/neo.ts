@@ -61,6 +61,7 @@ export class Neo {
   }
 
   async initialize(): Promise<void> {
+    const neoConfig = this.config.neo || this.config.llm;
     const mcpTools = await Construtor.create();
     const tools = [
       ...mcpTools,
@@ -76,10 +77,10 @@ export class Neo {
     this.display.log(`Neo initialized with ${tools.length} tools.`, { source: "Neo" });
 
     try {
-      this.agent = await ProviderFactory.create(this.config.llm, tools);
+      this.agent = await ProviderFactory.create(neoConfig, tools);
     } catch (err) {
       throw new ProviderError(
-        this.config.llm.provider,
+        neoConfig.provider,
         err,
         "Neo subagent initialization failed"
       );
@@ -92,6 +93,7 @@ export class Neo {
     sessionId?: string,
     taskContext?: OracleTaskContext,
   ): Promise<string> {
+    const neoConfig = this.config.neo || this.config.llm;
     if (!this.agent) {
       await this.initialize();
     }
@@ -145,8 +147,8 @@ ${context ? `Context:\n${context}` : ""}
           ?? (lastMessage as any).response_metadata?.tokenUsage
           ?? (lastMessage as any).usage;
         (persisted as any).provider_metadata = {
-          provider: this.config.llm.provider,
-          model: this.config.llm.model,
+          provider: neoConfig.provider,
+          model: neoConfig.model,
         };
         await history.addMessage(persisted);
       } finally {
@@ -157,7 +159,7 @@ ${context ? `Context:\n${context}` : ""}
       return content;
     } catch (err) {
       throw new ProviderError(
-        this.config.llm.provider,
+        neoConfig.provider,
         err,
         "Neo task execution failed"
       );
