@@ -50,8 +50,8 @@ export const ChatPage: React.FC = () => {
     const loadMessages = async (id: string) => {
         try {
             const history = await chatService.getMessages(id);
-            // Filter out system and tool messages for cleaner UI
-            setMessages(history.filter(m => m.type !== 'system' && m.type !== 'tool'));
+            // Keep tool messages visible; hide only low-level system prompts.
+            setMessages(history.filter(m => m.type !== 'system'));
         } catch (error) {
             console.error('Failed to load messages:', error);
         }

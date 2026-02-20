@@ -99,7 +99,7 @@ export function TasksPage() {
           <option value="">All agents</option>
           <option value="apoc">Apoc</option>
           <option value="neo">Neo</option>
-          <option value="trinit">Trinit</option>
+          {/* <option value="trinit">Trinit</option> */}
         </select>
 
         <select
@@ -113,7 +113,7 @@ export function TasksPage() {
           <option value="api">API</option>
           <option value="webhook">Webhook</option>
           <option value="cli">CLI</option>
-          <option value="discord">Discord</option>
+          {/* <option value="discord">Discord</option> */}
         </select>
 
         <input

@@ -92,20 +92,80 @@ export function createApiRouter(oracle: IOracle) {
     const { id } = req.params;
     const sessionHistory = new SQLiteChatMessageHistory({ sessionId: id, limit: 100 });
     try {
-      const messages = await sessionHistory.getMessages();
+      const relatedSessionIds = id.startsWith('sati-evaluation-')
+        ? [id]
+        : [id, `sati-evaluation-${id}`];
+      const rows = await sessionHistory.getRawMessagesBySessionIds(relatedSessionIds, 200);
 
-      // Normalize messages for UI
-      const normalizedMessages = messages.map((msg: any) => {
-        const type = msg._getType ? msg._getType() : 'unknown';
+      const normalizedMessages = rows.map((row) => {
+        let content = row.content;
+        let tool_calls: any[] | undefined;
+        let tool_name: string | undefined;
+        let tool_call_id: string | undefined;
+
+        if (row.type === 'ai') {
+          try {
+            const parsed = JSON.parse(row.content);
+            if (parsed && typeof parsed === 'object') {
+              if (Array.isArray((parsed as any).tool_calls)) {
+                tool_calls = (parsed as any).tool_calls;
+              }
+              if (typeof (parsed as any).text === 'string') {
+                content = (parsed as any).text;
+              }
+            }
+          } catch {
+            // Keep raw content for legacy/plain-text messages.
+          }
+        }
+
+        if (row.type === 'tool') {
+          try {
+            const parsed = JSON.parse(row.content);
+            if (parsed && typeof parsed === 'object') {
+              if ((parsed as any).content !== undefined) {
+                const parsedContent = (parsed as any).content;
+                content =
+                  typeof parsedContent === 'string'
+                    ? parsedContent
+                    : JSON.stringify(parsedContent, null, 2);
+              }
+              if (typeof (parsed as any).name === 'string') {
+                tool_name = (parsed as any).name;
+              }
+              if (typeof (parsed as any).tool_call_id === 'string') {
+                tool_call_id = (parsed as any).tool_call_id;
+              }
+            }
+          } catch {
+            // Keep raw content for legacy/plain-text tool messages.
+          }
+        }
+
+        const usage_metadata = row.total_tokens != null
+          ? {
+              input_tokens: row.input_tokens || 0,
+              output_tokens: row.output_tokens || 0,
+              total_tokens: row.total_tokens || 0,
+              input_token_details: row.cache_read_tokens
+                ? { cache_read: row.cache_read_tokens }
+                : undefined,
+            }
+          : undefined;
+
         return {
-          type,
-          content: msg.content,
-          tool_calls: (msg as any).tool_calls,
-          usage_metadata: (msg as any).usage_metadata
+          session_id: row.session_id,
+          created_at: row.created_at,
+          type: row.type,
+          content,
+          tool_calls,
+          tool_name,
+          tool_call_id,
+          usage_metadata,
         };
       });
 
-      // Reverse to chronological order for UI
+      // Convert DESC to ASC for UI rendering
       res.json(normalizedMessages.reverse());
     } catch (err: any) {
       res.status(500).json({ error: err.message });

@@ -10,7 +10,11 @@ export interface Session {
 export interface Message {
     type: 'human' | 'ai' | 'system' | 'tool';
     content: string;
+    session_id?: string;
+    created_at?: number;
     tool_calls?: any[];
+    tool_name?: string;
+    tool_call_id?: string;
     usage_metadata?: any;
 }
 

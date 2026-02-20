@@ -345,6 +345,61 @@ export class SQLiteChatMessageHistory extends BaseListChatMessageHistory {
   }
 
   /**
+   * Retrieves raw stored messages for one or more session IDs.
+   * Useful when the caller needs metadata like session_id and created_at.
+   */
+  async getRawMessagesBySessionIds(
+    sessionIds: string[],
+    limit = this.limit
+  ): Promise<Array<{
+    id: number;
+    session_id: string;
+    type: string;
+    content: string;
+    created_at: number;
+    input_tokens?: number;
+    output_tokens?: number;
+    total_tokens?: number;
+    cache_read_tokens?: number;
+    provider?: string;
+    model?: string;
+  }>> {
+    if (sessionIds.length === 0) {
+      return [];
+    }
+
+    try {
+      const placeholders = sessionIds.map(() => '?').join(', ');
+      const stmt = this.db.prepare(
+        `SELECT id, session_id, type, content, created_at, input_tokens, output_tokens, total_tokens, cache_read_tokens, provider, model
+         FROM messages
+         WHERE session_id IN (${placeholders})
+         ORDER BY id DESC
+         LIMIT ?`
+      );
+
+      return stmt.all(...sessionIds, limit) as Array<{
+        id: number;
+        session_id: string;
+        type: string;
+        content: string;
+        created_at: number;
+        input_tokens?: number;
+        output_tokens?: number;
+        total_tokens?: number;
+        cache_read_tokens?: number;
+        provider?: string;
+        model?: string;
+      }>;
+    } catch (error) {
+      if (error instanceof Error && error.message.includes('SQLITE_BUSY')) {
+        throw new Error(`Database is locked. Please try again. Original error: ${error.message}`);
+      }
+      throw new Error(`Failed to retrieve raw messages: ${error}`);
+    }
+  }
+
+  /**
    * Adds a message to the database.
    * @param message The message to add
    */
