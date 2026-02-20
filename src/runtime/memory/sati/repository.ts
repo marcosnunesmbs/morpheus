@@ -548,6 +548,43 @@ export class SatiRepository {
     };
   }
 
+  public update(
+    id: string,
+    data: Partial<Pick<IMemoryRecord, 'summary' | 'details' | 'importance' | 'category'>>
+  ): IMemoryRecord | null {
+    if (!this.db) this.initialize();
+
+    const existing = this.db!.prepare('SELECT * FROM long_term_memory WHERE id = ?').get(id) as any;
+    if (!existing) return null;
+
+    const setClauses: string[] = ['updated_at = @updated_at', 'version = version + 1'];
+    const params: Record<string, any> = { id, updated_at: new Date().toISOString() };
+
+    if (data.importance !== undefined) {
+      setClauses.push('importance = @importance');
+      params.importance = data.importance;
+    }
+    if (data.category !== undefined) {
+      setClauses.push('category = @category');
+      params.category = data.category;
+    }
+    if (data.summary !== undefined) {
+      setClauses.push('summary = @summary');
+      params.summary = data.summary;
+    }
+    if (data.details !== undefined) {
+      setClauses.push('details = @details');
+      params.details = data.details;
+    }
+
+    this.db!.prepare(
+      `UPDATE long_term_memory SET ${setClauses.join(', ')} WHERE id = @id`
+    ).run(params);
+
+    const updated = this.db!.prepare('SELECT * FROM long_term_memory WHERE id = ?').get(id) as any;
+    return updated ? this.mapRowToRecord(updated) : null;
+  }
+
   public archiveMemory(id: string): boolean {
     if (!this.db) this.initialize();
 

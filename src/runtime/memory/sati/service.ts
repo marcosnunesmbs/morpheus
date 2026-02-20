@@ -1,5 +1,5 @@
 import { SatiRepository } from './repository.js';
-import { ISatiService, ISatiRetrievalOutput, ISatiEvaluationInput, ISatiEvaluationOutput, ISatiEvaluationOutputArray } from './types.js';
+import { ISatiService, ISatiRetrievalOutput, ISatiEvaluationInput, ISatiEvaluationResult } from './types.js';
 import { ConfigManager } from '../../../config/manager.js';
 import { ProviderFactory } from '../../providers/factory.js';
 import { SystemMessage, HumanMessage, ToolMessage } from "@langchain/core/messages";
@@ -89,7 +89,6 @@ export class SatiService implements ISatiService {
 
       // Get existing memories for context (Simulated "Working Memory" or full list if small)
       const allMemories = this.repository.getAllMemories();
-      const existingSummaries = allMemories.map(m => m.summary);
 
       // Map conversation to strict types and sanitize
       const recentConversation = conversation.map(c => ({
@@ -99,7 +98,12 @@ export class SatiService implements ISatiService {
 
       const inputPayload: ISatiEvaluationInput = {
         recent_conversation: recentConversation,
-        existing_memory_summaries: existingSummaries
+        existing_memories: allMemories.map(m => ({
+          id: m.id,
+          category: m.category,
+          importance: m.importance,
+          summary: m.summary
+        }))
       };
 
       const messages = [
@@ -156,7 +160,7 @@ export class SatiService implements ISatiService {
       // Safe JSON parsing (handle markdown blocks if LLM wraps output)
       content = content.replace(/```json/g, '').replace(/```/g, '').trim();
 
-      let result: ISatiEvaluationOutputArray = [];
+      let result: ISatiEvaluationResult = { inclusions: [], edits: [], deletions: [] };
       try {
         result = JSON.parse(content);
       } catch (e) {
@@ -164,45 +168,66 @@ export class SatiService implements ISatiService {
         return;
       }
 
-    for (const item of result) {
-      if (item.should_store && item.summary && item.category && item.importance) {
-        display.log(`Persisting new memory: [${item.category.toUpperCase()}] ${item.summary}`, { source: 'Sati' });
-        try {
-          const savedMemory = await this.repository.save({
-            summary: item.summary,
-            category: item.category,
-            importance: item.importance,
-            details: item.reason,
-            hash: this.generateHash(item.summary),
-            source: 'conversation'
-          });
+      const embeddingService = await EmbeddingService.getInstance();
 
-          // 🔥 GERAR EMBEDDING
-          const embeddingService = await EmbeddingService.getInstance();
+      // Process inclusions (new memories)
+      for (const item of (result.inclusions ?? [])) {
+        if (item.summary && item.category && item.importance) {
+          display.log(`Persisting new memory: [${item.category.toUpperCase()}] ${item.summary}`, { source: 'Sati' });
+          try {
+            const savedMemory = await this.repository.save({
+              summary: item.summary,
+              category: item.category,
+              importance: item.importance,
+              details: item.reason,
+              hash: this.generateHash(item.summary),
+              source: 'conversation'
+            });
 
-          const textForEmbedding = [
-            savedMemory.summary,
-            savedMemory.details ?? ''
-          ].join(' ');
-
-          const embedding = await embeddingService.generate(textForEmbedding);
-
-          display.log(`Generated embedding for memory ID ${savedMemory.id}`, { source: 'Sati', level: 'debug' });
-
-          // 🔥 SALVAR EMBEDDING NO SQLITE_VEC
-          this.repository.upsertEmbedding(savedMemory.id, embedding);
-
-          // Quiet success - logging handled by repository/middleware if needed, or verbose debug
-        } catch (saveError: any) {
-          if (saveError.message && saveError.message.includes('UNIQUE constraint failed')) {
-            // Duplicate detected by DB (Hash collision)
-            // This is expected given T012 logic
-          } else {
-            throw saveError;
+            const textForEmbedding = [savedMemory.summary, savedMemory.details ?? ''].join(' ');
+            const embedding = await embeddingService.generate(textForEmbedding);
+            display.log(`Generated embedding for memory ID ${savedMemory.id}`, { source: 'Sati', level: 'debug' });
+            this.repository.upsertEmbedding(savedMemory.id, embedding);
+          } catch (saveError: any) {
+            if (saveError.message && saveError.message.includes('UNIQUE constraint failed')) {
+              // Duplicate detected by DB (hash collision) — expected
+            } else {
+              throw saveError;
+            }
           }
         }
       }
-    }
+
+      // Process edits (update existing memories)
+      for (const edit of (result.edits ?? [])) {
+        if (!edit.id) continue;
+        const updated = this.repository.update(edit.id, {
+          importance: edit.importance,
+          summary: edit.summary,
+          details: edit.details,
+        });
+        if (updated) {
+          display.log(`Updated memory ${edit.id}: ${edit.reason ?? ''}`, { source: 'Sati' });
+          if (edit.summary || edit.details) {
+            const text = [updated.summary, updated.details ?? ''].join(' ');
+            const embedding = await embeddingService.generate(text);
+            this.repository.upsertEmbedding(updated.id, embedding);
+          }
+        } else {
+          display.log(`Edit skipped — memory not found: ${edit.id}`, { source: 'Sati', level: 'warning' });
+        }
+      }
+
+      // Process deletions (archive memories)
+      for (const deletion of (result.deletions ?? [])) {
+        if (!deletion.id) continue;
+        const archived = this.repository.archiveMemory(deletion.id);
+        if (archived) {
+          display.log(`Archived memory ${deletion.id}: ${deletion.reason ?? ''}`, { source: 'Sati' });
+        } else {
+          display.log(`Deletion skipped — memory not found: ${deletion.id}`, { source: 'Sati', level: 'warning' });
+        }
+      }
 
     } catch (error) {
       console.error('[SatiService] Evaluation failed:', error);

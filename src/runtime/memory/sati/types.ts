@@ -49,9 +49,41 @@ export interface ISatiEvaluationInput {
     role: 'user' | 'assistant';
     content: string;
   }[];
-  existing_memory_summaries: string[];
+  existing_memories: {
+    id: string;
+    category: MemoryCategory;
+    importance: MemoryImportance;
+    summary: string;
+  }[];
 }
 
+export interface ISatiEvaluationInclusion {
+  category: MemoryCategory;
+  importance: MemoryImportance;
+  summary: string;
+  reason?: string;
+}
+
+export interface ISatiEvaluationEdit {
+  id: string;
+  importance?: MemoryImportance;
+  summary?: string;
+  details?: string;
+  reason?: string;
+}
+
+export interface ISatiEvaluationDeletion {
+  id: string;
+  reason?: string;
+}
+
+export interface ISatiEvaluationResult {
+  inclusions: ISatiEvaluationInclusion[];
+  edits: ISatiEvaluationEdit[];
+  deletions: ISatiEvaluationDeletion[];
+}
+
+/** @deprecated Use ISatiEvaluationResult */
 export interface ISatiEvaluationOutput {
   should_store: boolean;
   category?: MemoryCategory;
@@ -60,6 +92,7 @@ export interface ISatiEvaluationOutput {
   reason?: string;
 }
 
+/** @deprecated Use ISatiEvaluationResult */
 export type ISatiEvaluationOutputArray = ISatiEvaluationOutput[];
 
 export interface ISatiService {
