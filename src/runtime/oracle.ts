@@ -20,8 +20,14 @@ import { NeoDelegateTool } from "./tools/neo-tool.js";
 import { ApocDelegateTool } from "./tools/apoc-tool.js";
 import { TaskQueryTool } from "./tools/task-query-tool.js";
 
+type AckGenerationResult = {
+  content: string;
+  usage_metadata?: any;
+};
+
 export class Oracle implements IOracle {
   private provider?: ReactAgent;
+  private ackProvider?: ReactAgent;
   private config: MorpheusConfig;
   private history?: BaseListChatMessageHistory;
   private display = DisplayManager.getInstance();
@@ -34,33 +40,103 @@ export class Oracle implements IOracle {
     this.databasePath = overrides?.databasePath;
   }
 
-  private isLikelyPortuguese(text: string): boolean {
-    return /[ãõáéíóúâêôç]|(?:\b(?:qual|faça|faca|dê|de|consulte|cotação|cotacao|próximo|proximo|jogo|hoje)\b)/i.test(text);
+  private buildDelegationFailureResponse(): string {
+    return "Task enqueue could not be confirmed in the database. Please retry.";
   }
 
-  private buildDelegationAckResponse(acks: Array<{ task_id: string; agent: string }>, userMessage: string): string {
-    const isPt = this.isLikelyPortuguese(userMessage);
+  private buildDelegationAckFallback(acks: Array<{ task_id: string; agent: string }>): string {
     if (acks.length === 1) {
-      const ack = acks[0];
-      if (isPt) {
-        return `Tarefa enfileirada para ${ack.agent} (Task \`${ack.task_id}\`). Avisarei quando concluir.`;
-      }
-      return `Task queued for ${ack.agent} (Task \`${ack.task_id}\`). I will notify you when it completes.`;
+      return `Task created: ${acks[0].task_id} (${acks[0].agent}).`;
     }
-
-    const lines = acks.map((ack) => `- ${ack.agent}: \`${ack.task_id}\``);
-    if (isPt) {
-      return `Deleguei ${acks.length} tarefas:\n${lines.join("\n")}\nAvisarei assim que os resultados estiverem prontos.`;
-    }
-    return `Queued ${acks.length} tasks:\n${lines.join("\n")}\nI will notify you as soon as the results are ready.`;
+    return `Tasks created: ${acks.map((ack) => `${ack.task_id} (${ack.agent})`).join(", ")}.`;
   }
 
-  private buildDelegationFailureResponse(userMessage: string): string {
-    const isPt = this.isLikelyPortuguese(userMessage);
-    if (isPt) {
-      return "Falha ao confirmar o enfileiramento da tarefa. Nenhuma task válida foi registrada no banco. Tente novamente.";
+  private sanitizeDelegationAckText(
+    text: string,
+    acks: Array<{ task_id: string; agent: string }>,
+  ): string {
+    const normalized = (text || "").trim();
+    if (!normalized) {
+      return this.buildDelegationAckFallback(acks);
     }
-    return "Failed to confirm task enqueue. No valid task was recorded in the database. Please try again.";
+
+    const allowed = new Set(acks.map((ack) => ack.task_id.toLowerCase()));
+    const found = Array.from(
+      normalized.matchAll(/\b[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}\b/g)
+    ).map((m) => m[0].toLowerCase());
+
+    if (found.some((id) => !allowed.has(id))) {
+      this.display.log("Sanitized delegation ack rejected due to unknown task id in text.", {
+        source: "Oracle",
+        level: "warning",
+      });
+      return this.buildDelegationAckFallback(acks);
+    }
+
+    if (acks.some((ack) => !normalized.includes(ack.task_id))) {
+      this.display.log("Sanitized delegation ack rejected due to missing task id in text.", {
+        source: "Oracle",
+        level: "warning",
+      });
+      return this.buildDelegationAckFallback(acks);
+    }
+
+    return normalized;
+  }
+
+  private async buildDelegationAckWithAgent(
+    userMessage: string,
+    acks: Array<{ task_id: string; agent: string }>,
+  ): Promise<AckGenerationResult> {
+    if (!this.ackProvider) {
+      try {
+        this.ackProvider = await ProviderFactory.createBare(this.config.llm, []);
+      } catch (err: any) {
+        this.display.log(`Ack provider initialization failed: ${err?.message ?? String(err)}`, {
+          source: "Oracle",
+          level: "warning",
+        });
+        return { content: this.buildDelegationAckFallback(acks) };
+      }
+    }
+
+    const tasksBlock = acks.map((ack) => `- ${ack.agent}: ${ack.task_id}`).join("\n");
+    const ackSystem = new SystemMessage(`
+You are Oracle.
+Return only a short acknowledgement that tasks were created.
+
+Hard rules:
+1. Do NOT provide execution results.
+2. Do NOT use or mention conversation history or memory.
+3. Use the same language as the user's message.
+4. Mention exactly the provided task IDs and agents.
+5. Keep the response concise.
+6. Breack down multiple tasks into bullet points.
+    `);
+    const ackHuman = new HumanMessage(
+      `User message:\n${userMessage}\n\nCreated tasks:\n${tasksBlock}\n\nRespond now.`
+    );
+
+    try {
+      const response = await this.ackProvider.invoke({ messages: [ackSystem, ackHuman] });
+      const last = response.messages[response.messages.length - 1];
+      const content = typeof last.content === "string" ? last.content : JSON.stringify(last.content);
+      const usage =
+        (last as any).usage_metadata
+        ?? (last as any).response_metadata?.usage
+        ?? (last as any).response_metadata?.tokenUsage
+        ?? (last as any).usage;
+      return {
+        content: this.sanitizeDelegationAckText(content, acks),
+        usage_metadata: usage,
+      };
+    } catch (err: any) {
+      this.display.log(`Ack generation failed: ${err?.message ?? String(err)}`, {
+        source: "Oracle",
+        level: "warning",
+      });
+      return { content: this.buildDelegationAckFallback(acks) };
+    }
   }
 
   private extractDelegationAcksFromMessages(messages: BaseMessage[]): Array<{ task_id: string; agent: string }> {
@@ -145,6 +221,15 @@ export class Oracle implements IOracle {
       if (!this.provider) {
         throw new Error("Provider factory returned undefined");
       }
+      try {
+        this.ackProvider = await ProviderFactory.createBare(this.config.llm, []);
+      } catch (err: any) {
+        this.ackProvider = undefined;
+        this.display.log(`Ack provider bootstrap failed: ${err?.message ?? String(err)}`, {
+          source: "Oracle",
+          level: "warning",
+        });
+      }
 
       // Initialize persistent memory with SQLite
       const contextWindow = this.config.llm?.context_window ?? this.config.memory?.limit ?? 100;
@@ -215,7 +300,7 @@ Delegation quality:
 - Write delegation input in the same language requested by the user.
 - Include clear objective and constraints.
 - Include OS-aware guidance for network checks when relevant.
-- Use Sati memories only as context, never as source of truth for dynamic data.
+- Use Sati memories only as context to complement the task, never as source of truth for dynamic data.
 - break the request into multiple delegations if it contains multiple independent actions.
 - Set a single task per delegation tool call. Do not combine multiple actions into one delegation, as it complicates execution and error handling.
 - If user requested N independent actions, produce N delegated tasks (or direct answers), each one singular and tool-scoped.
@@ -315,22 +400,30 @@ This memory may be relevant to the user's request. Use it to inform your respons
         );
       }
 
-      if (validDelegationAcks.length > 0) {
-        // Hard guard: after delegation, Oracle must only return task acknowledgements.
-        responseContent = this.buildDelegationAckResponse(validDelegationAcks, message);
+      const delegatedThisTurn = validDelegationAcks.length > 0;
+
+      if (delegatedThisTurn) {
+        // Guard: delegation acknowledgements are generated in a clean context (no chat history/memory).
+        const ackResult = await this.buildDelegationAckWithAgent(message, validDelegationAcks);
+        responseContent = ackResult.content;
         const ackMessage = new AIMessage(responseContent);
         (ackMessage as any).provider_metadata = {
           provider: this.config.llm.provider,
           model: this.config.llm.model,
         };
-        await this.history.addMessages([userMessage, ackMessage]);
+        if (ackResult.usage_metadata) {
+          (ackMessage as any).usage_metadata = ackResult.usage_metadata;
+        }
+        // Persist with addMessage so ack-provider usage is tracked per message row.
+        await this.history.addMessage(userMessage);
+        await this.history.addMessage(ackMessage);
       } else if (mergedDelegationAcks.length > 0 || hadDelegationToolCall) {
         this.display.log(
           `Delegation attempted but no valid task id was confirmed (context=${contextDelegationAcks.length}, tool_messages=${toolDelegationAcks.length}, had_tool_call=${hadDelegationToolCall}).`,
           { source: "Oracle", level: "error" }
         );
         // Delegation was attempted but no valid task id could be confirmed in DB.
-        responseContent = this.buildDelegationFailureResponse(message);
+        responseContent = this.buildDelegationFailureResponse();
         const failureMessage = new AIMessage(responseContent);
         (failureMessage as any).provider_metadata = {
           provider: this.config.llm.provider,
@@ -347,9 +440,11 @@ This memory may be relevant to the user's request. Use it to inform your respons
 
       this.display.log('Response generated.', { source: 'Oracle' });
 
-      // Sati Middleware: Evaluation (Fire and forget)
-      this.satiMiddleware.afterAgent(responseContent, [...previousMessages, userMessage], currentSessionId)
-        .catch((e: any) => this.display.log(`Sati memory evaluation failed: ${e.message}`, { source: 'Sati' }));
+      // Sati Middleware: skip memory evaluation for delegation-only acknowledgements.
+      if (!delegatedThisTurn) {
+        this.satiMiddleware.afterAgent(responseContent, [...previousMessages, userMessage], currentSessionId)
+          .catch((e: any) => this.display.log(`Sati memory evaluation failed: ${e.message}`, { source: 'Sati' }));
+      }
 
       return responseContent;
     } catch (err) {
@@ -456,6 +551,15 @@ This memory may be relevant to the user's request. Use it to inform your respons
 
     await Neo.refreshDelegateCatalog().catch(() => {});
     this.provider = await ProviderFactory.create(this.config.llm, [TaskQueryTool, NeoDelegateTool, ApocDelegateTool]);
+    try {
+      this.ackProvider = await ProviderFactory.createBare(this.config.llm, []);
+    } catch (err: any) {
+      this.ackProvider = undefined;
+      this.display.log(`Ack provider reload failed: ${err?.message ?? String(err)}`, {
+        source: "Oracle",
+        level: "warning",
+      });
+    }
     await Neo.getInstance().reload();
     this.display.log(`Oracle and Neo tools reloaded`, { source: 'Oracle' });
   }
