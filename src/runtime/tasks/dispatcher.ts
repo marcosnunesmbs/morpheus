@@ -33,7 +33,7 @@ export class TaskDispatcher {
         ? (task.output && task.output.trim().length > 0 ? task.output : 'Task completed without output.')
         : (task.error && task.error.trim().length > 0 ? task.error : 'Task failed with unknown error.');
       const content =
-        `${statusIcon}\nTask \`${task.id.toUpperCase()}\`\n` +
+        `${statusIcon}\ Task \`${task.id.toUpperCase()}\`\n` +
         `Agent: \`${task.agent.toUpperCase()}\`\n` +
         `Status: \`${task.status.toUpperCase()}\`\n\n${body}`;
 
@@ -72,7 +72,7 @@ export class TaskDispatcher {
       : (task.error && task.error.trim().length > 0 ? task.error : 'Task failed with unknown error.');
 
     const header =
-      `${statusIcon}\nTask \`${task.id.toUpperCase()}\`\n` +
+      `${statusIcon}\ Task \`${task.id.toUpperCase()}\`\n` +
       `Agent: \`${task.agent.toUpperCase()}\`\n` +
       `Status: \`${task.status.toUpperCase()}\``;
     const message = `${header}\n\n${body}`;

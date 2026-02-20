@@ -65,12 +65,21 @@ export class Oracle implements IOracle {
   }
 
   private buildDelegationAck(acks: Array<{ task_id: string; agent: string }>): string {
+    const truncate = (s: string, max = 72) =>
+      s.length > max ? s.slice(0, max).trimEnd() + '…' : s;
+
     if (acks.length === 1) {
       const { task_id, agent } = acks[0];
-      return `✅\nTask \`${task_id.toUpperCase()}\`\nAgent: \`${agent.toUpperCase()}\`\nStatus: \`QUEUED\``;
+      const task = this.taskRepository.getTaskById(task_id);
+      const taskLine = task?.input ? `\n${truncate(task.input)}` : '';
+      return `✅\ Task \`${task_id.toUpperCase()}\`\nAgent: \`${agent.toUpperCase()}\`\nStatus: \`QUEUED\`${taskLine}`;
     }
-    const lines = acks.map((a) => `• ${a.agent.toUpperCase()}: \`${a.task_id}\``).join('\n');
-    return `Tasks:\n${lines} \n\Running...`;
+    const lines = acks.map((a) => {
+      const task = this.taskRepository.getTaskById(a.task_id);
+      const label = task?.input ? ` — ${truncate(task.input, 50)}` : '';
+      return `• ${a.agent.toUpperCase()}: \`${a.task_id}\`${label}`;
+    }).join('\n');
+    return `Tasks:\n${lines}\n\nRunning...`;
   }
 
   private buildDelegationAckResult(
