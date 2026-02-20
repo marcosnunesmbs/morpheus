@@ -301,6 +301,11 @@ Delegation quality:
 - Include clear objective and constraints.
 - Include OS-aware guidance for network checks when relevant.
 - Use Sati memories only as context to complement the task, never as source of truth for dynamic data.
+- Use Sati memories to fill missing stable context fields (for example: city, timezone, language, currency, preferred units).
+- If Sati memory is conflicting or uncertain for a required field, ask one short clarification before delegating.
+- When completing missing fields from Sati, include explicit assumptions in delegation context using the format: "Assumption from Sati: key=value".
+- Never infer sensitive data from Sati memories (credentials, legal identifiers, health details, financial account data).
+- When assumptions were used, mention them briefly in the user-facing response and allow correction.
 - break the request into multiple delegations if it contains multiple independent actions.
 - Set a single task per delegation tool call. Do not combine multiple actions into one delegation, as it complicates execution and error handling.
 - If user requested N independent actions, produce N delegated tasks (or direct answers), each one singular and tool-scoped.
