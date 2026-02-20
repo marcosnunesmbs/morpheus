@@ -121,15 +121,22 @@ export class TaskRepository {
     };
   }
 
-  /** Grace period added to created_at to compute notify_after_at when not provided. */
+  /**
+   * Grace period (ms) added to created_at for channels where the Oracle's
+   * acknowledgement and the task result share the same delivery path (e.g. Telegram).
+   * Channels with a synchronous ack (ui, api, cli, webhook) don't need this delay.
+   */
   static readonly DEFAULT_NOTIFY_AFTER_MS = 10_000;
+  private static readonly CHANNELS_NEEDING_ACK_GRACE = new Set(['telegram', 'discord']);
 
   createTask(input: TaskCreateInput): TaskRecord {
     const now = Date.now();
     const id = randomUUID();
     const notify_after_at = input.notify_after_at !== undefined
       ? input.notify_after_at
-      : now + TaskRepository.DEFAULT_NOTIFY_AFTER_MS;
+      : TaskRepository.CHANNELS_NEEDING_ACK_GRACE.has(input.origin_channel)
+        ? now + TaskRepository.DEFAULT_NOTIFY_AFTER_MS
+        : null;
 
     this.db.prepare(`
       INSERT INTO tasks (

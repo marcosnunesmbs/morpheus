@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { SessionList } from '../components/chat/SessionList';
 import { ChatArea } from '../components/chat/ChatArea';
 import { chatService } from '../services/chat';
@@ -11,6 +11,30 @@ export const ChatPage: React.FC = () => {
     const [messages, setMessages] = useState<Message[]>([]);
     const [isLoading, setIsLoading] = useState(false);
     const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+
+    const isLoadingRef = useRef(false);
+    useEffect(() => { isLoadingRef.current = isLoading; }, [isLoading]);
+
+    // Background poll — picks up task results written to session history by the dispatcher
+    useEffect(() => {
+        if (!activeSessionId) return;
+        const poll = setInterval(async () => {
+            if (isLoadingRef.current) return;
+            try {
+                const history = await chatService.getMessages(activeSessionId);
+                const filtered = history.filter((m: Message) => m.type !== 'system');
+                setMessages(prev => {
+                    if (filtered.length !== prev.length) return filtered;
+                    const lastNew = filtered.at(-1)?.created_at ?? 0;
+                    const lastPrev = prev.at(-1)?.created_at ?? 0;
+                    return lastNew > lastPrev ? filtered : prev;
+                });
+            } catch {
+                // silent — don't surface background poll errors
+            }
+        }, 3000);
+        return () => clearInterval(poll);
+    }, [activeSessionId]);
 
     const [confirmationModal, setConfirmationModal] = useState<{
         isOpen: boolean;

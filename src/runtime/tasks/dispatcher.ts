@@ -2,6 +2,8 @@
 import type { TaskRecord } from './types.js';
 import type { TelegramAdapter } from '../../channels/telegram.js';
 import { WebhookRepository } from '../webhooks/repository.js';
+import { AIMessage } from '@langchain/core/messages';
+import { SQLiteChatMessageHistory } from '../memory/sqlite.js';
 
 export class TaskDispatcher {
   private static telegramAdapter: TelegramAdapter | null = null;
@@ -22,6 +24,36 @@ export class TaskDispatcher {
         ? (task.output && task.output.trim().length > 0 ? task.output : 'Task completed without output.')
         : (task.error && task.error.trim().length > 0 ? task.error : 'Task failed with unknown error.');
       repo.updateNotificationResult(task.origin_message_id, status, result);
+      return;
+    }
+
+    if (task.origin_channel === 'ui') {
+      const statusIcon = task.status === 'completed' ? '✅' : '❌';
+      const body = task.status === 'completed'
+        ? (task.output && task.output.trim().length > 0 ? task.output : 'Task completed without output.')
+        : (task.error && task.error.trim().length > 0 ? task.error : 'Task failed with unknown error.');
+      const content =
+        `${statusIcon}\nTask \`${task.id.toUpperCase()}\`\n` +
+        `Agent: \`${task.agent.toUpperCase()}\`\n` +
+        `Status: \`${task.status.toUpperCase()}\`\n\n${body}`;
+
+      TaskDispatcher.display.log(
+        `Writing UI task result to session "${task.session_id}" (task ${task.id})`,
+        { source: 'TaskDispatcher', level: 'info' },
+      );
+
+      const history = new SQLiteChatMessageHistory({ sessionId: task.session_id });
+      try {
+        const msg = new AIMessage(content);
+        (msg as any).provider_metadata = { provider: task.agent, model: 'task-result' };
+        await history.addMessage(msg);
+        TaskDispatcher.display.log(
+          `UI task result written successfully to session "${task.session_id}"`,
+          { source: 'TaskDispatcher' },
+        );
+      } finally {
+        history.close();
+      }
       return;
     }
 

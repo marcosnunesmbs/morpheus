@@ -22,8 +22,63 @@ function escapeHtml(text: string): string {
     .replace(/>/g, '&gt;');
 }
 
-async function toTelegramRichText(text: string): Promise<{ text: string; parse_mode: 'HTML' }> {
-  const MAX = 4096;
+/** Strips HTML tags and unescapes entities for plain-text Telegram fallback. */
+function stripHtmlTags(html: string): string {
+  return html
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<\/?(p|div|li|tr)[^>]*>/gi, '\n')
+    .replace(/<[^>]+>/g, '')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .trim();
+}
+
+/**
+ * Splits an HTML string into chunks ≤ maxLen that never break inside an HTML tag.
+ * Prefers splitting at paragraph (double newline) or line boundaries.
+ */
+function splitHtmlChunks(html: string, maxLen = 4096): string[] {
+  if (html.length <= maxLen) return [html];
+
+  const chunks: string[] = [];
+  let remaining = html.trim();
+
+  while (remaining.length > maxLen) {
+    let splitAt = -1;
+
+    for (const sep of ['\n\n', '\n', ' ']) {
+      const pos = remaining.lastIndexOf(sep, maxLen - 1);
+      if (pos < maxLen / 4) continue; // avoid tiny first chunks
+
+      // Confirm position is not inside an HTML tag
+      const before = remaining.slice(0, pos);
+      const lastOpen = before.lastIndexOf('<');
+      const lastClose = before.lastIndexOf('>');
+      if (lastOpen > lastClose) continue; // inside a tag — try next separator
+
+      splitAt = pos + sep.length;
+      break;
+    }
+
+    if (splitAt <= 0) {
+      // Fallback: split right after the last closing '>' before maxLen
+      const closing = remaining.lastIndexOf('>', maxLen - 1);
+      splitAt = closing > 0 ? closing + 1 : maxLen;
+    }
+
+    const chunk = remaining.slice(0, splitAt).trim();
+    if (chunk) chunks.push(chunk);
+    remaining = remaining.slice(splitAt).trim();
+  }
+
+  if (remaining) chunks.push(remaining);
+  return chunks.filter(Boolean);
+}
+
+async function toTelegramRichText(text: string): Promise<{ chunks: string[]; parse_mode: 'HTML' }> {
   let source = String(text ?? '').replace(/\r\n/g, '\n');
   const uuidRegex = /\b([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})\b/g;
 
@@ -71,13 +126,7 @@ async function toTelegramRichText(text: string): Promise<{ text: string; parse_m
   source = source.replace(/@@INLINECODE_(\d+)@@/g, (_m, idx) => inlineCodes[Number(idx)] || '');
   source = source.replace(/@@LINK_(\d+)@@/g, (_m, idx) => links[Number(idx)] || '');
 
-  let safe = source.trim();
-  if (safe.length > MAX) {
-    // Keep dynamic rich formatting when possible; fallback path exists at call site.
-    safe = safe.slice(0, MAX - 3) + '...';
-  }
-
-  return { text: safe, parse_mode: 'HTML' };
+  return { chunks: splitHtmlChunks(source.trim()), parse_mode: 'HTML' };
 }
 
 /**
@@ -191,11 +240,14 @@ export class TelegramAdapter {
           });
 
           if (response) {
-            try {
-              const rich = await toTelegramRichText(response);
-              await ctx.reply(rich.text, { parse_mode: rich.parse_mode });
-            } catch {
-              await ctx.reply(response);
+            const rich = await toTelegramRichText(response);
+            for (const chunk of rich.chunks) {
+              try {
+                await ctx.reply(chunk, { parse_mode: rich.parse_mode });
+              } catch {
+                const plain = stripHtmlTags(chunk).slice(0, 4096);
+                if (plain) await ctx.reply(plain);
+              }
             }
             this.display.log(`Responded to @${user}: ${response}`, { source: 'Telegram' });
           }
@@ -300,11 +352,14 @@ export class TelegramAdapter {
           // }
 
           if (response) {
-            try {
-              const rich = await toTelegramRichText(response);
-              await ctx.reply(rich.text, { parse_mode: rich.parse_mode });
-            } catch {
-              await ctx.reply(response);
+            const rich = await toTelegramRichText(response);
+            for (const chunk of rich.chunks) {
+              try {
+                await ctx.reply(chunk, { parse_mode: rich.parse_mode });
+              } catch {
+                const plain = stripHtmlTags(chunk).slice(0, 4096);
+                if (plain) await ctx.reply(plain);
+              }
             }
             this.display.log(`Responded to @${user} (via audio)`, { source: 'Telegram' });
           }
@@ -544,19 +599,19 @@ export class TelegramAdapter {
     const rich = await toTelegramRichText(text);
 
     for (const userId of allowedUsers) {
-      try {
-        await this.bot.telegram.sendMessage(userId, rich.text, { parse_mode: rich.parse_mode });
-      } catch {
-        // Fallback to plain text if rich conversion fails
+      for (const chunk of rich.chunks) {
         try {
-          const MAX_LEN = 4096;
-          const plain = text.length > MAX_LEN ? text.slice(0, MAX_LEN - 3) + '...' : text;
-          await this.bot.telegram.sendMessage(userId, plain);
-        } catch (err: any) {
-          this.display.log(
-            `Failed to send message to Telegram user ${userId}: ${err.message}`,
-            { source: 'Telegram', level: 'error' },
-          );
+          await this.bot.telegram.sendMessage(userId, chunk, { parse_mode: rich.parse_mode });
+        } catch {
+          try {
+            const plain = stripHtmlTags(chunk).slice(0, 4096);
+            if (plain) await this.bot.telegram.sendMessage(userId, plain);
+          } catch (err: any) {
+            this.display.log(
+              `Failed to send message chunk to Telegram user ${userId}: ${err.message}`,
+              { source: 'Telegram', level: 'error' },
+            );
+          }
         }
       }
     }
@@ -572,12 +627,13 @@ export class TelegramAdapter {
     }
 
     const rich = await toTelegramRichText(text);
-    try {
-      await this.bot.telegram.sendMessage(userId, rich.text, { parse_mode: rich.parse_mode });
-    } catch {
-      const MAX_LEN = 4096;
-      const plain = text.length > MAX_LEN ? text.slice(0, MAX_LEN - 3) + '...' : text;
-      await this.bot.telegram.sendMessage(userId, plain);
+    for (const chunk of rich.chunks) {
+      try {
+        await this.bot.telegram.sendMessage(userId, chunk, { parse_mode: rich.parse_mode });
+      } catch {
+        const plain = stripHtmlTags(chunk).slice(0, 4096);
+        if (plain) await this.bot.telegram.sendMessage(userId, plain);
+      }
     }
   }
 
@@ -919,11 +975,14 @@ How can I assist you today?`;
     let response = await this.oracle.chat(prompt);
 
     if (response) {
-      try {
-        const rich = await toTelegramRichText(response);
-        await ctx.reply(rich.text, { parse_mode: rich.parse_mode });
-      } catch {
-        await ctx.reply(response);
+      const rich = await toTelegramRichText(response);
+      for (const chunk of rich.chunks) {
+        try {
+          await ctx.reply(chunk, { parse_mode: rich.parse_mode });
+        } catch {
+          const plain = stripHtmlTags(chunk).slice(0, 4096);
+          if (plain) await ctx.reply(plain);
+        }
       }
     }
     // await ctx.reply(`Command not recognized. Type /help to see available commands.`);
@@ -1019,34 +1078,35 @@ How can I assist you today?`;
     }
 
     try {
-      // Usar o repositório SATI para obter memórias de longo prazo
       const repository = SatiRepository.getInstance();
       const memories = repository.getAllMemories();
 
       if (memories.length === 0) {
-        await ctx.reply(`No memories found.`);
+        await ctx.reply('No memories found.');
         return;
       }
 
-      // Se nenhum limite for especificado, usar todas as memórias
-      let selectedMemories = memories;
-      if (limit !== null) {
-        selectedMemories = memories.slice(0, Math.min(limit, memories.length));
-      }
+      const selectedMemories = limit !== null
+        ? memories.slice(0, Math.min(limit, memories.length))
+        : memories;
 
       const countLabel = limit !== null
-        ? `${escMd(selectedMemories.length)} SATI Memories \\(Showing first ${escMd(selectedMemories.length)}\\)`
-        : `${escMd(selectedMemories.length)} SATI Memories`;
-      let response = `*${countLabel}:*\n\n`;
+        ? `${selectedMemories.length} SATI Memories (showing first ${selectedMemories.length})`
+        : `${selectedMemories.length} SATI Memories`;
+
+      let html = `<b>${escapeHtml(countLabel)}:</b>\n\n`;
 
       for (const memory of selectedMemories) {
-        // Limitar o tamanho do resumo para evitar mensagens muito longas
-        const truncatedSummary = memory.summary.length > 200 ? memory.summary.substring(0, 200) + '...' : memory.summary;
-
-        response += `*${escMd(memory.category)} \\(${escMd(memory.importance)}\\):* ${escMd(truncatedSummary)}\n\n`;
+        const summary = memory.summary.length > 200
+          ? memory.summary.substring(0, 200) + '...'
+          : memory.summary;
+        html += `<b>${escapeHtml(memory.category)} (${escapeHtml(memory.importance)}):</b> ${escapeHtml(summary)}\n\n`;
       }
 
-      await ctx.reply(response, { parse_mode: 'MarkdownV2' });
+      const chunks = splitHtmlChunks(html.trim());
+      for (const chunk of chunks) {
+        await ctx.reply(chunk, { parse_mode: 'HTML' });
+      }
     } catch (error: any) {
       await ctx.reply(`Failed to retrieve memories: ${error.message}`);
     }
