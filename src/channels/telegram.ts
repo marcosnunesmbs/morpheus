@@ -67,7 +67,7 @@ export class TelegramAdapter {
 /stats \\- Show token usage statistics
 /help \\- Show available commands
 /zaion \\- Show system configurations
-/sati <qnt> \\- Show specific memories
+/sati qnt \\- Show specific memories
 /newsession \\- Archive current session and start fresh
 /sessions \\- List all sessions with titles and switch between them
 /restart \\- Restart the Morpheus agent
@@ -723,7 +723,7 @@ How can I assist you today?`;
     if (majorVersion >= 18) {
       response += `✅ Node\\.js: ${escMd(nodeVersion)}\n`;
     } else {
-      response += `❌ Node\\.js: ${escMd(nodeVersion)} \\(Required: >=18\\)\n`;
+      response += `❌ Node\\.js: ${escMd(nodeVersion)} \\(Required: \\>\\=18\\)\n`;
     }
 
     if (config) {
