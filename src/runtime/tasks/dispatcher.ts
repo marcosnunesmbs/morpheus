@@ -34,12 +34,15 @@ export class TaskDispatcher {
       throw new Error('Telegram adapter not connected');
     }
 
-    const statusIcon = task.status === 'completed' ? '[OK]' : '[ERR]';
+    const statusIcon = task.status === 'completed' ? '✅' : '❌';
     const body = task.status === 'completed'
       ? (task.output && task.output.trim().length > 0 ? task.output : 'Task completed without output.')
       : (task.error && task.error.trim().length > 0 ? task.error : 'Task failed with unknown error.');
 
-    const header = `${statusIcon} Task ${task.id}\nAgent: ${task.agent}\nSession: ${task.session_id}\nStatus: ${task.status}`;
+    const header =
+      `${statusIcon}\nTask \`${task.id.toUpperCase()}\`\n` +
+      `Agent: \`${task.agent.toUpperCase()}\`\n` +
+      `Status: \`${task.status.toUpperCase()}\``;
     const message = `${header}\n\n${body}`;
 
     if (task.origin_user_id) {

@@ -25,6 +25,7 @@ function escapeHtml(text: string): string {
 async function toTelegramRichText(text: string): Promise<{ text: string; parse_mode: 'HTML' }> {
   const MAX = 4096;
   let source = String(text ?? '').replace(/\r\n/g, '\n');
+  const uuidRegex = /\b([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})\b/g;
 
   const codeBlocks: string[] = [];
   source = source.replace(/```([a-zA-Z0-9_-]+)?\n?([\s\S]*?)```/g, (_m, _lang, code) => {
@@ -61,6 +62,9 @@ async function toTelegramRichText(text: string): Promise<{ text: string; parse_m
   // Italic (conservative)
   source = source.replace(/(^|[\s(])\*([^*\n]+)\*(?=[$\s).,!?:;])/gm, '$1<i>$2</i>');
   source = source.replace(/(^|[\s(])_([^_\n]+)_(?=[$\s).,!?:;])/gm, '$1<i>$2</i>');
+
+  // Make task/session IDs easier to copy in Telegram.
+  source = source.replace(uuidRegex, '<code>$1</code>');
 
   // Restore placeholders
   source = source.replace(/@@CODEBLOCK_(\d+)@@/g, (_m, idx) => codeBlocks[Number(idx)] || '');

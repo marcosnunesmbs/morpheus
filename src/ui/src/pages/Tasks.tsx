@@ -142,8 +142,8 @@ export function TasksPage() {
               <tr key={task.id} className="border-b border-azure-border dark:border-matrix-primary/30 hover:bg-azure-surface/50 dark:hover:bg-zinc-900/40 transition-colors">
                 <td className="px-4 py-3 font-mono">{task.id.slice(0, 8)}</td>
                 <td className="px-4 py-3"><StatusBadge status={task.status} /></td>
-                <td className="px-4 py-3">{task.agent}</td>
-                <td className="px-4 py-3">{task.origin_channel}</td>
+                <td className="px-4 py-3">{task.agent.toUpperCase()}</td>
+                <td className="px-4 py-3">{task.origin_channel.toUpperCase()}</td>
                 <td className="px-4 py-3 font-mono">{task.session_id}</td>
                 <td className="px-4 py-3">{task.attempt_count}/{task.max_attempts}</td>
                 <td className="px-4 py-3">{formatDate(task.created_at)}</td>

@@ -114,7 +114,7 @@ export class Oracle implements IOracle {
       }
     }
 
-    const tasksBlock = acks.map((ack) => `- ${ack.agent}: ${ack.task_id}`).join("\n");
+    const tasksBlock = acks.map((ack) => `- ${ack.agent.toUpperCase()}: ${ack.task_id}`).join("\n");
     const ackSystem = new SystemMessage(`
 You are Oracle.
 Return only a short acknowledgement that tasks were created.
