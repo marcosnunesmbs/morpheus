@@ -1,5 +1,5 @@
 import { BaseChatModel } from "@langchain/core/language_models/chat_models";
-import { BaseMessage, HumanMessage, SystemMessage, AIMessage } from "@langchain/core/messages";
+import { BaseMessage, HumanMessage, SystemMessage, AIMessage, ToolMessage } from "@langchain/core/messages";
 import { BaseListChatMessageHistory } from "@langchain/core/chat_history";
 import { IOracle } from "./types.js";
 import { ProviderFactory } from "./providers/factory.js";
@@ -14,6 +14,7 @@ import { SatiMemoryMiddleware } from "./memory/sati/index.js";
 import { Apoc } from "./apoc.js";
 import { TaskRequestContext } from "./tasks/context.js";
 import type { OracleTaskContext } from "./tasks/types.js";
+import { TaskRepository } from "./tasks/repository.js";
 import { Neo } from "./neo.js";
 import { NeoDelegateTool } from "./tools/neo-tool.js";
 import { ApocDelegateTool } from "./tools/apoc-tool.js";
@@ -23,12 +24,103 @@ export class Oracle implements IOracle {
   private config: MorpheusConfig;
   private history?: BaseListChatMessageHistory;
   private display = DisplayManager.getInstance();
+  private taskRepository = TaskRepository.getInstance();
   private databasePath?: string;
   private satiMiddleware = SatiMemoryMiddleware.getInstance();
 
   constructor(config?: MorpheusConfig, overrides?: { databasePath?: string }) {
     this.config = config || ConfigManager.getInstance().get();
     this.databasePath = overrides?.databasePath;
+  }
+
+  private isLikelyPortuguese(text: string): boolean {
+    return /[ãõáéíóúâêôç]|(?:\b(?:qual|faça|faca|dê|de|consulte|cotação|cotacao|próximo|proximo|jogo|hoje)\b)/i.test(text);
+  }
+
+  private buildDelegationAckResponse(acks: Array<{ task_id: string; agent: string }>, userMessage: string): string {
+    const isPt = this.isLikelyPortuguese(userMessage);
+    if (acks.length === 1) {
+      const ack = acks[0];
+      if (isPt) {
+        return `Tarefa enfileirada para ${ack.agent} (Task \`${ack.task_id}\`). Avisarei quando concluir.`;
+      }
+      return `Task queued for ${ack.agent} (Task \`${ack.task_id}\`). I will notify you when it completes.`;
+    }
+
+    const lines = acks.map((ack) => `- ${ack.agent}: \`${ack.task_id}\``);
+    if (isPt) {
+      return `Deleguei ${acks.length} tarefas:\n${lines.join("\n")}\nAvisarei assim que os resultados estiverem prontos.`;
+    }
+    return `Queued ${acks.length} tasks:\n${lines.join("\n")}\nI will notify you as soon as the results are ready.`;
+  }
+
+  private buildDelegationFailureResponse(userMessage: string): string {
+    const isPt = this.isLikelyPortuguese(userMessage);
+    if (isPt) {
+      return "Falha ao confirmar o enfileiramento da tarefa. Nenhuma task válida foi registrada no banco. Tente novamente.";
+    }
+    return "Failed to confirm task enqueue. No valid task was recorded in the database. Please try again.";
+  }
+
+  private extractDelegationAcksFromMessages(messages: BaseMessage[]): Array<{ task_id: string; agent: string }> {
+    const acks: Array<{ task_id: string; agent: string }> = [];
+    const regex = /Task\s+([0-9a-fA-F-]{36})\s+(?:queued|already queued)\s+for\s+(Apoc|Neo|apoc|neo)\s+execution/i;
+
+    for (const msg of messages) {
+      if (!(msg instanceof ToolMessage)) continue;
+      const content = typeof msg.content === "string" ? msg.content : JSON.stringify(msg.content);
+      const match = regex.exec(content);
+      if (!match) continue;
+      acks.push({ task_id: match[1], agent: match[2].toLowerCase() });
+    }
+
+    return acks;
+  }
+
+  private validateDelegationAcks(
+    acks: Array<{ task_id: string; agent: string }>,
+    requestMessage: string,
+  ): Array<{ task_id: string; agent: string }> {
+    const deduped = new Map<string, { task_id: string; agent: string }>();
+    for (const ack of acks) {
+      deduped.set(`${ack.agent}:${ack.task_id}`, { task_id: ack.task_id, agent: ack.agent });
+    }
+
+    const valid: Array<{ task_id: string; agent: string }> = [];
+    for (const ack of deduped.values()) {
+      const task = this.taskRepository.getTaskById(ack.task_id);
+      if (!task) {
+        this.display.log(
+          `Discarded delegation ack with unknown task id: ${ack.task_id}`,
+          { source: "Oracle", level: "warning", meta: { requestMessage, agent: ack.agent } }
+        );
+        continue;
+      }
+
+      if (task.agent !== ack.agent) {
+        this.display.log(
+          `Discarded delegation ack with agent mismatch for task ${ack.task_id}: ack=${ack.agent}, db=${task.agent}`,
+          { source: "Oracle", level: "warning", meta: { requestMessage } }
+        );
+        continue;
+      }
+
+      valid.push(ack);
+    }
+
+    return valid;
+  }
+
+  private hasDelegationToolCall(messages: BaseMessage[]): boolean {
+    for (const msg of messages) {
+      if (!(msg instanceof AIMessage)) continue;
+      const toolCalls = (msg as any).tool_calls ?? [];
+      if (!Array.isArray(toolCalls)) continue;
+      if (toolCalls.some((tc: any) => tc?.name === "apoc_delegate" || tc?.name === "neo_delegate")) {
+        return true;
+      }
+    }
+    return false;
   }
 
   async initialize(): Promise<void> {
@@ -113,15 +205,28 @@ Rules:
 5. If the user asked for a single action, do not create additional delegated tasks.
 6. Never fabricate execution results for delegated tasks.
 7. Keep responses concise and objective.
-8. Avoid duplicate delegations in a single user turn.
+8. Avoid duplicate delegations to the same tool or agent.
 9. After enqueuing all required delegated tasks for the current message, stop calling tools and return a concise acknowledgement.
+10. If a delegation is rejected as "not atomic", immediately split into smaller delegations and retry.
 
 Delegation quality:
 - Write delegation input in the same language requested by the user.
 - Include clear objective and constraints.
 - Include OS-aware guidance for network checks when relevant.
 - Use Sati memories only as context, never as source of truth for dynamic data.
-      `);
+- break the request into multiple delegations if it contains multiple independent actions.
+- Set a single task per delegation tool call. Do not combine multiple actions into one delegation, as it complicates execution and error handling.
+- If user requested N independent actions, produce N delegated tasks (or direct answers), each one singular and tool-scoped.
+- If use a delegation dont use the sati or messages history to answer directly in the same response. Just response with the delegations.
+Example:
+ask: "Tell me my account balance and do a ping on google.com"
+good:
+- delegate to "neo_delegate" with task "Check account balance using morpheus analytics MCP and return the result."
+- delegate to "apoc_delegate" with task "Ping google.com using the network diagnostics MCP and return reachability status. Use '-n' flag for Windows and '-c' for Linux/macOS."
+bad:
+- delegate to "neo_delegate" with task "Check account balance using morpheus analytics MCP and ping google.com using the network diagnostics MCP, then return both results." (combines two independent actions into one delegation, which is not atomic and complicates execution and error handling)
+`);
+
       // Load existing history from database in reverse order (most recent first)
       let previousMessages = await this.history.getMessages();
       previousMessages = previousMessages.reverse();
@@ -169,7 +274,12 @@ This memory may be relevant to the user's request. Use it to inform your respons
         origin_message_id: taskContext?.origin_message_id,
         origin_user_id: taskContext?.origin_user_id,
       };
-      const response = await TaskRequestContext.run(invokeContext, () => this.provider!.invoke({ messages }));
+      let contextDelegationAcks: Array<{ task_id: string; agent: string; task: string }> = [];
+      const response = await TaskRequestContext.run(invokeContext, async () => {
+        const agentResponse = await this.provider!.invoke({ messages });
+        contextDelegationAcks = TaskRequestContext.getDelegationAcks();
+        return agentResponse;
+      });
 
       // Identify new messages generated during the interaction
       // The `messages` array passed to invoke had length `messages.length`
@@ -187,13 +297,53 @@ This memory may be relevant to the user's request. Use it to inform your respons
         };
       }
 
-      // Persist user message + all generated messages in a single transaction
-      await this.history.addMessages([userMessage, ...newGeneratedMessages]);
+      let responseContent: string;
+      const toolDelegationAcks = this.extractDelegationAcksFromMessages(newGeneratedMessages);
+      const hadDelegationToolCall = this.hasDelegationToolCall(newGeneratedMessages);
+      const mergedDelegationAcks = [
+        ...contextDelegationAcks.map((ack) => ({ task_id: ack.task_id, agent: ack.agent })),
+        ...toolDelegationAcks,
+      ];
+      const validDelegationAcks = this.validateDelegationAcks(mergedDelegationAcks, message);
+
+      if (mergedDelegationAcks.length > 0) {
+        this.display.log(
+          `Delegation trace: context=${contextDelegationAcks.length}, tool_messages=${toolDelegationAcks.length}, valid=${validDelegationAcks.length}`,
+          { source: "Oracle", level: "info" }
+        );
+      }
+
+      if (validDelegationAcks.length > 0) {
+        // Hard guard: after delegation, Oracle must only return task acknowledgements.
+        responseContent = this.buildDelegationAckResponse(validDelegationAcks, message);
+        const ackMessage = new AIMessage(responseContent);
+        (ackMessage as any).provider_metadata = {
+          provider: this.config.llm.provider,
+          model: this.config.llm.model,
+        };
+        await this.history.addMessages([userMessage, ackMessage]);
+      } else if (mergedDelegationAcks.length > 0 || hadDelegationToolCall) {
+        this.display.log(
+          `Delegation attempted but no valid task id was confirmed (context=${contextDelegationAcks.length}, tool_messages=${toolDelegationAcks.length}, had_tool_call=${hadDelegationToolCall}).`,
+          { source: "Oracle", level: "error" }
+        );
+        // Delegation was attempted but no valid task id could be confirmed in DB.
+        responseContent = this.buildDelegationFailureResponse(message);
+        const failureMessage = new AIMessage(responseContent);
+        (failureMessage as any).provider_metadata = {
+          provider: this.config.llm.provider,
+          model: this.config.llm.model,
+        };
+        await this.history.addMessages([userMessage, failureMessage]);
+      } else {
+        // Persist user message + all generated messages in a single transaction
+        await this.history.addMessages([userMessage, ...newGeneratedMessages]);
+
+        const lastMessage = response.messages[response.messages.length - 1];
+        responseContent = (typeof lastMessage.content === 'string') ? lastMessage.content : JSON.stringify(lastMessage.content);
+      }
 
       this.display.log('Response generated.', { source: 'Oracle' });
-
-      const lastMessage = response.messages[response.messages.length - 1];
-      const responseContent = (typeof lastMessage.content === 'string') ? lastMessage.content : JSON.stringify(lastMessage.content);
 
       // Sati Middleware: Evaluation (Fire and forget)
       this.satiMiddleware.afterAgent(responseContent, [...previousMessages, userMessage], currentSessionId)

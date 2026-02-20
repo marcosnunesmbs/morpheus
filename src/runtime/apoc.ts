@@ -1,4 +1,4 @@
-import { HumanMessage, SystemMessage, BaseMessage } from "@langchain/core/messages";
+import { HumanMessage, SystemMessage, BaseMessage, AIMessage } from "@langchain/core/messages";
 import { MorpheusConfig } from "../types/config.js";
 import { ConfigManager } from "../config/manager.js";
 import { ProviderFactory } from "./providers/factory.js";
@@ -246,29 +246,31 @@ ${context ? `CONTEXT FROM ORACLE:\n${context}` : ""}
     try {
       const response = await this.agent!.invoke({ messages });
 
-      // Persist Apoc-generated messages so token usage is tracked in short-memory.db.
-      // Use the caller's session when provided, then the static session set by Oracle,
-      // otherwise fall back to 'apoc'.
+      // Persist one AI message per delegated task so usage can be parameterized later.
+      // Use task session id when provided.
       const apocConfig = this.config.apoc || this.config.llm;
-      const newMessages = response.messages.slice(messages.length);
-      if (newMessages.length > 0) {
-        const targetSession = sessionId ?? Apoc.currentSessionId ?? 'apoc';
-        const history = new SQLiteChatMessageHistory({ sessionId: targetSession });
-        for (const msg of newMessages) {
-          (msg as any).provider_metadata = {
-            provider: apocConfig.provider,
-            model: apocConfig.model,
-          };
-        }
-        await history.addMessages(newMessages);
-        history.close();
-      }
-
       const lastMessage = response.messages[response.messages.length - 1];
       const content =
         typeof lastMessage.content === "string"
           ? lastMessage.content
           : JSON.stringify(lastMessage.content);
+
+      const targetSession = sessionId ?? Apoc.currentSessionId ?? "apoc";
+      const history = new SQLiteChatMessageHistory({ sessionId: targetSession });
+      try {
+        const persisted = new AIMessage(content);
+        (persisted as any).usage_metadata = (lastMessage as any).usage_metadata
+          ?? (lastMessage as any).response_metadata?.usage
+          ?? (lastMessage as any).response_metadata?.tokenUsage
+          ?? (lastMessage as any).usage;
+        (persisted as any).provider_metadata = {
+          provider: apocConfig.provider,
+          model: apocConfig.model,
+        };
+        await history.addMessage(persisted);
+      } finally {
+        history.close();
+      }
 
       this.display.log("Apoc task completed.", { source: "Apoc" });
       return content;

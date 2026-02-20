@@ -3,11 +3,13 @@ import type { StructuredTool } from "@langchain/core/tools";
 import { z } from "zod";
 import { TaskRepository } from "../tasks/repository.js";
 import { TaskRequestContext } from "../tasks/context.js";
+import { compositeDelegationError, isLikelyCompositeDelegationTask } from "./delegation-guard.js";
+import { DisplayManager } from "../display.js";
 
 const NEO_BASE_DESCRIPTION = `Delegate execution to Neo asynchronously.
 
 This tool creates a background task and returns an acknowledgement with task id.
-Use it for requests that require tools, MCPs, filesystem, shell, git, web research,
+Use it for requests that require tools of morpheus config / motpheus analystics / morpheus diagnostics and available MCPs,
 or external/stateful verification.
 Each delegated task must contain one atomic objective.`;
 
@@ -18,7 +20,7 @@ function normalizeDescription(text: string | undefined): string {
 
 function buildCatalogSection(tools: StructuredTool[]): string {
   if (tools.length === 0) {
-    return "\n\nNeo tool catalog: no tools currently loaded.";
+    return "\n\nNeo MCP tools catalog: no tools currently loaded.";
   }
 
   const maxItems = 32;
@@ -31,7 +33,7 @@ function buildCatalogSection(tools: StructuredTool[]): string {
     lines.push(`- ... and ${hidden} more tools`);
   }
 
-  return `\n\nNeo tool catalog (runtime loaded):\n${lines.join("\n")}`;
+  return `\n\nNeo MCP tools catalog (runtime loaded):\n${lines.join("\n")}`;
 }
 
 export function updateNeoDelegateToolDescription(tools: StructuredTool[]): void {
@@ -42,11 +44,29 @@ export function updateNeoDelegateToolDescription(tools: StructuredTool[]): void 
 export const NeoDelegateTool = tool(
   async ({ task, context }: { task: string; context?: string }) => {
     try {
+      const display = DisplayManager.getInstance();
+
+      if (isLikelyCompositeDelegationTask(task)) {
+        display.log(`Neo delegation rejected (non-atomic task): ${task.slice(0, 140)}`, {
+          source: "NeoDelegateTool",
+          level: "warning",
+        });
+        return compositeDelegationError();
+      }
+
       const existingAck = TaskRequestContext.findDuplicateDelegation("neo", task);
       if (existingAck) {
+        display.log(`Neo delegation deduplicated. Reusing task ${existingAck.task_id}.`, {
+          source: "NeoDelegateTool",
+          level: "info",
+        });
         return `Task ${existingAck.task_id} already queued for ${existingAck.agent} execution.`;
       }
       if (!TaskRequestContext.canEnqueueDelegation()) {
+        display.log(`Neo delegation blocked by per-turn limit.`, {
+          source: "NeoDelegateTool",
+          level: "warning",
+        });
         return "Delegation limit reached for this user turn. Split the request or wait for current tasks.";
       }
 
@@ -63,8 +83,20 @@ export const NeoDelegateTool = tool(
         max_attempts: 3,
       });
       TaskRequestContext.setDelegationAck({ task_id: created.id, agent: "neo", task });
+      display.log(`Neo task created: ${created.id}`, {
+        source: "NeoDelegateTool",
+        level: "info",
+        meta: {
+          agent: created.agent,
+          origin_channel: created.origin_channel,
+          session_id: created.session_id,
+          input: created.input,
+        }
+      });
       return `Task ${created.id} queued for Neo execution.`;
     } catch (err: any) {
+      const display = DisplayManager.getInstance();
+      display.log(`NeoDelegateTool error: ${err.message}`, { source: "NeoDelegateTool", level: "error" });
       return `Neo task enqueue failed: ${err.message}`;
     }
   },

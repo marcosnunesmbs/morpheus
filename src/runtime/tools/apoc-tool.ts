@@ -2,6 +2,8 @@ import { tool } from "@langchain/core/tools";
 import { z } from "zod";
 import { TaskRepository } from "../tasks/repository.js";
 import { TaskRequestContext } from "../tasks/context.js";
+import { compositeDelegationError, isLikelyCompositeDelegationTask } from "./delegation-guard.js";
+import { DisplayManager } from "../display.js";
 
 /**
  * Tool that Oracle uses to delegate devtools tasks to Apoc.
@@ -17,11 +19,29 @@ import { TaskRequestContext } from "../tasks/context.js";
 export const ApocDelegateTool = tool(
   async ({ task, context }: { task: string; context?: string }) => {
     try {
+      const display = DisplayManager.getInstance();
+
+      if (isLikelyCompositeDelegationTask(task)) {
+        display.log(`Apoc delegation rejected (non-atomic task): ${task.slice(0, 140)}`, {
+          source: "ApocDelegateTool",
+          level: "warning",
+        });
+        return compositeDelegationError();
+      }
+
       const existingAck = TaskRequestContext.findDuplicateDelegation("apoc", task);
       if (existingAck) {
+        display.log(`Apoc delegation deduplicated. Reusing task ${existingAck.task_id}.`, {
+          source: "ApocDelegateTool",
+          level: "info",
+        });
         return `Task ${existingAck.task_id} already queued for ${existingAck.agent} execution.`;
       }
       if (!TaskRequestContext.canEnqueueDelegation()) {
+        display.log(`Apoc delegation blocked by per-turn limit.`, {
+          source: "ApocDelegateTool",
+          level: "warning",
+        });
         return "Delegation limit reached for this user turn. Split the request or wait for current tasks.";
       }
 
@@ -38,8 +58,20 @@ export const ApocDelegateTool = tool(
         max_attempts: 3,
       });
       TaskRequestContext.setDelegationAck({ task_id: created.id, agent: "apoc", task });
+      display.log(`Apoc task created: ${created.id}`, {
+        source: "ApocDelegateTool",
+        level: "info",
+        meta: {
+          agent: created.agent,
+          origin_channel: created.origin_channel,
+          session_id: created.session_id,
+          input: created.input,
+        }
+      });
       return `Task ${created.id} queued for Apoc execution.`;
     } catch (err: any) {
+      const display = DisplayManager.getInstance();
+      display.log(`ApocDelegateTool error: ${err.message}`, { source: "ApocDelegateTool", level: "error" });
       return `Apoc task enqueue failed: ${err.message}`;
     }
   },

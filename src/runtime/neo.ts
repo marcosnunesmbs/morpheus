@@ -1,4 +1,4 @@
-import { HumanMessage, SystemMessage, BaseMessage } from "@langchain/core/messages";
+import { HumanMessage, SystemMessage, BaseMessage, AIMessage } from "@langchain/core/messages";
 import { MorpheusConfig } from "../types/config.js";
 import { ConfigManager } from "../config/manager.js";
 import { ProviderFactory } from "./providers/factory.js";
@@ -130,25 +130,28 @@ ${context ? `Context:\n${context}` : ""}
       };
       const response = await TaskRequestContext.run(invokeContext, () => this.agent!.invoke({ messages }));
 
-      const newMessages = response.messages.slice(messages.length);
-      if (newMessages.length > 0) {
-        const targetSession = sessionId ?? Neo.currentSessionId ?? "neo";
-        const history = new SQLiteChatMessageHistory({ sessionId: targetSession });
-        for (const msg of newMessages) {
-          (msg as any).provider_metadata = {
-            provider: this.config.llm.provider,
-            model: this.config.llm.model,
-          };
-        }
-        await history.addMessages(newMessages);
-        history.close();
-      }
-
       const lastMessage = response.messages[response.messages.length - 1];
       const content =
         typeof lastMessage.content === "string"
           ? lastMessage.content
           : JSON.stringify(lastMessage.content);
+
+      const targetSession = sessionId ?? Neo.currentSessionId ?? "neo";
+      const history = new SQLiteChatMessageHistory({ sessionId: targetSession });
+      try {
+        const persisted = new AIMessage(content);
+        (persisted as any).usage_metadata = (lastMessage as any).usage_metadata
+          ?? (lastMessage as any).response_metadata?.usage
+          ?? (lastMessage as any).response_metadata?.tokenUsage
+          ?? (lastMessage as any).usage;
+        (persisted as any).provider_metadata = {
+          provider: this.config.llm.provider,
+          model: this.config.llm.model,
+        };
+        await history.addMessage(persisted);
+      } finally {
+        history.close();
+      }
 
       this.display.log("Neo task completed.", { source: "Neo" });
       return content;
