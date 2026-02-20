@@ -55,8 +55,7 @@ export class Neo {
       DiagnosticTool,
       MessageCountTool,
       TokenUsageTool,
-      ProviderModelUsageTool,
-      ApocDelegateTool,
+      ProviderModelUsageTool
     ];
 
     this.display.log(`Neo initialized with ${tools.length} tools.`, { source: "Neo" });

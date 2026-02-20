@@ -327,16 +327,19 @@ export class TaskRepository {
     return result.changes;
   }
 
-  claimNextNotificationCandidate(): TaskRecord | null {
+  claimNextNotificationCandidate(minFinishedAgeMs: number = 0): TaskRecord | null {
+    const now = Date.now();
     const tx = this.db.transaction(() => {
       const row = this.db.prepare(`
         SELECT id
         FROM tasks
         WHERE status IN ('completed', 'failed')
           AND notify_status = 'pending'
+          AND finished_at IS NOT NULL
+          AND finished_at <= ?
         ORDER BY finished_at ASC
         LIMIT 1
-      `).get() as { id: string } | undefined;
+      `).get(now - Math.max(0, minFinishedAgeMs)) as { id: string } | undefined;
 
       if (!row) return null;
 

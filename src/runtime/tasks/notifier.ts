@@ -6,15 +6,17 @@ export class TaskNotifier {
   private readonly pollIntervalMs: number;
   private readonly maxAttempts: number;
   private readonly staleSendingMs: number;
+  private readonly notificationGraceMs: number;
   private readonly repository = TaskRepository.getInstance();
   private readonly display = DisplayManager.getInstance();
   private timer: NodeJS.Timeout | null = null;
   private running = false;
 
-  constructor(opts?: { pollIntervalMs?: number; maxAttempts?: number; staleSendingMs?: number }) {
+  constructor(opts?: { pollIntervalMs?: number; maxAttempts?: number; staleSendingMs?: number; notificationGraceMs?: number }) {
     this.pollIntervalMs = opts?.pollIntervalMs ?? 1200;
     this.maxAttempts = opts?.maxAttempts ?? 5;
     this.staleSendingMs = opts?.staleSendingMs ?? 30_000;
+    this.notificationGraceMs = opts?.notificationGraceMs ?? 2000;
   }
 
   start(): void {
@@ -45,7 +47,7 @@ export class TaskNotifier {
     this.running = true;
 
     try {
-      const task = this.repository.claimNextNotificationCandidate();
+      const task = this.repository.claimNextNotificationCandidate(this.notificationGraceMs);
       if (!task) return;
 
       try {
