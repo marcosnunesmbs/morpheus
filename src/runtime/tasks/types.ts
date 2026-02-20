@@ -13,6 +13,8 @@ export interface TaskCreateInput {
   origin_message_id?: string | null;
   origin_user_id?: string | null;
   max_attempts?: number;
+  /** Earliest timestamp (ms) at which the notifier may send this task's result. */
+  notify_after_at?: number | null;
 }
 
 export interface TaskRecord {
@@ -39,6 +41,8 @@ export interface TaskRecord {
   notify_attempts: number;
   notify_last_error: string | null;
   notified_at: number | null;
+  /** Earliest timestamp (ms) at which the notifier may send this task's result. */
+  notify_after_at: number | null;
 }
 
 export interface TaskFilters {

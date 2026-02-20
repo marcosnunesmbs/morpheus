@@ -67,6 +67,7 @@ export class TaskRepository {
     addColumn(`ALTER TABLE tasks ADD COLUMN notify_attempts INTEGER NOT NULL DEFAULT 0`, 'notify_attempts');
     addColumn(`ALTER TABLE tasks ADD COLUMN notify_last_error TEXT`, 'notify_last_error');
     addColumn(`ALTER TABLE tasks ADD COLUMN notified_at INTEGER`, 'notified_at');
+    addColumn(`ALTER TABLE tasks ADD COLUMN notify_after_at INTEGER`, 'notify_after_at');
 
     this.db.exec(`
       UPDATE tasks
@@ -116,12 +117,19 @@ export class TaskRepository {
       notify_attempts: row.notify_attempts ?? 0,
       notify_last_error: row.notify_last_error ?? null,
       notified_at: row.notified_at ?? null,
+      notify_after_at: row.notify_after_at ?? null,
     };
   }
+
+  /** Grace period added to created_at to compute notify_after_at when not provided. */
+  static readonly DEFAULT_NOTIFY_AFTER_MS = 10_000;
 
   createTask(input: TaskCreateInput): TaskRecord {
     const now = Date.now();
     const id = randomUUID();
+    const notify_after_at = input.notify_after_at !== undefined
+      ? input.notify_after_at
+      : now + TaskRepository.DEFAULT_NOTIFY_AFTER_MS;
 
     this.db.prepare(`
       INSERT INTO tasks (
@@ -129,13 +137,15 @@ export class TaskRepository {
         origin_channel, session_id, origin_message_id, origin_user_id,
         attempt_count, max_attempts, available_at,
         created_at, started_at, finished_at, updated_at, worker_id,
-        notify_status, notify_attempts, notify_last_error, notified_at
+        notify_status, notify_attempts, notify_last_error, notified_at,
+        notify_after_at
       ) VALUES (
         ?, ?, 'pending', ?, ?, NULL, NULL,
         ?, ?, ?, ?,
         0, ?, ?,
         ?, NULL, NULL, ?, NULL,
-        'pending', 0, NULL, NULL
+        'pending', 0, NULL, NULL,
+        ?
       )
     `).run(
       id,
@@ -150,6 +160,7 @@ export class TaskRepository {
       now,
       now,
       now,
+      notify_after_at,
     );
 
     return this.getTaskById(id)!;
@@ -337,9 +348,10 @@ export class TaskRepository {
           AND notify_status = 'pending'
           AND finished_at IS NOT NULL
           AND finished_at <= ?
+          AND (notify_after_at IS NULL OR notify_after_at <= ?)
         ORDER BY finished_at ASC
         LIMIT 1
-      `).get(now - Math.max(0, minFinishedAgeMs)) as { id: string } | undefined;
+      `).get(now - Math.max(0, minFinishedAgeMs), now) as { id: string } | undefined;
 
       if (!row) return null;
 

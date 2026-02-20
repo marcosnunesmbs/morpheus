@@ -27,7 +27,6 @@ type AckGenerationResult = {
 
 export class Oracle implements IOracle {
   private provider?: ReactAgent;
-  private ackProvider?: ReactAgent;
   private config: MorpheusConfig;
   private history?: BaseListChatMessageHistory;
   private display = DisplayManager.getInstance();
@@ -58,99 +57,19 @@ export class Oracle implements IOracle {
     return hasCreationClaim && (hasAgentMention || hasUuid || hasAgentListLine);
   }
 
-  private buildDelegationAckFallback(acks: Array<{ task_id: string; agent: string }>): string {
+  private buildDelegationAck(acks: Array<{ task_id: string; agent: string }>): string {
     if (acks.length === 1) {
-      return `Task created: ${acks[0].task_id} (${acks[0].agent}).`;
+      const { task_id, agent } = acks[0];
+      return `✅\nTask \`${task_id.toUpperCase()}\`\nAgent: \`${agent.toUpperCase()}\`\nStatus: \`QUEUED\``;
     }
-    return `Tasks created: ${acks.map((ack) => `${ack.task_id} (${ack.agent})`).join(", ")}.`;
+    const lines = acks.map((a) => `• ${a.agent.toUpperCase()}: \`${a.task_id}\``).join('\n');
+    return `Tasks:\n\n${lines} \n\n running...`;
   }
 
-  private sanitizeDelegationAckText(
-    text: string,
+  private buildDelegationAckResult(
     acks: Array<{ task_id: string; agent: string }>,
-  ): string {
-    const normalized = (text || "").trim();
-    if (!normalized) {
-      return this.buildDelegationAckFallback(acks);
-    }
-
-    const allowed = new Set(acks.map((ack) => ack.task_id.toLowerCase()));
-    const found = Array.from(
-      normalized.matchAll(/\b[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}\b/g)
-    ).map((m) => m[0].toLowerCase());
-
-    if (found.some((id) => !allowed.has(id))) {
-      this.display.log("Sanitized delegation ack rejected due to unknown task id in text.", {
-        source: "Oracle",
-        level: "warning",
-      });
-      return this.buildDelegationAckFallback(acks);
-    }
-
-    if (acks.some((ack) => !normalized.includes(ack.task_id))) {
-      this.display.log("Sanitized delegation ack rejected due to missing task id in text.", {
-        source: "Oracle",
-        level: "warning",
-      });
-      return this.buildDelegationAckFallback(acks);
-    }
-
-    return normalized;
-  }
-
-  private async buildDelegationAckWithAgent(
-    userMessage: string,
-    acks: Array<{ task_id: string; agent: string }>,
-  ): Promise<AckGenerationResult> {
-    if (!this.ackProvider) {
-      try {
-        this.ackProvider = await ProviderFactory.createBare(this.config.llm, []);
-      } catch (err: any) {
-        this.display.log(`Ack provider initialization failed: ${err?.message ?? String(err)}`, {
-          source: "Oracle",
-          level: "warning",
-        });
-        return { content: this.buildDelegationAckFallback(acks) };
-      }
-    }
-
-    const tasksBlock = acks.map((ack) => `- ${ack.agent.toUpperCase()}: ${ack.task_id}`).join("\n");
-    const ackSystem = new SystemMessage(`
-You are Oracle.
-Return only a short acknowledgement that tasks were created.
-
-Hard rules:
-1. Do NOT provide execution results.
-2. Do NOT use or mention conversation history or memory.
-3. Use the same language as the user's message.
-4. Mention exactly the provided task IDs and agents.
-5. Keep the response concise.
-6. Breack down multiple tasks into bullet points.
-    `);
-    const ackHuman = new HumanMessage(
-      `User message:\n${userMessage}\n\nCreated tasks:\n${tasksBlock}\n\nRespond now.`
-    );
-
-    try {
-      const response = await this.ackProvider.invoke({ messages: [ackSystem, ackHuman] });
-      const last = response.messages[response.messages.length - 1];
-      const content = typeof last.content === "string" ? last.content : JSON.stringify(last.content);
-      const usage =
-        (last as any).usage_metadata
-        ?? (last as any).response_metadata?.usage
-        ?? (last as any).response_metadata?.tokenUsage
-        ?? (last as any).usage;
-      return {
-        content: this.sanitizeDelegationAckText(content, acks),
-        usage_metadata: usage,
-      };
-    } catch (err: any) {
-      this.display.log(`Ack generation failed: ${err?.message ?? String(err)}`, {
-        source: "Oracle",
-        level: "warning",
-      });
-      return { content: this.buildDelegationAckFallback(acks) };
-    }
+  ): AckGenerationResult {
+    return { content: this.buildDelegationAck(acks) };
   }
 
   private extractDelegationAcksFromMessages(messages: BaseMessage[]): Array<{ task_id: string; agent: string }> {
@@ -234,15 +153,6 @@ Hard rules:
       this.provider = await ProviderFactory.create(this.config.llm, [TaskQueryTool, NeoDelegateTool, ApocDelegateTool]);
       if (!this.provider) {
         throw new Error("Provider factory returned undefined");
-      }
-      try {
-        this.ackProvider = await ProviderFactory.createBare(this.config.llm, []);
-      } catch (err: any) {
-        this.ackProvider = undefined;
-        this.display.log(`Ack provider bootstrap failed: ${err?.message ?? String(err)}`, {
-          source: "Oracle",
-          level: "warning",
-        });
       }
 
       // Initialize persistent memory with SQLite
@@ -435,8 +345,7 @@ Use it to inform your response and tool selection (if needed), but do not assume
       let blockedSyntheticDelegationAck = false;
 
       if (delegatedThisTurn) {
-        // Guard: delegation acknowledgements are generated in a clean context (no chat history/memory).
-        const ackResult = await this.buildDelegationAckWithAgent(message, validDelegationAcks);
+        const ackResult = this.buildDelegationAckResult(validDelegationAcks);
         responseContent = ackResult.content;
         const ackMessage = new AIMessage(responseContent);
         (ackMessage as any).provider_metadata = {
@@ -608,15 +517,6 @@ Use it to inform your response and tool selection (if needed), but do not assume
 
     await Neo.refreshDelegateCatalog().catch(() => {});
     this.provider = await ProviderFactory.create(this.config.llm, [TaskQueryTool, NeoDelegateTool, ApocDelegateTool]);
-    try {
-      this.ackProvider = await ProviderFactory.createBare(this.config.llm, []);
-    } catch (err: any) {
-      this.ackProvider = undefined;
-      this.display.log(`Ack provider reload failed: ${err?.message ?? String(err)}`, {
-        source: "Oracle",
-        level: "warning",
-      });
-    }
     await Neo.getInstance().reload();
     this.display.log(`Oracle and Neo tools reloaded`, { source: 'Oracle' });
   }
