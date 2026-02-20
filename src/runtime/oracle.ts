@@ -41,7 +41,21 @@ export class Oracle implements IOracle {
   }
 
   private buildDelegationFailureResponse(): string {
-    return "Task enqueue could not be confirmed in the database. Please retry.";
+    return "Task enqueue could not be confirmed in the database. No task was created. Please retry.";
+  }
+
+  private looksLikeSyntheticDelegationAck(text: string): boolean {
+    const raw = (text || "").trim();
+    if (!raw) return false;
+
+    const hasCreationClaim = /(as\s+tarefas?\s+foram\s+criadas|tarefa\s+criada|nova\s+tarefa\s+criada|deleguei|delegado|delegada|tasks?\s+created|task\s+created|queued\s+for)/i.test(raw);
+    if (!hasCreationClaim) return false;
+
+    const hasAgentMention = /\b(apoc|neo|trinit)\b/i.test(raw);
+    const hasUuid = /\b[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}\b/.test(raw);
+    const hasAgentListLine = /(?:\*|-)?.{0,8}(apoc|neo|trinit)\s*[:：]/i.test(raw);
+
+    return hasCreationClaim && (hasAgentMention || hasUuid || hasAgentListLine);
   }
 
   private buildDelegationAckFallback(acks: Array<{ task_id: string; agent: string }>): string {
@@ -407,6 +421,8 @@ This memory may be relevant to the user's request. Use it to inform your respons
 
       const delegatedThisTurn = validDelegationAcks.length > 0;
 
+      let blockedSyntheticDelegationAck = false;
+
       if (delegatedThisTurn) {
         // Guard: delegation acknowledgements are generated in a clean context (no chat history/memory).
         const ackResult = await this.buildDelegationAckWithAgent(message, validDelegationAcks);
@@ -436,17 +452,42 @@ This memory may be relevant to the user's request. Use it to inform your respons
         };
         await this.history.addMessages([userMessage, failureMessage]);
       } else {
-        // Persist user message + all generated messages in a single transaction
-        await this.history.addMessages([userMessage, ...newGeneratedMessages]);
-
         const lastMessage = response.messages[response.messages.length - 1];
         responseContent = (typeof lastMessage.content === 'string') ? lastMessage.content : JSON.stringify(lastMessage.content);
+
+        if (this.looksLikeSyntheticDelegationAck(responseContent)) {
+          blockedSyntheticDelegationAck = true;
+          this.display.log(
+            "Blocked synthetic delegation acknowledgement without validated task creation.",
+            { source: "Oracle", level: "error", meta: { preview: responseContent.slice(0, 200) } }
+          );
+
+          const usage =
+            (lastMessage as any).usage_metadata
+            ?? (lastMessage as any).response_metadata?.usage
+            ?? (lastMessage as any).response_metadata?.tokenUsage
+            ?? (lastMessage as any).usage;
+
+          responseContent = this.buildDelegationFailureResponse();
+          const failureMessage = new AIMessage(responseContent);
+          (failureMessage as any).provider_metadata = {
+            provider: this.config.llm.provider,
+            model: this.config.llm.model,
+          };
+          if (usage) {
+            (failureMessage as any).usage_metadata = usage;
+          }
+          await this.history.addMessages([userMessage, failureMessage]);
+        } else {
+          // Persist user message + all generated messages in a single transaction
+          await this.history.addMessages([userMessage, ...newGeneratedMessages]);
+        }
       }
 
       this.display.log('Response generated.', { source: 'Oracle' });
 
       // Sati Middleware: skip memory evaluation for delegation-only acknowledgements.
-      if (!delegatedThisTurn) {
+      if (!delegatedThisTurn && !blockedSyntheticDelegationAck) {
         this.satiMiddleware.afterAgent(responseContent, [...previousMessages, userMessage], currentSessionId)
           .catch((e: any) => this.display.log(`Sati memory evaluation failed: ${e.message}`, { source: 'Sati' }));
       }
