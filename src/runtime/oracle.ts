@@ -18,6 +18,7 @@ import { TaskRepository } from "./tasks/repository.js";
 import { Neo } from "./neo.js";
 import { NeoDelegateTool } from "./tools/neo-tool.js";
 import { ApocDelegateTool } from "./tools/apoc-tool.js";
+import { TaskQueryTool } from "./tools/task-query-tool.js";
 
 export class Oracle implements IOracle {
   private provider?: ReactAgent;
@@ -140,7 +141,7 @@ export class Oracle implements IOracle {
       // Refresh Neo tool catalog so neo_delegate description contains runtime tools list.
       // Fail-open: Oracle can still initialize even if catalog refresh fails.
       await Neo.refreshDelegateCatalog().catch(() => {});
-      this.provider = await ProviderFactory.create(this.config.llm, [NeoDelegateTool, ApocDelegateTool]);
+      this.provider = await ProviderFactory.create(this.config.llm, [TaskQueryTool, NeoDelegateTool, ApocDelegateTool]);
       if (!this.provider) {
         throw new Error("Provider factory returned undefined");
       }
@@ -200,14 +201,15 @@ You are an orchestrator and task router.
 Rules:
 1. For conversation-only requests (greetings, conceptual explanation, memory follow-up), answer directly.
 2. For requests that require execution, verification, external/system state, or non-trivial operations, evaluate the available tools and choose the best one.
-3. Prefer delegation tools when execution should be asynchronous, and return the task acknowledgement clearly.
-4. If the user asked for multiple independent actions in the same message, enqueue one delegated task per action. Each task must be atomic (single objective).
-5. If the user asked for a single action, do not create additional delegated tasks.
-6. Never fabricate execution results for delegated tasks.
-7. Keep responses concise and objective.
-8. Avoid duplicate delegations to the same tool or agent.
-9. After enqueuing all required delegated tasks for the current message, stop calling tools and return a concise acknowledgement.
-10. If a delegation is rejected as "not atomic", immediately split into smaller delegations and retry.
+3. For task status/check questions (for example: "consultou?", "status da task", "andamento"), use task_query directly and do not delegate.
+4. Prefer delegation tools when execution should be asynchronous, and return the task acknowledgement clearly.
+5. If the user asked for multiple independent actions in the same message, enqueue one delegated task per action. Each task must be atomic (single objective).
+6. If the user asked for a single action, do not create additional delegated tasks.
+7. Never fabricate execution results for delegated tasks.
+8. Keep responses concise and objective.
+9. Avoid duplicate delegations to the same tool or agent.
+10. After enqueuing all required delegated tasks for the current message, stop calling tools and return a concise acknowledgement.
+11. If a delegation is rejected as "not atomic", immediately split into smaller delegations and retry.
 
 Delegation quality:
 - Write delegation input in the same language requested by the user.
@@ -453,7 +455,7 @@ This memory may be relevant to the user's request. Use it to inform your respons
     }
 
     await Neo.refreshDelegateCatalog().catch(() => {});
-    this.provider = await ProviderFactory.create(this.config.llm, [NeoDelegateTool, ApocDelegateTool]);
+    this.provider = await ProviderFactory.create(this.config.llm, [TaskQueryTool, NeoDelegateTool, ApocDelegateTool]);
     await Neo.getInstance().reload();
     this.display.log(`Oracle and Neo tools reloaded`, { source: 'Oracle' });
   }
