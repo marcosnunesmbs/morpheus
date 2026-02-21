@@ -24,6 +24,32 @@ export class TaskDispatcher {
         ? (task.output && task.output.trim().length > 0 ? task.output : 'Task completed without output.')
         : (task.error && task.error.trim().length > 0 ? task.error : 'Task failed with unknown error.');
       repo.updateNotificationResult(task.origin_message_id, status, result);
+
+      // Send Telegram notification if the webhook has 'telegram' in notification_channels
+      const notification = repo.getNotificationById(task.origin_message_id);
+      if (notification) {
+        const webhook = repo.getWebhookById(notification.webhook_id);
+        if (webhook?.notification_channels.includes('telegram')) {
+          const adapter = TaskDispatcher.telegramAdapter;
+          if (adapter) {
+            try {
+              const icon = status === 'completed' ? '✅' : '❌';
+              const truncated = result.length > 3500 ? result.slice(0, 3500) + '…' : result;
+              await adapter.sendMessage(`${icon} Webhook: ${webhook.name}\n\n${truncated}`);
+            } catch (err: any) {
+              TaskDispatcher.display.log(
+                `Failed to send Telegram notification for webhook "${webhook.name}": ${err.message}`,
+                { source: 'TaskDispatcher', level: 'error' },
+              );
+            }
+          } else {
+            TaskDispatcher.display.log(
+              `Telegram notification skipped for webhook "${webhook.name}" — adapter not connected.`,
+              { source: 'TaskDispatcher', level: 'warning' },
+            );
+          }
+        }
+      }
       return;
     }
 
