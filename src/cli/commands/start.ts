@@ -103,7 +103,7 @@ export const startCommand = new Command('start')
       display.log(chalk.green(`Morpheus Agent (${config.agent.name}) starting...`));
       display.log(chalk.gray(`PID: ${process.pid}`));
       if (options.ui) {
-        display.log(chalk.blue(`Web UI enabled to port ${options.port}`));
+        display.log(chalk.blue(`Web UI enabled to port ${options.port}`), { source: 'Zaion' });
       }
 
       // Initialize Oracle
@@ -116,17 +116,17 @@ export const startCommand = new Command('start')
       } catch (err: any) {
         display.stopSpinner();
         if (err instanceof ProviderError) {
-          display.log(chalk.red(`\nProvider Error (${err.provider}):`));
-          display.log(chalk.white(err.message));
+          display.log(chalk.red(`\nProvider Error (${err.provider}):`), { source: 'Oracle' });
+          display.log(chalk.white(err.message), { source: 'Oracle' });
           if (err.suggestion) {
-            display.log(chalk.yellow(`Tip: ${err.suggestion}`));
+            display.log(chalk.yellow(`Tip: ${err.suggestion}`), { source: 'Oracle' });
           }
         } else {
-          display.log(chalk.red('\nOracle initialization failed:'));
-          display.log(chalk.white(err.message));
+          display.log(chalk.red('\nOracle initialization failed:'), { source: 'Oracle' });
+          display.log(chalk.white(err.message), { source: 'Oracle' });
 
           if (err.message.includes('API Key')) {
-            display.log(chalk.yellow('Tip: Check your API key in configuration or environment variables.'));
+            display.log(chalk.yellow('Tip: Check your API key in configuration or environment variables.'), { source: 'Oracle' });
           }
         }
         await clearPid();
@@ -147,7 +147,7 @@ export const startCommand = new Command('start')
           const port = parseInt(options.port) || config.ui.port || 3333;
           httpServer.start(port);
         } catch (e: any) {
-          display.log(chalk.red(`Failed to start Web UI: ${e.message}`));
+          display.log(chalk.red(`Failed to start Web UI: ${e.message}`), { source: 'Zaion' });
         }
       }
 
@@ -165,10 +165,10 @@ export const startCommand = new Command('start')
             TaskDispatcher.setTelegramAdapter(telegram);
             adapters.push(telegram);
           } catch (e) {
-            display.log(chalk.red('Failed to initialize Telegram adapter. Continuing...'));
+            display.log(chalk.red('Failed to initialize Telegram adapter. Continuing...'), { source: 'Zaion' });
           }
         } else {
-          display.log(chalk.yellow('Telegram enabled but no token provided. Skipping.'));
+          display.log(chalk.yellow('Telegram enabled but no token provided. Skipping.'), { source: 'Zaion' });
         }
       }
 
@@ -182,7 +182,7 @@ export const startCommand = new Command('start')
       // Handle graceful shutdown
       const shutdown = async (signal: string) => {
         display.stopSpinner();
-        display.log(`\n${signal} received. Shutting down...`);
+        display.log(`\n${signal} received. Shutting down...`, { source: 'Zaion' });
 
         if (httpServer) {
           httpServer.stop();
@@ -226,7 +226,8 @@ export const startCommand = new Command('start')
 
     } catch (error: any) {
       display.stopSpinner();
-      console.error(chalk.red('Failed to start Morpheus:'), error.message);
+      display.log(chalk.red('Failed to start Morpheus:'), { source: 'Zaion' });
+      display.log(chalk.white(error.message), { source: 'Zaion' });
       await clearPid();
       process.exit(1);
     }

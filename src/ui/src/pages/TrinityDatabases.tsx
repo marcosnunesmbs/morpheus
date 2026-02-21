@@ -147,6 +147,13 @@ export function TrinityDatabases() {
   const handleSave = async () => {
     setSaving(true);
     setSaveError(null);
+
+    if (!useConnectionString && !form.database_name.trim()) {
+      setSaveError(form.type === 'sqlite' ? 'File path is required.' : 'Database name is required.');
+      setSaving(false);
+      return;
+    }
+
     try {
       const payload: any = {
         name: form.name,
@@ -621,10 +628,14 @@ export function TrinityDatabases() {
                   )}
                   <div>
                     <label className={labelClass}>
-                      {form.type === 'sqlite' ? 'File Path' : 'Database Name'}
+                      {form.type === 'sqlite' ? 'File Path' : 'Database Name'} *
                     </label>
                     <input
-                      className={inputClass}
+                      className={`w-full px-3 py-2 bg-azure-surface dark:bg-black border rounded text-azure-text-primary dark:text-matrix-secondary font-mono text-sm focus:outline-none ${
+                        !!saveError && !form.database_name.trim()
+                          ? 'border-red-500 dark:border-red-500'
+                          : 'border-azure-border dark:border-matrix-primary focus:border-azure-primary dark:focus:border-matrix-highlight'
+                      }`}
                       value={form.database_name}
                       onChange={(e) => setForm((f) => ({ ...f, database_name: e.target.value }))}
                       placeholder={form.type === 'sqlite' ? '/path/to/database.db' : 'mydb'}

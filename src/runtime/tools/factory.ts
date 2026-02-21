@@ -113,7 +113,7 @@ export class Construtor {
           Object.defineProperty(tool, "name", { value: newName });
           
           const shortDesc = tool.description && typeof tool.description === 'string' ? tool.description.slice(0, 100) + '...' : '';
-          display.log(`\nLoaded MCP tool: ${tool.name} (from ${serverName})\n ${shortDesc}`, { level: 'info', source: 'Construtor' });
+          display.log(`Loaded MCP tool: ${tool.name} (from ${serverName})`, { level: 'info', source: 'Construtor' });
         });
         
         // Sanitize tool schemas to remove fields not supported by Gemini

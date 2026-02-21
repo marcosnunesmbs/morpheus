@@ -24,7 +24,7 @@ const BATCH_LIMIT = 5;
 
 export async function runSessionEmbeddingWorker() {
     const display = DisplayManager.getInstance();
-    display.log('🚀 Iniciando worker de embeddings de sessões...', { source: 'SessionEmbeddingWorker' });
+    // display.log('🚀 Iniciando worker de embeddings de sessões...', { source: 'SessionEmbeddingWorker' });
 
     const shortDb = new Database(SHORT_DB_PATH);
     const satiDb = new Database(SATI_DB_PATH);
@@ -47,7 +47,7 @@ export async function runSessionEmbeddingWorker() {
     `).all(BATCH_LIMIT) as any[];
 
         if (sessions.length === 0) {
-            display.log('✅ Nenhuma sessão pendente.', { level: 'debug', source: 'SessionEmbeddingWorker' });
+            // display.log('✅ Nenhuma sessão pendente.', { level: 'debug', source: 'SessionEmbeddingWorker' });
             break;
         }
 
@@ -133,5 +133,5 @@ export async function runSessionEmbeddingWorker() {
         }
     }
 
-    display.log('🏁 Worker finalizado.', { source: 'SessionEmbeddingWorker' });
+    // display.log('🏁 Worker finalizado.', { source: 'SessionEmbeddingWorker' });
 }

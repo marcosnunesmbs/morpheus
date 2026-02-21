@@ -5,7 +5,7 @@ const INTERVAL_MS = 60_000 * 5; // 5 minutos
 
 export function startSessionEmbeddingScheduler() {
     const display = DisplayManager.getInstance();
-    display.log('🕒 Scheduler de embeddings iniciado', { source: 'SessionEmbeddingScheduler' });
+    display.log('Scheduler embeddings started.', { source: 'SessionEmbeddingScheduler' });
 
     // roda imediatamente na inicialização
     runSessionEmbeddingWorker().catch(console.error);
