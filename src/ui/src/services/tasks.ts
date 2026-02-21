@@ -65,5 +65,8 @@ export const taskService = {
 
   retry: (id: string): Promise<{ success: boolean }> =>
     httpClient.post<{ success: boolean }>(`/tasks/${id}/retry`, {}),
+
+  cancel: (id: string): Promise<{ success: boolean }> =>
+    httpClient.post<{ success: boolean }>(`/tasks/${id}/cancel`, {}),
 };
 

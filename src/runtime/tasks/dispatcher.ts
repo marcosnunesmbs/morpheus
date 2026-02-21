@@ -54,9 +54,11 @@ export class TaskDispatcher {
     }
 
     if (task.origin_channel === 'ui') {
-      const statusIcon = task.status === 'completed' ? '✅' : '❌';
+      const statusIcon = task.status === 'completed' ? '✅' : task.status === 'cancelled' ? '🚫' : '❌';
       const body = task.status === 'completed'
         ? (task.output && task.output.trim().length > 0 ? task.output : 'Task completed without output.')
+        : task.status === 'cancelled'
+        ? 'Task was cancelled.'
         : (task.error && task.error.trim().length > 0 ? task.error : 'Task failed with unknown error.');
       const content =
         `${statusIcon}\ Task \`${task.id.toUpperCase()}\`\n` +
@@ -92,9 +94,11 @@ export class TaskDispatcher {
       throw new Error('Telegram adapter not connected');
     }
 
-    const statusIcon = task.status === 'completed' ? '✅' : '❌';
+    const statusIcon = task.status === 'completed' ? '✅' : task.status === 'cancelled' ? '🚫' : '❌';
     const body = task.status === 'completed'
       ? (task.output && task.output.trim().length > 0 ? task.output : 'Task completed without output.')
+      : task.status === 'cancelled'
+      ? 'Task was cancelled.'
       : (task.error && task.error.trim().length > 0 ? task.error : 'Task failed with unknown error.');
 
     const header =

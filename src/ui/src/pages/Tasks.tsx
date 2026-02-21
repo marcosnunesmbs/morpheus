@@ -1,7 +1,7 @@
 ﻿import { useMemo, useState } from 'react';
 import useSWR from 'swr';
 import { motion } from 'framer-motion';
-import { CheckCircle2, Clock, XCircle, LoaderCircle, Eye, ListChecks } from 'lucide-react';
+import { CheckCircle2, Clock, XCircle, LoaderCircle, Eye, ListChecks, Ban } from 'lucide-react';
 import { taskService, type OriginChannel, type TaskAgent, type TaskRecord, type TaskStatus } from '../services/tasks';
 import { Dialog, DialogHeader, DialogTitle } from '../components/Dialog';
 
@@ -148,13 +148,25 @@ export function TasksPage() {
                 <td className="px-4 py-3">{task.attempt_count}/{task.max_attempts}</td>
                 <td className="px-4 py-3">{formatDate(task.created_at)}</td>
                 <td className="px-4 py-3">{formatDate(task.finished_at)}</td>
-                <td className="px-4 py-3">
+                <td className="px-4 py-3 flex items-center gap-1">
                   <button
                     onClick={() => setDetail(task)}
                     className="p-1.5 rounded hover:bg-azure-border dark:hover:bg-matrix-primary/30 text-azure-text-secondary dark:text-matrix-dim"
                   >
                     <Eye className="w-4 h-4" />
                   </button>
+                  {(task.status === 'pending' || task.status === 'running') && (
+                    <button
+                      onClick={async () => {
+                        await taskService.cancel(task.id);
+                        await mutate();
+                      }}
+                      title="Cancel task"
+                      className="p-1.5 rounded hover:bg-red-100 dark:hover:bg-red-900/30 text-red-500 dark:text-red-400"
+                    >
+                      <Ban className="w-4 h-4" />
+                    </button>
+                  )}
                 </td>
               </tr>
             ))}
@@ -196,18 +208,32 @@ export function TasksPage() {
               </section>
             )}
 
-            {detail.status === 'failed' && (
-              <div className="flex justify-end">
-                <button
-                  onClick={async () => {
-                    await taskService.retry(detail.id);
-                    setDetail(null);
-                    await mutate();
-                  }}
-                  className="px-4 py-2 rounded-lg bg-azure-primary text-white dark:bg-matrix-highlight dark:text-black text-sm"
-                >
-                  Retry Task
-                </button>
+            {(detail.status === 'failed' || detail.status === 'pending' || detail.status === 'running') && (
+              <div className="flex justify-end gap-2">
+                {(detail.status === 'pending' || detail.status === 'running') && (
+                  <button
+                    onClick={async () => {
+                      await taskService.cancel(detail.id);
+                      setDetail(null);
+                      await mutate();
+                    }}
+                    className="px-4 py-2 rounded-lg border border-red-400 dark:border-red-500 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 text-sm"
+                  >
+                    Cancel Task
+                  </button>
+                )}
+                {detail.status === 'failed' && (
+                  <button
+                    onClick={async () => {
+                      await taskService.retry(detail.id);
+                      setDetail(null);
+                      await mutate();
+                    }}
+                    className="px-4 py-2 rounded-lg bg-azure-primary text-white dark:bg-matrix-highlight dark:text-black text-sm"
+                  >
+                    Retry Task
+                  </button>
+                )}
               </div>
             )}
           </div>

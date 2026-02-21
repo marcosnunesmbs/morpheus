@@ -286,7 +286,7 @@ export class TaskRepository {
           notify_status = 'pending',
           notify_last_error = NULL,
           notified_at = NULL
-      WHERE id = ?
+      WHERE id = ? AND status != 'cancelled'
     `).run(normalizedOutput.length > 0 ? normalizedOutput : 'Task completed without output.', now, now, id);
   }
 
@@ -300,8 +300,22 @@ export class TaskRepository {
           updated_at = ?,
           notify_status = 'pending',
           notified_at = NULL
-      WHERE id = ?
+      WHERE id = ? AND status != 'cancelled'
     `).run(error, now, now, id);
+  }
+
+  cancelTask(id: string): boolean {
+    const now = Date.now();
+    const result = this.db.prepare(`
+      UPDATE tasks
+      SET status = 'cancelled',
+          finished_at = ?,
+          updated_at = ?,
+          notify_status = 'pending',
+          notified_at = NULL
+      WHERE id = ? AND status IN ('pending', 'running')
+    `).run(now, now, id);
+    return result.changes > 0;
   }
 
   retryTask(id: string): boolean {
@@ -358,7 +372,7 @@ export class TaskRepository {
       const row = this.db.prepare(`
         SELECT id
         FROM tasks
-        WHERE status IN ('completed', 'failed')
+        WHERE status IN ('completed', 'failed', 'cancelled')
           AND notify_status = 'pending'
           AND finished_at IS NOT NULL
           AND finished_at <= ?
@@ -396,7 +410,7 @@ export class TaskRepository {
       SET notify_status = 'pending',
           notify_last_error = COALESCE(notify_last_error, 'Recovered notification queue state'),
           updated_at = ?
-      WHERE status IN ('completed', 'failed')
+      WHERE status IN ('completed', 'failed', 'cancelled')
         AND (
           (notify_status = 'sending' AND updated_at <= ?)
           OR

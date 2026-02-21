@@ -265,6 +265,18 @@ export function createApiRouter(oracle: IOracle) {
     }
   });
 
+  router.post('/tasks/:id/cancel', (req, res) => {
+    try {
+      const ok = taskRepository.cancelTask(req.params.id);
+      if (!ok) {
+        return res.status(404).json({ error: 'Active task not found for cancellation' });
+      }
+      res.json({ success: true });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
   // Legacy /session/reset (keep for backward compat or redirect to POST /sessions)
   router.post('/session/reset', async (req, res) => {
     try {
