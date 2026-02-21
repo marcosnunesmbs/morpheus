@@ -20,24 +20,96 @@ export interface QueryResult {
   rowCount: number;
 }
 
-function buildConnectionString(db: DatabaseRecord): string {
-  if (db.connection_string) return db.connection_string;
+// ─── Permission enforcement ───────────────────────────────────────────────────
 
-  const user = db.username || '';
-  const pass = db.password ? `:${encodeURIComponent(db.password)}` : '';
-  const host = db.host || 'localhost';
-  const port = db.port || defaultPort(db.type);
-  const dbName = db.database_name || '';
+type DbOperation = 'read' | 'insert' | 'update' | 'delete' | 'ddl';
 
-  switch (db.type) {
-    case 'postgresql':
-      return `postgresql://${user}${pass ? `${user ? '' : ''}${pass}` : ''}@${host}:${port}/${dbName}`;
-    case 'mysql':
-      return `mysql://${user}${pass}@${host}:${port}/${dbName}`;
+const SQL_OPERATION_LABELS: Record<DbOperation, string> = {
+  read: 'SELECT (leitura)',
+  insert: 'INSERT (inserção)',
+  update: 'UPDATE (atualização)',
+  delete: 'DELETE (exclusão)',
+  ddl: 'DDL — CREATE / ALTER / DROP (alteração de schema)',
+};
+
+const MONGO_OPERATION_LABELS: Record<DbOperation, string> = {
+  read: 'find / aggregate (leitura)',
+  insert: 'insertOne / insertMany (inserção)',
+  update: 'updateOne / updateMany (atualização)',
+  delete: 'deleteOne / deleteMany (exclusão)',
+  ddl: 'createCollection / dropCollection / createIndex (alteração de schema)',
+};
+
+function detectSqlOperation(query: string): DbOperation {
+  const first = query.trimStart().match(/^\s*(\w+)/i)?.[1]?.toUpperCase() ?? '';
+  switch (first) {
+    case 'SELECT':
+    case 'EXPLAIN':
+    case 'SHOW':
+    case 'DESCRIBE':
+    case 'DESC':
+      return 'read';
+    case 'INSERT':
+      return 'insert';
+    case 'UPDATE':
+      return 'update';
+    case 'DELETE':
+      return 'delete';
+    case 'CREATE':
+    case 'ALTER':
+    case 'DROP':
+    case 'TRUNCATE':
+    case 'RENAME':
+    case 'INDEX':
+      return 'ddl';
     default:
-      return '';
+      return 'read';
   }
 }
+
+function detectMongoOperation(operation: string): DbOperation {
+  switch (operation) {
+    case 'find':
+    case 'aggregate':
+    case 'countDocuments':
+      return 'read';
+    case 'insertOne':
+    case 'insertMany':
+      return 'insert';
+    case 'updateOne':
+    case 'updateMany':
+    case 'replaceOne':
+      return 'update';
+    case 'deleteOne':
+    case 'deleteMany':
+      return 'delete';
+    case 'createCollection':
+    case 'dropCollection':
+    case 'createIndex':
+    case 'dropIndex':
+      return 'ddl';
+    default:
+      return 'read';
+  }
+}
+
+function assertPermission(db: DatabaseRecord, op: DbOperation, labels: Record<DbOperation, string>): void {
+  const allowed: Record<DbOperation, boolean> = {
+    read: db.allow_read,
+    insert: db.allow_insert,
+    update: db.allow_update,
+    delete: db.allow_delete,
+    ddl: db.allow_ddl,
+  };
+  if (!allowed[op]) {
+    throw new Error(
+      `Permissão negada: a operação "${labels[op]}" não está habilitada para o banco "${db.name}". ` +
+      `Habilite esta permissão nas configurações do banco de dados.`
+    );
+  }
+}
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function defaultPort(type: DatabaseType): number {
   switch (type) {
@@ -101,6 +173,8 @@ async function pgIntrospect(db: DatabaseRecord): Promise<SchemaInfo> {
 }
 
 async function pgExecuteQuery(db: DatabaseRecord, query: string, params?: any[]): Promise<QueryResult> {
+  assertPermission(db, detectSqlOperation(query), SQL_OPERATION_LABELS);
+
   const { Client } = await import('pg');
   const client = new Client(buildPgConfig(db));
   await client.connect();
@@ -152,7 +226,6 @@ async function mysqlIntrospect(db: DatabaseRecord): Promise<SchemaInfo> {
 
     const tables: TableInfo[] = [];
     for (const tableRow of tableRows) {
-      // MySQL returns information_schema columns in uppercase on some versions
       const tableName: string = tableRow.table_name ?? tableRow.TABLE_NAME ?? '';
       if (!tableName) continue;
 
@@ -179,6 +252,8 @@ async function mysqlIntrospect(db: DatabaseRecord): Promise<SchemaInfo> {
 }
 
 async function mysqlExecuteQuery(db: DatabaseRecord, query: string, params?: any[]): Promise<QueryResult> {
+  assertPermission(db, detectSqlOperation(query), SQL_OPERATION_LABELS);
+
   const mysql2 = await import('mysql2/promise');
   const conn = await mysql2.createConnection(buildMysqlConfig(db));
   try {
@@ -191,7 +266,6 @@ async function mysqlExecuteQuery(db: DatabaseRecord, query: string, params?: any
 }
 
 function buildMysqlConfig(db: DatabaseRecord): any {
-  // mysql2 accepts a URI string directly (not wrapped in { uri: '...' })
   if (db.connection_string) return db.connection_string;
   return {
     host: db.host || 'localhost',
@@ -247,13 +321,18 @@ async function sqliteIntrospect(db: DatabaseRecord): Promise<SchemaInfo> {
 }
 
 async function sqliteExecuteQuery(db: DatabaseRecord, query: string): Promise<QueryResult> {
+  const op = detectSqlOperation(query);
+  assertPermission(db, op, SQL_OPERATION_LABELS);
+
   const filePath = db.connection_string || db.database_name;
   if (!filePath) throw new Error('SQLite database file path not specified');
 
   const { default: Database } = await import('better-sqlite3');
-  const sqliteDb = new Database(filePath, { readonly: true, fileMustExist: true });
+  // Open readonly only if no write permission is needed
+  const readonly = op === 'read';
+  const sqliteDb = new Database(filePath, { readonly, fileMustExist: true });
   try {
-    const isSelect = /^\s*SELECT/i.test(query);
+    const isSelect = op === 'read';
     if (isSelect) {
       const rows = sqliteDb.prepare(query).all() as Record<string, any>[];
       return { rows, rowCount: rows.length };
@@ -266,42 +345,51 @@ async function sqliteExecuteQuery(db: DatabaseRecord, query: string): Promise<Qu
   }
 }
 
-// ─── MongoDB ─────────────────────────────────────────────────────────────────
+// ─── MongoDB (Mongoose) ───────────────────────────────────────────────────────
+
+async function mongoCreateConnection(uri: string, timeoutMs: number) {
+  const { default: mongoose } = await import('mongoose');
+  const conn = mongoose.createConnection(uri, {
+    serverSelectionTimeoutMS: timeoutMs,
+    connectTimeoutMS: timeoutMs,
+  });
+  await conn.asPromise();
+  return conn;
+}
+
+function mongoGetDb(conn: any, databaseName?: string | null) {
+  if (databaseName) return conn.useDb(databaseName, { useCache: true }).db;
+  return conn.db as import('mongodb').Db;
+}
 
 async function mongoTestConnection(db: DatabaseRecord): Promise<boolean> {
-  const { MongoClient } = await import('mongodb');
   const uri = db.connection_string || buildMongoUri(db);
-  const client = new MongoClient(uri, { serverSelectionTimeoutMS: 5000 });
+  let conn: any;
   try {
-    await client.connect();
-    await client.db('admin').command({ ping: 1 });
+    conn = await mongoCreateConnection(uri, 5000);
+    const rawDb = mongoGetDb(conn, db.database_name);
+    await rawDb.command({ ping: 1 });
     return true;
   } catch {
     return false;
   } finally {
-    await client.close().catch(() => {});
+    await conn?.close().catch(() => {});
   }
 }
 
 async function mongoIntrospect(db: DatabaseRecord): Promise<SchemaInfo> {
-  const { MongoClient } = await import('mongodb');
   const uri = db.connection_string || buildMongoUri(db);
-  const client = new MongoClient(uri, { serverSelectionTimeoutMS: 10000 });
-  await client.connect();
+  const conn = await mongoCreateConnection(uri, 10000);
   try {
-    const dbName = db.database_name || 'test';
-    const mongoDb = client.db(dbName);
-    const collections = await mongoDb.listCollections().toArray();
+    const rawDb = mongoGetDb(conn, db.database_name);
+    const collections = await rawDb.listCollections().toArray();
 
     const tables: TableInfo[] = [];
     for (const col of collections) {
-      // Sample up to 100 documents to infer field names
-      const docs = await mongoDb.collection(col.name).find().limit(100).toArray();
+      const docs = await rawDb.collection(col.name).find().limit(100).toArray();
       const fieldSet = new Set<string>();
       for (const doc of docs) {
-        for (const key of Object.keys(doc)) {
-          fieldSet.add(key);
-        }
+        for (const key of Object.keys(doc)) fieldSet.add(key);
       }
       tables.push({
         name: col.name,
@@ -310,54 +398,129 @@ async function mongoIntrospect(db: DatabaseRecord): Promise<SchemaInfo> {
     }
     return { tables };
   } finally {
-    await client.close().catch(() => {});
+    await conn.close().catch(() => {});
   }
 }
 
 async function mongoExecuteQuery(db: DatabaseRecord, query: string): Promise<QueryResult> {
-  const { MongoClient } = await import('mongodb');
-  const uri = db.connection_string || buildMongoUri(db);
-  const client = new MongoClient(uri, { serverSelectionTimeoutMS: 10000 });
-  await client.connect();
+  // Parse query first to know the operation before connecting
+  let parsed: any;
   try {
-    const dbName = db.database_name || 'test';
-    const mongoDb = client.db(dbName);
+    parsed = JSON.parse(query);
+  } catch {
+    throw new Error(
+      'MongoDB queries must be JSON: { "collection": "name", "operation": "find|insertOne|updateOne|...", ... }'
+    );
+  }
 
-    // Parse query as JSON-encoded MongoDB command
-    // Expected format: { "collection": "name", "operation": "find", "filter": {}, "options": {} }
-    let parsed: any;
-    try {
-      parsed = JSON.parse(query);
-    } catch {
-      throw new Error(
-        'MongoDB queries must be JSON: { "collection": "name", "operation": "find|aggregate|countDocuments", "filter": {}, "options": {} }'
-      );
-    }
+  const { collection: colName, operation = 'find', filter = {}, pipeline, options = {}, document, documents, update, replacement, keys, indexName } = parsed;
 
-    const { collection: colName, operation = 'find', filter = {}, pipeline, options = {} } = parsed;
-    if (!colName) throw new Error('MongoDB query must include "collection" field');
+  // Check permission before connecting
+  const op = detectMongoOperation(operation);
+  assertPermission(db, op, MONGO_OPERATION_LABELS);
 
-    const col = mongoDb.collection(colName);
+  // createCollection / dropCollection / createIndex / dropIndex don't require collection
+  if (!colName && !['createCollection', 'dropCollection', 'createIndex', 'dropIndex'].includes(operation)) {
+    throw new Error('MongoDB query must include "collection" field');
+  }
 
+  const uri = db.connection_string || buildMongoUri(db);
+  const conn = await mongoCreateConnection(uri, 10000);
+  try {
+    const rawDb = mongoGetDb(conn, db.database_name);
+    const col = colName ? rawDb.collection(colName) : null;
+
+    // ── Read operations ──────────────────────────────────────────────────────
     if (operation === 'aggregate') {
-      const rows = await col.aggregate(pipeline ?? []).toArray();
-      return { rows: rows.map((r) => ({ ...r, _id: r._id?.toString() })), rowCount: rows.length };
+      const rows = await col!.aggregate(pipeline ?? []).toArray();
+      return { rows: rows.map((r: any) => ({ ...r, _id: r._id?.toString() })), rowCount: rows.length };
     }
 
     if (operation === 'countDocuments') {
-      const count = await col.countDocuments(filter);
+      const count = await col!.countDocuments(filter);
       return { rows: [{ count }], rowCount: 1 };
     }
 
-    // Default: find
-    const limit = options.limit ?? 100;
-    const rows = await col.find(filter, { ...options, limit }).toArray();
-    return {
-      rows: rows.map((r) => ({ ...r, _id: r._id?.toString() })),
-      rowCount: rows.length,
-    };
+    if (operation === 'find') {
+      const limit = options.limit ?? 100;
+      const rows = await col!.find(filter, { ...options, limit }).toArray();
+      return {
+        rows: rows.map((r: any) => ({ ...r, _id: r._id?.toString() })),
+        rowCount: rows.length,
+      };
+    }
+
+    // ── Insert operations ────────────────────────────────────────────────────
+    if (operation === 'insertOne') {
+      if (!document) throw new Error('"document" field required for insertOne');
+      const result = await col!.insertOne(document);
+      return { rows: [{ insertedId: result.insertedId?.toString(), acknowledged: result.acknowledged }], rowCount: 1 };
+    }
+
+    if (operation === 'insertMany') {
+      if (!documents || !Array.isArray(documents)) throw new Error('"documents" array required for insertMany');
+      const result = await col!.insertMany(documents);
+      return { rows: [{ insertedCount: result.insertedCount, acknowledged: result.acknowledged }], rowCount: result.insertedCount };
+    }
+
+    // ── Update operations ────────────────────────────────────────────────────
+    if (operation === 'updateOne') {
+      if (!update) throw new Error('"update" field required for updateOne');
+      const result = await col!.updateOne(filter, update, options);
+      return { rows: [{ matchedCount: result.matchedCount, modifiedCount: result.modifiedCount, acknowledged: result.acknowledged }], rowCount: result.modifiedCount };
+    }
+
+    if (operation === 'updateMany') {
+      if (!update) throw new Error('"update" field required for updateMany');
+      const result = await col!.updateMany(filter, update, options);
+      return { rows: [{ matchedCount: result.matchedCount, modifiedCount: result.modifiedCount, acknowledged: result.acknowledged }], rowCount: result.modifiedCount };
+    }
+
+    if (operation === 'replaceOne') {
+      if (!replacement) throw new Error('"replacement" field required for replaceOne');
+      const result = await col!.replaceOne(filter, replacement, options);
+      return { rows: [{ matchedCount: result.matchedCount, modifiedCount: result.modifiedCount, acknowledged: result.acknowledged }], rowCount: result.modifiedCount };
+    }
+
+    // ── Delete operations ────────────────────────────────────────────────────
+    if (operation === 'deleteOne') {
+      const result = await col!.deleteOne(filter);
+      return { rows: [{ deletedCount: result.deletedCount, acknowledged: result.acknowledged }], rowCount: result.deletedCount };
+    }
+
+    if (operation === 'deleteMany') {
+      const result = await col!.deleteMany(filter);
+      return { rows: [{ deletedCount: result.deletedCount, acknowledged: result.acknowledged }], rowCount: result.deletedCount };
+    }
+
+    // ── DDL operations ───────────────────────────────────────────────────────
+    if (operation === 'createCollection') {
+      if (!colName) throw new Error('"collection" field required for createCollection');
+      await rawDb.createCollection(colName, options);
+      return { rows: [{ created: colName }], rowCount: 1 };
+    }
+
+    if (operation === 'dropCollection') {
+      if (!colName) throw new Error('"collection" field required for dropCollection');
+      await rawDb.dropCollection(colName);
+      return { rows: [{ dropped: colName }], rowCount: 1 };
+    }
+
+    if (operation === 'createIndex') {
+      if (!keys) throw new Error('"keys" field required for createIndex');
+      const indexName2 = await col!.createIndex(keys, options);
+      return { rows: [{ indexName: indexName2 }], rowCount: 1 };
+    }
+
+    if (operation === 'dropIndex') {
+      if (!indexName) throw new Error('"indexName" field required for dropIndex');
+      await col!.dropIndex(indexName);
+      return { rows: [{ dropped: indexName }], rowCount: 1 };
+    }
+
+    throw new Error(`Unknown MongoDB operation: "${operation}"`);
   } finally {
-    await client.close().catch(() => {});
+    await conn.close().catch(() => {});
   }
 }
 

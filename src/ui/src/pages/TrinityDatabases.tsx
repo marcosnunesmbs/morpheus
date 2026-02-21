@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import useSWR, { mutate } from 'swr';
 import { httpClient } from '../services/httpClient';
-import { Database, Plus, RefreshCw, Trash2, Wifi, WifiOff, ChevronDown, ChevronRight, X } from 'lucide-react';
+import { Database, Plus, RefreshCw, Trash2, Wifi, WifiOff, ChevronDown, ChevronRight, X, ShieldCheck } from 'lucide-react';
 
 interface DatabaseRecord {
   id: number;
@@ -17,6 +17,11 @@ interface DatabaseRecord {
   schema_updated_at: number | null;
   created_at: number;
   updated_at: number;
+  allow_read: boolean;
+  allow_insert: boolean;
+  allow_update: boolean;
+  allow_delete: boolean;
+  allow_ddl: boolean;
 }
 
 interface DatabaseFormData {
@@ -28,6 +33,11 @@ interface DatabaseFormData {
   username: string;
   password: string;
   connection_string: string;
+  allow_read: boolean;
+  allow_insert: boolean;
+  allow_update: boolean;
+  allow_delete: boolean;
+  allow_ddl: boolean;
 }
 
 const DEFAULT_PORTS: Record<string, number> = {
@@ -46,6 +56,42 @@ const EMPTY_FORM: DatabaseFormData = {
   username: '',
   password: '',
   connection_string: '',
+  allow_read: true,
+  allow_insert: false,
+  allow_update: false,
+  allow_delete: false,
+  allow_ddl: false,
+};
+
+const PERMISSION_LABELS: Record<string, { key: keyof DatabaseFormData; label: string; description: string }[]> = {
+  postgresql: [
+    { key: 'allow_read',   label: 'SELECT',  description: 'Permite consultas SELECT' },
+    { key: 'allow_insert', label: 'INSERT',  description: 'Permite inserir registros' },
+    { key: 'allow_update', label: 'UPDATE',  description: 'Permite atualizar registros' },
+    { key: 'allow_delete', label: 'DELETE',  description: 'Permite excluir registros' },
+    { key: 'allow_ddl',    label: 'DDL',     description: 'CREATE / ALTER / DROP TABLE' },
+  ],
+  mysql: [
+    { key: 'allow_read',   label: 'SELECT',  description: 'Permite consultas SELECT' },
+    { key: 'allow_insert', label: 'INSERT',  description: 'Permite inserir registros' },
+    { key: 'allow_update', label: 'UPDATE',  description: 'Permite atualizar registros' },
+    { key: 'allow_delete', label: 'DELETE',  description: 'Permite excluir registros' },
+    { key: 'allow_ddl',    label: 'DDL',     description: 'CREATE / ALTER / DROP TABLE' },
+  ],
+  sqlite: [
+    { key: 'allow_read',   label: 'SELECT',  description: 'Permite consultas SELECT' },
+    { key: 'allow_insert', label: 'INSERT',  description: 'Permite inserir registros' },
+    { key: 'allow_update', label: 'UPDATE',  description: 'Permite atualizar registros' },
+    { key: 'allow_delete', label: 'DELETE',  description: 'Permite excluir registros' },
+    { key: 'allow_ddl',    label: 'DDL',     description: 'CREATE / ALTER / DROP TABLE' },
+  ],
+  mongodb: [
+    { key: 'allow_read',   label: 'find / aggregate',      description: 'Permite consultas e agregações' },
+    { key: 'allow_insert', label: 'insertOne / insertMany', description: 'Permite inserir documentos' },
+    { key: 'allow_update', label: 'updateOne / updateMany', description: 'Permite atualizar documentos' },
+    { key: 'allow_delete', label: 'deleteOne / deleteMany', description: 'Permite excluir documentos' },
+    { key: 'allow_ddl',    label: 'Schema changes',         description: 'createCollection / dropCollection / createIndex' },
+  ],
 };
 
 async function fetchDatabases(): Promise<DatabaseRecord[]> {
@@ -85,6 +131,11 @@ export function TrinityDatabases() {
       username: db.username || '',
       password: '',
       connection_string: '',
+      allow_read: db.allow_read,
+      allow_insert: db.allow_insert,
+      allow_update: db.allow_update,
+      allow_delete: db.allow_delete,
+      allow_ddl: db.allow_ddl,
     });
     setUseConnectionString(!!db.connection_string);
     setSaveError(null);
@@ -98,6 +149,11 @@ export function TrinityDatabases() {
       const payload: any = {
         name: form.name,
         type: form.type,
+        allow_read: form.allow_read,
+        allow_insert: form.allow_insert,
+        allow_update: form.allow_update,
+        allow_delete: form.allow_delete,
+        allow_ddl: form.allow_ddl,
       };
 
       if (useConnectionString) {
@@ -167,11 +223,16 @@ export function TrinityDatabases() {
   };
 
   const handleTypeChange = (type: DatabaseFormData['type']) => {
+    if (type !== 'mongodb') setUseConnectionString(false);
     setForm((f) => ({
       ...f,
       type,
       port: DEFAULT_PORTS[type] ? String(DEFAULT_PORTS[type]) : '',
     }));
+  };
+
+  const togglePermission = (key: keyof DatabaseFormData) => {
+    setForm((f) => ({ ...f, [key]: !f[key] }));
   };
 
   if (error) {
@@ -181,6 +242,17 @@ export function TrinityDatabases() {
   const inputClass =
     'w-full px-3 py-2 bg-azure-surface dark:bg-black border border-azure-border dark:border-matrix-primary rounded text-azure-text-primary dark:text-matrix-secondary font-mono text-sm focus:outline-none focus:border-azure-primary dark:focus:border-matrix-highlight';
   const labelClass = 'block text-xs font-medium text-azure-text-secondary dark:text-matrix-secondary mb-1';
+
+  const permissionBadges = (db: DatabaseRecord) => {
+    const map = [
+      { key: 'allow_read' as const,   badge: 'R' },
+      { key: 'allow_insert' as const, badge: 'I' },
+      { key: 'allow_update' as const, badge: 'U' },
+      { key: 'allow_delete' as const, badge: 'D' },
+      { key: 'allow_ddl' as const,    badge: 'DDL' },
+    ];
+    return map.filter((m) => db[m.key]).map((m) => m.badge);
+  };
 
   return (
     <div className="max-w-5xl mx-auto space-y-6">
@@ -201,7 +273,7 @@ export function TrinityDatabases() {
       </div>
 
       <p className="text-sm text-azure-text-secondary dark:text-matrix-secondary">
-        Register databases for Trinity to access. Trinity can interpret natural language queries and execute them against registered databases.
+        Register databases for Trinity to access. Configure permissions to control what operations Trinity can perform on each database.
       </p>
 
       {/* Database list */}
@@ -220,6 +292,7 @@ export function TrinityDatabases() {
             const tables: string[] = schema?.tables?.map((t: any) => t.name) ?? [];
             const testResult = testResults[db.id];
             const isExpanded = expandedSchema[db.id];
+            const badges = permissionBadges(db);
 
             return (
               <div
@@ -230,7 +303,7 @@ export function TrinityDatabases() {
                 <div className="bg-azure-surface dark:bg-black/50 px-4 py-3 flex items-center gap-3">
                   <Database className="w-5 h-5 text-azure-primary dark:text-matrix-highlight flex-shrink-0" />
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 flex-wrap">
                       <span className="font-bold text-azure-text-primary dark:text-matrix-highlight truncate">
                         {db.name}
                       </span>
@@ -246,6 +319,17 @@ export function TrinityDatabases() {
                         <span className="flex items-center gap-1 text-xs text-red-500">
                           <WifiOff className="w-3 h-3" /> Failed
                         </span>
+                      )}
+                      {/* Permission badges */}
+                      {badges.length > 0 && (
+                        <div className="flex items-center gap-1">
+                          <ShieldCheck className="w-3 h-3 text-azure-text-secondary dark:text-matrix-secondary opacity-60" />
+                          {badges.map((b) => (
+                            <span key={b} className="text-xs px-1.5 py-0.5 rounded bg-azure-primary/10 dark:bg-matrix-highlight/10 text-azure-primary dark:text-matrix-highlight font-mono">
+                              {b}
+                            </span>
+                          ))}
+                        </div>
                       )}
                     </div>
                     <div className="text-xs text-azure-text-secondary dark:text-matrix-secondary truncate mt-0.5">
@@ -385,33 +469,35 @@ export function TrinityDatabases() {
                 </select>
               </div>
 
-              {/* Connection method toggle */}
-              <div className="flex items-center gap-3">
-                <button
-                  type="button"
-                  onClick={() => setUseConnectionString(false)}
-                  className={`text-xs px-3 py-1.5 rounded border transition-colors ${
-                    !useConnectionString
-                      ? 'border-azure-primary dark:border-matrix-highlight bg-azure-primary/10 dark:bg-matrix-highlight/10 text-azure-primary dark:text-matrix-highlight'
-                      : 'border-azure-border dark:border-matrix-primary text-azure-text-secondary dark:text-matrix-secondary'
-                  }`}
-                >
-                  Individual fields
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setUseConnectionString(true)}
-                  className={`text-xs px-3 py-1.5 rounded border transition-colors ${
-                    useConnectionString
-                      ? 'border-azure-primary dark:border-matrix-highlight bg-azure-primary/10 dark:bg-matrix-highlight/10 text-azure-primary dark:text-matrix-highlight'
-                      : 'border-azure-border dark:border-matrix-primary text-azure-text-secondary dark:text-matrix-secondary'
-                  }`}
-                >
-                  Connection string
-                </button>
-              </div>
+              {/* MongoDB: toggle between connection string and individual fields */}
+              {form.type === 'mongodb' && (
+                <div className="flex items-center gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setUseConnectionString(false)}
+                    className={`text-xs px-3 py-1.5 rounded border transition-colors ${
+                      !useConnectionString
+                        ? 'border-azure-primary dark:border-matrix-highlight bg-azure-primary/10 dark:bg-matrix-highlight/10 text-azure-primary dark:text-matrix-highlight'
+                        : 'border-azure-border dark:border-matrix-primary text-azure-text-secondary dark:text-matrix-secondary'
+                    }`}
+                  >
+                    Individual fields
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setUseConnectionString(true)}
+                    className={`text-xs px-3 py-1.5 rounded border transition-colors ${
+                      useConnectionString
+                        ? 'border-azure-primary dark:border-matrix-highlight bg-azure-primary/10 dark:bg-matrix-highlight/10 text-azure-primary dark:text-matrix-highlight'
+                        : 'border-azure-border dark:border-matrix-primary text-azure-text-secondary dark:text-matrix-secondary'
+                    }`}
+                  >
+                    Connection string
+                  </button>
+                </div>
+              )}
 
-              {useConnectionString ? (
+              {form.type === 'mongodb' && useConnectionString ? (
                 <div>
                   <label className={labelClass}>Connection String</label>
                   <input
@@ -419,15 +505,7 @@ export function TrinityDatabases() {
                     type="password"
                     value={form.connection_string}
                     onChange={(e) => setForm((f) => ({ ...f, connection_string: e.target.value }))}
-                    placeholder={
-                      form.type === 'postgresql'
-                        ? 'postgresql://user:pass@host:5432/dbname'
-                        : form.type === 'mysql'
-                        ? 'mysql://user:pass@host:3306/dbname'
-                        : form.type === 'mongodb'
-                        ? 'mongodb://user:pass@host:27017/dbname'
-                        : '/path/to/database.db'
-                    }
+                    placeholder="mongodb://user:pass@host:27017/dbname"
                   />
                   <p className="text-xs text-azure-text-secondary dark:text-matrix-secondary mt-1">
                     Stored encrypted with AES-256-GCM. Requires MORPHEUS_SECRET env var.
@@ -499,6 +577,54 @@ export function TrinityDatabases() {
                   )}
                 </>
               )}
+
+              {/* Permissions section */}
+              <div className="border-t border-azure-border dark:border-matrix-primary pt-4">
+                <div className="flex items-center gap-2 mb-3">
+                  <ShieldCheck className="w-4 h-4 text-azure-primary dark:text-matrix-highlight" />
+                  <span className="text-sm font-medium text-azure-text-primary dark:text-matrix-highlight">
+                    Permissões
+                  </span>
+                </div>
+                <p className="text-xs text-azure-text-secondary dark:text-matrix-secondary mb-3">
+                  Defina quais operações Trinity pode executar neste banco. Operações não permitidas retornarão erro de permissão.
+                </p>
+                <div className="space-y-2">
+                  {PERMISSION_LABELS[form.type]?.map(({ key, label, description }) => (
+                    <label key={key} className="flex items-start gap-3 cursor-pointer">
+                      <div className="relative mt-0.5 flex-shrink-0">
+                        <input
+                          type="checkbox"
+                          checked={!!form[key]}
+                          onChange={() => togglePermission(key)}
+                          className="sr-only"
+                        />
+                        <div
+                          className={`w-4 h-4 rounded border transition-colors flex items-center justify-center ${
+                            form[key]
+                              ? 'bg-azure-primary dark:bg-matrix-highlight border-azure-primary dark:border-matrix-highlight'
+                              : 'border-azure-border dark:border-matrix-primary bg-transparent'
+                          }`}
+                        >
+                          {form[key] && (
+                            <svg className="w-2.5 h-2.5 text-white dark:text-black" fill="none" viewBox="0 0 10 10">
+                              <path d="M1.5 5l2.5 2.5L8.5 2" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                            </svg>
+                          )}
+                        </div>
+                      </div>
+                      <div>
+                        <span className="text-sm text-azure-text-primary dark:text-matrix-secondary font-mono">
+                          {label}
+                        </span>
+                        <p className="text-xs text-azure-text-secondary dark:text-matrix-secondary opacity-70">
+                          {description}
+                        </p>
+                      </div>
+                    </label>
+                  ))}
+                </div>
+              </div>
 
               {saveError && (
                 <div className="text-sm text-red-500 border border-red-500/30 bg-red-500/10 rounded px-3 py-2">

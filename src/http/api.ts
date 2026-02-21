@@ -860,6 +860,11 @@ export function createApiRouter(oracle: IOracle) {
     username: z.string().optional().nullable(),
     password: z.string().optional().nullable(),
     connection_string: z.string().optional().nullable(),
+    allow_read: z.boolean().optional(),
+    allow_insert: z.boolean().optional(),
+    allow_update: z.boolean().optional(),
+    allow_delete: z.boolean().optional(),
+    allow_ddl: z.boolean().optional(),
   });
 
   router.get('/trinity/databases', (req, res) => {

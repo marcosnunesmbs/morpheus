@@ -22,6 +22,12 @@ export interface DatabaseRecord {
   schema_updated_at: number | null;
   created_at: number;
   updated_at: number;
+  // Permissions
+  allow_read: boolean;
+  allow_insert: boolean;
+  allow_update: boolean;
+  allow_delete: boolean;
+  allow_ddl: boolean;
 }
 
 export interface DatabaseCreateInput {
@@ -33,6 +39,11 @@ export interface DatabaseCreateInput {
   username?: string | null;
   password?: string | null;
   connection_string?: string | null;
+  allow_read?: boolean;
+  allow_insert?: boolean;
+  allow_update?: boolean;
+  allow_delete?: boolean;
+  allow_ddl?: boolean;
 }
 
 export interface DatabaseUpdateInput extends Partial<DatabaseCreateInput> {}
@@ -52,6 +63,11 @@ interface DatabaseRow {
   schema_updated_at: number | null;
   created_at: number;
   updated_at: number;
+  allow_read: number;
+  allow_insert: number;
+  allow_update: number;
+  allow_delete: number;
+  allow_ddl: number;
 }
 
 function safeDecrypt(value: string | null): string | null {
@@ -78,6 +94,11 @@ function rowToRecord(row: DatabaseRow): DatabaseRecord {
     schema_updated_at: row.schema_updated_at,
     created_at: row.created_at,
     updated_at: row.updated_at,
+    allow_read: row.allow_read === 1,
+    allow_insert: row.allow_insert === 1,
+    allow_update: row.allow_update === 1,
+    allow_delete: row.allow_delete === 1,
+    allow_ddl: row.allow_ddl === 1,
   };
 }
 
@@ -92,6 +113,7 @@ export class DatabaseRegistry {
     this.db.pragma('journal_mode = WAL');
     this.db.pragma('foreign_keys = ON');
     this.ensureTable();
+    this.ensureMigrations();
   }
 
   public static getInstance(): DatabaseRegistry {
@@ -116,9 +138,29 @@ export class DatabaseRegistry {
         schema_json TEXT,
         schema_updated_at INTEGER,
         created_at INTEGER NOT NULL,
-        updated_at INTEGER NOT NULL
+        updated_at INTEGER NOT NULL,
+        allow_read INTEGER NOT NULL DEFAULT 1,
+        allow_insert INTEGER NOT NULL DEFAULT 0,
+        allow_update INTEGER NOT NULL DEFAULT 0,
+        allow_delete INTEGER NOT NULL DEFAULT 0,
+        allow_ddl INTEGER NOT NULL DEFAULT 0
       )
     `);
+  }
+
+  /** Add new columns to existing databases table (migration) */
+  private ensureMigrations(): void {
+    const existingCols = (this.db.pragma('table_info(databases)') as any[]).map((c) => c.name);
+    const addIfMissing = (col: string, def: string) => {
+      if (!existingCols.includes(col)) {
+        this.db.exec(`ALTER TABLE databases ADD COLUMN ${col} ${def}`);
+      }
+    };
+    addIfMissing('allow_read', 'INTEGER NOT NULL DEFAULT 1');
+    addIfMissing('allow_insert', 'INTEGER NOT NULL DEFAULT 0');
+    addIfMissing('allow_update', 'INTEGER NOT NULL DEFAULT 0');
+    addIfMissing('allow_delete', 'INTEGER NOT NULL DEFAULT 0');
+    addIfMissing('allow_ddl', 'INTEGER NOT NULL DEFAULT 0');
   }
 
   listDatabases(): DatabaseRecord[] {
@@ -149,8 +191,10 @@ export class DatabaseRegistry {
       INSERT INTO databases (
         name, type, host, port, database_name, username,
         password_encrypted, connection_string_encrypted,
-        schema_json, schema_updated_at, created_at, updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL, ?, ?)
+        schema_json, schema_updated_at,
+        allow_read, allow_insert, allow_update, allow_delete, allow_ddl,
+        created_at, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL, ?, ?, ?, ?, ?, ?, ?)
     `);
 
     const result = stmt.run(
@@ -162,6 +206,11 @@ export class DatabaseRegistry {
       data.username ?? null,
       data.password ? encrypt(data.password) : null,
       data.connection_string ? encrypt(data.connection_string) : null,
+      data.allow_read !== false ? 1 : 0,
+      data.allow_insert ? 1 : 0,
+      data.allow_update ? 1 : 0,
+      data.allow_delete ? 1 : 0,
+      data.allow_ddl ? 1 : 0,
       now,
       now,
     );
@@ -197,6 +246,11 @@ export class DatabaseRegistry {
       fields.push('connection_string_encrypted = ?');
       values.push(data.connection_string ? encrypt(data.connection_string) : null);
     }
+    if (data.allow_read !== undefined) { fields.push('allow_read = ?'); values.push(data.allow_read ? 1 : 0); }
+    if (data.allow_insert !== undefined) { fields.push('allow_insert = ?'); values.push(data.allow_insert ? 1 : 0); }
+    if (data.allow_update !== undefined) { fields.push('allow_update = ?'); values.push(data.allow_update ? 1 : 0); }
+    if (data.allow_delete !== undefined) { fields.push('allow_delete = ?'); values.push(data.allow_delete ? 1 : 0); }
+    if (data.allow_ddl !== undefined) { fields.push('allow_ddl = ?'); values.push(data.allow_ddl ? 1 : 0); }
 
     if (fields.length === 0) return existing;
 
