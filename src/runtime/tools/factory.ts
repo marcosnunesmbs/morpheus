@@ -58,6 +58,22 @@ export type MCPProbeResult = {
   error?: string;
 };
 
+/** Timeout (ms) for connecting to each MCP server and fetching its tools list. */
+const MCP_CONNECT_TIMEOUT_MS = 15_000;
+
+/**
+ * Returns a promise that rejects after `ms` milliseconds with a timeout error.
+ * Used to guard `client.getTools()` against servers that never respond.
+ */
+function connectTimeout(serverName: string, ms: number): Promise<never> {
+  return new Promise((_, reject) =>
+    setTimeout(
+      () => reject(new Error(`MCP server '${serverName}' timed out after ${ms}ms`)),
+      ms,
+    ),
+  );
+}
+
 export class Construtor {
   static async probe(): Promise<MCPProbeResult[]> {
     const mcpServers = await loadMCPConfig();
@@ -69,7 +85,10 @@ export class Construtor {
           mcpServers: { [serverName]: serverConfig } as any,
           onConnectionError: "ignore",
         });
-        const tools = await client.getTools();
+        const tools = await Promise.race([
+          client.getTools(),
+          connectTimeout(serverName, MCP_CONNECT_TIMEOUT_MS),
+        ]);
         results.push({ name: serverName, ok: true, toolCount: tools.length });
       } catch (error) {
         results.push({ name: serverName, ok: false, toolCount: 0, error: String(error) });
@@ -84,8 +103,6 @@ export class Construtor {
 
     const mcpServers = await loadMCPConfig();
     const serverCount = Object.keys(mcpServers).length;
-
-    // console.log(mcpServers);
 
     if (serverCount === 0) {
       display.log('No MCP servers configured in mcps.json', { level: 'info', source: 'Construtor' });
@@ -104,30 +121,30 @@ export class Construtor {
       });
 
       try {
-        const tools = await client.getTools();
-        
+        const tools = await Promise.race([
+          client.getTools(),
+          connectTimeout(serverName, MCP_CONNECT_TIMEOUT_MS),
+        ]);
+
         // Rename tools to include server prefix to avoid collisions
         tools.forEach(tool => {
-          const originalName = tool.name;
-          const newName = `${serverName}_${originalName}`;
+          const newName = `${serverName}_${tool.name}`;
           Object.defineProperty(tool, "name", { value: newName });
-          
-          const shortDesc = tool.description && typeof tool.description === 'string' ? tool.description.slice(0, 100) + '...' : '';
           display.log(`Loaded MCP tool: ${tool.name} (from ${serverName})`, { level: 'info', source: 'Construtor' });
         });
-        
+
         // Sanitize tool schemas to remove fields not supported by Gemini
         const sanitizedTools = tools.map(tool => wrapToolWithSanitizedSchema(tool));
-        
+
         allTools.push(...sanitizedTools);
       } catch (error) {
         display.log(`Failed to initialize MCP tools for server '${serverName}': ${error}`, { level: 'warning', source: 'Construtor' });
         // Continue to other servers even if one fails
       }
     }
-      
+
     display.log(`Loaded ${allTools.length} total MCP tools (schemas sanitized for Gemini compatibility)`, { level: 'info', source: 'Construtor' });
-      
+
     return allTools;
   }
 }
