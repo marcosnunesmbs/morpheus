@@ -64,6 +64,81 @@ morpheus session new
 morpheus session status
 ```
 
+## Docker
+
+### Docker Compose (recommended)
+
+**1. Create an `env.docker` file** (referenced by `docker-compose.yml`):
+
+```bash
+cp .env.example env.docker   # or create manually
+```
+
+Minimal `env.docker`:
+
+```env
+OPENAI_API_KEY=sk-...
+THE_ARCHITECT_PASS=changeme
+```
+
+**2. Run:**
+
+```bash
+docker compose up -d
+```
+
+The dashboard will be available at `http://localhost:3333`.
+
+**Useful commands:**
+
+```bash
+docker compose logs -f          # follow logs
+docker compose restart morpheus # restart the agent
+docker compose down             # stop
+docker compose down -v          # stop and remove persistent data
+```
+
+**Data persistence:** configuration and databases are stored in the `morpheus_data` Docker volume (`/root/.morpheus` inside the container). They survive container restarts and rebuilds.
+
+**Override variables** at runtime via the `environment` block in `docker-compose.yml` or directly in `env.docker`. All `MORPHEUS_*` env vars work the same as in a native install. See the [Environment Variables](#environment-variables) section for the full list.
+
+### Docker (standalone)
+
+**Build:**
+
+```bash
+docker build -t morpheus .
+```
+
+**Run:**
+
+```bash
+docker run -d \
+  --name morpheus-agent \
+  -p 3333:3333 \
+  -e OPENAI_API_KEY=sk-... \
+  -e THE_ARCHITECT_PASS=changeme \
+  -v morpheus_data:/root/.morpheus \
+  morpheus
+```
+
+**With Telegram:**
+
+```bash
+docker run -d \
+  --name morpheus-agent \
+  -p 3333:3333 \
+  -e OPENAI_API_KEY=sk-... \
+  -e THE_ARCHITECT_PASS=changeme \
+  -e MORPHEUS_TELEGRAM_ENABLED=true \
+  -e MORPHEUS_TELEGRAM_TOKEN=<bot-token> \
+  -e MORPHEUS_TELEGRAM_ALLOWED_USERS=123456789 \
+  -v morpheus_data:/root/.morpheus \
+  morpheus
+```
+
+**Health check:** the container exposes `GET /health` and Docker will probe it every 30s (60s start period, 3 retries before marking unhealthy).
+
 ## Async Task Execution
 
 Morpheus uses asynchronous delegation by default:
