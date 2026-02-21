@@ -178,6 +178,13 @@ export class TaskRepository {
     return row ? this.deserializeTask(row) : null;
   }
 
+  findTaskByOriginMessageId(originMessageId: string): TaskRecord | null {
+    const row = this.db.prepare(
+      'SELECT * FROM tasks WHERE origin_message_id = ? LIMIT 1',
+    ).get(originMessageId) as any;
+    return row ? this.deserializeTask(row) : null;
+  }
+
   listTasks(filters?: TaskFilters): TaskRecord[] {
     const params: any[] = [];
     let query = 'SELECT * FROM tasks WHERE 1=1';

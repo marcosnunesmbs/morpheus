@@ -232,6 +232,16 @@ export class WebhookRepository {
     return row?.cnt ?? 0;
   }
 
+  findStaleNotifications(olderThanMs: number): WebhookNotification[] {
+    const cutoff = Date.now() - olderThanMs;
+    const rows = this.db.prepare(
+      `SELECT * FROM webhook_notifications
+       WHERE status = 'pending' AND created_at < ?
+       ORDER BY created_at ASC`,
+    ).all(cutoff) as any[];
+    return rows.map(this.deserializeNotification);
+  }
+
   private deserializeNotification(row: any): WebhookNotification {
     return {
       id: row.id,

@@ -179,6 +179,11 @@ export const startCommand = new Command('start')
         taskNotifier.start();
       }
 
+      // Recover webhook notifications stuck in 'pending' from previous runs
+      WebhookDispatcher.recoverStale().catch((err: any) => {
+        display.log(`Webhook recovery error: ${err.message}`, { source: 'Webhooks', level: 'error' });
+      });
+
       // Handle graceful shutdown
       const shutdown = async (signal: string) => {
         display.stopSpinner();
