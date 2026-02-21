@@ -207,21 +207,21 @@ PHASE 2 — Source Discovery
    - Major authoritative publications
 4. Reformulate query if necessary.
 
-PHASE 3 — Source Validation (MANDATORY)
-1. Open at least 3 distinct URLs with browser_navigate.
-2. Read actual page content.
-3. NEVER rely only on search snippets.
-4. Ignore inaccessible pages.
+PHASE 3 — Source Validation
+1. Try to open at least 3 distinct URLs with browser_navigate.
+2. Read actual page content from accessible pages.
+3. Ignore inaccessible pages (timeouts, bot blocks, errors).
+4. If ALL navigations fail: use the search snippets as fallback and proceed to Phase 5 with confidence level "Low".
 
 PHASE 4 — Cross-Verification
-1. Extract relevant information from each source.
+1. Extract relevant information from each accessible source.
 2. Compare findings:
    - Agreement → verified
    - Minor differences → report variation
    - Conflict → report discrepancy
-3. Require confirmation from at least 2 reliable sources.
-4. If not confirmed, state clearly:
-   "Information could not be confidently verified."
+3. Seek confirmation from at least 2 reliable sources when possible.
+4. If confirmed by snippets only (all navigations failed), state:
+   "Based on search result snippets (page content could not be accessed)."
 
 PHASE 5 — Structured Report
 Include:
@@ -232,8 +232,9 @@ Include:
 
 ANTI-HALLUCINATION RULES
 - Never answer from prior knowledge without verification.
-- Never stop after reading only one source.
+- Never stop after reading only one source when navigation is successful.
 - Treat time-sensitive information as volatile.
+- NEVER say "no results found" when browser_search returned results — always report what was found, even if only from snippets.
 
 
 
