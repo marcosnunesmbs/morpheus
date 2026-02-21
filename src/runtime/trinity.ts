@@ -61,11 +61,19 @@ export class Trinity {
           const schema = db.schema_json
             ? JSON.parse(db.schema_json)
             : null;
-          const tableNames = schema?.tables?.map((t: any) => t.name).join(', ') || 'schema not loaded';
+          let schemaSummary = 'schema not loaded';
+          if (schema) {
+            if (schema.databases) {
+              const totalTables = schema.databases.reduce((acc: number, d: any) => acc + d.tables.length, 0);
+              schemaSummary = `${schema.databases.length} databases, ${totalTables} tables total`;
+            } else {
+              schemaSummary = schema.tables?.map((t: any) => t.name).join(', ') || 'no tables';
+            }
+          }
           const updatedAt = db.schema_updated_at
             ? new Date(db.schema_updated_at).toISOString()
             : 'never';
-          return `[${db.id}] ${db.name} (${db.type}) — tables: ${tableNames} — schema updated: ${updatedAt}`;
+          return `[${db.id}] ${db.name} (${db.type}) — ${schemaSummary} — schema updated: ${updatedAt}`;
         }).join('\n');
       },
       {
@@ -98,6 +106,11 @@ export class Trinity {
         try {
           const schema = await introspectSchema(db);
           registry.updateSchema(database_id, JSON.stringify(schema, null, 2));
+          if (schema.databases) {
+            const totalTables = schema.databases.reduce((acc, d) => acc + d.tables.length, 0);
+            const summary = schema.databases.map((d) => `${d.name}(${d.tables.length}t)`).join(', ');
+            return `Schema refreshed for "${db.name}". Found ${schema.databases.length} databases: ${summary}. Total: ${totalTables} tables.`;
+          }
           return `Schema refreshed for "${db.name}". Tables: ${schema.tables.map((t) => t.name).join(', ')}`;
         } catch (err: any) {
           return `Failed to refresh schema for "${db.name}": ${err.message}`;

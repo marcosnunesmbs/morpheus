@@ -11,8 +11,14 @@ export interface TableInfo {
   columns: ColumnInfo[];
 }
 
-export interface SchemaInfo {
+export interface DatabaseSchema {
+  name: string;
   tables: TableInfo[];
+}
+
+export interface SchemaInfo {
+  databases?: DatabaseSchema[]; // populated when database_name was not specified
+  tables: TableInfo[];          // populated when database_name was specified
 }
 
 export interface QueryResult {
@@ -136,37 +142,83 @@ async function pgTestConnection(db: DatabaseRecord): Promise<boolean> {
   }
 }
 
+async function pgIntrospectTables(client: any): Promise<TableInfo[]> {
+  const tablesResult = await client.query(`
+    SELECT table_name
+    FROM information_schema.tables
+    WHERE table_schema = 'public' AND table_type = 'BASE TABLE'
+    ORDER BY table_name
+  `);
+  const tables: TableInfo[] = [];
+  for (const tableRow of tablesResult.rows) {
+    const colsResult = await client.query(`
+      SELECT column_name, data_type, is_nullable
+      FROM information_schema.columns
+      WHERE table_schema = 'public' AND table_name = $1
+      ORDER BY ordinal_position
+    `, [tableRow.table_name]);
+    tables.push({
+      name: tableRow.table_name,
+      columns: colsResult.rows.map((c: any) => ({
+        name: c.column_name,
+        type: c.data_type,
+        nullable: c.is_nullable === 'YES',
+      })),
+    });
+  }
+  return tables;
+}
+
 async function pgIntrospect(db: DatabaseRecord): Promise<SchemaInfo> {
   const { Client } = await import('pg');
+
+  // Multi-database mode: no database_name and no connection_string
+  if (!db.database_name && !db.connection_string) {
+    const adminClient = new Client({
+      host: db.host || 'localhost',
+      port: db.port || 5432,
+      database: 'postgres',
+      user: db.username || undefined,
+      password: db.password || undefined,
+    });
+    await adminClient.connect();
+    let dbNames: string[];
+    try {
+      const result = await adminClient.query(
+        `SELECT datname FROM pg_database WHERE datistemplate = false AND datallowconn = true ORDER BY datname`
+      );
+      dbNames = result.rows.map((r: any) => r.datname);
+    } finally {
+      await adminClient.end().catch(() => {});
+    }
+
+    const databases: DatabaseSchema[] = [];
+    for (const dbName of dbNames) {
+      const dbClient = new Client({
+        host: db.host || 'localhost',
+        port: db.port || 5432,
+        database: dbName,
+        user: db.username || undefined,
+        password: db.password || undefined,
+      });
+      try {
+        await dbClient.connect();
+        const tables = await pgIntrospectTables(dbClient);
+        databases.push({ name: dbName, tables });
+      } catch {
+        databases.push({ name: dbName, tables: [] });
+      } finally {
+        await dbClient.end().catch(() => {});
+      }
+    }
+    return { databases, tables: [] };
+  }
+
+  // Single-database mode (existing behaviour)
   const client = new Client(buildPgConfig(db));
   await client.connect();
   try {
-    const tablesResult = await client.query(`
-      SELECT table_name
-      FROM information_schema.tables
-      WHERE table_schema = 'public' AND table_type = 'BASE TABLE'
-      ORDER BY table_name
-    `);
-
-    const tables: TableInfo[] = [];
-    for (const tableRow of tablesResult.rows) {
-      const colsResult = await client.query(`
-        SELECT column_name, data_type, is_nullable
-        FROM information_schema.columns
-        WHERE table_schema = 'public' AND table_name = $1
-        ORDER BY ordinal_position
-      `, [tableRow.table_name]);
-
-      tables.push({
-        name: tableRow.table_name,
-        columns: colsResult.rows.map((c: any) => ({
-          name: c.column_name,
-          type: c.data_type,
-          nullable: c.is_nullable === 'YES',
-        })),
-      });
-    }
-    return { tables };
+    return { tables: await pgIntrospectTables(client) };
   } finally {
     await client.end().catch(() => {});
   }
@@ -212,40 +264,74 @@ async function mysqlTestConnection(db: DatabaseRecord): Promise<boolean> {
   }
 }
 
+async function mysqlIntrospectSchema(conn: any, schemaName: string): Promise<TableInfo[]> {
+  const [tableRows] = await conn.query(`
+    SELECT table_name
+    FROM information_schema.tables
+    WHERE table_schema = ? AND table_type = 'BASE TABLE'
+    ORDER BY table_name
+  `, [schemaName]) as any[];
+
+  const tables: TableInfo[] = [];
+  for (const tableRow of tableRows) {
+    const tableName: string = tableRow.table_name ?? tableRow.TABLE_NAME ?? '';
+    if (!tableName) continue;
+    const [colRows] = await conn.query(`
+      SELECT column_name, data_type, is_nullable
+      FROM information_schema.columns
+      WHERE table_schema = ? AND table_name = ?
+      ORDER BY ordinal_position
+    `, [schemaName, tableName]) as any[];
+    tables.push({
+      name: tableName,
+      columns: (colRows as any[]).map((c) => ({
+        name: c.column_name ?? c.COLUMN_NAME ?? '',
+        type: c.data_type ?? c.DATA_TYPE ?? '',
+        nullable: (c.is_nullable ?? c.IS_NULLABLE) === 'YES',
+      })),
+    });
+  }
+  return tables;
+}
+
 async function mysqlIntrospect(db: DatabaseRecord): Promise<SchemaInfo> {
   const mysql2 = await import('mysql2/promise');
+
+  // Multi-database mode: no database_name and no connection_string
+  if (!db.database_name && !db.connection_string) {
+    const conn = await mysql2.createConnection({
+      host: db.host || 'localhost',
+      port: db.port || 3306,
+      user: db.username || undefined,
+      password: db.password || undefined,
+    });
+    try {
+      const SYSTEM_DBS = new Set(['information_schema', 'performance_schema', 'mysql', 'sys']);
+      const [dbRows] = await conn.query(`SHOW DATABASES`) as any[];
+      const dbNames: string[] = (dbRows as any[])
+        .map((r: any) => r.Database)
+        .filter((n: string) => !SYSTEM_DBS.has(n));
+
+      const databases: DatabaseSchema[] = [];
+      for (const dbName of dbNames) {
+        try {
+          const tables = await mysqlIntrospectSchema(conn, dbName);
+          databases.push({ name: dbName, tables });
+        } catch {
+          databases.push({ name: dbName, tables: [] });
+        }
+      }
+      return { databases, tables: [] };
+    } finally {
+      await conn.end().catch(() => {});
+    }
+  }
+
+  // Single-database mode (existing behaviour)
   const conn = await mysql2.createConnection(buildMysqlConfig(db));
   try {
-    const schema = db.database_name || 'information_schema';
-    const [tableRows] = await conn.query(`
-      SELECT table_name
-      FROM information_schema.tables
-      WHERE table_schema = ? AND table_type = 'BASE TABLE'
-      ORDER BY table_name
-    `, [schema]) as any[];
-
-    const tables: TableInfo[] = [];
-    for (const tableRow of tableRows) {
-      const tableName: string = tableRow.table_name ?? tableRow.TABLE_NAME ?? '';
-      if (!tableName) continue;
-
-      const [colRows] = await conn.query(`
-        SELECT column_name, data_type, is_nullable
-        FROM information_schema.columns
-        WHERE table_schema = ? AND table_name = ?
-        ORDER BY ordinal_position
-      `, [schema, tableName]) as any[];
-
-      tables.push({
-        name: tableName,
-        columns: (colRows as any[]).map((c) => ({
-          name: c.column_name ?? c.COLUMN_NAME ?? '',
-          type: c.data_type ?? c.DATA_TYPE ?? '',
-          nullable: (c.is_nullable ?? c.IS_NULLABLE) === 'YES',
-        })),
-      });
-    }
-    return { tables };
+    const schema = db.database_name!;
+    return { tables: await mysqlIntrospectSchema(conn, schema) };
   } finally {
     await conn.end().catch(() => {});
   }
@@ -377,26 +463,48 @@ async function mongoTestConnection(db: DatabaseRecord): Promise<boolean> {
   }
 }
 
+async function mongoIntrospectCollections(rawDb: any): Promise<TableInfo[]> {
+  const collections = await rawDb.listCollections().toArray();
+  const tables: TableInfo[] = [];
+  for (const col of collections) {
+    const docs = await rawDb.collection(col.name).find().limit(100).toArray();
+    const fieldSet = new Set<string>();
+    for (const doc of docs) {
+      for (const key of Object.keys(doc)) fieldSet.add(key);
+    }
+    tables.push({
+      name: col.name,
+      columns: Array.from(fieldSet).map((f) => ({ name: f, type: 'mixed' })),
+    });
+  }
+  return tables;
+}
+
 async function mongoIntrospect(db: DatabaseRecord): Promise<SchemaInfo> {
   const uri = db.connection_string || buildMongoUri(db);
   const conn = await mongoCreateConnection(uri, 10000);
   try {
-    const rawDb = mongoGetDb(conn, db.database_name);
-    const collections = await rawDb.listCollections().toArray();
-
-    const tables: TableInfo[] = [];
-    for (const col of collections) {
-      const docs = await rawDb.collection(col.name).find().limit(100).toArray();
-      const fieldSet = new Set<string>();
-      for (const doc of docs) {
-        for (const key of Object.keys(doc)) fieldSet.add(key);
+    // Multi-database mode: no database_name specified
+    if (!db.database_name) {
+      const SYSTEM_DBS = new Set(['admin', 'config', 'local']);
+      const adminResult = await conn.db!.admin().listDatabases();
+      const databases: DatabaseSchema[] = [];
+      for (const dbEntry of adminResult.databases) {
+        if (SYSTEM_DBS.has(dbEntry.name)) continue;
+        try {
+          const rawDb = conn.useDb(dbEntry.name, { useCache: true }).db;
+          const tables = await mongoIntrospectCollections(rawDb);
+          databases.push({ name: dbEntry.name, tables });
+        } catch {
+          databases.push({ name: dbEntry.name, tables: [] });
+        }
       }
-      tables.push({
-        name: col.name,
-        columns: Array.from(fieldSet).map((f) => ({ name: f, type: 'mixed' })),
-      });
+      return { databases, tables: [] };
     }
-    return { tables };
+
+    // Single-database mode (existing behaviour)
+    const rawDb = mongoGetDb(conn, db.database_name);
+    return { tables: await mongoIntrospectCollections(rawDb) };
   } finally {
     await conn.close().catch(() => {});
   }

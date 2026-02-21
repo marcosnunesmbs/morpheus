@@ -999,7 +999,10 @@ export function createApiRouter(oracle: IOracle) {
       registry.updateSchema(id, JSON.stringify(schema, null, 2));
       await Trinity.refreshDelegateCatalog().catch(() => {});
 
-      res.json({ success: true, tables: schema.tables.map((t) => t.name) });
+      const tableNames = schema.databases
+        ? schema.databases.flatMap((d) => d.tables.map((t) => `${d.name}.${t.name}`))
+        : schema.tables.map((t) => t.name);
+      res.json({ success: true, tables: tableNames, databases: schema.databases?.length });
     } catch (error: any) {
       res.status(500).json({ error: error.message });
     }
