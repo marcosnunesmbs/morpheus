@@ -7,6 +7,44 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.1] - 2026-02-21
+
+### Added
+- **MCP Reload**: `POST /api/mcp/reload` hot-reloads MCP tool connections without restarting the daemon
+  - Telegram command `/mcpreload` triggers reload via bot
+  - UI button in MCP Manager page
+- **Morpheus Tools Consolidation**: configuration, diagnostics, analytics, and task management tools merged into the `morpheus-tools` module for cleaner internal tooling
+
+## [0.5.0] - 2026-02-19
+
+### Added
+- **Trinity Subagent**: New database specialist agent, invoked by Oracle via `trinity_delegate`
+  - Supports PostgreSQL (`pg`), MySQL (`mysql2`), SQLite (`better-sqlite3`), MongoDB (`mongodb`)
+  - Schema introspection and caching
+  - Per-database permission flags: `allow_read`, `allow_insert`, `allow_update`, `allow_delete`, `allow_ddl`
+  - Database passwords encrypted at rest with AES-256-GCM (`MORPHEUS_SECRET`)
+  - Singleton pattern with `Trinity.getInstance()`
+  - Independently configurable LLM provider/model/temperature
+  - New `trinity` config section in `~/.morpheus/zaion.yaml` (optional, falls back to Oracle config)
+  - New `trinity.db` registry database at `~/.morpheus/memory/trinity.db`
+- **Trinity API Endpoints**:
+  - `GET/POST/PUT/DELETE /api/trinity/databases` — CRUD for registered databases
+  - `GET /api/trinity/databases/:id` — database details
+  - `POST /api/trinity/databases/:id/test` — test connection
+  - `POST /api/trinity/databases/:id/refresh-schema` — re-introspect schema
+  - `GET/POST/DELETE /api/config/trinity` — Trinity agent configuration
+- **Trinity Telegram Commands**:
+  - `/trinity` — list registered databases with inline test/refresh/delete actions
+  - `/zaion` now shows Trinity agent config
+- **TrinityDatabases UI Page** (`/trinity-databases`): register and manage databases, test connections, refresh schema, configure permissions
+- **Agents Settings — Trinity tab**: dedicated sub-tab for Trinity LLM config (provider, model, temperature, API key)
+- **Task Worker Trinity support**: `TaskWorker` routes tasks with `agent = 'trinit'` to Trinity agent
+
+### Changed
+- **Multi-agent table**: Oracle now delegates to `trinity_delegate` in addition to `neo_delegate` and `apoc_delegate`
+
+## [0.4.0] - 2026-02-18
+
 ### Added
 - **Apoc DevTools Subagent**: New specialized subagent for developer operations, invoked by Oracle
   - Oracle automatically delegates to Apoc via `apoc_delegate` tool when user requests file, shell, git, network, package, process, or system operations
@@ -19,9 +57,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **`ProviderFactory.createBare()`**: New method for creating clean ReactAgent instances without Oracle's internal tools — used by Apoc and future subagents
 
-- **Settings UI — Agents tab**: Renamed "LLM" tab to "Agents" with three sub-tabs
+- **Neo agent config endpoints**: `GET/POST/DELETE /api/config/neo` — independently configure Neo's LLM settings
+
+- **Settings UI — Agents tab**: Renamed "LLM" tab to "Agents" with four sub-tabs
   - **Oracle** sub-tab: provider, model, temperature, max tokens, context window, API key
   - **Sati** sub-tab: memory-specific LLM config + memory limit + archived sessions toggle
+  - **Neo** sub-tab: provider, model, temperature, API key, base URL, context window
   - **Apoc** sub-tab: provider, model, temperature, API key, working directory, timeout
 
 ## [0.3.1] - 2026-02-14

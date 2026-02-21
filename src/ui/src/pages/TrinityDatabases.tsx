@@ -315,9 +315,6 @@ export function TrinityDatabases() {
               ? schema.databases.reduce((acc: number, d: any) => acc + d.tables.length, 0)
               : (schema?.tables?.length ?? 0);
             const dbCount: number = isMultiDb ? schema.databases.length : 0;
-            const tables: string[] = isMultiDb
-              ? schema.databases.flatMap((d: any) => d.tables.map((t: any) => t.name))
-              : (schema?.tables?.map((t: any) => t.name) ?? []);
             const entity = db.type === 'mongodb' ? 'collection' : 'table';
             const entities = db.type === 'mongodb' ? 'collections' : 'tables';
             const testResult = testResults[db.id];

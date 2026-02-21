@@ -18,6 +18,7 @@ It runs as a daemon and orchestrates LLMs, MCP tools, DevKit tools, memory, and 
 - `Neo`: MCP and internal operational tools (config, diagnostics, analytics).
 - `Apoc`: DevTools/browser execution (filesystem, shell, git, network, packages, processes, system, browser automation).
 - `Sati`: long-term memory retrieval/evaluation.
+- `Trinity`: database specialist. Executes queries, introspects schemas, and manages registered databases (PostgreSQL, MySQL, SQLite, MongoDB).
 
 ## Installation
 
@@ -68,10 +69,10 @@ morpheus session status
 Morpheus uses asynchronous delegation by default:
 
 1. Oracle receives user request.
-2. If execution is needed, Oracle calls `neo_delegate` or `apoc_delegate`.
+2. If execution is needed, Oracle calls `neo_delegate`, `apoc_delegate`, or `trinity_delegate`.
 3. Delegate tool creates a row in `tasks` table with origin metadata (`channel`, `session`, `message`, `user`).
 4. Oracle immediately acknowledges task creation.
-5. `TaskWorker` executes pending tasks.
+5. `TaskWorker` executes pending tasks (routes `trinit` tasks to Trinity agent).
 6. `TaskNotifier` sends completion/failure through `TaskDispatcher`.
 
 Important behavior:
@@ -94,11 +95,13 @@ Task results are delivered proactively with metadata (task id, agent, status) an
 The dashboard includes:
 - Chat with session management
 - Tasks page (stats, filters, details, retry)
-- Agent settings (Oracle/Sati/Neo/Apoc)
-- MCP manager
-- Sati memories
+- Agent settings (Oracle/Sati/Neo/Apoc/Trinity)
+- MCP manager (add/edit/delete/toggle/reload)
+- Sati memories (search, bulk delete)
 - Usage stats and model pricing
+- Trinity databases (register/test/refresh schema)
 - Webhooks and notification inbox
+- Logs viewer
 
 Chat-specific rendering:
 - AI messages rendered as markdown
@@ -140,6 +143,11 @@ apoc:
   working_dir: /home/user/projects
   timeout_ms: 30000
 
+trinity:
+  provider: openai
+  model: gpt-4o-mini
+  temperature: 0.2
+
 runtime:
   async_tasks:
     enabled: true
@@ -178,6 +186,9 @@ Provider-specific keys:
 - `TELEGRAM_BOT_TOKEN`
 - `THE_ARCHITECT_PASS`
 
+Security:
+- `MORPHEUS_SECRET` — AES-256-GCM key for encrypting Trinity database passwords (required when using Trinity)
+
 Generic Morpheus overrides (selected):
 
 | Variable | Target |
@@ -213,6 +224,10 @@ Generic Morpheus overrides (selected):
 | `MORPHEUS_APOC_API_KEY` | `apoc.api_key` |
 | `MORPHEUS_APOC_WORKING_DIR` | `apoc.working_dir` |
 | `MORPHEUS_APOC_TIMEOUT_MS` | `apoc.timeout_ms` |
+| `MORPHEUS_TRINITY_PROVIDER` | `trinity.provider` |
+| `MORPHEUS_TRINITY_MODEL` | `trinity.model` |
+| `MORPHEUS_TRINITY_TEMPERATURE` | `trinity.temperature` |
+| `MORPHEUS_TRINITY_API_KEY` | `trinity.api_key` |
 | `MORPHEUS_AUDIO_PROVIDER` | `audio.provider` |
 | `MORPHEUS_AUDIO_MODEL` | `audio.model` |
 | `MORPHEUS_AUDIO_ENABLED` | `audio.enabled` |
@@ -262,9 +277,10 @@ Authenticated endpoints (`x-architect-pass`):
 - Sessions: `/api/sessions*`
 - Chat: `POST /api/chat`
 - Tasks: `GET /api/tasks`, `GET /api/tasks/stats`, `GET /api/tasks/:id`, `POST /api/tasks/:id/retry`
-- Config: `/api/config`, `/api/config/sati`, `/api/config/neo`, `/api/config/apoc`
-- MCP: `/api/mcp/*`
+- Config: `/api/config`, `/api/config/sati`, `/api/config/neo`, `/api/config/apoc`, `/api/config/trinity`
+- MCP: `/api/mcp/*` (servers CRUD + reload + status)
 - Sati memories: `/api/sati/memories*`
+- Trinity databases: `GET/POST/PUT/DELETE /api/trinity/databases`, `POST /api/trinity/databases/:id/test`, `POST /api/trinity/databases/:id/refresh-schema`
 - Usage/model pricing/logs/restart
 - Webhook management and webhook notifications
 
@@ -368,6 +384,9 @@ src/
     apoc.ts
     neo.ts
     oracle.ts
+    trinity.ts
+    trinity-connector.ts  # PostgreSQL/MySQL/SQLite/MongoDB drivers
+    trinity-crypto.ts     # AES-256-GCM encryption for DB passwords
     memory/
     tasks/
     tools/

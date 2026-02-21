@@ -20,9 +20,10 @@ This document reflects the current runtime behavior and API contracts.
 
 | Agent | Role | Main Tool Scope |
 |---|---|---|
-| Oracle (`src/runtime/oracle.ts`) | Orchestrator and router | `task_query`, `neo_delegate`, `apoc_delegate` |
+| Oracle (`src/runtime/oracle.ts`) | Orchestrator and router | `task_query`, `neo_delegate`, `apoc_delegate`, `trinity_delegate` |
 | Neo (`src/runtime/neo.ts`) | MCP + internal operational execution | MCP tools + config/diagnostic/analytics tools |
 | Apoc (`src/runtime/apoc.ts`) | DevTools and browser executor | DevKit tools |
+| Trinity (`src/runtime/trinity.ts`) | Database specialist | PostgreSQL/MySQL/SQLite/MongoDB execution + schema introspection |
 | Sati (`src/runtime/memory/sati/*`) | Long-term memory retrieval/evaluation | Memory-only reasoning |
 
 ### 2.2 Delegation Rules
@@ -109,6 +110,7 @@ Task completion/failure notifications include:
 - `/restart`
 - `/mcpreload`
 - `/mcp` or `/mcps`
+- `/trinity` — list registered Trinity databases with inline test/refresh-schema/delete actions
 
 ## 6. Web UI Behavior
 
@@ -131,6 +133,14 @@ Dedicated agent tabs:
 - Sati
 - Neo
 - Apoc
+- Trinity
+
+### 6.4 Trinity Databases Page
+- Register databases (PostgreSQL, MySQL, SQLite, MongoDB)
+- Test connection
+- Refresh schema (re-introspect database structure)
+- Per-database permissions: `allow_read`, `allow_insert`, `allow_update`, `allow_delete`, `allow_ddl`
+- Passwords encrypted at rest (AES-256-GCM)
 
 ## 7. Configuration
 
@@ -165,6 +175,11 @@ apoc:
   temperature: 0.2
   working_dir: /home/user/projects
   timeout_ms: 30000
+
+trinity:
+  provider: openai
+  model: gpt-4o-mini
+  temperature: 0.2
 
 runtime:
   async_tasks:
@@ -851,6 +866,47 @@ Success response `200`:
 }
 ```
 
+## 8.8b Trinity Agent Config Endpoints (Protected)
+
+### GET `/api/config/trinity`
+Success response `200` example:
+
+```json
+{
+  "provider": "openai",
+  "model": "gpt-4o-mini",
+  "temperature": 0.2
+}
+```
+
+### POST `/api/config/trinity`
+Request payload example:
+
+```json
+{
+  "provider": "anthropic",
+  "model": "claude-3-5-haiku-20241022",
+  "temperature": 0.2
+}
+```
+
+Success response `200`:
+
+```json
+{
+  "success": true
+}
+```
+
+### DELETE `/api/config/trinity`
+Success response `200`:
+
+```json
+{
+  "success": true
+}
+```
+
 ## 8.9 Usage and Pricing Endpoints (Protected)
 
 ### GET `/api/stats/usage`
@@ -985,6 +1041,153 @@ Not found `404`:
 ```json
 {
   "error": "Pricing entry not found"
+}
+```
+
+## 8.9b Trinity Database Endpoints (Protected)
+
+### GET `/api/trinity/databases`
+Success response `200`:
+
+```json
+[
+  {
+    "id": "a1b2c3d4-1234-5678-abcd-ef0123456789",
+    "name": "production-pg",
+    "type": "postgres",
+    "host": "localhost",
+    "port": 5432,
+    "database": "myapp",
+    "username": "admin",
+    "allow_read": true,
+    "allow_insert": false,
+    "allow_update": false,
+    "allow_delete": false,
+    "allow_ddl": false,
+    "created_at": 1771558600000,
+    "updated_at": 1771558600000
+  }
+]
+```
+
+### GET `/api/trinity/databases/:id`
+Success response `200`:
+- Same object shape as list item.
+
+Not found `404`:
+
+```json
+{
+  "error": "Database not found"
+}
+```
+
+### POST `/api/trinity/databases`
+Request payload example (PostgreSQL):
+
+```json
+{
+  "name": "production-pg",
+  "type": "postgres",
+  "host": "localhost",
+  "port": 5432,
+  "database": "myapp",
+  "username": "admin",
+  "password": "secret",
+  "allow_read": true,
+  "allow_insert": false,
+  "allow_update": false,
+  "allow_delete": false,
+  "allow_ddl": false
+}
+```
+
+Request payload example (SQLite):
+
+```json
+{
+  "name": "local-sqlite",
+  "type": "sqlite",
+  "file_path": "/home/user/data/app.db",
+  "allow_read": true
+}
+```
+
+Success response `201`:
+
+```json
+{
+  "id": "a1b2c3d4-1234-5678-abcd-ef0123456789",
+  "name": "production-pg",
+  "type": "postgres"
+}
+```
+
+### PUT `/api/trinity/databases/:id`
+Request payload example (partial update):
+
+```json
+{
+  "allow_insert": true,
+  "allow_update": true
+}
+```
+
+Success response `200`:
+
+```json
+{
+  "success": true
+}
+```
+
+### DELETE `/api/trinity/databases/:id`
+Success response `200`:
+
+```json
+{
+  "success": true
+}
+```
+
+Not found `404`:
+
+```json
+{
+  "error": "Database not found"
+}
+```
+
+### POST `/api/trinity/databases/:id/test`
+Tests the database connection.
+
+Success response `200`:
+
+```json
+{
+  "success": true,
+  "message": "Connection successful"
+}
+```
+
+Failure response `200`:
+
+```json
+{
+  "success": false,
+  "message": "Connection failed: ECONNREFUSED"
+}
+```
+
+### POST `/api/trinity/databases/:id/refresh-schema`
+Re-introspects the database schema and updates the cached schema.
+
+Success response `200`:
+
+```json
+{
+  "success": true,
+  "message": "Schema refreshed"
 }
 ```
 

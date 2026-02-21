@@ -31,9 +31,10 @@ The runtime is a modular monolith built on Node.js + TypeScript, with SQLite as 
 
 | Agent | Responsibility | Tool Scope |
 |---|---|---|
-| Oracle | Conversation orchestrator and router | `task_query`, `neo_delegate`, `apoc_delegate` |
+| Oracle | Conversation orchestrator and router | `task_query`, `neo_delegate`, `apoc_delegate`, `trinity_delegate` |
 | Neo | Analytical/operational execution | Runtime MCP tools + config/diagnostic/analytics tools |
 | Apoc | DevTools and browser execution | DevKit toolchain |
+| Trinity | Database specialist | PostgreSQL/MySQL/SQLite/MongoDB query execution + schema introspection |
 | Sati | Long-term memory evaluator | No execution tools (memory-focused reasoning) |
 
 Key design choice: Oracle no longer carries MCP tool load directly. It delegates execution asynchronously and stays responsive.
@@ -50,6 +51,7 @@ Key design choice: Oracle no longer carries MCP tool load directly. It delegates
    - `session_id`
    - `origin_message_id`
    - `origin_user_id`
+   - `agent` column: `neo`, `apoc`, or `trinit` (Trinity tasks are stored as `trinit`)
 4. Oracle returns an acknowledgement (no execution output) and remains available.
 5. `TaskWorker` claims pending tasks and executes subagent work.
 6. Worker marks task `completed` or `failed`.
@@ -95,9 +97,10 @@ Sati retrieval enriches Oracle context before execution. Sati post-processing ex
 Main API router (`src/http/api.ts`) provides:
 - sessions and chat
 - tasks listing/stats/detail/retry
-- config management (`/config`, `/config/sati`, `/config/neo`, `/config/apoc`)
+- config management (`/config`, `/config/sati`, `/config/neo`, `/config/apoc`, `/config/trinity`)
 - usage statistics and model pricing
-- MCP management and reload
+- MCP management and reload (`/mcp/servers`, `/mcp/reload`, `/mcp/status`)
+- Trinity database registry (`/trinity/databases` CRUD + test + refresh-schema)
 - logs
 
 Webhooks router (`src/http/webhooks-router.ts`) provides:
@@ -111,7 +114,10 @@ Webhooks router (`src/http/webhooks-router.ts`) provides:
   - SATI messages grouped as collapsible `SATI Memory`
   - markdown rendering for AI responses
   - per-message token badges (input/output)
-- Agents settings with dedicated Oracle/Sati/Neo/Apoc tabs.
+- Agents settings with dedicated Oracle/Sati/Neo/Apoc/Trinity tabs.
+- Trinity Databases page: register databases, test connections, refresh schema, set per-permission flags (read/insert/update/delete/ddl).
+- MCP Manager: CRUD, enable/disable toggle, live probe status, hot reload.
+- Logs viewer: browse log files, tail last N lines.
 
 ## 7. Telegram Delivery Model
 
@@ -122,14 +128,36 @@ Telegram adapter uses rich HTML formatting conversion for dynamic responses:
 
 Task completion notifications are proactive and include task metadata (id, agent, status) plus output/error body.
 
-## 8. Security Model
+## 8. Trinity — Database Subsystem
+
+### 8.1 Components
+- `src/runtime/trinity.ts`: Trinity subagent (ReactAgent). Executes SQL/NoSQL queries and introspects schemas.
+- `src/runtime/memory/trinity-db.ts`: `DatabaseRegistry` — CRUD for registered databases, backed by `trinity.db` (SQLite).
+- `src/runtime/trinity-connector.ts`: driver adapters for PostgreSQL (`pg`), MySQL (`mysql2`), SQLite (`better-sqlite3`), MongoDB (`mongodb`).
+- `src/runtime/trinity-crypto.ts`: AES-256-GCM encryption/decryption of database passwords using `MORPHEUS_SECRET`.
+
+### 8.2 Database Registry
+Each registered database stores:
+- `id`, `name`, `type` (postgres/mysql/sqlite/mongodb)
+- `host`, `port`, `database`, `username` (plaintext)
+- `password_encrypted` (AES-256-GCM ciphertext)
+- `file_path` (SQLite only)
+- permission flags: `allow_read`, `allow_insert`, `allow_update`, `allow_delete`, `allow_ddl`
+- `schema_cache` (JSON, refreshed on demand)
+
+### 8.3 Task Agent Name
+Trinity tasks are stored in the `tasks` table with `agent = 'trinit'` (not `'trinity'`).
+
+## 9. Security Model
 - Local-first storage by default.
 - `x-architect-pass` protects `/api/*` management routes.
 - webhook trigger uses per-webhook `x-api-key`.
 - Telegram allowlist enforces authorized user IDs.
 - Apoc execution constrained by configurable `working_dir` and `timeout_ms`.
+- Trinity database passwords encrypted at rest with AES-256-GCM (`MORPHEUS_SECRET` env var).
+- Per-database permission flags (`allow_read`, `allow_insert`, `allow_update`, `allow_delete`, `allow_ddl`) gate Trinity query execution.
 
-## 9. Runtime Lifecycle
+## 10. Runtime Lifecycle
 At daemon boot (`start` / `restart` commands):
 - load config and initialize Oracle
 - start HTTP server (optional)
