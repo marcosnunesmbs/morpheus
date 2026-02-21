@@ -6,14 +6,7 @@ import { ReactAgent } from "langchain";
 import { ProviderError } from "./errors.js";
 import { DisplayManager } from "./display.js";
 import { Construtor } from "./tools/factory.js";
-import {
-  ConfigQueryTool,
-  ConfigUpdateTool,
-  DiagnosticTool,
-  MessageCountTool,
-  TokenUsageTool,
-  ProviderModelUsageTool,
-} from "./tools/index.js";
+import { morpheusTools } from "./tools/index.js";
 import { SQLiteChatMessageHistory } from "./memory/sqlite.js";
 import { TaskRequestContext } from "./tasks/context.js";
 import type { OracleTaskContext } from "./tasks/types.js";
@@ -48,31 +41,14 @@ export class Neo {
 
   public static async refreshDelegateCatalog(): Promise<void> {
     const mcpTools = await Construtor.create();
-    const catalogTools = [
-      ...mcpTools,
-      ConfigQueryTool,
-      ConfigUpdateTool,
-      DiagnosticTool,
-      MessageCountTool,
-      TokenUsageTool,
-      ProviderModelUsageTool
-    ];
-    updateNeoDelegateToolDescription(catalogTools);
+    updateNeoDelegateToolDescription(mcpTools);
   }
 
   async initialize(): Promise<void> {
     const neoConfig = this.config.neo || this.config.llm;
     const mcpTools = await Construtor.create();
-    const tools = [
-      ...mcpTools,
-      ConfigQueryTool,
-      ConfigUpdateTool,
-      DiagnosticTool,
-      MessageCountTool,
-      TokenUsageTool,
-      ProviderModelUsageTool
-    ];
-    updateNeoDelegateToolDescription(tools);
+    const tools = [...mcpTools, ...morpheusTools];
+    updateNeoDelegateToolDescription(mcpTools);
 
     this.display.log(`Neo initialized with ${tools.length} tools.`, { source: "Neo" });
 
@@ -109,13 +85,20 @@ You execute tasks using MCP and internal tools.
 Focus on verifiable execution and return objective results.
 
 Rules:
-1. Use tools whenever task depends on external/system state.
-2. Validate outputs before final answer.
-3. If blocked, explain what is missing.
+1. Use tools whenever the task depends on external/system state.
+2. Validate outputs before giving a final answer.
+3. If blocked, explain exactly what is missing — tool name, permission, or missing input.
 4. Keep output concise and actionable.
 5. Respond in the language requested by the user. If not explicit, use the dominant language of the task/context.
-6. For connectivity checks, prefer the dedicated network "ping" tool semantics (reachability) and avoid forcing shell flags.
-7. If delegating shell ping to Apoc is explicitly required, include OS-aware guidance: Windows uses "-n", Linux/macOS uses "-c".
+6. For connectivity checks, prefer dedicated network "ping" tool semantics and avoid forcing shell flags.
+7. If shell ping is required, include OS-aware guidance: Windows uses "-n", Linux/macOS uses "-c".
+
+CRITICAL — NEVER FABRICATE DATA:
+- If none of your available tools can retrieve the requested information, respond EXACTLY with:
+  "I do not have the required tool to fetch this data. Cannot retrieve: [describe what was requested]. Available tools: [list your actual tool names]."
+- NEVER generate fake records, fake IDs, fake names, fake statuses, or fake values of any kind.
+- If a tool call fails or returns empty results, report the actual result — do not substitute invented data.
+- An honest "I cannot retrieve this" is always correct. A fabricated answer is never acceptable.
 
 ${context ? `Context:\n${context}` : ""}
     `);

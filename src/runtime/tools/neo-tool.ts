@@ -6,34 +6,45 @@ import { TaskRequestContext } from "../tasks/context.js";
 import { compositeDelegationError, isLikelyCompositeDelegationTask } from "./delegation-guard.js";
 import { DisplayManager } from "../display.js";
 
+const NEO_BUILTIN_CAPABILITIES = `
+Neo built-in capabilities (always available — no MCP required):
+• Config: morpheus_config_query, morpheus_config_update — read/write Morpheus configuration (LLM, channels, UI, etc.)
+• Diagnostics: diagnostic_check — full system health report (config, databases, LLM provider, logs)
+• Analytics: message_count, token_usage, provider_model_usage — message counts and token/cost usage stats
+• Tasks: task_query — look up task status by id or session
+• MCP Management: mcp_list, mcp_manage — list/add/update/delete/enable/disable MCP servers
+• Webhooks: webhook_list, webhook_manage — create/update/delete webhooks; create returns api_key
+• Trinity DB: trinity_db_list, trinity_db_manage — register/update/delete/test connection/refresh schema for databases`.trim();
+
 const NEO_BASE_DESCRIPTION = `Delegate execution to Neo asynchronously.
 
 This tool creates a background task and returns an acknowledgement with task id.
-Use it for requests that require tools of morpheus config / motpheus analystics / morpheus diagnostics and available MCPs,
-or external/stateful verification.
-Each delegated task must contain one atomic objective.`;
+Use it for any request that requires Neo's built-in capabilities or a runtime MCP tool listed below.
+Each delegated task must contain one atomic objective.
+
+${NEO_BUILTIN_CAPABILITIES}`;
 
 function normalizeDescription(text: string | undefined): string {
   if (!text) return "No description";
   return text.replace(/\s+/g, " ").trim();
 }
 
-function buildCatalogSection(tools: StructuredTool[]): string {
-  if (tools.length === 0) {
-    return "\n\nNeo MCP tools catalog: no tools currently loaded.";
+function buildCatalogSection(mcpTools: StructuredTool[]): string {
+  if (mcpTools.length === 0) {
+    return "\n\nRuntime MCP tools: none currently loaded.";
   }
 
   const maxItems = 32;
-  const lines = tools.slice(0, maxItems).map((t) => {
+  const lines = mcpTools.slice(0, maxItems).map((t) => {
     const desc = normalizeDescription(t.description).slice(0, 120);
     return `- ${t.name}: ${desc}`;
   });
-  const hidden = tools.length - lines.length;
+  const hidden = mcpTools.length - lines.length;
   if (hidden > 0) {
     lines.push(`- ... and ${hidden} more tools`);
   }
 
-  return `\n\nNeo MCP tools catalog (runtime loaded):\n${lines.join("\n")}`;
+  return `\n\nRuntime MCP tools:\n${lines.join("\n")}`;
 }
 
 export function updateNeoDelegateToolDescription(tools: StructuredTool[]): void {

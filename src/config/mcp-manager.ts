@@ -33,8 +33,11 @@ const readConfigFile = async (): Promise<MCPConfigFile> => {
 
 const writeConfigFile = async (config: MCPConfigFile): Promise<void> => {
   const configPath = path.join(MORPHEUS_ROOT, MCP_FILE_NAME);
+  const tmpPath = configPath + '.tmp';
   const serialized = JSON.stringify(config, null, 2) + '\n';
-  await fs.writeFile(configPath, serialized, 'utf-8');
+  // Atomic write: write to temp file first, then rename — prevents partial writes from corrupting the live file
+  await fs.writeFile(tmpPath, serialized, 'utf-8');
+  await fs.rename(tmpPath, configPath);
 };
 
 const isMetadataKey = (key: string): boolean => key.startsWith('_') || RESERVED_KEYS.has(key);

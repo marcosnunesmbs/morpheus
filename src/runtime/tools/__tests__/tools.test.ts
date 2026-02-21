@@ -1,7 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { ConfigQueryTool, ConfigUpdateTool } from '../config-tools.js';
-import { DiagnosticTool } from '../diagnostic-tools.js';
-import { MessageCountTool, TokenUsageTool } from '../analytics-tools.js';
+import { ConfigQueryTool, ConfigUpdateTool, DiagnosticTool, MessageCountTool, TokenUsageTool } from '../morpheus-tools.js';
 import { ConfigManager } from '../../../config/manager.js';
 
 // Mock the ConfigManager for testing

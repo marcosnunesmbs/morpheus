@@ -20,7 +20,7 @@ import { Trinity } from "./trinity.js";
 import { NeoDelegateTool } from "./tools/neo-tool.js";
 import { ApocDelegateTool } from "./tools/apoc-tool.js";
 import { TrinityDelegateTool } from "./tools/trinity-tool.js";
-import { TaskQueryTool } from "./tools/task-query-tool.js";
+import { TaskQueryTool } from "./tools/index.js";
 
 type AckGenerationResult = {
   content: string;
