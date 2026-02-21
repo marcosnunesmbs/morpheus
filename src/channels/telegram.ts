@@ -532,6 +532,112 @@ export class TelegramAdapter {
         }
       });
 
+      // --- Trinity DB Test Connection ---
+      this.bot.action(/^test_trinity_db_/, async (ctx) => {
+        const data = (ctx.callbackQuery as any).data as string;
+        const id = parseInt(data.replace('test_trinity_db_', ''), 10);
+        if (isNaN(id)) { await ctx.answerCbQuery('Invalid ID'); return; }
+        await ctx.answerCbQuery('Testing connection…');
+        try {
+          const { DatabaseRegistry } = await import('../runtime/memory/trinity-db.js');
+          const { testConnection } = await import('../runtime/trinity-connector.js');
+          const db = DatabaseRegistry.getInstance().getDatabase(id);
+          if (!db) { await ctx.reply('❌ Database not found.'); return; }
+          const ok = await testConnection(db);
+          await ctx.reply(
+            ok
+              ? `✅ <b>${escapeHtml(db.name)}</b>: connection successful.`
+              : `❌ <b>${escapeHtml(db.name)}</b>: connection failed.`,
+            { parse_mode: 'HTML' }
+          );
+        } catch (e: any) {
+          await ctx.reply(`❌ Error testing connection: ${escapeHtml(e.message)}`, { parse_mode: 'HTML' });
+        }
+      });
+
+      // --- Trinity DB Refresh Schema ---
+      this.bot.action(/^refresh_trinity_db_schema_/, async (ctx) => {
+        const data = (ctx.callbackQuery as any).data as string;
+        const id = parseInt(data.replace('refresh_trinity_db_schema_', ''), 10);
+        if (isNaN(id)) { await ctx.answerCbQuery('Invalid ID'); return; }
+        await ctx.answerCbQuery('Refreshing schema…');
+        try {
+          const { DatabaseRegistry } = await import('../runtime/memory/trinity-db.js');
+          const { introspectSchema } = await import('../runtime/trinity-connector.js');
+          const { Trinity } = await import('../runtime/trinity.js');
+          const registry = DatabaseRegistry.getInstance();
+          const db = registry.getDatabase(id);
+          if (!db) { await ctx.reply('❌ Database not found.'); return; }
+          const schema = await introspectSchema(db);
+          registry.updateSchema(id, JSON.stringify(schema, null, 2));
+          await Trinity.refreshDelegateCatalog().catch(() => {});
+          const tableNames = schema.databases
+            ? schema.databases.flatMap((d: any) => d.tables.map((t: any) => `${d.name}.${t.name}`))
+            : schema.tables.map((t: any) => t.name);
+          const count = tableNames.length;
+          await ctx.reply(
+            `🔄 <b>${escapeHtml(db.name)}</b>: schema refreshed — ${count} ${count === 1 ? 'table' : 'tables'}.`,
+            { parse_mode: 'HTML' }
+          );
+        } catch (e: any) {
+          await ctx.reply(`❌ Error refreshing schema: ${escapeHtml(e.message)}`, { parse_mode: 'HTML' });
+        }
+      });
+
+      // --- Trinity DB Delete Flow ---
+      this.bot.action(/^ask_trinity_db_delete_/, async (ctx) => {
+        const data = (ctx.callbackQuery as any).data as string;
+        const id = parseInt(data.replace('ask_trinity_db_delete_', ''), 10);
+        if (isNaN(id)) { await ctx.answerCbQuery('Invalid ID'); return; }
+        try {
+          const { DatabaseRegistry } = await import('../runtime/memory/trinity-db.js');
+          const db = DatabaseRegistry.getInstance().getDatabase(id);
+          if (!db) { await ctx.answerCbQuery('Database not found'); return; }
+          await ctx.answerCbQuery();
+          await ctx.reply(
+            `⚠️ Delete <b>${escapeHtml(db.name)}</b> (${escapeHtml(db.type)}) from Trinity?\n\nThe actual database won't be affected — only this registration will be removed.`,
+            {
+              parse_mode: 'HTML',
+              reply_markup: {
+                inline_keyboard: [
+                  [
+                    { text: '🗑️ Yes, delete', callback_data: `confirm_trinity_db_delete_${id}` },
+                    { text: 'Cancel', callback_data: 'cancel_trinity_db_delete' },
+                  ],
+                ],
+              },
+            }
+          );
+        } catch (e: any) {
+          await ctx.answerCbQuery(`Error: ${e.message}`, { show_alert: true });
+        }
+      });
+
+      this.bot.action(/^confirm_trinity_db_delete_/, async (ctx) => {
+        const data = (ctx.callbackQuery as any).data as string;
+        const id = parseInt(data.replace('confirm_trinity_db_delete_', ''), 10);
+        if (isNaN(id)) { await ctx.answerCbQuery('Invalid ID'); return; }
+        try {
+          const { DatabaseRegistry } = await import('../runtime/memory/trinity-db.js');
+          const registry = DatabaseRegistry.getInstance();
+          const db = registry.getDatabase(id);
+          const name = db?.name ?? `#${id}`;
+          const deleted = registry.deleteDatabase(id);
+          await ctx.answerCbQuery(deleted ? '🗑️ Deleted' : 'Not found');
+          if (ctx.updateType === 'callback_query') ctx.deleteMessage().catch(() => { });
+          const user = ctx.from?.username || ctx.from?.first_name || 'unknown';
+          this.display.log(`Trinity DB '${name}' deleted by @${user}`, { source: 'Telegram', level: 'info' });
+          await ctx.reply(deleted ? `🗑️ <b>${escapeHtml(name)}</b> removed from Trinity.` : `❌ Database #${id} not found.`, { parse_mode: 'HTML' });
+        } catch (e: any) {
+          await ctx.answerCbQuery(`Error: ${e.message}`, { show_alert: true });
+        }
+      });
+
+      this.bot.action('cancel_trinity_db_delete', async (ctx) => {
+        await ctx.answerCbQuery('Cancelled');
+        if (ctx.updateType === 'callback_query') ctx.deleteMessage().catch(() => { });
+      });
+
       this.bot.launch().catch((err) => {
         if (this.isConnected) {
           this.display.log(`Telegram bot error: ${err}`, { source: 'Telegram', level: 'error' });
@@ -1082,6 +1188,8 @@ How can I assist you today?`;
       }
 
       let html = `<b>Trinity Databases (${databases.length}):</b>\n\n`;
+      const keyboard: any[][] = [];
+
       for (const db of databases) {
         const schema = db.schema_json ? JSON.parse(db.schema_json) : null;
         const tables: string[] = schema?.tables?.map((t: any) => t.name).filter(Boolean) ?? [];
@@ -1100,11 +1208,21 @@ How can I assist you today?`;
           html += `  Tables: (schema not loaded)\n`;
         }
         html += `  Schema updated: ${escapeHtml(updatedAt)}\n\n`;
+
+        keyboard.push([
+          { text: `🔌 Test ${db.name}`, callback_data: `test_trinity_db_${db.id}` },
+          { text: `🔄 Schema`, callback_data: `refresh_trinity_db_schema_${db.id}` },
+          { text: `🗑️ Delete`, callback_data: `ask_trinity_db_delete_${db.id}` },
+        ]);
       }
 
       const chunks = splitHtmlChunks(html.trim());
-      for (const chunk of chunks) {
-        await ctx.reply(chunk, { parse_mode: 'HTML' });
+      for (let i = 0; i < chunks.length; i++) {
+        const isLast = i === chunks.length - 1;
+        await ctx.reply(chunks[i], {
+          parse_mode: 'HTML',
+          ...(isLast && keyboard.length > 0 ? { reply_markup: { inline_keyboard: keyboard } } : {}),
+        });
       }
     } catch (e: any) {
       await ctx.reply(`Error listing Trinity databases: ${e.message}`);
