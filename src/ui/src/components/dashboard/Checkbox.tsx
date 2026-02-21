@@ -25,7 +25,7 @@ export const Checkbox: React.FC<CheckboxProps> = ({
       type="checkbox"
       checked={checked}
       onChange={handleChange}
-      className={`h-4 w-4 rounded border-azure-border dark:border-matrix-primary bg-azure-surface dark:bg-zinc-900 text-azure-primary dark:text-matrix-highlight focus:ring-azure-primary dark:focus:ring-matrix-highlight ${className || ''}`}
+      className={`h-4 w-4 rounded border-azure-border dark:border-matrix-primary bg-azure-surface dark:bg-black text-azure-primary dark:text-matrix-highlight focus:ring-azure-primary dark:focus:ring-matrix-highlight ${className || ''}`}
       {...props}
     />
   );

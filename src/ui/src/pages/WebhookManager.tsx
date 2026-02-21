@@ -155,7 +155,7 @@ export const WebhookManager = () => {
             <h1 className="text-2xl font-bold text-azure-text-primary dark:text-matrix-highlight">
               Webhooks
             </h1>
-            <p className="text-sm text-azure-text-secondary dark:text-matrix-dim mt-0.5">
+            <p className="text-sm text-azure-text-secondary dark:text-matrix-secondary mt-0.5">
               Trigger Oracle agent tasks from external events.
             </p>
           </div>
@@ -163,7 +163,7 @@ export const WebhookManager = () => {
         <div className="flex items-center gap-3">
           <Link
             to="/notifications"
-            className="flex items-center gap-2 px-4 py-2 rounded-lg border border-azure-border dark:border-matrix-primary text-sm text-azure-text-secondary dark:text-matrix-dim hover:bg-azure-surface dark:hover:bg-zinc-800 transition-colors"
+            className="flex items-center gap-2 px-4 py-2 rounded-lg border border-azure-border dark:border-matrix-primary text-sm text-azure-text-secondary dark:text-matrix-secondary hover:bg-azure-surface dark:hover:bg-zinc-800 transition-colors"
           >
             <Bell className="w-4 h-4" />
             Notifications
@@ -205,7 +205,7 @@ export const WebhookManager = () => {
                 {['Name', 'API Key', 'Channels', 'Triggers', 'Status', 'Actions'].map((h) => (
                   <th
                     key={h}
-                    className="px-4 py-3 text-left font-semibold text-azure-text-secondary dark:text-matrix-dim"
+                    className="px-4 py-3 text-left font-semibold text-azure-text-secondary dark:text-matrix-secondary"
                   >
                     {h}
                   </th>
@@ -215,7 +215,7 @@ export const WebhookManager = () => {
             <tbody>
               {webhooks.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="px-4 py-10 text-center text-azure-text-secondary dark:text-matrix-dim">
+                  <td colSpan={6} className="px-4 py-10 text-center text-azure-text-secondary dark:text-matrix-secondary">
                     No webhooks yet.{' '}
                     <button
                       onClick={handleNew}
@@ -233,7 +233,7 @@ export const WebhookManager = () => {
                   >
                     {/* Name */}
                     <td className="px-4 py-3">
-                      <span className="font-mono text-azure-text-primary dark:text-matrix-text font-medium">
+                      <span className="font-mono text-azure-text-primary dark:text-matrix-secondary font-medium">
                         {wh.name}
                       </span>
                     </td>
@@ -241,12 +241,12 @@ export const WebhookManager = () => {
                     {/* API Key + Copy curl */}
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-2">
-                        <code className="text-xs font-mono text-azure-text-secondary dark:text-matrix-dim truncate max-w-[140px]">
+                        <code className="text-xs font-mono text-azure-text-secondary dark:text-matrix-secondary truncate max-w-[140px]">
                           {wh.api_key.slice(0, 16)}…
                         </code>
                         <button
                           onClick={() => copyToClipboard(getCurlExample(wh), `curl-${wh.id}`)}
-                          className="p-1 rounded hover:bg-azure-border dark:hover:bg-matrix-primary/30 text-azure-text-secondary dark:text-matrix-dim"
+                          className="p-1 rounded hover:bg-azure-border dark:hover:bg-matrix-primary/30 text-azure-text-secondary dark:text-matrix-secondary"
                           title="Copy curl example"
                         >
                           {copiedId === `curl-${wh.id}` ? (
@@ -257,7 +257,7 @@ export const WebhookManager = () => {
                         </button>
                         <button
                           onClick={() => copyToClipboard(wh.api_key, `key-${wh.id}`)}
-                          className="p-1 rounded hover:bg-azure-border dark:hover:bg-matrix-primary/30 text-azure-text-secondary dark:text-matrix-dim"
+                          className="p-1 rounded hover:bg-azure-border dark:hover:bg-matrix-primary/30 text-azure-text-secondary dark:text-matrix-secondary"
                           title="Copy API key"
                         >
                           {copiedId === `key-${wh.id}` ? (
@@ -275,7 +275,7 @@ export const WebhookManager = () => {
                         {wh.notification_channels.map((ch) => (
                           <span
                             key={ch}
-                            className="px-2 py-0.5 text-xs rounded bg-azure-border dark:bg-matrix-primary/20 text-azure-text-secondary dark:text-matrix-dim capitalize"
+                            className="px-2 py-0.5 text-xs rounded bg-azure-border dark:bg-matrix-primary/20 text-azure-text-secondary dark:text-matrix-secondary capitalize"
                           >
                             {ch}
                           </span>
@@ -284,7 +284,7 @@ export const WebhookManager = () => {
                     </td>
 
                     {/* Trigger count */}
-                    <td className="px-4 py-3 text-azure-text-primary dark:text-matrix-text">
+                    <td className="px-4 py-3 text-azure-text-primary dark:text-matrix-secondary">
                       {wh.trigger_count}
                     </td>
 
@@ -312,14 +312,14 @@ export const WebhookManager = () => {
                         <button
                           onClick={() => handleEdit(wh)}
                           title="Edit"
-                          className="p-1.5 rounded hover:bg-azure-border dark:hover:bg-matrix-primary/30 text-azure-text-secondary dark:text-matrix-dim hover:text-azure-primary dark:hover:text-matrix-highlight transition-colors"
+                          className="p-1.5 rounded hover:bg-azure-border dark:hover:bg-matrix-primary/30 text-azure-text-secondary dark:text-matrix-secondary hover:text-azure-primary dark:hover:text-matrix-highlight transition-colors"
                         >
                           <Pencil className="w-4 h-4" />
                         </button>
                         <button
                           onClick={() => setDeleteTarget(wh)}
                           title="Delete"
-                          className="p-1.5 rounded hover:bg-red-50 dark:hover:bg-red-900/20 text-azure-text-secondary dark:text-matrix-dim hover:text-red-600 dark:hover:text-red-400 transition-colors"
+                          className="p-1.5 rounded hover:bg-red-50 dark:hover:bg-red-900/20 text-azure-text-secondary dark:text-matrix-secondary hover:text-red-600 dark:hover:text-red-400 transition-colors"
                         >
                           <Trash2 className="w-4 h-4" />
                         </button>
@@ -343,8 +343,8 @@ export const WebhookManager = () => {
         <div className="p-6 space-y-4 overflow-y-auto">
           {/* Name */}
           <div>
-            <label className="block text-sm font-medium text-azure-text-secondary dark:text-matrix-dim mb-1">
-              Name <span className="text-azure-text-muted dark:text-matrix-dim/60 font-normal">(slug — used in URL)</span>
+            <label className="block text-sm font-medium text-azure-text-secondary dark:text-matrix-secondary mb-1">
+              Name <span className="text-azure-text-muted dark:text-matrix-secondary/60 font-normal">(slug — used in URL)</span>
             </label>
             <input
               type="text"
@@ -355,10 +355,10 @@ export const WebhookManager = () => {
               }}
               placeholder="e.g. deploy-done, github-issue-opened"
               disabled={!!editTarget}
-              className="w-full px-3 py-2 rounded-lg border border-azure-border dark:border-matrix-primary bg-white dark:bg-zinc-800 text-azure-text-primary dark:text-matrix-text text-sm focus:outline-none focus:ring-1 focus:ring-azure-primary dark:focus:ring-matrix-highlight disabled:opacity-50 disabled:cursor-not-allowed"
+              className="w-full px-3 py-2 rounded-lg border border-azure-border dark:border-matrix-primary bg-azure-surface dark:bg-black text-azure-text-primary dark:text-matrix-secondary text-sm focus:outline-none focus:ring-1 focus:ring-azure-primary dark:focus:ring-matrix-highlight focus:border-azure-primary dark:focus:border-matrix-highlight disabled:opacity-50 disabled:cursor-not-allowed"
             />
             {form.name && (
-              <p className="mt-1 text-xs text-azure-text-secondary dark:text-matrix-dim">
+              <p className="mt-1 text-xs text-azure-text-secondary dark:text-matrix-secondary">
                 Trigger URL:{' '}
                 <code className="font-mono text-azure-primary dark:text-matrix-highlight">
                   POST /api/webhooks/trigger/{form.name}
@@ -369,7 +369,7 @@ export const WebhookManager = () => {
 
           {/* Prompt */}
           <div>
-            <label className="block text-sm font-medium text-azure-text-secondary dark:text-matrix-dim mb-1">
+            <label className="block text-sm font-medium text-azure-text-secondary dark:text-matrix-secondary mb-1">
               Agent Prompt
             </label>
             <textarea
@@ -377,13 +377,13 @@ export const WebhookManager = () => {
               value={form.prompt}
               onChange={(e) => setForm({ ...form, prompt: e.target.value })}
               placeholder="Describe what Apoc should do when this webhook fires. The received payload will be appended automatically."
-              className="w-full px-3 py-2 rounded-lg border border-azure-border dark:border-matrix-primary bg-white dark:bg-zinc-800 text-azure-text-primary dark:text-matrix-text text-sm focus:outline-none focus:ring-1 focus:ring-azure-primary dark:focus:ring-matrix-highlight resize-none"
+              className="w-full px-3 py-2 rounded-lg border border-azure-border dark:border-matrix-primary bg-azure-surface dark:bg-black text-azure-text-primary dark:text-matrix-secondary text-sm focus:outline-none focus:ring-1 focus:ring-azure-primary dark:focus:ring-matrix-highlight focus:border-azure-primary dark:focus:border-matrix-highlight resize-none"
             />
           </div>
 
           {/* Channels */}
           <div>
-            <label className="block text-sm font-medium text-azure-text-secondary dark:text-matrix-dim mb-2">
+            <label className="block text-sm font-medium text-azure-text-secondary dark:text-matrix-secondary mb-2">
               Notification Channels
             </label>
             <div className="flex gap-4">
@@ -395,7 +395,7 @@ export const WebhookManager = () => {
                     onChange={() => toggleChannel(ch)}
                     className="rounded border-azure-border dark:border-matrix-primary accent-azure-primary dark:accent-matrix-highlight"
                   />
-                  <span className="text-sm text-azure-text-primary dark:text-matrix-text capitalize">
+                  <span className="text-sm text-azure-text-primary dark:text-matrix-secondary capitalize">
                     {ch}
                   </span>
                 </label>
@@ -414,7 +414,7 @@ export const WebhookManager = () => {
           <div className="flex justify-end gap-3 pt-2">
             <button
               onClick={() => setIsModalOpen(false)}
-              className="px-4 py-2 rounded-lg border border-azure-border dark:border-matrix-primary text-azure-text-secondary dark:text-matrix-dim text-sm hover:bg-azure-surface dark:hover:bg-zinc-800 transition-colors"
+              className="px-4 py-2 rounded-lg border border-azure-border dark:border-matrix-primary text-azure-text-secondary dark:text-matrix-secondary text-sm hover:bg-azure-surface dark:hover:bg-zinc-800 transition-colors"
             >
               Cancel
             </button>
@@ -437,7 +437,7 @@ export const WebhookManager = () => {
           </DialogTitle>
         </DialogHeader>
         <div className="p-6 space-y-4">
-          <p className="text-sm text-azure-text-primary dark:text-matrix-text">
+          <p className="text-sm text-azure-text-primary dark:text-matrix-secondary">
             Delete{' '}
             <span className="font-semibold font-mono dark:text-matrix-highlight">
               {deleteTarget?.name}
@@ -447,7 +447,7 @@ export const WebhookManager = () => {
           <div className="flex justify-end gap-3">
             <button
               onClick={() => setDeleteTarget(null)}
-              className="px-4 py-2 rounded-lg border border-azure-border dark:border-matrix-primary text-azure-text-secondary dark:text-matrix-dim text-sm hover:bg-azure-surface dark:hover:bg-zinc-800 transition-colors"
+              className="px-4 py-2 rounded-lg border border-azure-border dark:border-matrix-primary text-azure-text-secondary dark:text-matrix-secondary text-sm hover:bg-azure-surface dark:hover:bg-zinc-800 transition-colors"
             >
               Cancel
             </button>

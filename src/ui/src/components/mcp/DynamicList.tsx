@@ -34,11 +34,11 @@ export const StringListInput = ({ label, values, onChange, placeholder }: String
 
   return (
     <div className="space-y-2">
-      <div className="text-sm font-semibold text-azure-text-primary dark:text-matrix-highlight">{label}</div>
+      <div className="text-sm font-semibold text-azure-text-primary dark:text-matrix-secondary">{label}</div>
       {items.map((item, index) => (
         <div key={`${label}-${index}`} className="flex gap-2">
           <input
-            className="flex-1 rounded-md border border-azure-border bg-azure-surface px-3 py-2 text-sm text-azure-text-primary shadow-sm focus:border-azure-primary focus:outline-none dark:border-matrix-primary dark:bg-zinc-950 dark:text-matrix-highlight"
+            className="flex-1 rounded-md border border-azure-border bg-azure-surface px-3 py-2 text-sm text-azure-text-primary shadow-sm focus:border-azure-primary focus:outline-none dark:border-matrix-primary dark:bg-black dark:text-matrix-secondary"
             value={item}
             placeholder={placeholder}
             onChange={(event) => updateItem(index, event.target.value)}
@@ -86,17 +86,17 @@ export const KeyValueListInput = ({
 
   return (
     <div className="space-y-2">
-      <div className="text-sm font-semibold text-azure-text-primary dark:text-matrix-highlight">{label}</div>
+      <div className="text-sm font-semibold text-azure-text-primary dark:text-matrix-secondary">{label}</div>
       {items.map((item, index) => (
         <div key={`${label}-${index}`} className="grid gap-2 md:grid-cols-5">
           <input
-            className="col-span-2 rounded-md border border-azure-border bg-azure-surface px-3 py-2 text-sm text-azure-text-primary shadow-sm focus:border-azure-primary focus:outline-none dark:border-matrix-primary dark:bg-zinc-950 dark:text-matrix-highlight"
+            className="col-span-2 rounded-md border border-azure-border bg-azure-surface px-3 py-2 text-sm text-azure-text-primary shadow-sm focus:border-azure-primary focus:outline-none dark:border-matrix-primary dark:bg-black dark:text-matrix-secondary"
             value={item.key}
             placeholder={keyPlaceholder}
             onChange={(event) => updateItem(index, 'key', event.target.value)}
           />
           <input
-            className="col-span-2 rounded-md border border-azure-border bg-azure-surface px-3 py-2 text-sm text-azure-text-primary shadow-sm focus:border-azure-primary focus:outline-none dark:border-matrix-primary dark:bg-zinc-950 dark:text-matrix-highlight"
+            className="col-span-2 rounded-md border border-azure-border bg-azure-surface px-3 py-2 text-sm text-azure-text-primary shadow-sm focus:border-azure-primary focus:outline-none dark:border-matrix-primary dark:bg-black dark:text-matrix-secondary"
             value={item.value}
             placeholder={valuePlaceholder}
             onChange={(event) => updateItem(index, 'value', event.target.value)}

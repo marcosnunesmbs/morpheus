@@ -207,7 +207,7 @@ export const SatiMemories: React.FC = () => {
                 placeholder="Search memories..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 bg-azure-surface dark:bg-zinc-900 border border-azure-border dark:border-matrix-primary rounded-md text-azure-text-primary dark:text-matrix-secondary focus:outline-none focus:ring-2 focus:ring-azure-primary dark:focus:ring-matrix-highlight"
+                className="w-full pl-10 pr-4 py-2 bg-azure-surface dark:bg-black border border-azure-border dark:border-matrix-primary rounded-md text-azure-text-primary dark:text-matrix-secondary focus:outline-none focus:ring-2 focus:ring-azure-primary dark:focus:ring-matrix-highlight"
               />
             </div>
 
@@ -215,7 +215,7 @@ export const SatiMemories: React.FC = () => {
               <select
                 value={filterCategory}
                 onChange={(e) => setFilterCategory(e.target.value)}
-                className="px-3 py-2 bg-azure-surface dark:bg-zinc-900 border border-azure-border dark:border-matrix-primary rounded-md text-azure-text-primary dark:text-matrix-secondary focus:outline-none focus:ring-2 focus:ring-azure-primary dark:focus:ring-matrix-highlight flex-grow"
+                className="px-3 py-2 bg-azure-surface dark:bg-black border border-azure-border dark:border-matrix-primary rounded-md text-azure-text-primary dark:text-matrix-secondary focus:outline-none focus:ring-2 focus:ring-azure-primary dark:focus:ring-matrix-highlight flex-grow"
               >
                 <option value="all">All Categories</option>
                 {categories.map((cat) => (
@@ -228,7 +228,7 @@ export const SatiMemories: React.FC = () => {
               <select
                 value={filterImportance}
                 onChange={(e) => setFilterImportance(e.target.value)}
-                className="px-3 py-2 bg-azure-surface dark:bg-zinc-900 border border-azure-border dark:border-matrix-primary rounded-md text-azure-text-primary dark:text-matrix-secondary focus:outline-none focus:ring-2 focus:ring-azure-primary dark:focus:ring-matrix-highlight flex-grow"
+                className="px-3 py-2 bg-azure-surface dark:bg-black border border-azure-border dark:border-matrix-primary rounded-md text-azure-text-primary dark:text-matrix-secondary focus:outline-none focus:ring-2 focus:ring-azure-primary dark:focus:ring-matrix-highlight flex-grow"
               >
                 <option value="all">All Importance</option>
                 {importanceLevels.map((level) => (

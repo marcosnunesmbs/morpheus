@@ -103,6 +103,45 @@ The UI follows a dual-theme approach with Azure (light) and Matrix (dark) themes
 - **Modals**: Confirmation dialogs with proper styling
 - **Forms**: Consistent input components (NumberInput, SelectInput, Switch, TextInput)
 
+### Standardized Dark Mode Patterns
+
+All UI components must follow the **TrinityDatabases reference style** for consistency.
+
+#### Modals / Dialogs
+```
+Container:   dark:bg-black dark:border-matrix-primary shadow-xl
+Title:       dark:text-matrix-highlight
+Close btn:   dark:text-matrix-tertiary dark:hover:text-matrix-highlight
+Backdrop:    bg-black/50 backdrop-blur-sm
+```
+
+#### Form Inputs (input, textarea, select)
+```
+Background:  dark:bg-black
+Border:      dark:border-matrix-primary
+Text:        dark:text-matrix-secondary
+Focus:       dark:focus:border-matrix-highlight
+Placeholder: dark:placeholder-matrix-secondary/50
+```
+
+#### Form Labels
+```
+Color: dark:text-matrix-secondary
+```
+
+#### Content Boxes (read-only areas inside modals)
+```
+Background: dark:bg-zinc-900  (slightly lighter than modal bg for depth)
+Text:       dark:text-matrix-secondary
+```
+
+#### Do NOT use in dark mode
+- `dark:bg-zinc-800`, `dark:bg-zinc-900`, `dark:bg-zinc-950` for interactive inputs
+- `dark:bg-matrix-base` for inputs
+- `dark:text-matrix-highlight` for input text (reserve for titles/emphasis)
+- `dark:text-matrix-text`, `dark:text-matrix-dim` (deprecated in UI — use `matrix-secondary`)
+- `dark:border-matrix-primary/30` for modal borders (use full opacity)
+
 ### UI Framework
 - **React 19**: Latest version for component-based architecture
 - **TailwindCSS**: Utility-first CSS framework for styling

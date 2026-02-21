@@ -159,13 +159,13 @@ export const MCPManager = () => {
 
       <div className="flex flex-col gap-2 md:flex-row md:items-center">
         <input
-          className="w-full rounded-md border border-azure-border bg-azure-surface px-3 py-2 text-sm text-azure-text-primary shadow-sm focus:border-azure-primary focus:outline-none dark:border-matrix-primary dark:bg-zinc-950 dark:text-matrix-highlight"
+          className="w-full rounded-md border border-azure-border bg-azure-surface px-3 py-2 text-sm text-azure-text-primary shadow-sm focus:border-azure-primary focus:outline-none dark:border-matrix-primary dark:bg-black dark:text-matrix-secondary"
           value={query}
           onChange={(event) => setQuery(event.target.value)}
           placeholder="Search by name"
         />
         <select
-          className="rounded-md border border-azure-border bg-azure-surface px-3 py-2 text-sm text-azure-text-primary shadow-sm focus:border-azure-primary focus:outline-none dark:border-matrix-primary dark:bg-zinc-950 dark:text-matrix-highlight"
+          className="rounded-md border border-azure-border bg-azure-surface px-3 py-2 text-sm text-azure-text-primary shadow-sm focus:border-azure-primary focus:outline-none dark:border-matrix-primary dark:bg-black dark:text-matrix-secondary"
           value={filter}
           onChange={(event) => setFilter(event.target.value as 'all' | 'stdio' | 'http')}
         >

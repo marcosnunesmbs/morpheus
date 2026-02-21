@@ -83,7 +83,7 @@ export function TasksPage() {
 
       <motion.div variants={item} className="rounded-lg border border-azure-border dark:border-matrix-primary p-4 bg-azure-surface dark:bg-zinc-950 grid grid-cols-1 md:grid-cols-4 gap-3">
         <select
-          className="px-3 py-2 rounded border border-azure-border dark:border-matrix-primary bg-white dark:bg-zinc-900"
+          className="px-3 py-2 rounded border border-azure-border dark:border-matrix-primary bg-azure-surface dark:bg-black text-azure-text-primary dark:text-matrix-secondary"
           value={status}
           onChange={(e) => setStatus((e.target.value || '') as TaskStatus | '')}
         >
@@ -92,7 +92,7 @@ export function TasksPage() {
         </select>
 
         <select
-          className="px-3 py-2 rounded border border-azure-border dark:border-matrix-primary bg-white dark:bg-zinc-900"
+          className="px-3 py-2 rounded border border-azure-border dark:border-matrix-primary bg-azure-surface dark:bg-black text-azure-text-primary dark:text-matrix-secondary"
           value={agent}
           onChange={(e) => setAgent((e.target.value || '') as TaskAgent | '')}
         >
@@ -103,7 +103,7 @@ export function TasksPage() {
         </select>
 
         <select
-          className="px-3 py-2 rounded border border-azure-border dark:border-matrix-primary bg-white dark:bg-zinc-900"
+          className="px-3 py-2 rounded border border-azure-border dark:border-matrix-primary bg-azure-surface dark:bg-black text-azure-text-primary dark:text-matrix-secondary"
           value={originChannel}
           onChange={(e) => setOriginChannel((e.target.value || '') as OriginChannel | '')}
         >
@@ -117,7 +117,7 @@ export function TasksPage() {
         </select>
 
         <input
-          className="px-3 py-2 rounded border border-azure-border dark:border-matrix-primary bg-white dark:bg-zinc-900"
+          className="px-3 py-2 rounded border border-azure-border dark:border-matrix-primary bg-azure-surface dark:bg-black text-azure-text-primary dark:text-matrix-secondary"
           value={sessionFilter}
           onChange={(e) => setSessionFilter(e.target.value)}
           placeholder="Filter by session id"

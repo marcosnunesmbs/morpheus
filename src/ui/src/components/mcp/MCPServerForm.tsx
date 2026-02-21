@@ -107,10 +107,10 @@ export const MCPServerForm = ({ open, mode, initial, onClose, onSubmit }: MCPSer
         </DialogHeader>
 
         <div className="space-y-4">
-          <label className="block space-y-2 text-sm text-azure-text-primary dark:text-matrix-highlight">
+          <label className="block space-y-2 text-sm text-azure-text-primary dark:text-matrix-secondary">
             Name
             <input
-              className="w-full rounded-md border border-azure-border bg-azure-surface px-3 py-2 text-sm text-azure-text-primary shadow-sm focus:border-azure-primary focus:outline-none disabled:bg-azure-border dark:border-matrix-primary dark:bg-zinc-950 dark:text-matrix-highlight dark:disabled:bg-matrix-primary/50"
+              className="w-full rounded-md border border-azure-border bg-azure-surface px-3 py-2 text-sm text-azure-text-primary shadow-sm focus:border-azure-primary focus:outline-none disabled:bg-azure-border dark:border-matrix-primary dark:bg-black dark:text-matrix-secondary dark:disabled:bg-matrix-primary/50"
               value={name}
               onChange={(event) => setName(event.target.value)}
               placeholder="coolify"
@@ -118,10 +118,10 @@ export const MCPServerForm = ({ open, mode, initial, onClose, onSubmit }: MCPSer
             />
           </label>
 
-          <label className="block space-y-2 text-sm text-azure-text-primary dark:text-matrix-highlight">
+          <label className="block space-y-2 text-sm text-azure-text-primary dark:text-matrix-secondary">
             Transport
             <select
-              className="w-full rounded-md border border-azure-border bg-azure-surface px-3 py-2 text-sm text-azure-text-primary shadow-sm focus:border-azure-primary focus:outline-none dark:border-matrix-primary dark:bg-zinc-950 dark:text-matrix-highlight"
+              className="w-full rounded-md border border-azure-border bg-azure-surface px-3 py-2 text-sm text-azure-text-primary shadow-sm focus:border-azure-primary focus:outline-none dark:border-matrix-primary dark:bg-black dark:text-matrix-secondary"
               value={transport}
               onChange={(event) => setTransport(event.target.value as MCPServerConfig['transport'])}
             >

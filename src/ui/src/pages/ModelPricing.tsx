@@ -79,7 +79,7 @@ export const ModelPricing = () => {
           <DollarSign className="w-6 h-6 text-azure-primary dark:text-matrix-highlight" />
           <div>
             <h1 className="text-2xl font-bold text-azure-text-primary dark:text-matrix-highlight">Model Pricing</h1>
-            <p className="text-sm text-azure-text-secondary dark:text-matrix-dim mt-0.5">
+            <p className="text-sm text-azure-text-secondary dark:text-matrix-secondary mt-0.5">
               Manage per-model pricing to estimate LLM costs in Usage Stats.
             </p>
           </div>
@@ -113,7 +113,7 @@ export const ModelPricing = () => {
           <thead className="bg-azure-surface dark:bg-zinc-900 border-b border-azure-border dark:border-matrix-primary">
             <tr>
               {['Provider', 'Model', 'Input ($/1M tokens)', 'Output ($/1M tokens)', 'Actions'].map((h) => (
-                <th key={h} className="px-4 py-3 text-left font-semibold text-azure-text-secondary dark:text-matrix-dim">
+                <th key={h} className="px-4 py-3 text-left font-semibold text-azure-text-secondary dark:text-matrix-secondary">
                   {h}
                 </th>
               ))}
@@ -122,7 +122,7 @@ export const ModelPricing = () => {
           <tbody>
             {data.length === 0 ? (
               <tr>
-                <td colSpan={5} className="px-4 py-8 text-center text-azure-text-secondary dark:text-matrix-dim">
+                <td colSpan={5} className="px-4 py-8 text-center text-azure-text-secondary dark:text-matrix-secondary">
                   No pricing entries. Click "Add Pricing" to get started.
                 </td>
               </tr>
@@ -140,14 +140,14 @@ export const ModelPricing = () => {
                     <div className="flex items-center gap-2">
                       <button
                         onClick={() => handleEdit(entry)}
-                        className="p-1.5 rounded hover:bg-azure-border dark:hover:bg-matrix-primary/30 text-azure-text-secondary dark:text-matrix-dim hover:text-azure-primary dark:hover:text-matrix-highlight transition-colors"
+                        className="p-1.5 rounded hover:bg-azure-border dark:hover:bg-matrix-primary/30 text-azure-text-secondary dark:text-matrix-secondary hover:text-azure-primary dark:hover:text-matrix-highlight transition-colors"
                         title="Edit"
                       >
                         <Pencil className="w-4 h-4" />
                       </button>
                       <button
                         onClick={() => setDeleteTarget(entry)}
-                        className="p-1.5 rounded hover:bg-red-50 dark:hover:bg-red-900/20 text-azure-text-secondary dark:text-matrix-dim hover:text-red-600 dark:hover:text-red-400 transition-colors"
+                        className="p-1.5 rounded hover:bg-red-50 dark:hover:bg-red-900/20 text-azure-text-secondary dark:text-matrix-secondary hover:text-red-600 dark:hover:text-red-400 transition-colors"
                         title="Delete"
                       >
                         <Trash2 className="w-4 h-4" />
@@ -169,14 +169,14 @@ export const ModelPricing = () => {
           </DialogHeader>
           <div className="p-4 space-y-4">
             <div>
-              <label className="block text-sm font-medium text-azure-text-secondary dark:text-matrix-dim mb-1">Provider</label>
+              <label className="block text-sm font-medium text-azure-text-secondary dark:text-matrix-secondary mb-1">Provider</label>
               {editTarget ? (
-                <p className="px-3 py-2 rounded-lg bg-azure-bg dark:bg-zinc-800 text-azure-text-primary dark:text-matrix-text text-sm capitalize">{form.provider}</p>
+                <p className="px-3 py-2 rounded-lg bg-azure-bg dark:bg-zinc-900 text-azure-text-primary dark:text-matrix-secondary text-sm capitalize">{form.provider}</p>
               ) : (
                 <select
                   value={form.provider}
                   onChange={(e) => setForm({ ...form, provider: e.target.value })}
-                  className="w-full px-3 py-2 rounded-lg border border-azure-border dark:border-matrix-primary bg-white dark:bg-zinc-800 text-azure-text-primary dark:text-matrix-text text-sm focus:outline-none focus:ring-1 focus:ring-azure-primary dark:focus:ring-matrix-highlight"
+                  className="w-full px-3 py-2 rounded-lg border border-azure-border dark:border-matrix-primary bg-azure-surface dark:bg-black text-azure-text-primary dark:text-matrix-secondary text-sm focus:outline-none focus:ring-1 focus:ring-azure-primary dark:focus:ring-matrix-highlight focus:border-azure-primary dark:focus:border-matrix-highlight"
                 >
                   <option value="">Select provider...</option>
                   {PROVIDERS.map((p) => (
@@ -186,47 +186,47 @@ export const ModelPricing = () => {
               )}
             </div>
             <div>
-              <label className="block text-sm font-medium text-azure-text-secondary dark:text-matrix-dim mb-1">Model</label>
+              <label className="block text-sm font-medium text-azure-text-secondary dark:text-matrix-secondary mb-1">Model</label>
               {editTarget ? (
-                <p className="px-3 py-2 rounded-lg bg-azure-bg dark:bg-zinc-800 text-azure-text-primary dark:text-matrix-text text-sm font-mono">{form.model}</p>
+                <p className="px-3 py-2 rounded-lg bg-azure-bg dark:bg-zinc-900 text-azure-text-primary dark:text-matrix-secondary text-sm font-mono">{form.model}</p>
               ) : (
                 <input
                   type="text"
                   value={form.model}
                   onChange={(e) => setForm({ ...form, model: e.target.value })}
                   placeholder="e.g. gpt-4o"
-                  className="w-full px-3 py-2 rounded-lg border border-azure-border dark:border-matrix-primary bg-white dark:bg-zinc-800 text-azure-text-primary dark:text-matrix-text text-sm focus:outline-none focus:ring-1 focus:ring-azure-primary dark:focus:ring-matrix-highlight"
+                  className="w-full px-3 py-2 rounded-lg border border-azure-border dark:border-matrix-primary bg-azure-surface dark:bg-black text-azure-text-primary dark:text-matrix-secondary text-sm focus:outline-none focus:ring-1 focus:ring-azure-primary dark:focus:ring-matrix-highlight focus:border-azure-primary dark:focus:border-matrix-highlight"
                 />
               )}
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-azure-text-secondary dark:text-matrix-dim mb-1">Input price / 1M tokens ($)</label>
+                <label className="block text-sm font-medium text-azure-text-secondary dark:text-matrix-secondary mb-1">Input price / 1M tokens ($)</label>
                 <input
                   type="number"
                   min={0}
                   step={0.001}
                   value={form.input_price_per_1m}
                   onChange={(e) => setForm({ ...form, input_price_per_1m: parseFloat(e.target.value) || 0 })}
-                  className="w-full px-3 py-2 rounded-lg border border-azure-border dark:border-matrix-primary bg-white dark:bg-zinc-800 text-azure-text-primary dark:text-matrix-text text-sm focus:outline-none focus:ring-1 focus:ring-azure-primary dark:focus:ring-matrix-highlight"
+                  className="w-full px-3 py-2 rounded-lg border border-azure-border dark:border-matrix-primary bg-azure-surface dark:bg-black text-azure-text-primary dark:text-matrix-secondary text-sm focus:outline-none focus:ring-1 focus:ring-azure-primary dark:focus:ring-matrix-highlight focus:border-azure-primary dark:focus:border-matrix-highlight"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-azure-text-secondary dark:text-matrix-dim mb-1">Output price / 1M tokens ($)</label>
+                <label className="block text-sm font-medium text-azure-text-secondary dark:text-matrix-secondary mb-1">Output price / 1M tokens ($)</label>
                 <input
                   type="number"
                   min={0}
                   step={0.001}
                   value={form.output_price_per_1m}
                   onChange={(e) => setForm({ ...form, output_price_per_1m: parseFloat(e.target.value) || 0 })}
-                  className="w-full px-3 py-2 rounded-lg border border-azure-border dark:border-matrix-primary bg-white dark:bg-zinc-800 text-azure-text-primary dark:text-matrix-text text-sm focus:outline-none focus:ring-1 focus:ring-azure-primary dark:focus:ring-matrix-highlight"
+                  className="w-full px-3 py-2 rounded-lg border border-azure-border dark:border-matrix-primary bg-azure-surface dark:bg-black text-azure-text-primary dark:text-matrix-secondary text-sm focus:outline-none focus:ring-1 focus:ring-azure-primary dark:focus:ring-matrix-highlight focus:border-azure-primary dark:focus:border-matrix-highlight"
                 />
               </div>
             </div>
             <div className="flex justify-end gap-3 pt-2">
               <button
                 onClick={() => setIsModalOpen(false)}
-                className="px-4 py-2 rounded-lg border border-azure-border dark:border-matrix-primary text-azure-text-secondary dark:text-matrix-dim text-sm hover:bg-azure-surface dark:hover:bg-zinc-800 transition-colors"
+                className="px-4 py-2 rounded-lg border border-azure-border dark:border-matrix-primary text-azure-text-secondary dark:text-matrix-secondary text-sm hover:bg-azure-surface dark:hover:bg-zinc-800 transition-colors"
               >
                 Cancel
               </button>
@@ -259,7 +259,7 @@ export const ModelPricing = () => {
             <div className="flex justify-end gap-3">
               <button
                 onClick={() => setDeleteTarget(null)}
-                className="px-4 py-2 rounded-lg border border-azure-border dark:border-matrix-primary text-azure-text-secondary dark:text-matrix-dim text-sm hover:bg-azure-surface dark:hover:bg-zinc-800 transition-colors"
+                className="px-4 py-2 rounded-lg border border-azure-border dark:border-matrix-primary text-azure-text-secondary dark:text-matrix-secondary text-sm hover:bg-azure-surface dark:hover:bg-zinc-800 transition-colors"
               >
                 Cancel
               </button>
