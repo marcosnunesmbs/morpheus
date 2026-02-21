@@ -15,7 +15,7 @@ export function RestartConfirmationModal({
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent 
-        className="sm:max-w-md bg-azure-surface dark:bg-zinc-900 border-azure-border dark:border-matrix-primary"
+        className="sm:max-w-md bg-azure-surface dark:bg-black border-azure-border dark:border-matrix-primary"
       >
         <DialogHeader>
           <DialogTitle className="text-azure-primary dark:text-matrix-highlight flex items-center gap-2">

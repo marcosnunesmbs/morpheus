@@ -30,18 +30,18 @@ export const Modal: React.FC<ModalProps> = ({
         className="fixed inset-0 bg-black/50 backdrop-blur-sm"
         onClick={onClose}
       />
-      <div className={`relative bg-azure-surface dark:bg-zinc-900 rounded-lg border border-azure-border dark:border-matrix-primary shadow-lg w-full ${sizeClasses[size]} max-h-[90vh] overflow-hidden flex flex-col`}>
+      <div className={`relative bg-azure-surface dark:bg-black rounded-lg border border-azure-border dark:border-matrix-primary shadow-xl w-full ${sizeClasses[size]} max-h-[90vh] overflow-hidden flex flex-col`}>
         {title && (
           <div className="flex items-center justify-between p-6 border-b border-azure-border dark:border-matrix-primary">
             {title && (
-              <h3 className="text-lg font-semibold text-azure-text-primary dark:text-matrix-secondary">
+              <h3 className="text-lg font-semibold text-azure-text-primary dark:text-matrix-highlight">
                 {title}
               </h3>
             )}
             {onClose && (
               <button
                 onClick={onClose}
-                className="text-azure-text-secondary dark:text-matrix-tertiary hover:text-azure-text-primary dark:hover:text-matrix-secondary"
+                className="text-azure-text-secondary dark:text-matrix-tertiary hover:text-azure-text-primary dark:hover:text-matrix-highlight"
               >
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                   <path d="M18 6L6 18M6 6l12 12" />

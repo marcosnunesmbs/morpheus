@@ -23,7 +23,7 @@ export function ConfirmationModal({
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent 
-        className="sm:max-w-md bg-azure-surface dark:bg-black border-azure-border dark:border-matrix-primary/30"
+        className="sm:max-w-md bg-azure-surface dark:bg-black border-azure-border dark:border-matrix-primary"
       >
         <DialogHeader>
           <DialogTitle className="text-azure-primary dark:text-matrix-highlight flex items-center gap-2">
@@ -41,7 +41,7 @@ export function ConfirmationModal({
             <Button
               variant="outline"
               onClick={onClose}
-              className="dark:border-matrix-primary/30 dark:text-matrix-secondary dark:hover:bg-matrix-primary/20"
+              className="dark:border-matrix-primary dark:text-matrix-secondary dark:hover:bg-matrix-primary/20"
             >
               Cancel
             </Button>

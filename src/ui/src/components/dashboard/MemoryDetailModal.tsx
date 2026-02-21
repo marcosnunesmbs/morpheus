@@ -106,7 +106,7 @@ export const MemoryDetailModal: React.FC<MemoryDetailModalProps> = ({
 
         <div>
           <h4 className="text-azure-text-secondary dark:text-matrix-tertiary text-sm mb-2">Summary</h4>
-          <p className="text-azure-text-primary dark:text-matrix-secondary bg-azure-surface dark:bg-zinc-800 p-3 rounded-md">
+          <p className="text-azure-text-primary dark:text-matrix-secondary bg-azure-surface dark:bg-zinc-900 p-3 rounded-md">
             {memory.summary}
           </p>
         </div>
@@ -114,7 +114,7 @@ export const MemoryDetailModal: React.FC<MemoryDetailModalProps> = ({
         {memory.details && (
           <div>
             <h4 className="text-azure-text-secondary dark:text-matrix-tertiary text-sm mb-2">Details</h4>
-            <div className="text-azure-text-primary dark:text-matrix-secondary bg-azure-surface dark:bg-zinc-800 p-3 rounded-md whitespace-pre-wrap">
+            <div className="text-azure-text-primary dark:text-matrix-secondary bg-azure-surface dark:bg-zinc-900 p-3 rounded-md whitespace-pre-wrap">
               {memory.details}
             </div>
           </div>
