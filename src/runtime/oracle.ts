@@ -21,6 +21,7 @@ import { NeoDelegateTool } from "./tools/neo-tool.js";
 import { ApocDelegateTool } from "./tools/apoc-tool.js";
 import { TrinityDelegateTool } from "./tools/trinity-tool.js";
 import { TaskQueryTool } from "./tools/index.js";
+import { MCPManager } from "../config/mcp-manager.js";
 
 type AckGenerationResult = {
   content: string;
@@ -184,6 +185,9 @@ export class Oracle implements IOracle {
         databasePath: this.databasePath,
         limit: contextWindow,
       });
+
+      // Register reload callback so MCPManager.reloadAgents() can trigger a full tool reload.
+      MCPManager.registerReloadCallback(() => this.reloadTools());
     } catch (err) {
       if (err instanceof ProviderError) throw err; // Re-throw known errors
 

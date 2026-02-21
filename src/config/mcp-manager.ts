@@ -65,6 +65,24 @@ const ensureValidName = (name: string): void => {
 };
 
 export class MCPManager {
+  private static reloadCallback: (() => Promise<void>) | null = null;
+
+  /** Called by Oracle after initialization so MCPManager can trigger a full agent reload. */
+  static registerReloadCallback(fn: () => Promise<void>): void {
+    MCPManager.reloadCallback = fn;
+  }
+
+  /**
+   * Reloads MCP tools across all agents (Oracle provider, Neo catalog, Trinity catalog).
+   * Requires Oracle to have been initialized (and thus have registered its callback).
+   */
+  static async reloadAgents(): Promise<void> {
+    if (!MCPManager.reloadCallback) {
+      throw new Error('Reload callback not registered — Oracle must be initialized before calling reloadAgents().');
+    }
+    await MCPManager.reloadCallback();
+  }
+
   static async listServers(): Promise<MCPServerRecord[]> {
     const config = await readConfigFile();
     const servers: MCPServerRecord[] = [];

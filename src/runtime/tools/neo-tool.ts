@@ -12,7 +12,7 @@ Neo built-in capabilities (always available — no MCP required):
 • Diagnostics: diagnostic_check — full system health report (config, databases, LLM provider, logs)
 • Analytics: message_count, token_usage, provider_model_usage — message counts and token/cost usage stats
 • Tasks: task_query — look up task status by id or session
-• MCP Management: mcp_list, mcp_manage — list/add/update/delete/enable/disable MCP servers
+• MCP Management: mcp_list, mcp_manage — list/add/update/delete/enable/disable MCP servers; use action "reload" to reload tools across all agents after config changes
 • Webhooks: webhook_list, webhook_manage — create/update/delete webhooks; create returns api_key
 • Trinity DB: trinity_db_list, trinity_db_manage — register/update/delete/test connection/refresh schema for databases`.trim();
 

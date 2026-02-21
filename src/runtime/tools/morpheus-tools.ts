@@ -503,24 +503,31 @@ export const McpManageTool = tool(
   async ({ action, name, config }) => {
     try {
       const { MCPManager } = await import("../../config/mcp-manager.js");
+      const requireName = (): string => {
+        if (!name) throw new Error(`"name" is required for action "${action}"`);
+        return name;
+      };
       switch (action) {
         case "add":
           if (!config) return JSON.stringify({ error: "config is required for add action" });
-          await MCPManager.addServer(name, config as any);
+          await MCPManager.addServer(requireName(), config as any);
           return JSON.stringify({ success: true, message: `MCP server "${name}" added` });
         case "update":
           if (!config) return JSON.stringify({ error: "config is required for update action" });
-          await MCPManager.updateServer(name, config as any);
+          await MCPManager.updateServer(requireName(), config as any);
           return JSON.stringify({ success: true, message: `MCP server "${name}" updated` });
         case "delete":
-          await MCPManager.deleteServer(name);
+          await MCPManager.deleteServer(requireName());
           return JSON.stringify({ success: true, message: `MCP server "${name}" deleted` });
         case "enable":
-          await MCPManager.setServerEnabled(name, true);
+          await MCPManager.setServerEnabled(requireName(), true);
           return JSON.stringify({ success: true, message: `MCP server "${name}" enabled` });
         case "disable":
-          await MCPManager.setServerEnabled(name, false);
+          await MCPManager.setServerEnabled(requireName(), false);
           return JSON.stringify({ success: true, message: `MCP server "${name}" disabled` });
+        case "reload":
+          await MCPManager.reloadAgents();
+          return JSON.stringify({ success: true, message: "MCP tools reloaded across Oracle, Neo, and Trinity" });
         default:
           return JSON.stringify({ error: `Unknown action: ${action}` });
       }
@@ -530,10 +537,10 @@ export const McpManageTool = tool(
   },
   {
     name: "mcp_manage",
-    description: "Manage MCP servers: add, update, delete, enable, or disable a registered MCP server.",
+    description: "Manage MCP servers: add, update, delete, enable, disable, or reload (triggers a full tool reload across Oracle, Neo, and Trinity).",
     schema: z.object({
-      action: z.enum(["add", "update", "delete", "enable", "disable"]),
-      name: z.string().describe("MCP server name"),
+      action: z.enum(["add", "update", "delete", "enable", "disable", "reload"]),
+      name: z.string().optional().describe("MCP server name (required for all actions except reload)"),
       config: z
         .object({
           transport: z.enum(["stdio", "http"]),
