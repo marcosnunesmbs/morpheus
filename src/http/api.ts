@@ -16,6 +16,9 @@ import { IOracle } from '../runtime/types.js';
 import { Construtor } from '../runtime/tools/factory.js';
 import { TaskRepository } from '../runtime/tasks/repository.js';
 import type { OriginChannel, TaskAgent, TaskStatus } from '../runtime/tasks/types.js';
+import { DatabaseRegistry } from '../runtime/memory/trinity-db.js';
+import { testConnection, introspectSchema } from '../runtime/trinity-connector.js';
+import { Trinity } from '../runtime/trinity.js';
 
 async function readLastLines(filePath: string, n: number): Promise<string[]> {
   try {
@@ -797,6 +800,219 @@ export function createApiRouter(oracle: IOracle) {
   router.put('/config', async (req, res) => {
     // Redirect to POST logic or just reuse
     res.status(307).redirect(307, '/api/config');
+  });
+
+  // ─── Trinity Config ────────────────────────────────────────────────────────
+
+  router.get('/config/trinity', (req, res) => {
+    try {
+      const trinityConfig = configManager.getTrinityConfig();
+      res.json(trinityConfig);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  router.post('/config/trinity', async (req, res) => {
+    try {
+      const config = configManager.get();
+      await configManager.save({ ...config, trinity: req.body });
+
+      const display = DisplayManager.getInstance();
+      display.log('Trinity configuration updated via UI', { source: 'Zaion', level: 'info' });
+
+      res.json({ success: true });
+    } catch (error: any) {
+      if (error.name === 'ZodError') {
+        res.status(400).json({ error: 'Validation failed', details: error.errors });
+      } else {
+        res.status(500).json({ error: error.message });
+      }
+    }
+  });
+
+  router.delete('/config/trinity', async (req, res) => {
+    try {
+      const config = configManager.get();
+      const { trinity: _trinity, ...restConfig } = config;
+      await configManager.save(restConfig);
+
+      const display = DisplayManager.getInstance();
+      display.log('Trinity configuration removed via UI (falling back to Oracle config)', {
+        source: 'Zaion',
+        level: 'info',
+      });
+
+      res.json({ success: true });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // ─── Trinity Databases CRUD ─────────────────────────────────────────────────
+
+  const DatabaseCreateSchema = z.object({
+    name: z.string().min(1).max(100),
+    type: z.enum(['postgresql', 'mysql', 'sqlite', 'mongodb']),
+    host: z.string().optional().nullable(),
+    port: z.number().int().positive().optional().nullable(),
+    database_name: z.string().optional().nullable(),
+    username: z.string().optional().nullable(),
+    password: z.string().optional().nullable(),
+    connection_string: z.string().optional().nullable(),
+  });
+
+  router.get('/trinity/databases', (req, res) => {
+    try {
+      const registry = DatabaseRegistry.getInstance();
+      const databases = registry.listDatabases().map((db) => ({
+        ...db,
+        password: db.password ? '***' : null,
+        connection_string: db.connection_string ? '***' : null,
+      }));
+      res.json(databases);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  router.get('/trinity/databases/:id', (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) return res.status(400).json({ error: 'Invalid id' });
+      const registry = DatabaseRegistry.getInstance();
+      const db = registry.getDatabase(id);
+      if (!db) return res.status(404).json({ error: 'Database not found' });
+      res.json({
+        ...db,
+        password: db.password ? '***' : null,
+        connection_string: db.connection_string ? '***' : null,
+      });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  router.post('/trinity/databases', async (req, res) => {
+    const parsed = DatabaseCreateSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({ error: 'Invalid input', details: parsed.error.issues });
+    }
+    try {
+      const registry = DatabaseRegistry.getInstance();
+      const db = registry.createDatabase(parsed.data);
+
+      // Test connection
+      let connectionOk = false;
+      try {
+        connectionOk = await testConnection(db);
+      } catch { /* ignore */ }
+
+      // Introspect schema if connection successful
+      if (connectionOk) {
+        try {
+          const schema = await introspectSchema(db);
+          registry.updateSchema(db.id, JSON.stringify(schema, null, 2));
+          await Trinity.refreshDelegateCatalog().catch(() => {});
+        } catch { /* ignore schema errors */ }
+      }
+
+      const refreshed = registry.getDatabase(db.id)!;
+      res.status(201).json({
+        ...refreshed,
+        password: refreshed.password ? '***' : null,
+        connection_string: refreshed.connection_string ? '***' : null,
+        connection_ok: connectionOk,
+      });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  router.put('/trinity/databases/:id', async (req, res) => {
+    const id = parseInt(req.params.id);
+    if (isNaN(id)) return res.status(400).json({ error: 'Invalid id' });
+
+    const parsed = DatabaseCreateSchema.partial().safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({ error: 'Invalid input', details: parsed.error.issues });
+    }
+    try {
+      const registry = DatabaseRegistry.getInstance();
+      const updated = registry.updateDatabase(id, parsed.data);
+      if (!updated) return res.status(404).json({ error: 'Database not found' });
+
+      // Re-test and re-introspect
+      let connectionOk = false;
+      try {
+        connectionOk = await testConnection(updated);
+      } catch { /* ignore */ }
+
+      if (connectionOk) {
+        try {
+          const schema = await introspectSchema(updated);
+          registry.updateSchema(id, JSON.stringify(schema, null, 2));
+          await Trinity.refreshDelegateCatalog().catch(() => {});
+        } catch { /* ignore */ }
+      }
+
+      const refreshed = registry.getDatabase(id)!;
+      res.json({
+        ...refreshed,
+        password: refreshed.password ? '***' : null,
+        connection_string: refreshed.connection_string ? '***' : null,
+        connection_ok: connectionOk,
+      });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  router.delete('/trinity/databases/:id', (req, res) => {
+    const id = parseInt(req.params.id);
+    if (isNaN(id)) return res.status(400).json({ error: 'Invalid id' });
+    try {
+      const registry = DatabaseRegistry.getInstance();
+      const deleted = registry.deleteDatabase(id);
+      if (!deleted) return res.status(404).json({ error: 'Database not found' });
+      Trinity.refreshDelegateCatalog().catch(() => {});
+      res.json({ success: true });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  router.post('/trinity/databases/:id/refresh-schema', async (req, res) => {
+    const id = parseInt(req.params.id);
+    if (isNaN(id)) return res.status(400).json({ error: 'Invalid id' });
+    try {
+      const registry = DatabaseRegistry.getInstance();
+      const db = registry.getDatabase(id);
+      if (!db) return res.status(404).json({ error: 'Database not found' });
+
+      const schema = await introspectSchema(db);
+      registry.updateSchema(id, JSON.stringify(schema, null, 2));
+      await Trinity.refreshDelegateCatalog().catch(() => {});
+
+      res.json({ success: true, tables: schema.tables.map((t) => t.name) });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  router.post('/trinity/databases/:id/test', async (req, res) => {
+    const id = parseInt(req.params.id);
+    if (isNaN(id)) return res.status(400).json({ error: 'Invalid id' });
+    try {
+      const registry = DatabaseRegistry.getInstance();
+      const db = registry.getDatabase(id);
+      if (!db) return res.status(404).json({ error: 'Database not found' });
+
+      const ok = await testConnection(db);
+      res.json({ success: ok, status: ok ? 'connected' : 'failed' });
+    } catch (error: any) {
+      res.json({ success: false, status: 'error', error: error.message });
+    }
   });
 
   router.get('/logs', async (req, res) => {

@@ -16,6 +16,7 @@ import {
   Webhook,
   Bell,
   ListChecks,
+  Database,
 } from 'lucide-react';
 import { Footer } from './Footer';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -86,6 +87,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
     { icon: Activity, label: 'Sati Memories', path: '/sati-memories' },
     { icon: Webhook, label: 'Webhooks', path: '/webhooks' },
     { icon: ListChecks, label: 'Tasks', path: '/tasks' },
+    { icon: Database, label: 'Trinity DBs', path: '/trinity-databases' },
   ];
 
   const mobileNavItems = [
@@ -98,6 +100,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
     { icon: Activity, label: 'Sati Memories', path: '/sati-memories' },
     { icon: Webhook, label: 'Webhooks', path: '/webhooks' },
     { icon: ListChecks, label: 'Tasks', path: '/tasks' },
+    { icon: Database, label: 'Trinity DBs', path: '/trinity-databases' },
   ];
 
   return (

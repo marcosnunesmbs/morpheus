@@ -16,8 +16,10 @@ import { TaskRequestContext } from "./tasks/context.js";
 import type { OracleTaskContext } from "./tasks/types.js";
 import { TaskRepository } from "./tasks/repository.js";
 import { Neo } from "./neo.js";
+import { Trinity } from "./trinity.js";
 import { NeoDelegateTool } from "./tools/neo-tool.js";
 import { ApocDelegateTool } from "./tools/apoc-tool.js";
+import { TrinityDelegateTool } from "./tools/trinity-tool.js";
 import { TaskQueryTool } from "./tools/task-query-tool.js";
 
 type AckGenerationResult = {
@@ -57,9 +59,9 @@ export class Oracle implements IOracle {
     const hasCreationClaim = /(as\s+tarefas?\s+foram\s+criadas|tarefa\s+criada|nova\s+tarefa\s+criada|deleguei|delegado|delegada|tasks?\s+created|task\s+created|queued\s+for|agendei|agendado|agendada|foi\s+agendad)/i.test(raw);
     if (!hasCreationClaim) return false;
 
-    const hasAgentMention = /\b(apoc|neo|trinit)\b/i.test(raw);
+    const hasAgentMention = /\b(apoc|neo|trinit|trinity)\b/i.test(raw);
     const hasUuid = /\b[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}\b/.test(raw);
-    const hasAgentListLine = /(?:\*|-)?.{0,8}(apoc|neo|trinit)\s*[:：]/i.test(raw);
+    const hasAgentListLine = /(?:\*|-)?.{0,8}(apoc|neo|trinit|trinity)\s*[:：]/i.test(raw);
 
     return hasCreationClaim && (hasAgentMention || hasUuid || hasAgentListLine);
   }
@@ -90,7 +92,7 @@ export class Oracle implements IOracle {
 
   private extractDelegationAcksFromMessages(messages: BaseMessage[]): Array<{ task_id: string; agent: string }> {
     const acks: Array<{ task_id: string; agent: string }> = [];
-    const regex = /Task\s+([0-9a-fA-F-]{36})\s+(?:queued|already queued)\s+for\s+(Apoc|Neo|apoc|neo)\s+execution/i;
+    const regex = /Task\s+([0-9a-fA-F-]{36})\s+(?:queued|already queued)\s+for\s+(Apoc|Neo|Trinity|apoc|neo|trinity)\s+execution/i;
 
     for (const msg of messages) {
       if (!(msg instanceof ToolMessage)) continue;
@@ -142,7 +144,7 @@ export class Oracle implements IOracle {
       if (!(msg instanceof AIMessage)) continue;
       const toolCalls = (msg as any).tool_calls ?? [];
       if (!Array.isArray(toolCalls)) continue;
-      if (toolCalls.some((tc: any) => tc?.name === "apoc_delegate" || tc?.name === "neo_delegate")) {
+      if (toolCalls.some((tc: any) => tc?.name === "apoc_delegate" || tc?.name === "neo_delegate" || tc?.name === "trinity_delegate")) {
         return true;
       }
     }
@@ -163,10 +165,11 @@ export class Oracle implements IOracle {
     // to allow for Environment Variable fallback supported by LangChain.
 
     try {
-      // Refresh Neo tool catalog so neo_delegate description contains runtime tools list.
+      // Refresh Neo and Trinity tool catalogs so delegate descriptions contain runtime info.
       // Fail-open: Oracle can still initialize even if catalog refresh fails.
       await Neo.refreshDelegateCatalog().catch(() => {});
-      this.provider = await ProviderFactory.create(this.config.llm, [TaskQueryTool, NeoDelegateTool, ApocDelegateTool]);
+      await Trinity.refreshDelegateCatalog().catch(() => {});
+      this.provider = await ProviderFactory.create(this.config.llm, [TaskQueryTool, NeoDelegateTool, ApocDelegateTool, TrinityDelegateTool]);
       if (!this.provider) {
         throw new Error("Provider factory returned undefined");
       }
@@ -310,6 +313,7 @@ Use it to inform your response and tool selection (if needed), but do not assume
         : undefined;
       Apoc.setSessionId(currentSessionId);
       Neo.setSessionId(currentSessionId);
+      Trinity.setSessionId(currentSessionId);
 
       const invokeContext: OracleTaskContext = {
         origin_channel: taskContext?.origin_channel ?? "api",
@@ -532,7 +536,8 @@ Use it to inform your response and tool selection (if needed), but do not assume
     }
 
     await Neo.refreshDelegateCatalog().catch(() => {});
-    this.provider = await ProviderFactory.create(this.config.llm, [TaskQueryTool, NeoDelegateTool, ApocDelegateTool]);
+    await Trinity.refreshDelegateCatalog().catch(() => {});
+    this.provider = await ProviderFactory.create(this.config.llm, [TaskQueryTool, NeoDelegateTool, ApocDelegateTool, TrinityDelegateTool]);
     await Neo.getInstance().reload();
     this.display.log(`Oracle and Neo tools reloaded`, { source: 'Oracle' });
   }

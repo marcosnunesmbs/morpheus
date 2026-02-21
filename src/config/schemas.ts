@@ -33,6 +33,8 @@ export const ApocConfigSchema = LLMConfigSchema.extend({
 
 export const NeoConfigSchema = LLMConfigSchema;
 
+export const TrinityConfigSchema = LLMConfigSchema;
+
 export const WebhookConfigSchema = z.object({
   telegram_notify_all: z.boolean().optional(),
 }).optional();
@@ -47,6 +49,7 @@ export const ConfigSchema = z.object({
   sati: SatiConfigSchema.optional(),
   neo: NeoConfigSchema.optional(),
   apoc: ApocConfigSchema.optional(),
+  trinity: TrinityConfigSchema.optional(),
   webhooks: WebhookConfigSchema,
   audio: AudioConfigSchema.default(DEFAULT_CONFIG.audio),
   memory: z.object({

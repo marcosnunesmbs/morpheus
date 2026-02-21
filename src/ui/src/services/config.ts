@@ -1,5 +1,5 @@
 // @ts-ignore - Importing from parent project
-import type { MorpheusConfig, SatiConfig, ApocConfig, NeoConfig } from '../../../../types/config';
+import type { MorpheusConfig, SatiConfig, ApocConfig, NeoConfig, TrinityConfig } from '../../../../types/config';
 import { httpClient } from './httpClient';
 
 export const configService = {
@@ -45,5 +45,17 @@ export const configService = {
 
   deleteNeoConfig: async (): Promise<{ success: boolean }> => {
     return httpClient.delete<{ success: boolean }>('/config/neo');
+  },
+
+  getTrinityConfig: async (): Promise<TrinityConfig> => {
+    return httpClient.get<TrinityConfig>('/config/trinity');
+  },
+
+  updateTrinityConfig: async (config: TrinityConfig): Promise<{ success: boolean }> => {
+    return httpClient.post<{ success: boolean }>('/config/trinity', config);
+  },
+
+  deleteTrinityConfig: async (): Promise<{ success: boolean }> => {
+    return httpClient.delete<{ success: boolean }>('/config/trinity');
   },
 };

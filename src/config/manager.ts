@@ -1,7 +1,7 @@
 import fs from 'fs-extra';
 import yaml from 'js-yaml';
 import { z } from 'zod';
-import { MorpheusConfig, DEFAULT_CONFIG, SatiConfig, ApocConfig, NeoConfig, LLMProvider } from '../types/config.js';
+import { MorpheusConfig, DEFAULT_CONFIG, SatiConfig, ApocConfig, NeoConfig, TrinityConfig, LLMProvider } from '../types/config.js';
 import { PATHS } from './paths.js';
 import { setByPath } from './utils.js';
 import { ConfigSchema } from './schemas.js';
@@ -154,6 +154,32 @@ export class ConfigManager {
       };
     }
 
+    // Apply precedence to Trinity config
+    const trinityEnvVars = [
+      'MORPHEUS_TRINITY_PROVIDER',
+      'MORPHEUS_TRINITY_MODEL',
+      'MORPHEUS_TRINITY_TEMPERATURE',
+      'MORPHEUS_TRINITY_API_KEY',
+    ];
+    const hasTrinityEnvOverrides = trinityEnvVars.some((envVar) => process.env[envVar] !== undefined);
+
+    let trinityConfig: TrinityConfig | undefined;
+    if (config.trinity || hasTrinityEnvOverrides) {
+      const trinityProvider = resolveProvider('MORPHEUS_TRINITY_PROVIDER', config.trinity?.provider, llmConfig.provider);
+      const trinityMaxTokensFallback = config.trinity?.max_tokens ?? llmConfig.max_tokens;
+      const trinityContextWindowFallback = config.trinity?.context_window ?? llmConfig.context_window;
+
+      trinityConfig = {
+        provider: trinityProvider,
+        model: resolveModel(trinityProvider, 'MORPHEUS_TRINITY_MODEL', config.trinity?.model || llmConfig.model),
+        temperature: resolveNumeric('MORPHEUS_TRINITY_TEMPERATURE', config.trinity?.temperature, llmConfig.temperature),
+        max_tokens: resolveOptionalNumeric('MORPHEUS_TRINITY_MAX_TOKENS', config.trinity?.max_tokens, trinityMaxTokensFallback),
+        api_key: resolveApiKey(trinityProvider, 'MORPHEUS_TRINITY_API_KEY', config.trinity?.api_key || llmConfig.api_key),
+        base_url: config.trinity?.base_url || config.llm.base_url,
+        context_window: resolveOptionalNumeric('MORPHEUS_TRINITY_CONTEXT_WINDOW', config.trinity?.context_window, trinityContextWindowFallback),
+      };
+    }
+
     // Apply precedence to audio config
     const audioProvider = resolveString('MORPHEUS_AUDIO_PROVIDER', config.audio.provider, DEFAULT_CONFIG.audio.provider) as typeof config.audio.provider;
     // AudioProvider uses 'google' but resolveApiKey expects LLMProvider which uses 'gemini'
@@ -204,6 +230,7 @@ export class ConfigManager {
       sati: satiConfig,
       neo: neoConfig,
       apoc: apocConfig,
+      trinity: trinityConfig,
       audio: audioConfig,
       channels: channelsConfig,
       ui: uiConfig,
@@ -281,5 +308,14 @@ export class ConfigManager {
     return {
       ...this.config.llm,
     };
+  }
+
+  public getTrinityConfig(): TrinityConfig {
+    if (this.config.trinity) {
+      return { ...this.config.trinity };
+    }
+
+    // Fallback to main LLM config
+    return { ...this.config.llm };
   }
 }

@@ -66,6 +66,8 @@ export interface ApocConfig extends LLMConfig {
 
 export interface NeoConfig extends LLMConfig {}
 
+export interface TrinityConfig extends LLMConfig {}
+
 export interface WebhookConfig {
   /** If true, all webhook notifications are also sent to Telegram by default */
   telegram_notify_all?: boolean;
@@ -92,6 +94,7 @@ export interface MorpheusConfig {
   sati?: SatiConfig;
   neo?: NeoConfig;
   apoc?: ApocConfig;
+  trinity?: TrinityConfig;
   webhooks?: WebhookConfig;
   channels: ChannelsConfig;
   ui: UIConfig;

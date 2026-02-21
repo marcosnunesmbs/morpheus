@@ -14,6 +14,7 @@ import type {
   SatiConfig,
   NeoConfig,
   ApocConfig,
+  TrinityConfig,
 } from '../../../types/config';
 import { ZodError } from 'zod';
 
@@ -31,6 +32,7 @@ const AGENT_TABS = [
   { id: 'sati', label: 'Sati' },
   { id: 'neo', label: 'Neo' },
   { id: 'apoc', label: 'Apoc' },
+  { id: 'trinity', label: 'Trinity' },
 ];
 
 const PROVIDER_OPTIONS = [
@@ -58,11 +60,16 @@ export default function Settings() {
     '/api/config/neo',
     configService.getNeoConfig
   );
+  const { data: trinityServerConfig } = useSWR(
+    '/api/config/trinity',
+    configService.getTrinityConfig
+  );
 
   const [localConfig, setLocalConfig] = useState<MorpheusConfig | null>(null);
   const [localSatiConfig, setLocalSatiConfig] = useState<SatiConfig | null>(null);
   const [localNeoConfig, setLocalNeoConfig] = useState<NeoConfig | null>(null);
   const [localApocConfig, setLocalApocConfig] = useState<ApocConfig | null>(null);
+  const [localTrinityConfig, setLocalTrinityConfig] = useState<TrinityConfig | null>(null);
   const [activeTab, setActiveTab] = useState('general');
   const [activeAgentTab, setActiveAgentTab] = useState('oracle');
   const [saving, setSaving] = useState(false);
@@ -108,11 +115,23 @@ export default function Settings() {
     }
   }, [neoServerConfig, localConfig]);
 
+  useEffect(() => {
+    if (trinityServerConfig && !localTrinityConfig) {
+      setLocalTrinityConfig(trinityServerConfig);
+    } else if (!trinityServerConfig && !localTrinityConfig && localConfig) {
+      setLocalTrinityConfig({
+        ...((localConfig as any).trinity ?? localConfig.llm),
+        temperature: (localConfig as any).trinity?.temperature ?? 0.2,
+      } as TrinityConfig);
+    }
+  }, [trinityServerConfig, localConfig]);
+
   const isDirty =
     JSON.stringify(serverConfig) !== JSON.stringify(localConfig) ||
     JSON.stringify(satiServerConfig) !== JSON.stringify(localSatiConfig) ||
     JSON.stringify(neoServerConfig) !== JSON.stringify(localNeoConfig) ||
-    JSON.stringify(apocServerConfig) !== JSON.stringify(localApocConfig);
+    JSON.stringify(apocServerConfig) !== JSON.stringify(localApocConfig) ||
+    JSON.stringify(trinityServerConfig) !== JSON.stringify(localTrinityConfig);
 
   const handleUpdate = (path: string[], value: any) => {
     if (!localConfig) return;
@@ -154,6 +173,21 @@ export default function Settings() {
   const handleNeoUpdate = (field: keyof NeoConfig, value: any) => {
     if (!localNeoConfig) return;
     setLocalNeoConfig({ ...localNeoConfig, [field]: value });
+  };
+
+  const handleTrinityUpdate = (field: keyof TrinityConfig, value: any) => {
+    if (!localTrinityConfig) return;
+    setLocalTrinityConfig({ ...localTrinityConfig, [field]: value });
+  };
+
+  const handleCopyTrinityFromOracle = () => {
+    if (!localConfig || !localTrinityConfig) return;
+    setLocalTrinityConfig({
+      ...localTrinityConfig,
+      provider: localConfig.llm.provider,
+      model: localConfig.llm.model,
+      api_key: localConfig.llm.api_key,
+    });
   };
 
   const handleCopyFromOracle = () => {
@@ -205,10 +239,15 @@ export default function Settings() {
         await configService.updateApocConfig(localApocConfig);
       }
 
+      if (localTrinityConfig) {
+        await configService.updateTrinityConfig(localTrinityConfig);
+      }
+
       mutate('/api/config');
       mutate('/api/config/sati');
       mutate('/api/config/neo');
       mutate('/api/config/apoc');
+      mutate('/api/config/trinity');
       setNotification({
         type: 'success',
         message:
@@ -588,6 +627,89 @@ export default function Settings() {
                         }
                         onChange={(e) =>
                           handleNeoUpdate('base_url', e.target.value)
+                        }
+                        placeholder="https://openrouter.ai/api/v1"
+                        helperText="Base URL for OpenRouter API"
+                      />
+                    )}
+                  </>
+                )}
+              </Section>
+            )}
+
+            {/* Trinity */}
+            {activeAgentTab === 'trinity' && (
+              <Section title="Trinity Agent">
+                <p className="text-sm text-azure-text-secondary dark:text-matrix-secondary mb-4">
+                  Database subagent — interprets natural language queries and executes them against registered databases (PostgreSQL, MySQL, SQLite, MongoDB)
+                </p>
+
+                <div className="mb-4">
+                  <button
+                    type="button"
+                    onClick={handleCopyTrinityFromOracle}
+                    className="px-3 py-1.5 text-sm bg-azure-surface border border-azure-border rounded hover:bg-azure-primary/10 dark:bg-matrix-primary/20 dark:border-matrix-primary dark:hover:bg-matrix-highlight/10 text-azure-primary dark:text-matrix-highlight transition-colors"
+                  >
+                    Copy from Oracle Agent
+                  </button>
+                  <p className="text-xs text-azure-text-secondary dark:text-matrix-secondary mt-1">
+                    Copy Provider, Model, and API Key from Oracle Agent configuration
+                  </p>
+                </div>
+
+                {localTrinityConfig && (
+                  <>
+                    <SelectInput
+                      label="Provider"
+                      value={localTrinityConfig.provider}
+                      onChange={(e) =>
+                        handleTrinityUpdate('provider', e.target.value as any)
+                      }
+                      options={PROVIDER_OPTIONS}
+                    />
+                    <TextInput
+                      label="Model Name"
+                      value={localTrinityConfig.model}
+                      onChange={(e) => handleTrinityUpdate('model', e.target.value)}
+                    />
+                    <NumberInput
+                      label="Temperature"
+                      value={localTrinityConfig.temperature}
+                      onChange={(e) =>
+                        handleTrinityUpdate('temperature', parseFloat(e.target.value))
+                      }
+                      step={0.1}
+                      min={0}
+                      max={1}
+                    />
+                    <NumberInput
+                      label="Max Tokens"
+                      value={localTrinityConfig.max_tokens ?? ''}
+                      onChange={(e: any) =>
+                        handleTrinityUpdate(
+                          'max_tokens',
+                          e.target.value ? parseInt(e.target.value) : undefined
+                        )
+                      }
+                      min={1}
+                      helperText="Maximum tokens per response. Leave empty for model default."
+                    />
+                    <TextInput
+                      label="API Key"
+                      type="password"
+                      value={localTrinityConfig.api_key || ''}
+                      onChange={(e) =>
+                        handleTrinityUpdate('api_key', e.target.value)
+                      }
+                      placeholder="sk-..."
+                      helperText="Stored locally."
+                    />
+                    {localTrinityConfig.provider === 'openrouter' && (
+                      <TextInput
+                        label="Base URL"
+                        value={localTrinityConfig.base_url || 'https://openrouter.ai/api/v1'}
+                        onChange={(e) =>
+                          handleTrinityUpdate('base_url', e.target.value)
                         }
                         placeholder="https://openrouter.ai/api/v1"
                         helperText="Base URL for OpenRouter API"

@@ -173,6 +173,7 @@ export class TelegramAdapter {
 /help \\- Show available commands
 /zaion \\- Show system configurations
 /sati qnt \\- Show specific memories
+/trinity \\- List registered Trinity databases
 /newsession \\- Archive current session and start fresh
 /sessions \\- List all sessions with titles and switch between them
 /restart \\- Restart the Morpheus agent
@@ -685,6 +686,9 @@ export class TelegramAdapter {
       case '/sati':
         await this.handleSatiCommand(ctx, user, args);
         break;
+      case '/trinity':
+        await this.handleTrinityCommand(ctx, user);
+        break;
       case '/restart':
         await this.handleRestartCommand(ctx, user);
         break;
@@ -1064,6 +1068,47 @@ How can I assist you today?`;
     response += `\\- Max Duration: ${escMd(config.audio.maxDurationSeconds)}s\n`;
 
     await ctx.reply(response, { parse_mode: 'MarkdownV2' });
+  }
+
+  private async handleTrinityCommand(ctx: any, user: string) {
+    try {
+      const { DatabaseRegistry } = await import('../runtime/memory/trinity-db.js');
+      const registry = DatabaseRegistry.getInstance();
+      const databases = registry.listDatabases();
+
+      if (databases.length === 0) {
+        await ctx.reply('No databases registered in Trinity. Use the web UI to register databases.');
+        return;
+      }
+
+      let html = `<b>Trinity Databases (${databases.length}):</b>\n\n`;
+      for (const db of databases) {
+        const schema = db.schema_json ? JSON.parse(db.schema_json) : null;
+        const tables: string[] = schema?.tables?.map((t: any) => t.name).filter(Boolean) ?? [];
+        const updatedAt = db.schema_updated_at
+          ? new Date(db.schema_updated_at).toLocaleDateString()
+          : 'never';
+
+        html += `🗄️ <b>${escapeHtml(db.name)}</b> (${escapeHtml(db.type)})\n`;
+        if (db.host) html += `  Host: ${escapeHtml(db.host)}:${db.port}\n`;
+        if (db.database_name && !db.host) html += `  File: ${escapeHtml(db.database_name)}\n`;
+        if (tables.length > 0) {
+          const tableList = tables.slice(0, 20).join(', ');
+          const extra = tables.length > 20 ? ` (+${tables.length - 20} more)` : '';
+          html += `  Tables: ${escapeHtml(tableList)}${escapeHtml(extra)}\n`;
+        } else {
+          html += `  Tables: (schema not loaded)\n`;
+        }
+        html += `  Schema updated: ${escapeHtml(updatedAt)}\n\n`;
+      }
+
+      const chunks = splitHtmlChunks(html.trim());
+      for (const chunk of chunks) {
+        await ctx.reply(chunk, { parse_mode: 'HTML' });
+      }
+    } catch (e: any) {
+      await ctx.reply(`Error listing Trinity databases: ${e.message}`);
+    }
   }
 
   private async handleSatiCommand(ctx: any, user: string, args: string[]) {

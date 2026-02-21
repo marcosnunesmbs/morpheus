@@ -2,6 +2,7 @@ import { randomUUID } from 'crypto';
 import { DisplayManager } from '../display.js';
 import { Apoc } from '../apoc.js';
 import { Neo } from '../neo.js';
+import { Trinity } from '../trinity.js';
 import { TaskRepository } from './repository.js';
 import type { TaskRecord } from './types.js';
 
@@ -75,7 +76,9 @@ export class TaskWorker {
           break;
         }
         case 'trinit': {
-          throw new Error('Trinit executor is not implemented yet.');
+          const trinity = Trinity.getInstance();
+          output = await trinity.execute(task.input, task.context ?? undefined, task.session_id);
+          break;
         }
         default: {
           throw new Error(`Unknown task agent: ${task.agent}`);
