@@ -170,14 +170,18 @@ Analyze the payload above and follow the instructions provided. Be concise and a
         { source: 'Webhooks' },
       );
 
-      // Fire-and-forget re-dispatch (same pattern as the trigger endpoint)
-      const dispatcher = new WebhookDispatcher();
-      dispatcher.dispatch(webhook, payload, notification.id).catch((err: any) => {
+      // Sequential await — recovery dispatches run one at a time.
+      // Firing all at once would flood Oracle and cause concurrent
+      // EmbeddingService initializations, leading to repeated ONNX errors.
+      try {
+        const dispatcher = new WebhookDispatcher();
+        await dispatcher.dispatch(webhook, payload, notification.id);
+      } catch (err: any) {
         display.log(
           `Recovery dispatch error for notification ${notification.id}: ${err.message}`,
           { source: 'Webhooks', level: 'error' },
         );
-      });
+      }
     }
   }
 
