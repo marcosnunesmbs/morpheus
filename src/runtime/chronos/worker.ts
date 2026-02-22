@@ -2,6 +2,7 @@ import { randomUUID } from 'crypto';
 import { ConfigManager } from '../../config/manager.js';
 import { DisplayManager } from '../display.js';
 import type { IOracle } from '../types.js';
+import type { OracleTaskContext } from '../tasks/types.js';
 import { ChronosRepository, type ChronosJob } from './repository.js';
 import { parseNextRun } from './parser.js';
 
@@ -91,36 +92,36 @@ export class ChronosWorker {
 
     display.log(`Job ${job.id} triggered — "${job.prompt.slice(0, 60)}"`, { source: 'Chronos' });
 
-    // Dedicated session for this job — token usage is isolated from the
-    // user's active conversation and tracked under chronos-job-<id>.
-    const chronosSessionId = `chronos-job-${job.id}`;
-
-    // Save user's current active session so we can restore it after execution.
-    const originalSessionId = this.oracle.getCurrentSessionId();
+    // Use the currently active Oracle session so Chronos executes in the
+    // user's conversation context — no session switching or isolation needed.
+    const activeSessionId = this.oracle.getCurrentSessionId() ?? 'default';
 
     this.repo.insertExecution({
       id: execId,
       job_id: job.id,
       triggered_at: Date.now(),
       status: 'running',
-      session_id: chronosSessionId,
+      session_id: activeSessionId,
     });
 
     try {
-      // Switch Oracle to the job's dedicated session (auto-created on first run).
-      await this.oracle.setSessionId(chronosSessionId);
-
-      // Wrap the prompt so Oracle knows this is automated and must not
-      // manage the triggering job via Chronos tools.
-      const executionPrompt =
+      // Inject execution context as an AI message so it appears naturally in the
+      // conversation history without triggering an extra LLM response.
+      const contextMessage =
         `[CHRONOS EXECUTION — job_id: ${job.id}]\n` +
-        `You are fulfilling a scheduled Chronos job. Execute the task below and respond naturally. ` +
-        `Do NOT call chronos_cancel, chronos_schedule, or any Chronos management tools during this execution.\n\n` +
-        `Task: ${job.prompt}`;
+        `Executing scheduled job. Do NOT call chronos_cancel, chronos_schedule, ` +
+        `or any Chronos management tools during this execution.`;
+      await this.oracle.injectAIMessage(contextMessage);
+
+      // If a Telegram notify function is registered, tag delegated tasks with
+      // origin_channel: 'telegram' so the TaskDispatcher broadcasts their result.
+      const taskContext: OracleTaskContext | undefined = ChronosWorker.notifyFn
+        ? { origin_channel: 'telegram', session_id: activeSessionId }
+        : undefined;
 
       // Hard-block Chronos management tools during execution.
       ChronosWorker.isExecuting = true;
-      const response = await this.oracle.chat(executionPrompt);
+      const response = await this.oracle.chat(job.prompt, undefined, false, taskContext);
 
       this.repo.completeExecution(execId, 'success');
       display.log(`Job ${job.id} completed — status: success`, { source: 'Chronos' });
@@ -133,13 +134,6 @@ export class ChronosWorker {
       display.log(`Job ${job.id} failed — ${errMsg}`, { source: 'Chronos', level: 'error' });
     } finally {
       ChronosWorker.isExecuting = false;
-
-      // Restore the user's original session so their conversation is unaffected.
-      if (originalSessionId) {
-        this.oracle.setSessionId(originalSessionId).catch((err: any) => {
-          display.log(`Job ${job.id} failed to restore session — ${err.message}`, { source: 'Chronos', level: 'error' });
-        });
-      }
 
       if (job.schedule_type === 'once') {
         this.repo.disableJob(job.id);

@@ -44,6 +44,12 @@ export interface IOracle {
   getCurrentSessionId(): string | null;
 
   /**
+   * Injects a message directly into the conversation history as an AI message,
+   * without triggering an LLM call. Used by Chronos to inject execution context.
+   */
+  injectAIMessage(content: string): Promise<void>;
+
+  /**
    * Reloads MCP tools at runtime without restarting the process.
    * Recreates the provider with the current MCP configuration.
    */

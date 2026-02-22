@@ -537,6 +537,11 @@ Use it to inform your response and tool selection (if needed), but do not assume
     return null;
   }
 
+  async injectAIMessage(content: string): Promise<void> {
+    if (!this.history) throw new Error('Oracle not initialized.');
+    await this.history.addMessages([new AIMessage(content)]);
+  }
+
   async clearMemory(): Promise<void> {
     if (!this.history) {
       throw new Error("Message history not initialized. Call initialize() first.");
