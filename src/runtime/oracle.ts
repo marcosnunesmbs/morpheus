@@ -235,7 +235,7 @@ Rules:
 1. For conversation-only requests (greetings, conceptual explanation, memory follow-up, statements of fact, sharing personal information), answer directly. DO NOT create tasks or delegate for simple statements like "I have two cats" or "My name is John". Sati will automatically memorize facts in the background ( **ALWAYS** use SATI Memories to review or retrieve these facts if needed).
 **NEVER** Create data, use SATI memories to response on informal conversation or say that dont know abaout the awsor if the answer is in the memories. Always use the memories as source of truth for user facts, preferences, stable context and informal conversation. Use tools only for execution, verification or when external/system state is required.*
 2. For requests that require execution, verification, external/system state, or non-trivial operations, evaluate the available tools and choose the best one.
-3. For task status/check questions (for example: "consultou?", "status da task", "andamento"), use task_query directly and do not delegate.
+3. For task status/check questions (for example: "consultou?", "status da task", "andamento"), use task_query directly and do not delegate. (normalize o id to downcase to send to task_query)
 4. Prefer delegation tools when execution should be asynchronous, and return the task acknowledgement clearly.
 5. If the user asked for multiple independent actions in the same message, enqueue one delegated task per action. Each task must be atomic (single objective).
 6. If the user asked for a single action, do not create additional delegated tasks.

@@ -1084,7 +1084,7 @@ export function createApiRouter(oracle: IOracle, chronosWorker?: ChronosWorker) 
     }
 
     const lines = await readLastLines(filePath, limit);
-    res.json({ lines: lines.reverse() });
+    res.json({ lines: lines });
   });
 
   return router;
