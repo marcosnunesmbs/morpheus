@@ -36,8 +36,8 @@ export function Logs() {
       </div>
 
       <div className="flex-1 flex gap-4 min-h-0 border border-azure-border dark:border-matrix-primary rounded bg-azure-surface dark:bg-zinc-950 p-4">
-        {/* File List */}
-        <div className="w-64 flex flex-col gap-2 border-r border-azure-border dark:border-matrix-primary pr-4 overflow-y-auto shrink-0">
+        {/* File List — hidden on mobile */}
+        <div className="hidden md:flex w-64 flex-col gap-2 border-r border-azure-border dark:border-matrix-primary pr-4 overflow-y-auto shrink-0">
           <h3 className="font-bold text-azure-text-secondary dark:text-matrix-secondary mb-2 sticky top-0 bg-azure-surface dark:bg-zinc-950">LOG FILES</h3>
           {files?.map(f => (
             <button
@@ -60,15 +60,26 @@ export function Logs() {
 
         {/* Content Viewer */}
         <div className="flex-1 flex flex-col min-h-0 bg-azure-bg dark:bg-black border border-azure-border dark:border-matrix-primary/50 rounded">
-          <div className="shrink-0 flex justify-between items-center p-2 bg-azure-hover dark:bg-zinc-900 border-b border-azure-border dark:border-matrix-primary/50">
-            <span className="text-azure-text-primary dark:text-matrix-highlight font-bold font-mono text-sm">{selectedFile}</span>
-            <button onClick={() => mutate()} className="text-azure-text-secondary dark:text-matrix-secondary hover:text-azure-primary dark:hover:text-matrix-highlight transition-colors">
+          <div className="shrink-0 flex justify-between items-center gap-2 p-2 bg-azure-hover dark:bg-zinc-900 border-b border-azure-border dark:border-matrix-primary/50">
+            {/* Mobile: dropdown to switch file */}
+            <select
+              value={selectedFile ?? ''}
+              onChange={(e) => setSelectedFile(e.target.value)}
+              className="md:hidden flex-1 bg-transparent text-azure-text-primary dark:text-matrix-highlight font-bold font-mono text-sm border-none outline-none cursor-pointer"
+            >
+              {files?.map(f => (
+                <option key={f.name} value={f.name}>{f.name}</option>
+              ))}
+            </select>
+            {/* Desktop: static label */}
+            <span className="hidden md:block text-azure-text-primary dark:text-matrix-highlight font-bold font-mono text-sm truncate">{selectedFile}</span>
+            <button onClick={() => mutate()} className="shrink-0 text-azure-text-secondary dark:text-matrix-secondary hover:text-azure-primary dark:hover:text-matrix-highlight transition-colors">
               <RefreshCw className="w-4 h-4" />
             </button>
           </div>
           <div
             ref={scrollRef}
-            className="flex-1 overflow-y-auto p-4 font-mono text-xs whitespace-pre-wrap text-azure-text-primary dark:text-white"
+            className="flex-1 overflow-x-hidden overflow-y-auto p-4 font-mono text-xs whitespace-pre-wrap break-all text-azure-text-primary dark:text-white"
           >
             {content ? content.lines.join('\n') : 'Select a log file to view content...'}
           </div>
