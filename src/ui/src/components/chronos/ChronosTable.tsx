@@ -1,8 +1,9 @@
 import { useState } from 'react';
 import { mutate } from 'swr';
-import { Play, Pause, Trash2, Edit2, History, ChevronDown, ChevronUp } from 'lucide-react';
+import { Play, Pause, Trash2, Edit2, History, ChevronUp } from 'lucide-react';
 import { useChronosJobs, chronosService, type ChronosJob } from '../../services/chronos';
 import { ExecutionHistory } from './ExecutionHistory';
+import { DeleteConfirmationModal } from '../dashboard/DeleteConfirmationModal';
 
 function StatusBadge({ enabled }: { enabled: boolean }) {
   return (
@@ -35,9 +36,10 @@ interface ChronosTableProps {
 }
 
 export function ChronosTable({ onEdit }: ChronosTableProps) {
-  const { data: jobs, isLoading, mutate: refetch } = useChronosJobs();
+  const { data: jobs, isLoading } = useChronosJobs();
   const [expandedJobId, setExpandedJobId] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
+  const [jobToDelete, setJobToDelete] = useState<ChronosJob | null>(null);
 
   const handleToggle = async (job: ChronosJob) => {
     setBusy(job.id);
@@ -53,14 +55,15 @@ export function ChronosTable({ onEdit }: ChronosTableProps) {
     }
   };
 
-  const handleDelete = async (job: ChronosJob) => {
-    if (!confirm(`Delete job "${truncate(job.prompt, 40)}"? This cannot be undone.`)) return;
-    setBusy(job.id);
+  const handleDeleteConfirm = async () => {
+    if (!jobToDelete) return;
+    setBusy(jobToDelete.id);
     try {
-      await chronosService.deleteJob(job.id);
+      await chronosService.deleteJob(jobToDelete.id);
       await mutate((key: string) => typeof key === 'string' && key.startsWith('/chronos'));
     } finally {
       setBusy(null);
+      setJobToDelete(null);
     }
   };
 
@@ -145,7 +148,7 @@ export function ChronosTable({ onEdit }: ChronosTableProps) {
                     </button>
                     <button
                       title="Delete"
-                      onClick={() => handleDelete(job)}
+                      onClick={() => setJobToDelete(job)}
                       disabled={busy === job.id}
                       className="p-1.5 rounded text-red-500 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors disabled:opacity-40"
                     >
@@ -166,6 +169,18 @@ export function ChronosTable({ onEdit }: ChronosTableProps) {
           ))}
         </tbody>
       </table>
+
+      <DeleteConfirmationModal
+        isOpen={!!jobToDelete}
+        onClose={() => setJobToDelete(null)}
+        onConfirm={handleDeleteConfirm}
+        title="Delete Chronos Job"
+        message={
+          jobToDelete
+            ? `Delete job "${truncate(jobToDelete.prompt, 60)}"? This action cannot be undone.`
+            : ''
+        }
+      />
     </div>
   );
 }

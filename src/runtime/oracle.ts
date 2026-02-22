@@ -510,6 +510,9 @@ Use it to inform your response and tool selection (if needed), but do not assume
       //
       // This is safe and clean.
 
+      // Ensure the target session exists before switching (creates as 'paused' if not found).
+      (this.history as SQLiteChatMessageHistory).ensureSession(sessionId);
+
       await (this.history as SQLiteChatMessageHistory).switchSession(sessionId);
 
       // Close previous connection before re-instantiating to avoid file handle leaks
@@ -525,6 +528,13 @@ Use it to inform your response and tool selection (if needed), but do not assume
     } else {
       throw new Error("Current history provider does not support session switching.");
     }
+  }
+
+  getCurrentSessionId(): string | null {
+    if (this.history instanceof SQLiteChatMessageHistory) {
+      return (this.history as SQLiteChatMessageHistory).currentSessionId || null;
+    }
+    return null;
   }
 
   async clearMemory(): Promise<void> {

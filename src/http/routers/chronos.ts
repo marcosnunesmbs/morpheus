@@ -202,7 +202,9 @@ export function createChronosJobRouter(repo: ChronosRepository, _worker: Chronos
       // Recompute next_run_at
       let nextRunAt: number | undefined;
       if (existing.cron_normalized) {
-        const schedule = parseScheduleExpression(existing.cron_normalized, existing.schedule_type, {
+        // cron_normalized is always a 5-field cron string regardless of the original schedule_type,
+        // so always parse it as 'cron' (not 'interval' or 'once').
+        const schedule = parseScheduleExpression(existing.cron_normalized, 'cron', {
           timezone: existing.timezone,
         });
         nextRunAt = schedule.next_run_at;

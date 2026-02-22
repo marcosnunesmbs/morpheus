@@ -12,6 +12,14 @@ export class ChronosWorker {
   private static instance: ChronosWorker | null = null;
   private static notifyFn: NotifyFn | null = null;
 
+  /**
+   * True while a Chronos job is being executed. Chronos management tools
+   * (chronos_cancel, chronos_schedule) check this flag and refuse to operate
+   * during execution to prevent the Oracle from self-deleting or re-scheduling
+   * the active job.
+   */
+  public static isExecuting = false;
+
   private timer: NodeJS.Timeout | null = null;
   private isRunning = false;
   private pollIntervalMs: number;
@@ -83,17 +91,36 @@ export class ChronosWorker {
 
     display.log(`Job ${job.id} triggered — "${job.prompt.slice(0, 60)}"`, { source: 'Chronos' });
 
+    // Dedicated session for this job — token usage is isolated from the
+    // user's active conversation and tracked under chronos-job-<id>.
+    const chronosSessionId = `chronos-job-${job.id}`;
+
+    // Save user's current active session so we can restore it after execution.
+    const originalSessionId = this.oracle.getCurrentSessionId();
+
     this.repo.insertExecution({
       id: execId,
       job_id: job.id,
       triggered_at: Date.now(),
       status: 'running',
-      session_id: '',
+      session_id: chronosSessionId,
     });
 
     try {
-      // Use the Oracle's current active session — no session switching needed.
-      const response = await this.oracle.chat(job.prompt);
+      // Switch Oracle to the job's dedicated session (auto-created on first run).
+      await this.oracle.setSessionId(chronosSessionId);
+
+      // Wrap the prompt so Oracle knows this is automated and must not
+      // manage the triggering job via Chronos tools.
+      const executionPrompt =
+        `[CHRONOS EXECUTION — job_id: ${job.id}]\n` +
+        `You are fulfilling a scheduled Chronos job. Execute the task below and respond naturally. ` +
+        `Do NOT call chronos_cancel, chronos_schedule, or any Chronos management tools during this execution.\n\n` +
+        `Task: ${job.prompt}`;
+
+      // Hard-block Chronos management tools during execution.
+      ChronosWorker.isExecuting = true;
+      const response = await this.oracle.chat(executionPrompt);
 
       this.repo.completeExecution(execId, 'success');
       display.log(`Job ${job.id} completed — status: success`, { source: 'Chronos' });
@@ -105,6 +132,15 @@ export class ChronosWorker {
       this.repo.completeExecution(execId, 'failed', errMsg);
       display.log(`Job ${job.id} failed — ${errMsg}`, { source: 'Chronos', level: 'error' });
     } finally {
+      ChronosWorker.isExecuting = false;
+
+      // Restore the user's original session so their conversation is unaffected.
+      if (originalSessionId) {
+        this.oracle.setSessionId(originalSessionId).catch((err: any) => {
+          display.log(`Job ${job.id} failed to restore session — ${err.message}`, { source: 'Chronos', level: 'error' });
+        });
+      }
+
       if (job.schedule_type === 'once') {
         this.repo.disableJob(job.id);
         display.log(`Job ${job.id} auto-disabled (once-type)`, { source: 'Chronos' });

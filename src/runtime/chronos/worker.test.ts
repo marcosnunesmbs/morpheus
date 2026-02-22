@@ -60,6 +60,7 @@ function makeOracle(): IOracle {
   return {
     chat: vi.fn().mockResolvedValue('Oracle response'),
     setSessionId: vi.fn().mockResolvedValue(undefined),
+    getCurrentSessionId: vi.fn().mockReturnValue('user-session-1'),
     initialize: vi.fn(),
     getHistory: vi.fn(),
     createNewSession: vi.fn(),
@@ -100,7 +101,7 @@ describe('ChronosWorker.tick()', () => {
     await worker.tick();
     // Wait for fire-and-forget
     await new Promise((r) => setTimeout(r, 50));
-    expect(oracle.chat).toHaveBeenCalledWith(job.prompt);
+    expect(oracle.chat).toHaveBeenCalledWith(expect.stringContaining(job.prompt));
     expect(repo.disableJob).toHaveBeenCalledWith(job.id);
     expect(repo.updateJob).not.toHaveBeenCalled();
   });
@@ -112,7 +113,7 @@ describe('ChronosWorker.tick()', () => {
     const worker = new ChronosWorker(repo, oracle);
     await worker.tick();
     await new Promise((r) => setTimeout(r, 50));
-    expect(oracle.chat).toHaveBeenCalledWith(job.prompt);
+    expect(oracle.chat).toHaveBeenCalledWith(expect.stringContaining(job.prompt));
     expect(repo.disableJob).not.toHaveBeenCalled();
     expect(repo.updateJob).toHaveBeenCalledWith(
       job.id,

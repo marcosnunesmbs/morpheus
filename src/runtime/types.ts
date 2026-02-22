@@ -39,6 +39,11 @@ export interface IOracle {
   setSessionId(sessionId: string): Promise<void>;
 
   /**
+   * Returns the ID of the currently active session, or null if not initialized.
+   */
+  getCurrentSessionId(): string | null;
+
+  /**
    * Reloads MCP tools at runtime without restarting the process.
    * Recreates the provider with the current MCP configuration.
    */

@@ -981,19 +981,20 @@ export class TelegramAdapter {
     try {
       const { ChronosRepository } = await import('../runtime/chronos/repository.js');
       const repo = ChronosRepository.getInstance();
-      const jobs = repo.listJobs({ enabled: true });
+      const jobs = repo.listJobs();
       if (!jobs.length) {
-        await ctx.reply('No active Chronos jobs.');
+        await ctx.reply('No Chronos jobs found.');
         return;
       }
       const lines = jobs.map((j, i) => {
-        const next = j.next_run_at
+        const status = j.enabled ? '🟢' : '🔴';
+        const next = j.enabled && j.next_run_at
           ? new Date(j.next_run_at).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
-          : 'N/A';
-        const prompt = j.prompt.length > 30 ? j.prompt.slice(0, 30) + '…' : j.prompt;
-        return `${i + 1}. \`${j.id.slice(0, 8)}\` ${prompt} — ${next}`;
+          : j.enabled ? 'N/A' : 'disabled';
+        const prompt = j.prompt.length > 35 ? j.prompt.slice(0, 35) + '…' : j.prompt;
+        return `${status} ${i + 1}. \`${j.id}\` \n${prompt}\n    _${next}_`;
       });
-      await ctx.reply(`*Active Chronos Jobs*\n\n${lines.join('\n')}`, { parse_mode: 'Markdown' });
+      await ctx.reply(`*Chronos Jobs*\n\n${lines.join('\n')}`, { parse_mode: 'Markdown' });
     } catch (err: any) {
       await ctx.reply(`Error: ${err.message}`);
     }
@@ -1043,13 +1044,14 @@ export class TelegramAdapter {
     if (!id) { await ctx.reply('Usage: /chronos_enable <job_id>'); return; }
     try {
       const { ChronosRepository } = await import('../runtime/chronos/repository.js');
-      const { parseScheduleExpression } = await import('../runtime/chronos/parser.js');
+      const { parseNextRun } = await import('../runtime/chronos/parser.js');
       const repo = ChronosRepository.getInstance();
       const existing = repo.getJob(id);
       if (!existing) { await ctx.reply('Job not found.'); return; }
       let nextRunAt: number | undefined;
       if (existing.cron_normalized) {
-        nextRunAt = parseScheduleExpression(existing.cron_normalized, existing.schedule_type, { timezone: existing.timezone }).next_run_at;
+        // cron_normalized is always a 5-field cron string — use parseNextRun directly
+        nextRunAt = parseNextRun(existing.cron_normalized, existing.timezone);
       }
       repo.updateJob(id, { enabled: true, next_run_at: nextRunAt });
       const job = repo.getJob(id)!;

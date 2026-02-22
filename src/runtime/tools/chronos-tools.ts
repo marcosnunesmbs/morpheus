@@ -3,10 +3,14 @@ import { z } from 'zod';
 import { ChronosRepository } from '../chronos/repository.js';
 import { parseScheduleExpression, getNextOccurrences } from '../chronos/parser.js';
 import { ConfigManager } from '../../config/manager.js';
+import { ChronosWorker } from '../chronos/worker.js';
 
 // ─── chronos_schedule ────────────────────────────────────────────────────────
 export const ChronosScheduleTool = tool(
   async ({ prompt, schedule_type, schedule_expression, timezone }) => {
+    if (ChronosWorker.isExecuting) {
+      return JSON.stringify({ success: false, error: 'Cannot create a new Chronos job from within an active Chronos execution.' });
+    }
     try {
       const cfg = ConfigManager.getInstance().getChronosConfig();
       const tz = timezone ?? cfg.timezone;
@@ -110,6 +114,9 @@ export const ChronosListTool = tool(
 // ─── chronos_cancel ──────────────────────────────────────────────────────────
 export const ChronosCancelTool = tool(
   async ({ job_id, action }) => {
+    if (ChronosWorker.isExecuting) {
+      return JSON.stringify({ success: false, error: 'Cannot manage Chronos jobs from within an active Chronos execution. Respond to the user normally without modifying the job.' });
+    }
     try {
       const repo = ChronosRepository.getInstance();
       const job = repo.getJob(job_id);

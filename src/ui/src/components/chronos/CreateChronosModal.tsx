@@ -33,9 +33,9 @@ const SCHEDULE_TYPE_OPTIONS = [
 ];
 
 const EXPRESSION_PLACEHOLDERS: Record<ScheduleType, string> = {
-  once: 'e.g. "tomorrow at 9am" or "2026-03-01T09:00:00"',
+  once: 'e.g. "in 30 minutes", "tomorrow at 9am", "2026-03-01T09:00:00"',
   cron: 'e.g. "0 9 * * 1-5" (weekdays at 9am)',
-  interval: 'e.g. "every 30 minutes" or "every day"',
+  interval: 'e.g. "every 30 minutes", "every sunday at 9am", "every weekday"',
 };
 
 interface CreateChronosModalProps {
