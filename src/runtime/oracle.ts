@@ -20,7 +20,7 @@ import { Trinity } from "./trinity.js";
 import { NeoDelegateTool } from "./tools/neo-tool.js";
 import { ApocDelegateTool } from "./tools/apoc-tool.js";
 import { TrinityDelegateTool } from "./tools/trinity-tool.js";
-import { TaskQueryTool } from "./tools/index.js";
+import { TaskQueryTool, chronosTools } from "./tools/index.js";
 import { MCPManager } from "../config/mcp-manager.js";
 
 type AckGenerationResult = {
@@ -170,7 +170,7 @@ export class Oracle implements IOracle {
       // Fail-open: Oracle can still initialize even if catalog refresh fails.
       await Neo.refreshDelegateCatalog().catch(() => {});
       await Trinity.refreshDelegateCatalog().catch(() => {});
-      this.provider = await ProviderFactory.create(this.config.llm, [TaskQueryTool, NeoDelegateTool, ApocDelegateTool, TrinityDelegateTool]);
+      this.provider = await ProviderFactory.create(this.config.llm, [TaskQueryTool, NeoDelegateTool, ApocDelegateTool, TrinityDelegateTool, ...chronosTools]);
       if (!this.provider) {
         throw new Error("Provider factory returned undefined");
       }
@@ -541,7 +541,7 @@ Use it to inform your response and tool selection (if needed), but do not assume
 
     await Neo.refreshDelegateCatalog().catch(() => {});
     await Trinity.refreshDelegateCatalog().catch(() => {});
-    this.provider = await ProviderFactory.create(this.config.llm, [TaskQueryTool, NeoDelegateTool, ApocDelegateTool, TrinityDelegateTool]);
+    this.provider = await ProviderFactory.create(this.config.llm, [TaskQueryTool, NeoDelegateTool, ApocDelegateTool, TrinityDelegateTool, ...chronosTools]);
     await Neo.getInstance().reload();
     this.display.log(`Oracle and Neo tools reloaded`, { source: 'Oracle' });
   }

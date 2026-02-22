@@ -18,6 +18,8 @@ import { startSessionEmbeddingScheduler } from '../../runtime/session-embedding-
 import { TaskWorker } from '../../runtime/tasks/worker.js';
 import { TaskNotifier } from '../../runtime/tasks/notifier.js';
 import { TaskDispatcher } from '../../runtime/tasks/dispatcher.js';
+import { ChronosWorker } from '../../runtime/chronos/worker.js';
+import { ChronosRepository } from '../../runtime/chronos/repository.js';
 
 export const startCommand = new Command('start')
   .description('Start the Morpheus agent')
@@ -138,11 +140,14 @@ export const startCommand = new Command('start')
       const taskWorker = new TaskWorker();
       const taskNotifier = new TaskNotifier();
       const asyncTasksEnabled = config.runtime?.async_tasks?.enabled !== false;
+      const chronosRepo = ChronosRepository.getInstance();
+      const chronosWorker = new ChronosWorker(chronosRepo, oracle);
+      ChronosWorker.setInstance(chronosWorker);
 
       // Initialize Web UI
       if (options.ui && config.ui.enabled) {
         try {
-          httpServer = new HttpServer(oracle);
+          httpServer = new HttpServer(oracle, chronosWorker);
           // Use CLI port if provided and valid, otherwise fallback to config or default
           const port = parseInt(options.port) || config.ui.port || 3333;
           httpServer.start(port);
@@ -163,6 +168,7 @@ export const startCommand = new Command('start')
             // Wire Telegram adapter to webhook dispatcher for proactive notifications
             WebhookDispatcher.setTelegramAdapter(telegram);
             TaskDispatcher.setTelegramAdapter(telegram);
+            ChronosWorker.setNotifyFn((text) => telegram.sendMessage(text));
             adapters.push(telegram);
           } catch (e) {
             display.log(chalk.red('Failed to initialize Telegram adapter. Continuing...'), { source: 'Zaion' });
@@ -174,6 +180,7 @@ export const startCommand = new Command('start')
 
       // Start Background Services
       startSessionEmbeddingScheduler();
+      chronosWorker.start();
       if (asyncTasksEnabled) {
         taskWorker.start();
         taskNotifier.start();
@@ -196,6 +203,7 @@ export const startCommand = new Command('start')
         for (const adapter of adapters) {
           await adapter.disconnect();
         }
+        chronosWorker.stop();
         if (asyncTasksEnabled) {
           taskWorker.stop();
           taskNotifier.stop();

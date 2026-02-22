@@ -10,6 +10,7 @@ import { createWebhooksRouter } from './webhooks-router.js';
 import { authMiddleware } from './middleware/auth.js';
 import { IOracle } from '../runtime/types.js';
 import { WebhookDispatcher } from '../runtime/webhooks/dispatcher.js';
+import type { ChronosWorker } from '../runtime/chronos/worker.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -18,10 +19,12 @@ export class HttpServer {
   private app: express.Application;
   private server: any;
   private oracle: IOracle;
+  private chronosWorker?: ChronosWorker;
 
-  constructor(oracle: IOracle) {
+  constructor(oracle: IOracle, chronosWorker?: ChronosWorker) {
     this.app = express();
     this.oracle = oracle;
+    this.chronosWorker = chronosWorker;
     // Wire Oracle into the webhook dispatcher so triggers use the full agent
     WebhookDispatcher.setOracle(oracle);
     this.setupMiddleware();
@@ -63,7 +66,7 @@ export class HttpServer {
     // All other webhook management endpoints apply authMiddleware internally.
     this.app.use('/api/webhooks', createWebhooksRouter());
 
-    this.app.use('/api', authMiddleware, createApiRouter(this.oracle));
+    this.app.use('/api', authMiddleware, createApiRouter(this.oracle, this.chronosWorker));
 
     // Serve static frontend from compiled output
     const uiPath = path.resolve(__dirname, '../ui');

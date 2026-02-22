@@ -114,6 +114,9 @@ export class DisplayManager implements IDisplayManager {
       else if (options.source === 'Zaion') {
         color = chalk.hex('#00c3ff');
       }
+      else if (options.source === 'Chronos') {
+        color = chalk.hex('#a855f7');
+      }
       prefix = color(`[${options.source}] `);
     }
 

@@ -88,6 +88,15 @@ export interface RuntimeConfig {
   async_tasks: RuntimeAsyncTasksConfig;
 }
 
+export interface ChronosConfig {
+  /** Default IANA timezone for new jobs (e.g., 'America/Sao_Paulo') */
+  timezone: string;
+  /** How often ChronosWorker polls for due jobs, in ms. Minimum: 60000 */
+  check_interval_ms: number;
+  /** Maximum number of simultaneously enabled jobs */
+  max_active_jobs: number;
+}
+
 export interface MorpheusConfig {
   agent: AgentConfig;
   llm: LLMConfig;
@@ -102,6 +111,7 @@ export interface MorpheusConfig {
   audio: AudioConfig;
   memory: MemoryConfig;
   runtime?: RuntimeConfig;
+  chronos?: ChronosConfig;
 }
 
 export const DEFAULT_CONFIG: MorpheusConfig = {

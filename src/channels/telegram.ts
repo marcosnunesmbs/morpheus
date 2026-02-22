@@ -158,6 +158,16 @@ export class TelegramAdapter {
   private readonly RATE_LIMIT_MS = 3000; // minimum ms between requests per user
   private rateLimiter = new Map<string, number>(); // userId -> last request timestamp
 
+  // Pending Chronos create confirmations (userId -> job data + expiry)
+  private pendingChronosCreate = new Map<string, {
+    prompt: string;
+    schedule_expression: string;
+    human_readable: string;
+    timezone: string;
+    expiresAt: number;
+    timer: ReturnType<typeof setTimeout>;
+  }>();
+
   private isRateLimited(userId: string): boolean {
     const now = Date.now();
     const last = this.rateLimiter.get(userId);
@@ -178,7 +188,13 @@ export class TelegramAdapter {
 /sessions \\- List all sessions with titles and switch between them
 /restart \\- Restart the Morpheus agent
 /mcpreload \\- Reload MCP servers without restarting
-/mcp or /mcps \\- List registered MCP servers`;
+/mcp or /mcps \\- List registered MCP servers
+/chronos <prompt \\+ time\\> \\- Schedule a prompt for the Oracle
+/chronos\\_list \\- List all active Chronos jobs
+/chronos\\_view <id\\> \\- View a Chronos job and its last executions
+/chronos\\_disable <id\\> \\- Disable a Chronos job
+/chronos\\_enable <id\\> \\- Enable a Chronos job
+/chronos\\_delete <id\\> \\- Delete a Chronos job`;
 
   constructor(oracle: Oracle) {
     this.oracle = oracle;
@@ -216,6 +232,22 @@ export class TelegramAdapter {
         // Handle system commands (commands bypass rate limit)
         if (text.startsWith('/')) {
           await this.handleSystemCommand(ctx, text, user);
+          return;
+        }
+
+        // Check for pending Chronos create confirmation
+        const pendingChronos = this.pendingChronosCreate.get(userId);
+        if (pendingChronos) {
+          const lower = text.trim().toLowerCase();
+          if (lower === 'yes' || lower === 'confirm' || lower === 'y') {
+            clearTimeout(pendingChronos.timer);
+            this.pendingChronosCreate.delete(userId);
+            await this.confirmChronosCreate(ctx, userId, pendingChronos);
+          } else {
+            clearTimeout(pendingChronos.timer);
+            this.pendingChronosCreate.delete(userId);
+            await ctx.reply('Cancelled.');
+          }
           return;
         }
 
@@ -814,10 +846,234 @@ export class TelegramAdapter {
       case '/sessions':
         await this.handleSessionStatusCommand(ctx, user);
         break;
+      case '/chronos': {
+        const userId = ctx.from?.id?.toString() ?? user;
+        const fullText = text.slice('/chronos'.length).trim();
+        await this.handleChronosCreate(ctx, userId, fullText);
+        break;
+      }
+      case '/chronos_list':
+        await this.handleChronosList(ctx);
+        break;
+      case '/chronos_view': {
+        const id = args[0] ?? '';
+        await this.handleChronosView(ctx, id);
+        break;
+      }
+      case '/chronos_disable': {
+        const id = args[0] ?? '';
+        await this.handleChronosDisable(ctx, id);
+        break;
+      }
+      case '/chronos_enable': {
+        const id = args[0] ?? '';
+        await this.handleChronosEnable(ctx, id);
+        break;
+      }
+      case '/chronos_delete': {
+        const id = args[0] ?? '';
+        await this.handleChronosDelete(ctx, id);
+        break;
+      }
       default:
         await this.handleDefaultCommand(ctx, user, command);
     }
   }
+
+  // ─── Chronos Command Handlers ────────────────────────────────────────────────
+
+  private async handleChronosCreate(ctx: any, userId: string, fullText: string) {
+    if (!fullText) {
+      await ctx.reply(
+        'Usage: /chronos <prompt + time expression>\nExample: /chronos Check disk space tomorrow at 9am'
+      );
+      return;
+    }
+
+    try {
+      const { parse: chronoParse } = await import('chrono-node');
+      const results = chronoParse(fullText);
+
+      if (!results.length) {
+        await ctx.reply(
+          'Could not detect a time expression. Try: `/chronos Check disk space tomorrow at 9am`',
+          { parse_mode: 'Markdown' }
+        );
+        return;
+      }
+
+      // Extract the first matched datetime fragment and derive the prompt
+      const match = results[0];
+      const matchedText = fullText.slice(match.index, match.index + match.text.length);
+      const prompt = (
+        fullText.slice(0, match.index) + fullText.slice(match.index + match.text.length)
+      ).replace(/\s+/g, ' ').trim() || fullText;
+
+      const globalTz = this.config.getChronosConfig().timezone;
+      const { parseScheduleExpression } = await import('../runtime/chronos/parser.js');
+      const schedule = parseScheduleExpression(matchedText, 'once', { timezone: globalTz });
+
+      const formatted = new Date(schedule.next_run_at).toLocaleString('en-US', {
+        timeZone: globalTz, year: 'numeric', month: 'short', day: 'numeric',
+        hour: '2-digit', minute: '2-digit', timeZoneName: 'short',
+      });
+
+      const timer = setTimeout(() => {
+        this.pendingChronosCreate.delete(userId);
+      }, 5 * 60 * 1000);
+
+      this.pendingChronosCreate.set(userId, {
+        prompt,
+        schedule_expression: matchedText,
+        human_readable: schedule.human_readable,
+        timezone: globalTz,
+        expiresAt: Date.now() + 5 * 60 * 1000,
+        timer,
+      });
+
+      await ctx.reply(
+        `📅 *${prompt}*\n${schedule.human_readable} (${formatted})\n\nConfirm? Reply \`yes\` or \`no\``,
+        { parse_mode: 'Markdown' }
+      );
+    } catch (err: any) {
+      await ctx.reply(`Error: ${err.message}`);
+    }
+  }
+
+  private async confirmChronosCreate(
+    ctx: any,
+    _userId: string,
+    pending: { prompt: string; schedule_expression: string; human_readable: string; timezone: string; expiresAt: number; timer: ReturnType<typeof setTimeout> }
+  ) {
+    if (Date.now() > pending.expiresAt) {
+      await ctx.reply('Confirmation expired. Please run /chronos again.');
+      return;
+    }
+    try {
+      const { parseScheduleExpression } = await import('../runtime/chronos/parser.js');
+      const { ChronosRepository } = await import('../runtime/chronos/repository.js');
+      const schedule = parseScheduleExpression(pending.schedule_expression, 'once', {
+        timezone: pending.timezone,
+      });
+      const repo = ChronosRepository.getInstance();
+      const job = repo.createJob({
+        prompt: pending.prompt,
+        schedule_type: 'once',
+        schedule_expression: pending.schedule_expression,
+        cron_normalized: schedule.cron_normalized,
+        timezone: pending.timezone,
+        next_run_at: schedule.next_run_at,
+        created_by: 'telegram',
+      });
+      const formatted = new Date(schedule.next_run_at).toLocaleString('en-US', {
+        timeZone: pending.timezone, year: 'numeric', month: 'short', day: 'numeric',
+        hour: '2-digit', minute: '2-digit', timeZoneName: 'short',
+      });
+      await ctx.reply(`✅ Job created (ID: \`${job.id.slice(0, 8)}\`)\n${schedule.human_readable}\n${formatted}`, {
+        parse_mode: 'Markdown',
+      });
+    } catch (err: any) {
+      await ctx.reply(`Failed to create job: ${err.message}`);
+    }
+  }
+
+  private async handleChronosList(ctx: any) {
+    try {
+      const { ChronosRepository } = await import('../runtime/chronos/repository.js');
+      const repo = ChronosRepository.getInstance();
+      const jobs = repo.listJobs({ enabled: true });
+      if (!jobs.length) {
+        await ctx.reply('No active Chronos jobs.');
+        return;
+      }
+      const lines = jobs.map((j, i) => {
+        const next = j.next_run_at
+          ? new Date(j.next_run_at).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
+          : 'N/A';
+        const prompt = j.prompt.length > 30 ? j.prompt.slice(0, 30) + '…' : j.prompt;
+        return `${i + 1}. \`${j.id.slice(0, 8)}\` ${prompt} — ${next}`;
+      });
+      await ctx.reply(`*Active Chronos Jobs*\n\n${lines.join('\n')}`, { parse_mode: 'Markdown' });
+    } catch (err: any) {
+      await ctx.reply(`Error: ${err.message}`);
+    }
+  }
+
+  private async handleChronosView(ctx: any, id: string) {
+    if (!id) { await ctx.reply('Usage: /chronos_view <job_id>'); return; }
+    try {
+      const { ChronosRepository } = await import('../runtime/chronos/repository.js');
+      const repo = ChronosRepository.getInstance();
+      const job = repo.getJob(id);
+      if (!job) { await ctx.reply('Job not found.'); return; }
+      const executions = repo.listExecutions(id, 3);
+      const next = job.next_run_at ? new Date(job.next_run_at).toLocaleString() : 'N/A';
+      const last = job.last_run_at ? new Date(job.last_run_at).toLocaleString() : 'Never';
+      const execLines = executions.map(e =>
+        `  • ${e.status.toUpperCase()} — ${new Date(e.triggered_at).toLocaleString()}`
+      ).join('\n') || '  None yet';
+      const msg = `*Chronos Job* \`${id.slice(0, 8)}\`\n\n` +
+        `*Prompt:* ${job.prompt}\n` +
+        `*Schedule:* ${job.schedule_type} — \`${job.schedule_expression}\`\n` +
+        `*Timezone:* ${job.timezone}\n` +
+        `*Status:* ${job.enabled ? 'Enabled' : 'Disabled'}\n` +
+        `*Next Run:* ${next}\n` +
+        `*Last Run:* ${last}\n\n` +
+        `*Last 3 Executions:*\n${execLines}`;
+      await ctx.reply(msg, { parse_mode: 'Markdown' });
+    } catch (err: any) {
+      await ctx.reply(`Error: ${err.message}`);
+    }
+  }
+
+  private async handleChronosDisable(ctx: any, id: string) {
+    if (!id) { await ctx.reply('Usage: /chronos_disable <job_id>'); return; }
+    try {
+      const { ChronosRepository } = await import('../runtime/chronos/repository.js');
+      const repo = ChronosRepository.getInstance();
+      const job = repo.disableJob(id);
+      if (!job) { await ctx.reply('Job not found.'); return; }
+      await ctx.reply(`Job \`${id.slice(0, 8)}\` disabled.`, { parse_mode: 'Markdown' });
+    } catch (err: any) {
+      await ctx.reply(`Error: ${err.message}`);
+    }
+  }
+
+  private async handleChronosEnable(ctx: any, id: string) {
+    if (!id) { await ctx.reply('Usage: /chronos_enable <job_id>'); return; }
+    try {
+      const { ChronosRepository } = await import('../runtime/chronos/repository.js');
+      const { parseScheduleExpression } = await import('../runtime/chronos/parser.js');
+      const repo = ChronosRepository.getInstance();
+      const existing = repo.getJob(id);
+      if (!existing) { await ctx.reply('Job not found.'); return; }
+      let nextRunAt: number | undefined;
+      if (existing.cron_normalized) {
+        nextRunAt = parseScheduleExpression(existing.cron_normalized, existing.schedule_type, { timezone: existing.timezone }).next_run_at;
+      }
+      repo.updateJob(id, { enabled: true, next_run_at: nextRunAt });
+      const job = repo.getJob(id)!;
+      const next = job.next_run_at ? new Date(job.next_run_at).toLocaleString() : 'N/A';
+      await ctx.reply(`Job \`${id.slice(0, 8)}\` enabled. Next run: ${next}`, { parse_mode: 'Markdown' });
+    } catch (err: any) {
+      await ctx.reply(`Error: ${err.message}`);
+    }
+  }
+
+  private async handleChronosDelete(ctx: any, id: string) {
+    if (!id) { await ctx.reply('Usage: /chronos_delete <job_id>'); return; }
+    try {
+      const { ChronosRepository } = await import('../runtime/chronos/repository.js');
+      const repo = ChronosRepository.getInstance();
+      const deleted = repo.deleteJob(id);
+      if (!deleted) { await ctx.reply('Job not found.'); return; }
+      await ctx.reply(`Job \`${id.slice(0, 8)}\` deleted.`, { parse_mode: 'Markdown' });
+    } catch (err: any) {
+      await ctx.reply(`Error: ${err.message}`);
+    }
+  }
+
+  // ─── End Chronos ──────────────────────────────────────────────────────────────
 
   private async handleNewSessionCommand(ctx: any, user: string) {
     try {
