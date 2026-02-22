@@ -144,6 +144,15 @@ function escMd(value: string | number | boolean): string {
   return String(value).replace(/([.!?(){}#+~|=>$@\\-])/g, '\\$1');
 }
 
+/**
+ * Full MarkdownV2 escape — escapes ALL special characters including * _ ` [ ].
+ * Use for untrusted/user-generated content (session titles, prompts, etc.)
+ * placed inside bold/italic markers or anywhere in a MarkdownV2 message.
+ */
+function escMdRaw(value: string | number | boolean): string {
+  return String(value).replace(/([_*[\]()~`>#+=|{}.!\\-])/g, '\\$1');
+}
+
 export class TelegramAdapter {
   private bot: Telegraf | null = null;
   private isConnected = false;
@@ -1102,9 +1111,12 @@ export class TelegramAdapter {
 
   private async handleSessionStatusCommand(ctx: any, user: string) {
     try {
-      // Obter todas as sessões ativas e pausadas usando a nova função
       const history = new SQLiteChatMessageHistory({ sessionId: "" });
-      const sessions = await history.listSessions();
+      // Exclude automated Chronos sessions — their IDs exceed Telegram's 64-byte
+      // callback_data limit and they are not user-managed sessions.
+      const sessions = (await history.listSessions()).filter(
+        (s) => !s.id.startsWith('chronos-job-') && !s.id.startsWith('sati-evaluation')
+      );
 
       if (sessions.length === 0) {
         await ctx.reply('No active or paused sessions found\\.', { parse_mode: 'MarkdownV2' });
@@ -1117,10 +1129,10 @@ export class TelegramAdapter {
       for (const session of sessions) {
         const title = session.title || 'Untitled Session';
         const statusEmoji = session.status === 'active' ? '🟢' : '🟡';
-        response += `${statusEmoji} *${escMd(title)}*\n`;
-        response += `\\- ID: ${escMd(session.id)}\n`;
-        response += `\\- Status: ${escMd(session.status)}\n`;
-        response += `\\- Started: ${escMd(new Date(session.started_at).toLocaleString())}\n\n`;
+        response += `${statusEmoji} *${escMdRaw(title)}*\n`;
+        response += `\\- ID: \`${escMdRaw(session.id)}\`\n`;
+        response += `\\- Status: ${escMdRaw(session.status)}\n`;
+        response += `\\- Started: ${escMdRaw(new Date(session.started_at).toLocaleString())}\n\n`;
 
         // Adicionar botão inline para alternar para esta sessão
         const sessionButtons = [];

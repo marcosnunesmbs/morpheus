@@ -139,20 +139,20 @@ export function Layout({ children }: { children: React.ReactNode }) {
               )}
             </button>
           </div>
-          <nav className="flex-1 p-4 space-y-2">
+          <nav className="flex-1 p-2 space-y-0.5">
             {navItems.map((item) => {
               const isActive = location.pathname === item.path;
               return (
                 <Link
                   key={item.path}
                   to={item.path}
-                  className={`flex items-center gap-3 px-4 py-3 rounded transition-colors ${
+                  className={`flex items-center gap-2 px-3 py-1.5 rounded text-sm transition-colors ${
                     isActive
                       ? 'bg-azure-active text-azure-primary dark:bg-matrix-primary dark:text-matrix-highlight'
                       : 'hover:bg-azure-hover dark:hover:bg-matrix-primary/50 text-azure-text-secondary dark:text-matrix-secondary'
                   }`}
                 >
-                  <item.icon className="w-5 h-5" />
+                  <item.icon className="w-4 h-4 shrink-0" />
                   <span>{item.label}</span>
                   {item.path === '/tasks' && activeTasks > 0 && (
                     <span className="ml-auto bg-yellow-500 text-black text-[10px] font-bold rounded-full px-1.5 py-0.5 leading-none">
@@ -165,14 +165,14 @@ export function Layout({ children }: { children: React.ReactNode }) {
             <Link
               key="/notifications"
               to="/notifications"
-              className={`flex items-center gap-3 px-4 py-3 rounded transition-colors ${
+              className={`flex items-center gap-2 px-3 py-1.5 rounded text-sm transition-colors ${
                 location.pathname === '/notifications'
                   ? 'bg-azure-active text-azure-primary dark:bg-matrix-primary dark:text-matrix-highlight'
                   : 'hover:bg-azure-hover dark:hover:bg-matrix-primary/50 text-azure-text-secondary dark:text-matrix-secondary'
               }`}
             >
-              <div className="relative">
-                <Bell className="w-5 h-5" />
+              <div className="relative shrink-0">
+                <Bell className="w-4 h-4" />
                 {unreadCount > 0 && (
                   <span className="absolute -top-1.5 -right-1.5 bg-red-500 text-white text-[9px] font-bold rounded-full w-3.5 h-3.5 flex items-center justify-center leading-none">
                     {unreadCount > 9 ? '9+' : unreadCount}
@@ -192,9 +192,9 @@ export function Layout({ children }: { children: React.ReactNode }) {
           <div className="p-2">
             <button
               onClick={() => setIsRestartModalOpen(true)}
-              className="flex items-center gap-3 px-4 py-3 rounded w-full text-left hover:bg-azure-hover dark:hover:bg-matrix-primary/50 text-azure-text-secondary dark:text-matrix-secondary transition-colors"
+              className="flex items-center gap-2 px-3 py-1.5 rounded w-full text-left text-sm hover:bg-azure-hover dark:hover:bg-matrix-primary/50 text-azure-text-secondary dark:text-matrix-secondary transition-colors"
             >
-              <RotateCcw className="w-5 h-5" />
+              <RotateCcw className="w-4 h-4 shrink-0" />
               <span>Restart</span>
             </button>
           </div>
@@ -203,9 +203,9 @@ export function Layout({ children }: { children: React.ReactNode }) {
           <div className="p-2">
             <button
               onClick={logout}
-              className="flex items-center gap-3 px-4 py-3 rounded w-full text-left hover:bg-red-50 dark:hover:bg-red-900/20 text-azure-text-secondary dark:text-matrix-secondary hover:text-red-600 transition-colors"
+              className="flex items-center gap-2 px-3 py-1.5 rounded w-full text-left text-sm hover:bg-red-50 dark:hover:bg-red-900/20 text-azure-text-secondary dark:text-matrix-secondary hover:text-red-600 transition-colors"
             >
-              <LogOut className="w-5 h-5" />
+              <LogOut className="w-4 h-4 shrink-0" />
               <span>Logout</span>
             </button>
           </div>
