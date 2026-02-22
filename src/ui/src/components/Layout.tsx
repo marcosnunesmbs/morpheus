@@ -90,6 +90,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
     { icon: ListChecks, label: 'Tasks', path: '/tasks' },
     { icon: Database, label: 'Trinity DBs', path: '/trinity-databases' },
     { icon: Clock, label: 'Chronos', path: '/chronos' },
+    { icon: Terminal, label: 'Logs', path: '/logs' },
   ];
 
   const mobileNavItems = [
@@ -104,6 +105,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
     { icon: ListChecks, label: 'Tasks', path: '/tasks' },
     { icon: Database, label: 'Trinity DBs', path: '/trinity-databases' },
     { icon: Clock, label: 'Chronos', path: '/chronos' },
+    { icon: Terminal, label: 'Logs', path: '/logs' },
   ];
 
   return (
@@ -160,18 +162,6 @@ export function Layout({ children }: { children: React.ReactNode }) {
                 </Link>
               );
             })}
-            <Link
-              key="/logs"
-              to="/logs"
-              className={`flex items-center gap-3 px-4 py-3 rounded transition-colors ${
-                location.pathname === '/logs'
-                  ? 'bg-azure-active text-azure-primary dark:bg-matrix-primary dark:text-matrix-highlight'
-                  : 'hover:bg-azure-hover dark:hover:bg-matrix-primary/50 text-azure-text-secondary dark:text-matrix-secondary'
-              }`}
-            >
-              <Terminal className="w-5 h-5" />
-              <span>Logs</span>
-            </Link>
             <Link
               key="/notifications"
               to="/notifications"
@@ -291,15 +281,6 @@ export function Layout({ children }: { children: React.ReactNode }) {
                       </Link>
                     );
                   })}
-                  {/* Item "Logs" escondido em dispositivos móveis */}
-                  <Link
-                    to="/logs"
-                    className="flex items-center gap-3 px-4 py-3 rounded transition-colors hidden lg:flex hover:bg-azure-hover dark:hover:bg-matrix-primary/50 text-azure-text-secondary dark:text-matrix-secondary"
-                    onClick={() => setIsSidebarOpen(false)}
-                  >
-                    <Terminal className="w-5 h-5" />
-                    <span>Logs</span>
-                  </Link>
                   <Link
                     to="/notifications"
                     className={`flex items-center gap-3 px-4 py-3 rounded transition-colors ${

@@ -24,7 +24,7 @@ export function Logs() {
 
   return (
     <motion.div
-      className="flex flex-col space-y-4 pt-16 md:pt-0"
+      className="flex flex-col space-y-4 md:pt-0"
       style={{ height: 'calc(100vh - 2rem)' }}
       initial={{ opacity: 0, scale: 0.98 }}
       animate={{ opacity: 1, scale: 1 }}
@@ -79,9 +79,24 @@ export function Logs() {
           </div>
           <div
             ref={scrollRef}
-            className="flex-1 overflow-x-hidden overflow-y-auto p-4 font-mono text-xs whitespace-pre-wrap break-all text-azure-text-primary dark:text-white"
+            className="flex-1 overflow-x-hidden overflow-y-auto p-4 font-mono text-xs break-all text-azure-text-primary dark:text-white"
           >
-            {content ? content.lines.join('\n') : 'Select a log file to view content...'}
+            {content
+              ? content.lines.map((line, i) => {
+                  // Winston timestamp: "2026-02-22T00:39:00.123Z "
+                  const match = line.match(/^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d+Z)\s?(.*)/s);
+                  if (match) {
+                    return (
+                      <div key={i}>
+                        <span className="hidden md:inline opacity-50">{match[1]} </span>
+                        <span>{match[2]}</span>
+                      </div>
+                    );
+                  }
+                  return <div key={i}>{line}</div>;
+                })
+              : <span className="opacity-50">Select a log file to view content...</span>
+            }
           </div>
         </div>
       </div>
