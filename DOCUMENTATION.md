@@ -111,6 +111,12 @@ Task completion/failure notifications include:
 - `/mcpreload`
 - `/mcp` or `/mcps`
 - `/trinity` — list registered Trinity databases with inline test/refresh-schema/delete actions
+- `/chronos <prompt> @ <schedule>` — create a new scheduled job (e.g. `/chronos check bitcoin price @ every day at 9am`)
+- `/chronos_list` — list all jobs with 🟢 active / 🔴 disabled status indicators
+- `/chronos_view <id>` — view job details and last 5 executions
+- `/chronos_enable <id>` — re-enable a disabled job (recomputes next run)
+- `/chronos_disable <id>` — pause a job without deleting it
+- `/chronos_delete <id>` — delete a job (asks for confirmation)
 
 ## 6. Web UI Behavior
 
@@ -141,6 +147,13 @@ Dedicated agent tabs:
 - Refresh schema (re-introspect database structure)
 - Per-database permissions: `allow_read`, `allow_insert`, `allow_update`, `allow_delete`, `allow_ddl`
 - Passwords encrypted at rest (AES-256-GCM)
+
+### 6.5 Chronos Page
+- Job table showing all scheduled jobs (active and disabled)
+- Create job modal: prompt, schedule expression (natural language or cron), timezone
+- Edit existing job (prompt and schedule)
+- Execution history drawer per job (status, triggered_at, duration)
+- Enable/disable/delete actions with confirmation dialog
 
 ## 7. Configuration
 
@@ -180,6 +193,10 @@ trinity:
   provider: openai
   model: gpt-4o-mini
   temperature: 0.2
+
+chronos:
+  check_interval_ms: 60000   # polling interval (minimum 60000)
+  default_timezone: UTC      # IANA timezone used when none is specified
 
 runtime:
   async_tasks:
@@ -1728,6 +1745,217 @@ Not found `404`:
 ```json
 {
   "error": "Webhook not found"
+}
+```
+
+## 8.16 Chronos Scheduler Endpoints (Protected)
+
+### GET `/api/chronos`
+Success response `200`:
+
+```json
+[
+  {
+    "id": "882e1452-7c3a-4b1e-9f2d-0123456789ab",
+    "prompt": "Check bitcoin price and send summary",
+    "schedule_type": "interval",
+    "schedule_expression": "every day at 9am",
+    "cron_normalized": "0 9 * * *",
+    "timezone": "UTC",
+    "enabled": true,
+    "next_run_at": 1771617600000,
+    "last_run_at": 1771531200000,
+    "created_at": 1771440000000,
+    "updated_at": 1771531200000
+  }
+]
+```
+
+### POST `/api/chronos`
+Request payload example:
+
+```json
+{
+  "prompt": "Check bitcoin price and send summary",
+  "schedule_expression": "every day at 9am",
+  "timezone": "America/Sao_Paulo"
+}
+```
+
+Success response `201`:
+
+```json
+{
+  "id": "882e1452-7c3a-4b1e-9f2d-0123456789ab",
+  "prompt": "Check bitcoin price and send summary",
+  "schedule_type": "interval",
+  "cron_normalized": "0 9 * * *",
+  "timezone": "America/Sao_Paulo",
+  "enabled": true,
+  "next_run_at": 1771617600000
+}
+```
+
+Validation error `400`:
+
+```json
+{
+  "error": "Cannot parse schedule expression: \"every 0 minutes\""
+}
+```
+
+### GET `/api/chronos/:id`
+Success response `200`:
+- Same object shape as list item, with an additional `recent_executions` array (last 5).
+
+Not found `404`:
+
+```json
+{
+  "error": "Job not found"
+}
+```
+
+### PUT `/api/chronos/:id`
+Request payload example (partial update):
+
+```json
+{
+  "prompt": "Check bitcoin and ethereum prices",
+  "schedule_expression": "every day at 8am"
+}
+```
+
+Success response `200`:
+
+```json
+{
+  "success": true
+}
+```
+
+### DELETE `/api/chronos/:id`
+Success response `200`:
+
+```json
+{
+  "success": true
+}
+```
+
+### PATCH `/api/chronos/:id/enable`
+Re-enables a disabled job and recomputes `next_run_at` from now.
+
+Success response `200`:
+
+```json
+{
+  "success": true,
+  "next_run_at": 1771617600000
+}
+```
+
+### PATCH `/api/chronos/:id/disable`
+Success response `200`:
+
+```json
+{
+  "success": true
+}
+```
+
+### GET `/api/chronos/:id/executions`
+Query params:
+- `limit` (optional, default 50)
+
+Success response `200`:
+
+```json
+[
+  {
+    "id": "exec-uuid",
+    "job_id": "882e1452-7c3a-4b1e-9f2d-0123456789ab",
+    "triggered_at": 1771531200000,
+    "finished_at": 1771531215000,
+    "status": "success",
+    "error": null,
+    "session_id": "d18e23e6-67db-4ec1-b614-95eeaf399827"
+  }
+]
+```
+
+### POST `/api/chronos/preview`
+Preview the next N run timestamps for a given expression.
+
+Request payload example:
+
+```json
+{
+  "expression": "every weekday at 9am",
+  "timezone": "America/Sao_Paulo",
+  "count": 5
+}
+```
+
+Success response `200`:
+
+```json
+{
+  "timestamps": [
+    1771617600000,
+    1771704000000,
+    1771790400000,
+    1771876800000,
+    1771963200000
+  ],
+  "formatted": [
+    "2026-02-23T09:00:00-03:00",
+    "2026-02-24T09:00:00-03:00",
+    "2026-02-25T09:00:00-03:00",
+    "2026-02-26T09:00:00-03:00",
+    "2026-02-27T09:00:00-03:00"
+  ]
+}
+```
+
+## 8.17 Chronos Config Endpoints (Protected)
+
+### GET `/api/config/chronos`
+Success response `200` example:
+
+```json
+{
+  "check_interval_ms": 60000,
+  "default_timezone": "UTC"
+}
+```
+
+### POST `/api/config/chronos`
+Request payload example:
+
+```json
+{
+  "check_interval_ms": 120000,
+  "default_timezone": "America/Sao_Paulo"
+}
+```
+
+Success response `200`:
+
+```json
+{
+  "success": true
+}
+```
+
+### DELETE `/api/config/chronos`
+Resets Chronos config to defaults.
+
+Success response `200`:
+
+```json
+{
+  "success": true
 }
 ```
 
