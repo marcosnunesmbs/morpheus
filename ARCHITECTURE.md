@@ -17,6 +17,7 @@ The runtime is a modular monolith built on Node.js + TypeScript, with SQLite as 
 - `apoc.ts`: execution subagent for DevKit operations (filesystem, shell, git, network, processes, packages, system).
 - `memory/sati/*`: long-term memory pipeline (retrieval + post-response memory evaluation).
 - `tasks/*`: async task queue repository, worker, notifier, dispatcher, and request context.
+- `chronos/*`: temporal scheduler — job store, polling worker, natural-language schedule parser.
 
 ### 2.2 Interfaces
 - `src/channels/telegram.ts`: Telegram adapter (commands, chat, voice transcription, proactive task notifications).
@@ -97,10 +98,11 @@ Sati retrieval enriches Oracle context before execution. Sati post-processing ex
 Main API router (`src/http/api.ts`) provides:
 - sessions and chat
 - tasks listing/stats/detail/retry
-- config management (`/config`, `/config/sati`, `/config/neo`, `/config/apoc`, `/config/trinity`)
+- config management (`/config`, `/config/sati`, `/config/neo`, `/config/apoc`, `/config/trinity`, `/config/chronos`)
 - usage statistics and model pricing
 - MCP management and reload (`/mcp/servers`, `/mcp/reload`, `/mcp/status`)
 - Trinity database registry (`/trinity/databases` CRUD + test + refresh-schema)
+- Chronos scheduler (`/chronos` CRUD + enable/disable + executions + preview)
 - logs
 
 Webhooks router (`src/http/webhooks-router.ts`) provides:
@@ -117,7 +119,8 @@ Webhooks router (`src/http/webhooks-router.ts`) provides:
 - Agents settings with dedicated Oracle/Sati/Neo/Apoc/Trinity tabs.
 - Trinity Databases page: register databases, test connections, refresh schema, set per-permission flags (read/insert/update/delete/ddl).
 - MCP Manager: CRUD, enable/disable toggle, live probe status, hot reload.
-- Logs viewer: browse log files, tail last N lines.
+- Chronos page: create/edit/delete scheduled jobs, enable/disable toggle, execution history per job.
+- Logs viewer: browse log files, auto-scroll to latest entries, timestamps hidden on mobile.
 
 ## 7. Telegram Delivery Model
 
@@ -148,7 +151,36 @@ Each registered database stores:
 ### 8.3 Task Agent Name
 Trinity tasks are stored in the `tasks` table with `agent = 'trinit'` (not `'trinity'`).
 
-## 9. Security Model
+## 9. Chronos — Temporal Scheduler
+
+### 9.1 Components
+- `src/runtime/chronos/worker.ts`: `ChronosWorker` — polling timer, due-job detection, Oracle execution, and Telegram notification delivery.
+- `src/runtime/chronos/repository.ts`: `ChronosRepository` — SQLite-backed job and execution history store. Tables: `chronos_jobs`, `chronos_executions`.
+- `src/runtime/chronos/parser.ts`: `parseScheduleExpression` / `parseNextRun` / `intervalToCron` — natural-language schedule parsing, cron normalization, and next-run computation.
+
+### 9.2 Execution Model
+- `ChronosWorker` polls the job store at a configurable interval (default 60 s, minimum 60 s).
+- Due jobs are executed by calling `oracle.injectAIMessage(context)` then `oracle.chat(job.prompt)` against the currently active Oracle session — no dedicated session is created per job.
+- The injected AI message provides job metadata (job ID, execution guard instructions) without incurring an extra LLM call.
+- `ChronosWorker.isExecuting` static flag prevents management tools (`chronos_schedule`, `chronos_cancel`) from operating during an active execution to avoid self-deletion or re-scheduling races.
+- Delegated tasks spawned during Chronos execution carry `origin_channel: 'telegram'` when a notify function is registered, ensuring completion notifications route correctly.
+
+### 9.3 Schedule Parser
+Three schedule types are supported:
+- **`once`**: relative durations (`"in 5 minutes"`, `"in 2 hours"`), natural-language dates (`"tomorrow at 9am"`, `"next friday"`), or ISO 8601 timestamps. Stored and computed at creation time.
+- **`interval`**: recurring natural-language expressions → normalized to a 5-field cron string stored in `cron_normalized`. Examples: `"every 30 minutes"`, `"every sunday at 9am"`, `"every weekday"`, `"every monday and friday at 8am"`, `"every weekend"`.
+- **`cron`**: raw 5-field cron expressions passed through directly (`"*/5 * * * *"`).
+
+### 9.4 Oracle Tools
+Oracle exposes four Chronos management tools:
+- `chronos_schedule` — create a new job
+- `chronos_list` — list all jobs
+- `chronos_cancel` — disable or delete a job
+- `chronos_preview` — preview next N run timestamps for a given expression
+
+These tools are blocked (`ChronosWorker.isExecuting`) while a Chronos job is executing.
+
+## 10. Security Model
 - Local-first storage by default.
 - `x-architect-pass` protects `/api/*` management routes.
 - webhook trigger uses per-webhook `x-api-key`.
@@ -157,7 +189,7 @@ Trinity tasks are stored in the `tasks` table with `agent = 'trinit'` (not `'tri
 - Trinity database passwords encrypted at rest with AES-256-GCM (`MORPHEUS_SECRET` env var).
 - Per-database permission flags (`allow_read`, `allow_insert`, `allow_update`, `allow_delete`, `allow_ddl`) gate Trinity query execution.
 
-## 10. Runtime Lifecycle
+## 11. Runtime Lifecycle
 At daemon boot (`start` / `restart` commands):
 - load config and initialize Oracle
 - start HTTP server (optional)
@@ -165,5 +197,6 @@ At daemon boot (`start` / `restart` commands):
 - start background workers when `runtime.async_tasks.enabled != false`:
   - `TaskWorker`
   - `TaskNotifier`
+- start `ChronosWorker` (polls for due scheduled jobs)
 
 Graceful shutdown stops HTTP, adapters, workers, and clears PID state.

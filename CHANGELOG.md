@@ -7,6 +7,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.6] - 2026-02-22
+
+### Added
+- **Chronos — Temporal Scheduler**: New subsystem for scheduling recurring and one-time Oracle executions
+  - Natural-language schedule parser: `"every 30 minutes"`, `"every sunday at 9am"`, `"every weekday"`, `"in 5 minutes"`, `"tomorrow at 9am"`, `"every monday and friday at 8am"`
+  - Three schedule types: `once` (auto-disabled after execution), `interval` (natural language → cron), `cron` (raw 5-field expression)
+  - Executions run in the user's currently active Oracle session — no dedicated session is created per job
+  - Execution context injected as an AI message before each run to provide job metadata without an extra LLM call
+  - Delegated tasks spawned during Chronos execution carry `origin_channel: 'telegram'` when a notify function is registered, ensuring proper notification delivery
+  - `ChronosWorker.isExecuting` flag blocks management tools (`chronos_schedule`, `chronos_cancel`) during active execution to prevent self-modification
+- **Chronos API Endpoints** (Protected):
+  - `GET /api/chronos` — list all jobs
+  - `POST /api/chronos` — create a new scheduled job
+  - `GET /api/chronos/:id` — job details with recent execution preview
+  - `PUT /api/chronos/:id` — update job prompt or schedule
+  - `DELETE /api/chronos/:id` — delete a job
+  - `PATCH /api/chronos/:id/enable` — re-enable a disabled job (recomputes next run)
+  - `PATCH /api/chronos/:id/disable` — pause a job without deleting it
+  - `GET /api/chronos/:id/executions` — full execution history for a job
+  - `POST /api/chronos/preview` — preview next N run timestamps for a schedule expression
+  - `GET/POST/DELETE /api/config/chronos` — Chronos worker configuration (poll interval, default timezone)
+- **Chronos Telegram Commands**:
+  - `/chronos <prompt> @ <schedule>` — create a new scheduled job
+  - `/chronos_list` — list all jobs (active and disabled) with 🟢/🔴 status indicators
+  - `/chronos_view <id>` — view job details and last 5 executions
+  - `/chronos_enable <id>` — re-enable a disabled job
+  - `/chronos_disable <id>` — pause a job
+  - `/chronos_delete <id>` — delete a job with confirmation prompt
+- **Oracle Chronos Tools**: `chronos_schedule`, `chronos_list`, `chronos_cancel`, `chronos_preview` — Oracle can schedule, list, cancel, and preview jobs on behalf of the user
+- **Chronos UI Page** (`/chronos`): full management interface with job table, create/edit modal, execution history drawer, and enable/disable/delete actions with confirmation
+
 ## [0.5.1] - 2026-02-21
 
 ### Added

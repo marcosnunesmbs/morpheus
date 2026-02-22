@@ -39,6 +39,12 @@ export const WebhookConfigSchema = z.object({
   telegram_notify_all: z.boolean().optional(),
 }).optional();
 
+export const ChronosConfigSchema = z.object({
+  timezone: z.string().default('UTC'),
+  check_interval_ms: z.number().min(60000).default(60000),
+  max_active_jobs: z.number().min(1).max(1000).default(100),
+});
+
 // Zod Schema matching MorpheusConfig interface
 export const ConfigSchema = z.object({
   agent: z.object({
@@ -60,6 +66,7 @@ export const ConfigSchema = z.object({
       enabled: z.boolean().default(DEFAULT_CONFIG.runtime?.async_tasks.enabled ?? true),
     }).default(DEFAULT_CONFIG.runtime?.async_tasks ?? { enabled: true }),
   }).optional(),
+  chronos: ChronosConfigSchema.optional(),
   channels: z.object({
     telegram: z.object({
       enabled: z.boolean().default(false),

@@ -20,7 +20,7 @@ import { Trinity } from "./trinity.js";
 import { NeoDelegateTool } from "./tools/neo-tool.js";
 import { ApocDelegateTool } from "./tools/apoc-tool.js";
 import { TrinityDelegateTool } from "./tools/trinity-tool.js";
-import { TaskQueryTool } from "./tools/index.js";
+import { TaskQueryTool, chronosTools } from "./tools/index.js";
 import { MCPManager } from "../config/mcp-manager.js";
 
 type AckGenerationResult = {
@@ -170,7 +170,7 @@ export class Oracle implements IOracle {
       // Fail-open: Oracle can still initialize even if catalog refresh fails.
       await Neo.refreshDelegateCatalog().catch(() => {});
       await Trinity.refreshDelegateCatalog().catch(() => {});
-      this.provider = await ProviderFactory.create(this.config.llm, [TaskQueryTool, NeoDelegateTool, ApocDelegateTool, TrinityDelegateTool]);
+      this.provider = await ProviderFactory.create(this.config.llm, [TaskQueryTool, NeoDelegateTool, ApocDelegateTool, TrinityDelegateTool, ...chronosTools]);
       if (!this.provider) {
         throw new Error("Provider factory returned undefined");
       }
@@ -235,7 +235,7 @@ Rules:
 1. For conversation-only requests (greetings, conceptual explanation, memory follow-up, statements of fact, sharing personal information), answer directly. DO NOT create tasks or delegate for simple statements like "I have two cats" or "My name is John". Sati will automatically memorize facts in the background ( **ALWAYS** use SATI Memories to review or retrieve these facts if needed).
 **NEVER** Create data, use SATI memories to response on informal conversation or say that dont know abaout the awsor if the answer is in the memories. Always use the memories as source of truth for user facts, preferences, stable context and informal conversation. Use tools only for execution, verification or when external/system state is required.*
 2. For requests that require execution, verification, external/system state, or non-trivial operations, evaluate the available tools and choose the best one.
-3. For task status/check questions (for example: "consultou?", "status da task", "andamento"), use task_query directly and do not delegate.
+3. For task status/check questions (for example: "consultou?", "status da task", "andamento"), use task_query directly and do not delegate. (normalize o id to downcase to send to task_query)
 4. Prefer delegation tools when execution should be asynchronous, and return the task acknowledgement clearly.
 5. If the user asked for multiple independent actions in the same message, enqueue one delegated task per action. Each task must be atomic (single objective).
 6. If the user asked for a single action, do not create additional delegated tasks.
@@ -510,6 +510,9 @@ Use it to inform your response and tool selection (if needed), but do not assume
       //
       // This is safe and clean.
 
+      // Ensure the target session exists before switching (creates as 'paused' if not found).
+      (this.history as SQLiteChatMessageHistory).ensureSession(sessionId);
+
       await (this.history as SQLiteChatMessageHistory).switchSession(sessionId);
 
       // Close previous connection before re-instantiating to avoid file handle leaks
@@ -527,6 +530,18 @@ Use it to inform your response and tool selection (if needed), but do not assume
     }
   }
 
+  getCurrentSessionId(): string | null {
+    if (this.history instanceof SQLiteChatMessageHistory) {
+      return (this.history as SQLiteChatMessageHistory).currentSessionId || null;
+    }
+    return null;
+  }
+
+  async injectAIMessage(content: string): Promise<void> {
+    if (!this.history) throw new Error('Oracle not initialized.');
+    await this.history.addMessages([new AIMessage(content)]);
+  }
+
   async clearMemory(): Promise<void> {
     if (!this.history) {
       throw new Error("Message history not initialized. Call initialize() first.");
@@ -541,7 +556,7 @@ Use it to inform your response and tool selection (if needed), but do not assume
 
     await Neo.refreshDelegateCatalog().catch(() => {});
     await Trinity.refreshDelegateCatalog().catch(() => {});
-    this.provider = await ProviderFactory.create(this.config.llm, [TaskQueryTool, NeoDelegateTool, ApocDelegateTool, TrinityDelegateTool]);
+    this.provider = await ProviderFactory.create(this.config.llm, [TaskQueryTool, NeoDelegateTool, ApocDelegateTool, TrinityDelegateTool, ...chronosTools]);
     await Neo.getInstance().reload();
     this.display.log(`Oracle and Neo tools reloaded`, { source: 'Oracle' });
   }

@@ -1,7 +1,7 @@
 import fs from 'fs-extra';
 import yaml from 'js-yaml';
 import { z } from 'zod';
-import { MorpheusConfig, DEFAULT_CONFIG, SatiConfig, ApocConfig, NeoConfig, TrinityConfig, LLMProvider } from '../types/config.js';
+import { MorpheusConfig, DEFAULT_CONFIG, SatiConfig, ApocConfig, NeoConfig, TrinityConfig, LLMProvider, ChronosConfig } from '../types/config.js';
 import { PATHS } from './paths.js';
 import { setByPath } from './utils.js';
 import { ConfigSchema } from './schemas.js';
@@ -224,6 +224,16 @@ export class ConfigManager {
       limit: config.memory.limit // Not applying env var precedence to deprecated field
     };
 
+    // Apply precedence to Chronos config
+    let chronosConfig: ChronosConfig | undefined;
+    if (config.chronos) {
+      chronosConfig = {
+        timezone: resolveString('MORPHEUS_CHRONOS_TIMEZONE', config.chronos.timezone, 'UTC'),
+        check_interval_ms: resolveNumeric('MORPHEUS_CHRONOS_CHECK_INTERVAL_MS', config.chronos.check_interval_ms, 60000),
+        max_active_jobs: resolveNumeric('MORPHEUS_CHRONOS_MAX_ACTIVE_JOBS', config.chronos.max_active_jobs, 100),
+      };
+    }
+
     return {
       agent: agentConfig,
       llm: llmConfig,
@@ -235,7 +245,8 @@ export class ConfigManager {
       channels: channelsConfig,
       ui: uiConfig,
       logging: loggingConfig,
-      memory: memoryConfig
+      memory: memoryConfig,
+      chronos: chronosConfig,
     };
   }
 
@@ -317,5 +328,13 @@ export class ConfigManager {
 
     // Fallback to main LLM config
     return { ...this.config.llm };
+  }
+
+  public getChronosConfig(): ChronosConfig {
+    const defaults: ChronosConfig = { timezone: 'UTC', check_interval_ms: 60000, max_active_jobs: 100 };
+    if (this.config.chronos) {
+      return { ...defaults, ...this.config.chronos };
+    }
+    return defaults;
   }
 }

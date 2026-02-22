@@ -1005,6 +1005,19 @@ export class SQLiteChatMessageHistory extends BaseListChatMessageHistory {
    * Se já for active, não faz nada.
    * Transação: sessão atual active → paused, sessão alvo → active.
    */
+  /**
+   * Creates a session row with status 'paused' if it doesn't already exist.
+   * Safe to call multiple times — idempotent.
+   */
+  public ensureSession(sessionId: string): void {
+    const existing = this.db.prepare('SELECT id FROM sessions WHERE id = ?').get(sessionId);
+    if (!existing) {
+      this.db.prepare(
+        "INSERT INTO sessions (id, started_at, status) VALUES (?, ?, 'paused')"
+      ).run(sessionId, Date.now());
+    }
+  }
+
   public async switchSession(targetSessionId: string): Promise<void> {
     // Validar sessão alvo: existe e status ∈ (paused, active)
     const targetSession = this.db.prepare(`

@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import useSWR, { mutate } from 'swr';
+import { useChronosConfig, chronosService, type ChronosConfig } from '../services/chronos';
 import { Section } from '../components/forms/Section';
 import { TextInput } from '../components/forms/TextInput';
 import { SelectInput } from '../components/forms/SelectInput';
@@ -25,6 +26,7 @@ const TABS = [
   { id: 'channels', label: 'Channels' },
   { id: 'ui', label: 'Interface' },
   { id: 'logging', label: 'Logging' },
+  { id: 'chronos', label: 'Chronos' },
 ];
 
 const AGENT_TABS = [
@@ -64,6 +66,10 @@ export default function Settings() {
     '/api/config/trinity',
     configService.getTrinityConfig
   );
+
+  const { data: chronosServerConfig } = useChronosConfig();
+  const [localChronosConfig, setLocalChronosConfig] = useState<ChronosConfig | null>(null);
+  const [chronosSaving, setChronosSaving] = useState(false);
 
   const [localConfig, setLocalConfig] = useState<MorpheusConfig | null>(null);
   const [localSatiConfig, setLocalSatiConfig] = useState<SatiConfig | null>(null);
@@ -125,6 +131,12 @@ export default function Settings() {
       } as TrinityConfig);
     }
   }, [trinityServerConfig, localConfig]);
+
+  useEffect(() => {
+    if (chronosServerConfig && !localChronosConfig) {
+      setLocalChronosConfig(chronosServerConfig);
+    }
+  }, [chronosServerConfig]);
 
   const isDirty =
     JSON.stringify(serverConfig) !== JSON.stringify(localConfig) ||
@@ -988,6 +1000,103 @@ export default function Settings() {
                 { label: 'Error', value: 'error' },
               ]}
             />
+          </Section>
+        )}
+
+        {activeTab === 'chronos' && localChronosConfig && (
+          <Section title="Chronos — Temporal Intent Engine">
+            <SelectInput
+              label="Timezone"
+              value={localChronosConfig.timezone}
+              onChange={(e) =>
+                setLocalChronosConfig({ ...localChronosConfig, timezone: e.target.value })
+              }
+              options={[
+                { label: 'UTC', value: 'UTC' },
+                { label: 'America/New_York', value: 'America/New_York' },
+                { label: 'America/Chicago', value: 'America/Chicago' },
+                { label: 'America/Denver', value: 'America/Denver' },
+                { label: 'America/Los_Angeles', value: 'America/Los_Angeles' },
+                { label: 'America/Sao_Paulo', value: 'America/Sao_Paulo' },
+                { label: 'America/Buenos_Aires', value: 'America/Buenos_Aires' },
+                { label: 'America/Bogota', value: 'America/Bogota' },
+                { label: 'America/Lima', value: 'America/Lima' },
+                { label: 'America/Santiago', value: 'America/Santiago' },
+                { label: 'America/Mexico_City', value: 'America/Mexico_City' },
+                { label: 'America/Toronto', value: 'America/Toronto' },
+                { label: 'America/Vancouver', value: 'America/Vancouver' },
+                { label: 'Europe/London', value: 'Europe/London' },
+                { label: 'Europe/Paris', value: 'Europe/Paris' },
+                { label: 'Europe/Berlin', value: 'Europe/Berlin' },
+                { label: 'Europe/Madrid', value: 'Europe/Madrid' },
+                { label: 'Europe/Rome', value: 'Europe/Rome' },
+                { label: 'Europe/Amsterdam', value: 'Europe/Amsterdam' },
+                { label: 'Europe/Brussels', value: 'Europe/Brussels' },
+                { label: 'Europe/Zurich', value: 'Europe/Zurich' },
+                { label: 'Europe/Lisbon', value: 'Europe/Lisbon' },
+                { label: 'Europe/Warsaw', value: 'Europe/Warsaw' },
+                { label: 'Europe/Stockholm', value: 'Europe/Stockholm' },
+                { label: 'Europe/Helsinki', value: 'Europe/Helsinki' },
+                { label: 'Europe/Moscow', value: 'Europe/Moscow' },
+                { label: 'Asia/Dubai', value: 'Asia/Dubai' },
+                { label: 'Asia/Kolkata', value: 'Asia/Kolkata' },
+                { label: 'Asia/Bangkok', value: 'Asia/Bangkok' },
+                { label: 'Asia/Singapore', value: 'Asia/Singapore' },
+                { label: 'Asia/Hong_Kong', value: 'Asia/Hong_Kong' },
+                { label: 'Asia/Shanghai', value: 'Asia/Shanghai' },
+                { label: 'Asia/Tokyo', value: 'Asia/Tokyo' },
+                { label: 'Asia/Seoul', value: 'Asia/Seoul' },
+                { label: 'Australia/Sydney', value: 'Australia/Sydney' },
+                { label: 'Australia/Melbourne', value: 'Australia/Melbourne' },
+                { label: 'Pacific/Auckland', value: 'Pacific/Auckland' },
+                { label: 'Africa/Cairo', value: 'Africa/Cairo' },
+                { label: 'Africa/Johannesburg', value: 'Africa/Johannesburg' },
+              ]}
+            />
+            <NumberInput
+              label="Check Interval (seconds)"
+              value={Math.round(localChronosConfig.check_interval_ms / 1000)}
+              onChange={(e) =>
+                setLocalChronosConfig({
+                  ...localChronosConfig,
+                  check_interval_ms: Number(e.target.value) * 1000,
+                })
+              }
+              min={60}
+            />
+            <NumberInput
+              label="Max Active Jobs"
+              value={localChronosConfig.max_active_jobs}
+              onChange={(e) =>
+                setLocalChronosConfig({
+                  ...localChronosConfig,
+                  max_active_jobs: Number(e.target.value),
+                })
+              }
+              min={1}
+              max={1000}
+            />
+            <div className="flex justify-end pt-2">
+              <button
+                onClick={async () => {
+                  setChronosSaving(true);
+                  setNotification(null);
+                  try {
+                    await chronosService.updateConfig(localChronosConfig);
+                    mutate('/api/config/chronos');
+                    setNotification({ type: 'success', message: 'Chronos settings saved.' });
+                  } catch (err: any) {
+                    setNotification({ type: 'error', message: err.message });
+                  } finally {
+                    setChronosSaving(false);
+                  }
+                }}
+                disabled={chronosSaving}
+                className="px-4 py-2 rounded font-medium bg-azure-primary text-white hover:bg-azure-active dark:bg-matrix-highlight dark:text-black dark:hover:bg-matrix-highlight/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                {chronosSaving ? 'Saving…' : 'Save Chronos Settings'}
+              </button>
+            </div>
           </Section>
         )}
       </div>

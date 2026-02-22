@@ -14,6 +14,7 @@ import { WebhookManager } from './pages/WebhookManager';
 import { Notifications } from './pages/Notifications';
 import { TasksPage } from './pages/Tasks';
 import { TrinityDatabases } from './pages/TrinityDatabases';
+import { ChronosPage } from './pages/Chronos';
 
 function App() {
   return (
@@ -38,6 +39,7 @@ function App() {
                   <Route path="/notifications" element={<Notifications />} />
                   <Route path="/tasks" element={<TasksPage />} />
                   <Route path="/trinity-databases" element={<TrinityDatabases />} />
+                  <Route path="/chronos" element={<ChronosPage />} />
                   <Route path="*" element={<Navigate to="/" replace />} />
                 </Routes>
               </Layout>

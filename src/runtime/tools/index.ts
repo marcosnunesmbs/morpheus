@@ -2,3 +2,4 @@
 export * from './morpheus-tools.js';
 export * from './apoc-tool.js';
 export * from './neo-tool.js';
+export * from './chronos-tools.js';

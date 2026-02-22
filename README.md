@@ -9,8 +9,9 @@ It runs as a daemon and orchestrates LLMs, MCP tools, DevKit tools, memory, and 
 
 ## Why Morpheus
 - Local-first persistence (sessions, messages, usage, tasks).
-- Multi-agent architecture (Oracle, Neo, Apoc, Sati).
+- Multi-agent architecture (Oracle, Neo, Apoc, Sati, Trinity).
 - Async task execution with queue + worker + notifier.
+- Chronos temporal scheduler for recurring and one-time Oracle executions.
 - Rich operational visibility in UI (chat traces, tasks, usage, logs).
 
 ## Multi-Agent Roles
@@ -19,6 +20,7 @@ It runs as a daemon and orchestrates LLMs, MCP tools, DevKit tools, memory, and 
 - `Apoc`: DevTools/browser execution (filesystem, shell, git, network, packages, processes, system, browser automation).
 - `Sati`: long-term memory retrieval/evaluation.
 - `Trinity`: database specialist. Executes queries, introspects schemas, and manages registered databases (PostgreSQL, MySQL, SQLite, MongoDB).
+- `Chronos`: temporal scheduler. Runs Oracle prompts on a recurring or one-time schedule.
 
 ## Installation
 
@@ -156,6 +158,36 @@ Important behavior:
 - Duplicate/fabricated task acknowledgements are blocked by validation against DB.
 - Status follow-ups are handled by Oracle through `task_query` (no delegation required).
 
+## Chronos — Temporal Scheduler
+
+Chronos lets you schedule any Oracle prompt to run at a fixed time or on a recurring schedule.
+
+**Schedule types:**
+- `once` — run once at a specific time: `"in 30 minutes"`, `"tomorrow at 9am"`, `"2026-03-01T09:00:00"`
+- `interval` — recurring natural language: `"every day at 9am"`, `"every weekday"`, `"every monday and friday at 8am"`, `"every 30 minutes"`
+- `cron` — raw 5-field cron: `"0 9 * * 1-5"`
+
+**Execution model:**
+- Jobs run inside the currently active Oracle session — no isolated sessions are created per job.
+- Chronos injects context as an AI message before invoking `oracle.chat()`, keeping conversation history clean.
+- Delegated tasks spawned during Chronos execution carry `origin_channel: 'telegram'` when a Telegram notify function is registered, so task results are delivered to you.
+
+**Oracle tools:** `chronos_schedule`, `chronos_list`, `chronos_cancel`, `chronos_preview`
+
+**Telegram commands:**
+- `/chronos <prompt> @ <schedule>` — create a job
+- `/chronos_list` — list all jobs (🟢 active / 🔴 disabled)
+- `/chronos_view <id>` — view job details and last 5 executions
+- `/chronos_enable <id>` / `/chronos_disable <id>` / `/chronos_delete <id>`
+
+**API endpoints (protected):**
+- `GET/POST /api/chronos` — list / create jobs
+- `GET/PUT/DELETE /api/chronos/:id` — read / update / delete
+- `PATCH /api/chronos/:id/enable` / `.../disable`
+- `GET /api/chronos/:id/executions`
+- `POST /api/chronos/preview` — preview next N run timestamps
+- `GET/POST/DELETE /api/config/chronos`
+
 ## Telegram Experience
 
 Telegram responses use rich HTML formatting conversion with:
@@ -175,6 +207,7 @@ The dashboard includes:
 - Sati memories (search, bulk delete)
 - Usage stats and model pricing
 - Trinity databases (register/test/refresh schema)
+- Chronos scheduler (create/edit/delete jobs, execution history)
 - Webhooks and notification inbox
 - Logs viewer
 
@@ -222,6 +255,10 @@ trinity:
   provider: openai
   model: gpt-4o-mini
   temperature: 0.2
+
+chronos:
+  check_interval_ms: 60000   # polling interval in ms (minimum 60000)
+  default_timezone: UTC      # IANA timezone used when none is specified
 
 runtime:
   async_tasks:
@@ -352,10 +389,11 @@ Authenticated endpoints (`x-architect-pass`):
 - Sessions: `/api/sessions*`
 - Chat: `POST /api/chat`
 - Tasks: `GET /api/tasks`, `GET /api/tasks/stats`, `GET /api/tasks/:id`, `POST /api/tasks/:id/retry`
-- Config: `/api/config`, `/api/config/sati`, `/api/config/neo`, `/api/config/apoc`, `/api/config/trinity`
+- Config: `/api/config`, `/api/config/sati`, `/api/config/neo`, `/api/config/apoc`, `/api/config/trinity`, `/api/config/chronos`
 - MCP: `/api/mcp/*` (servers CRUD + reload + status)
 - Sati memories: `/api/sati/memories*`
 - Trinity databases: `GET/POST/PUT/DELETE /api/trinity/databases`, `POST /api/trinity/databases/:id/test`, `POST /api/trinity/databases/:id/refresh-schema`
+- Chronos: `GET/POST /api/chronos`, `GET/PUT/DELETE /api/chronos/:id`, `PATCH /api/chronos/:id/enable`, `PATCH /api/chronos/:id/disable`, `GET /api/chronos/:id/executions`, `POST /api/chronos/preview`
 - Usage/model pricing/logs/restart
 - Webhook management and webhook notifications
 
@@ -462,6 +500,10 @@ src/
     trinity.ts
     trinity-connector.ts  # PostgreSQL/MySQL/SQLite/MongoDB drivers
     trinity-crypto.ts     # AES-256-GCM encryption for DB passwords
+    chronos/
+      worker.ts           # polling timer and job execution
+      repository.ts       # SQLite-backed job and execution store
+      parser.ts           # natural-language schedule parser
     memory/
     tasks/
     tools/

@@ -144,6 +144,15 @@ function escMd(value: string | number | boolean): string {
   return String(value).replace(/([.!?(){}#+~|=>$@\\-])/g, '\\$1');
 }
 
+/**
+ * Full MarkdownV2 escape — escapes ALL special characters including * _ ` [ ].
+ * Use for untrusted/user-generated content (session titles, prompts, etc.)
+ * placed inside bold/italic markers or anywhere in a MarkdownV2 message.
+ */
+function escMdRaw(value: string | number | boolean): string {
+  return String(value).replace(/([_*[\]()~`>#+=|{}.!\\-])/g, '\\$1');
+}
+
 export class TelegramAdapter {
   private bot: Telegraf | null = null;
   private isConnected = false;
@@ -157,6 +166,16 @@ export class TelegramAdapter {
 
   private readonly RATE_LIMIT_MS = 3000; // minimum ms between requests per user
   private rateLimiter = new Map<string, number>(); // userId -> last request timestamp
+
+  // Pending Chronos create confirmations (userId -> job data + expiry)
+  private pendingChronosCreate = new Map<string, {
+    prompt: string;
+    schedule_expression: string;
+    human_readable: string;
+    timezone: string;
+    expiresAt: number;
+    timer: ReturnType<typeof setTimeout>;
+  }>();
 
   private isRateLimited(userId: string): boolean {
     const now = Date.now();
@@ -178,7 +197,13 @@ export class TelegramAdapter {
 /sessions \\- List all sessions with titles and switch between them
 /restart \\- Restart the Morpheus agent
 /mcpreload \\- Reload MCP servers without restarting
-/mcp or /mcps \\- List registered MCP servers`;
+/mcp or /mcps \\- List registered MCP servers
+/chronos <prompt \\+ time\\> \\- Schedule a prompt for the Oracle
+/chronos\\_list \\- List all active Chronos jobs
+/chronos\\_view <id\\> \\- View a Chronos job and its last executions
+/chronos\\_disable <id\\> \\- Disable a Chronos job
+/chronos\\_enable <id\\> \\- Enable a Chronos job
+/chronos\\_delete <id\\> \\- Delete a Chronos job`;
 
   constructor(oracle: Oracle) {
     this.oracle = oracle;
@@ -216,6 +241,22 @@ export class TelegramAdapter {
         // Handle system commands (commands bypass rate limit)
         if (text.startsWith('/')) {
           await this.handleSystemCommand(ctx, text, user);
+          return;
+        }
+
+        // Check for pending Chronos create confirmation
+        const pendingChronos = this.pendingChronosCreate.get(userId);
+        if (pendingChronos) {
+          const lower = text.trim().toLowerCase();
+          if (lower === 'yes' || lower === 'confirm' || lower === 'y') {
+            clearTimeout(pendingChronos.timer);
+            this.pendingChronosCreate.delete(userId);
+            await this.confirmChronosCreate(ctx, userId, pendingChronos);
+          } else {
+            clearTimeout(pendingChronos.timer);
+            this.pendingChronosCreate.delete(userId);
+            await ctx.reply('Cancelled.');
+          }
           return;
         }
 
@@ -814,10 +855,236 @@ export class TelegramAdapter {
       case '/sessions':
         await this.handleSessionStatusCommand(ctx, user);
         break;
+      case '/chronos': {
+        const userId = ctx.from?.id?.toString() ?? user;
+        const fullText = text.slice('/chronos'.length).trim();
+        await this.handleChronosCreate(ctx, userId, fullText);
+        break;
+      }
+      case '/chronos_list':
+        await this.handleChronosList(ctx);
+        break;
+      case '/chronos_view': {
+        const id = args[0] ?? '';
+        await this.handleChronosView(ctx, id);
+        break;
+      }
+      case '/chronos_disable': {
+        const id = args[0] ?? '';
+        await this.handleChronosDisable(ctx, id);
+        break;
+      }
+      case '/chronos_enable': {
+        const id = args[0] ?? '';
+        await this.handleChronosEnable(ctx, id);
+        break;
+      }
+      case '/chronos_delete': {
+        const id = args[0] ?? '';
+        await this.handleChronosDelete(ctx, id);
+        break;
+      }
       default:
         await this.handleDefaultCommand(ctx, user, command);
     }
   }
+
+  // ─── Chronos Command Handlers ────────────────────────────────────────────────
+
+  private async handleChronosCreate(ctx: any, userId: string, fullText: string) {
+    if (!fullText) {
+      await ctx.reply(
+        'Usage: /chronos <prompt + time expression>\nExample: /chronos Check disk space tomorrow at 9am'
+      );
+      return;
+    }
+
+    try {
+      const { parse: chronoParse } = await import('chrono-node');
+      const results = chronoParse(fullText);
+
+      if (!results.length) {
+        await ctx.reply(
+          'Could not detect a time expression. Try: `/chronos Check disk space tomorrow at 9am`',
+          { parse_mode: 'Markdown' }
+        );
+        return;
+      }
+
+      // Extract the first matched datetime fragment and derive the prompt
+      const match = results[0];
+      const matchedText = fullText.slice(match.index, match.index + match.text.length);
+      const prompt = (
+        fullText.slice(0, match.index) + fullText.slice(match.index + match.text.length)
+      ).replace(/\s+/g, ' ').trim() || fullText;
+
+      const globalTz = this.config.getChronosConfig().timezone;
+      const { parseScheduleExpression } = await import('../runtime/chronos/parser.js');
+      const schedule = parseScheduleExpression(matchedText, 'once', { timezone: globalTz });
+
+      const formatted = new Date(schedule.next_run_at).toLocaleString('en-US', {
+        timeZone: globalTz, year: 'numeric', month: 'short', day: 'numeric',
+        hour: '2-digit', minute: '2-digit', timeZoneName: 'short',
+      });
+
+      const timer = setTimeout(() => {
+        this.pendingChronosCreate.delete(userId);
+      }, 5 * 60 * 1000);
+
+      this.pendingChronosCreate.set(userId, {
+        prompt,
+        schedule_expression: matchedText,
+        human_readable: schedule.human_readable,
+        timezone: globalTz,
+        expiresAt: Date.now() + 5 * 60 * 1000,
+        timer,
+      });
+
+      await ctx.reply(
+        `📅 *${prompt}*\n${schedule.human_readable} (${formatted})\n\nConfirm? Reply \`yes\` or \`no\``,
+        { parse_mode: 'Markdown' }
+      );
+    } catch (err: any) {
+      await ctx.reply(`Error: ${err.message}`);
+    }
+  }
+
+  private async confirmChronosCreate(
+    ctx: any,
+    _userId: string,
+    pending: { prompt: string; schedule_expression: string; human_readable: string; timezone: string; expiresAt: number; timer: ReturnType<typeof setTimeout> }
+  ) {
+    if (Date.now() > pending.expiresAt) {
+      await ctx.reply('Confirmation expired. Please run /chronos again.');
+      return;
+    }
+    try {
+      const { parseScheduleExpression } = await import('../runtime/chronos/parser.js');
+      const { ChronosRepository } = await import('../runtime/chronos/repository.js');
+      const schedule = parseScheduleExpression(pending.schedule_expression, 'once', {
+        timezone: pending.timezone,
+      });
+      const repo = ChronosRepository.getInstance();
+      const job = repo.createJob({
+        prompt: pending.prompt,
+        schedule_type: 'once',
+        schedule_expression: pending.schedule_expression,
+        cron_normalized: schedule.cron_normalized,
+        timezone: pending.timezone,
+        next_run_at: schedule.next_run_at,
+        created_by: 'telegram',
+      });
+      const formatted = new Date(schedule.next_run_at).toLocaleString('en-US', {
+        timeZone: pending.timezone, year: 'numeric', month: 'short', day: 'numeric',
+        hour: '2-digit', minute: '2-digit', timeZoneName: 'short',
+      });
+      await ctx.reply(`✅ Job created (ID: \`${job.id.slice(0, 8)}\`)\n${schedule.human_readable}\n${formatted}`, {
+        parse_mode: 'Markdown',
+      });
+    } catch (err: any) {
+      await ctx.reply(`Failed to create job: ${err.message}`);
+    }
+  }
+
+  private async handleChronosList(ctx: any) {
+    try {
+      const { ChronosRepository } = await import('../runtime/chronos/repository.js');
+      const repo = ChronosRepository.getInstance();
+      const jobs = repo.listJobs();
+      if (!jobs.length) {
+        await ctx.reply('No Chronos jobs found.');
+        return;
+      }
+      const lines = jobs.map((j, i) => {
+        const status = j.enabled ? '🟢' : '🔴';
+        const next = j.enabled && j.next_run_at
+          ? new Date(j.next_run_at).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
+          : j.enabled ? 'N/A' : 'disabled';
+        const prompt = j.prompt.length > 35 ? j.prompt.slice(0, 35) + '…' : j.prompt;
+        return `${status} ${i + 1}. \`${j.id}\` \n${prompt}\n    _${next}_`;
+      });
+      await ctx.reply(`*Chronos Jobs*\n\n${lines.join('\n')}`, { parse_mode: 'Markdown' });
+    } catch (err: any) {
+      await ctx.reply(`Error: ${err.message}`);
+    }
+  }
+
+  private async handleChronosView(ctx: any, id: string) {
+    if (!id) { await ctx.reply('Usage: /chronos_view <job_id>'); return; }
+    try {
+      const { ChronosRepository } = await import('../runtime/chronos/repository.js');
+      const repo = ChronosRepository.getInstance();
+      const job = repo.getJob(id);
+      if (!job) { await ctx.reply('Job not found.'); return; }
+      const executions = repo.listExecutions(id, 3);
+      const next = job.next_run_at ? new Date(job.next_run_at).toLocaleString() : 'N/A';
+      const last = job.last_run_at ? new Date(job.last_run_at).toLocaleString() : 'Never';
+      const execLines = executions.map(e =>
+        `  • ${e.status.toUpperCase()} — ${new Date(e.triggered_at).toLocaleString()}`
+      ).join('\n') || '  None yet';
+      const msg = `*Chronos Job* \`${id.slice(0, 8)}\`\n\n` +
+        `*Prompt:* ${job.prompt}\n` +
+        `*Schedule:* ${job.schedule_type} — \`${job.schedule_expression}\`\n` +
+        `*Timezone:* ${job.timezone}\n` +
+        `*Status:* ${job.enabled ? 'Enabled' : 'Disabled'}\n` +
+        `*Next Run:* ${next}\n` +
+        `*Last Run:* ${last}\n\n` +
+        `*Last 3 Executions:*\n${execLines}`;
+      await ctx.reply(msg, { parse_mode: 'Markdown' });
+    } catch (err: any) {
+      await ctx.reply(`Error: ${err.message}`);
+    }
+  }
+
+  private async handleChronosDisable(ctx: any, id: string) {
+    if (!id) { await ctx.reply('Usage: /chronos_disable <job_id>'); return; }
+    try {
+      const { ChronosRepository } = await import('../runtime/chronos/repository.js');
+      const repo = ChronosRepository.getInstance();
+      const job = repo.disableJob(id);
+      if (!job) { await ctx.reply('Job not found.'); return; }
+      await ctx.reply(`Job \`${id.slice(0, 8)}\` disabled.`, { parse_mode: 'Markdown' });
+    } catch (err: any) {
+      await ctx.reply(`Error: ${err.message}`);
+    }
+  }
+
+  private async handleChronosEnable(ctx: any, id: string) {
+    if (!id) { await ctx.reply('Usage: /chronos_enable <job_id>'); return; }
+    try {
+      const { ChronosRepository } = await import('../runtime/chronos/repository.js');
+      const { parseNextRun } = await import('../runtime/chronos/parser.js');
+      const repo = ChronosRepository.getInstance();
+      const existing = repo.getJob(id);
+      if (!existing) { await ctx.reply('Job not found.'); return; }
+      let nextRunAt: number | undefined;
+      if (existing.cron_normalized) {
+        // cron_normalized is always a 5-field cron string — use parseNextRun directly
+        nextRunAt = parseNextRun(existing.cron_normalized, existing.timezone);
+      }
+      repo.updateJob(id, { enabled: true, next_run_at: nextRunAt });
+      const job = repo.getJob(id)!;
+      const next = job.next_run_at ? new Date(job.next_run_at).toLocaleString() : 'N/A';
+      await ctx.reply(`Job \`${id.slice(0, 8)}\` enabled. Next run: ${next}`, { parse_mode: 'Markdown' });
+    } catch (err: any) {
+      await ctx.reply(`Error: ${err.message}`);
+    }
+  }
+
+  private async handleChronosDelete(ctx: any, id: string) {
+    if (!id) { await ctx.reply('Usage: /chronos_delete <job_id>'); return; }
+    try {
+      const { ChronosRepository } = await import('../runtime/chronos/repository.js');
+      const repo = ChronosRepository.getInstance();
+      const deleted = repo.deleteJob(id);
+      if (!deleted) { await ctx.reply('Job not found.'); return; }
+      await ctx.reply(`Job \`${id.slice(0, 8)}\` deleted.`, { parse_mode: 'Markdown' });
+    } catch (err: any) {
+      await ctx.reply(`Error: ${err.message}`);
+    }
+  }
+
+  // ─── End Chronos ──────────────────────────────────────────────────────────────
 
   private async handleNewSessionCommand(ctx: any, user: string) {
     try {
@@ -844,9 +1111,12 @@ export class TelegramAdapter {
 
   private async handleSessionStatusCommand(ctx: any, user: string) {
     try {
-      // Obter todas as sessões ativas e pausadas usando a nova função
       const history = new SQLiteChatMessageHistory({ sessionId: "" });
-      const sessions = await history.listSessions();
+      // Exclude automated Chronos sessions — their IDs exceed Telegram's 64-byte
+      // callback_data limit and they are not user-managed sessions.
+      const sessions = (await history.listSessions()).filter(
+        (s) => !s.id.startsWith('chronos-job-') && !s.id.startsWith('sati-evaluation')
+      );
 
       if (sessions.length === 0) {
         await ctx.reply('No active or paused sessions found\\.', { parse_mode: 'MarkdownV2' });
@@ -859,10 +1129,10 @@ export class TelegramAdapter {
       for (const session of sessions) {
         const title = session.title || 'Untitled Session';
         const statusEmoji = session.status === 'active' ? '🟢' : '🟡';
-        response += `${statusEmoji} *${escMd(title)}*\n`;
-        response += `\\- ID: ${escMd(session.id)}\n`;
-        response += `\\- Status: ${escMd(session.status)}\n`;
-        response += `\\- Started: ${escMd(new Date(session.started_at).toLocaleString())}\n\n`;
+        response += `${statusEmoji} *${escMdRaw(title)}*\n`;
+        response += `\\- ID: \`${escMdRaw(session.id)}\`\n`;
+        response += `\\- Status: ${escMdRaw(session.status)}\n`;
+        response += `\\- Started: ${escMdRaw(new Date(session.started_at).toLocaleString())}\n\n`;
 
         // Adicionar botão inline para alternar para esta sessão
         const sessionButtons = [];
