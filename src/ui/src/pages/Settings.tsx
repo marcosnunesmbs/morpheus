@@ -919,44 +919,85 @@ export default function Settings() {
         )}
 
         {activeTab === 'channels' && (
-          <Section title="Telegram">
-            <Switch
-              label="Enable Telegram"
-              checked={localConfig.channels.telegram.enabled}
-              onChange={(checked) =>
-                handleUpdate(['channels', 'telegram', 'enabled'], checked)
-              }
-            />
-            {localConfig.channels.telegram.enabled && (
-              <div className="space-y-4 mt-4 pl-4 border-l border-matrix-primary">
-                <TextInput
-                  label="Bot Token"
-                  type="password"
-                  value={localConfig.channels.telegram.token || ''}
-                  onChange={(e) =>
-                    handleUpdate(
-                      ['channels', 'telegram', 'token'],
-                      e.target.value
-                    )
-                  }
-                />
-                <TextInput
-                  label="Allowed Users (comma separated)"
-                  value={localConfig.channels.telegram.allowedUsers.join(', ')}
-                  onChange={(e) =>
-                    handleUpdate(
-                      ['channels', 'telegram', 'allowedUsers'],
-                      e.target.value
-                        .split(',')
-                        .map((s) => s.trim())
-                        .filter(Boolean)
-                    )
-                  }
-                  helperText="User IDs allowed to interact with the bot"
-                />
-              </div>
-            )}
-          </Section>
+          <>
+            <Section title="Telegram">
+              <Switch
+                label="Enable Telegram"
+                checked={localConfig.channels.telegram.enabled}
+                onChange={(checked) =>
+                  handleUpdate(['channels', 'telegram', 'enabled'], checked)
+                }
+              />
+              {localConfig.channels.telegram.enabled && (
+                <div className="space-y-4 mt-4 pl-4 border-l border-matrix-primary">
+                  <TextInput
+                    label="Bot Token"
+                    type="password"
+                    value={localConfig.channels.telegram.token || ''}
+                    onChange={(e) =>
+                      handleUpdate(
+                        ['channels', 'telegram', 'token'],
+                        e.target.value
+                      )
+                    }
+                  />
+                  <TextInput
+                    label="Allowed Users (comma separated)"
+                    value={localConfig.channels.telegram.allowedUsers.join(', ')}
+                    onChange={(e) =>
+                      handleUpdate(
+                        ['channels', 'telegram', 'allowedUsers'],
+                        e.target.value
+                          .split(',')
+                          .map((s) => s.trim())
+                          .filter(Boolean)
+                      )
+                    }
+                    helperText="User IDs allowed to interact with the bot"
+                  />
+                </div>
+              )}
+            </Section>
+
+            <Section title="Discord">
+              <Switch
+                label="Enable Discord"
+                checked={localConfig.channels.discord.enabled}
+                onChange={(checked) =>
+                  handleUpdate(['channels', 'discord', 'enabled'], checked)
+                }
+              />
+              {localConfig.channels.discord.enabled && (
+                <div className="space-y-4 mt-4 pl-4 border-l border-matrix-primary">
+                  <TextInput
+                    label="Bot Token"
+                    type="password"
+                    value={localConfig.channels.discord.token || ''}
+                    onChange={(e) =>
+                      handleUpdate(
+                        ['channels', 'discord', 'token'],
+                        e.target.value
+                      )
+                    }
+                  />
+                  <TextInput
+                    label="Allowed Users (comma separated)"
+                    value={(localConfig.channels.discord.allowedUsers ?? []).join(', ')}
+                    onChange={(e) =>
+                      handleUpdate(
+                        ['channels', 'discord', 'allowedUsers'],
+                        e.target.value
+                          .split(',')
+                          .map((s) => s.trim())
+                          .filter(Boolean)
+                      )
+                    }
+                    helperText="Discord user IDs allowed to interact with the bot"
+                  />
+                </div>
+              )}
+            </Section>
+          </>
         )}
 
         {activeTab === 'ui' && (

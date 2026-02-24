@@ -76,6 +76,7 @@ export const ConfigSchema = z.object({
     discord: z.object({
       enabled: z.boolean().default(false),
       token: z.string().optional(),
+      allowedUsers: z.array(z.string()).default([]),
     }).default(DEFAULT_CONFIG.channels.discord),
   }).default(DEFAULT_CONFIG.channels),
   ui: z.object({

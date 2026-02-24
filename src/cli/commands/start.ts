@@ -8,6 +8,7 @@ import { writePid, readPid, isProcessRunning, clearPid, checkStalePid, killProce
 import { ConfigManager } from '../../config/manager.js';
 import { renderBanner } from '../utils/render.js';
 import { TelegramAdapter } from '../../channels/telegram.js';
+import { DiscordAdapter } from '../../channels/discord.js';
 import { WebhookDispatcher } from '../../runtime/webhooks/dispatcher.js';
 import { PATHS } from '../../config/paths.js';
 import { Oracle } from '../../runtime/oracle.js';
@@ -175,6 +176,24 @@ export const startCommand = new Command('start')
           }
         } else {
           display.log(chalk.yellow('Telegram enabled but no token provided. Skipping.'), { source: 'Zaion' });
+        }
+      }
+
+      // Initialize Discord
+      if (config.channels.discord.enabled) {
+        if (config.channels.discord.token) {
+          const discord = new DiscordAdapter(oracle);
+          try {
+            await discord.connect(
+              config.channels.discord.token,
+              config.channels.discord.allowedUsers || []
+            );
+            adapters.push(discord);
+          } catch (e: any) {
+            display.log(chalk.red(`Failed to initialize Discord adapter: ${e.message}`), { source: 'Zaion' });
+          }
+        } else {
+          display.log(chalk.yellow('Discord enabled but no token provided. Skipping.'), { source: 'Zaion' });
         }
       }
 

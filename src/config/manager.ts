@@ -201,8 +201,9 @@ export class ConfigManager {
         allowedUsers: resolveStringArray('MORPHEUS_TELEGRAM_ALLOWED_USERS', config.channels.telegram.allowedUsers, DEFAULT_CONFIG.channels.telegram.allowedUsers)
       },
       discord: {
-        enabled: config.channels.discord.enabled, // Discord doesn't have env var precedence for now
-        token: config.channels.discord.token
+        enabled: config.channels.discord.enabled,
+        token: config.channels.discord.token,
+        allowedUsers: config.channels.discord.allowedUsers ?? []
       }
     };
 

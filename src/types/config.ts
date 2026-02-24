@@ -21,14 +21,15 @@ export interface TelegramConfig {
   allowedUsers: string[];
 }
 
-export interface ChannelConfig {
+export interface DiscordConfig {
   enabled: boolean;
   token?: string;
+  allowedUsers: string[];
 }
 
 export interface ChannelsConfig {
   telegram: TelegramConfig;
-  discord: ChannelConfig;
+  discord: DiscordConfig;
 }
 
 export interface UIConfig {
@@ -147,7 +148,7 @@ export const DEFAULT_CONFIG: MorpheusConfig = {
   },
   channels: {
     telegram: { enabled: false, allowedUsers: [] },
-    discord: { enabled: false },
+    discord: { enabled: false, allowedUsers: [] },
   },
   ui: {
     enabled: true,
