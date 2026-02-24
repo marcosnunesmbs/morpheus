@@ -105,16 +105,11 @@ export class ChronosWorker {
     });
 
     try {
-      // Inject execution context as an AI message so it appears naturally in the
-      // conversation history without triggering an extra LLM response.
-      const contextMessage =
-        `[CHRONOS EXECUTION — job_id: ${job.id}]\n` +
-        `A scheduled Chronos job has fired. The next message is the job's saved prompt — NOT a new user request.\n` +
-        `• If the prompt is a reminder or notification (e.g., "me lembre de X", "avise sobre Y"), ` +
-        `respond with a SHORT, DIRECT notification only. Do NOT use any tools or delegate tasks.\n` +
-        `• If the prompt is an action or task (e.g., "executar X", "verificar Y"), execute it normally.\n` +
-        `Do NOT call chronos_cancel, chronos_schedule, or any Chronos management tools during this execution.`;
-      await this.oracle.injectAIMessage(contextMessage);
+      // Prefix the job prompt with the Chronos execution context marker so the
+      // Oracle system prompt can detect it in the current HumanMessage.
+      // This avoids persisting an AIMessage with the marker in conversation history,
+      // which would cause the LLM to reproduce the format in future scheduling responses.
+      const promptWithContext = `[CHRONOS EXECUTION — job_id: ${job.id}]\n${job.prompt}`;
 
       // If a Telegram notify function is registered, tag delegated tasks with
       // origin_channel: 'telegram' so the TaskDispatcher broadcasts their result.
@@ -124,7 +119,7 @@ export class ChronosWorker {
 
       // Hard-block Chronos management tools during execution.
       ChronosWorker.isExecuting = true;
-      const response = await this.oracle.chat(job.prompt, undefined, false, taskContext);
+      const response = await this.oracle.chat(promptWithContext, undefined, false, taskContext);
 
       this.repo.completeExecution(execId, 'success');
       display.log(`Job ${job.id} completed — status: success`, { source: 'Chronos' });

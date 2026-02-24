@@ -152,6 +152,19 @@ export class Oracle implements IOracle {
     return false;
   }
 
+  private hasChronosToolCall(messages: BaseMessage[]): boolean {
+    const chronosToolNames = new Set(["chronos_schedule", "chronos_list", "chronos_cancel", "chronos_preview"]);
+    for (const msg of messages) {
+      if (!(msg instanceof AIMessage)) continue;
+      const toolCalls = (msg as any).tool_calls ?? [];
+      if (!Array.isArray(toolCalls)) continue;
+      if (toolCalls.some((tc: any) => chronosToolNames.has(tc?.name))) {
+        return true;
+      }
+    }
+    return false;
+  }
+
   async initialize(): Promise<void> {
     if (!this.config.llm) {
       throw new Error("LLM configuration missing in config object.");
@@ -254,7 +267,7 @@ Rules:
 11. If a delegation is rejected as "not atomic", immediately split into smaller delegations and retry.
 
 ## Chronos Scheduled Execution
-When the most recent AI message in the conversation history starts with [CHRONOS EXECUTION], it means a Chronos scheduled job has just fired. The user message that follows is the **job's saved prompt**, not a new live request from the user.
+When the current user message starts with [CHRONOS EXECUTION], it means a Chronos scheduled job has just fired. The content after the prefix is the **job's saved prompt**, not a new live request from the user.
 
 Behavior rules for Chronos execution context:
 - **Reminder / notification prompts** (e.g., "me lembre de beber água", "lembre de tomar remédio", "avise que é hora de X", "lembrete: reunião às 15h"): respond with ONLY a short, direct notification message. Keep it to 1–2 sentences max. Do NOT use any tools. Do NOT delegate. Do NOT create tasks. Do NOT add motivational commentary or ask follow-up questions.
@@ -370,6 +383,7 @@ Use it to inform your response and tool selection (if needed), but do not assume
       let responseContent: string;
       const toolDelegationAcks = this.extractDelegationAcksFromMessages(newGeneratedMessages);
       const hadDelegationToolCall = this.hasDelegationToolCall(newGeneratedMessages);
+      const hadChronosToolCall = this.hasChronosToolCall(newGeneratedMessages);
       const mergedDelegationAcks = [
         ...contextDelegationAcks.map((ack) => ({ task_id: ack.task_id, agent: ack.agent })),
         ...toolDelegationAcks,
@@ -421,7 +435,7 @@ Use it to inform your response and tool selection (if needed), but do not assume
         const lastMessage = response.messages[response.messages.length - 1];
         responseContent = (typeof lastMessage.content === 'string') ? lastMessage.content : JSON.stringify(lastMessage.content);
 
-        if (this.looksLikeSyntheticDelegationAck(responseContent)) {
+        if (!hadChronosToolCall && this.looksLikeSyntheticDelegationAck(responseContent)) {
           blockedSyntheticDelegationAck = true;
           this.display.log(
             "Blocked synthetic delegation acknowledgement without validated task creation.",

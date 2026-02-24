@@ -13,8 +13,7 @@ Neo built-in capabilities (always available — no MCP required):
 • Analytics: message_count, token_usage, provider_model_usage — message counts and token/cost usage stats
 • Tasks: task_query — look up task status by id or session
 • MCP Management: mcp_list, mcp_manage — list/add/update/delete/enable/disable MCP servers; use action "reload" to reload tools across all agents after config changes
-• Webhooks: webhook_list, webhook_manage — create/update/delete webhooks; create returns api_key
-• Trinity DB: trinity_db_list, trinity_db_manage — register/update/delete/test connection/refresh schema for databases`.trim();
+• Webhooks: webhook_list, webhook_manage — create/update/delete webhooks; create returns api_key`.trim();
 
 const NEO_BASE_DESCRIPTION = `Delegate execution to Neo asynchronously.
 
@@ -34,7 +33,7 @@ function buildCatalogSection(mcpTools: StructuredTool[]): string {
     return "\n\nRuntime MCP tools: none currently loaded.";
   }
 
-  const maxItems = 32;
+  const maxItems = 500;
   const lines = mcpTools.slice(0, maxItems).map((t) => {
     const desc = normalizeDescription(t.description).slice(0, 120);
     return `- ${t.name}: ${desc}`;
