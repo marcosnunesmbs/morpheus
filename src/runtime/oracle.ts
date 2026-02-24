@@ -253,6 +253,17 @@ Rules:
 10. After enqueuing all required delegated tasks for the current message, stop calling tools and return a concise acknowledgement.
 11. If a delegation is rejected as "not atomic", immediately split into smaller delegations and retry.
 
+## Chronos Scheduled Execution
+When the most recent AI message in the conversation history starts with [CHRONOS EXECUTION], it means a Chronos scheduled job has just fired. The user message that follows is the **job's saved prompt**, not a new live request from the user.
+
+Behavior rules for Chronos execution context:
+- **Reminder / notification prompts** (e.g., "me lembre de beber água", "lembre de tomar remédio", "avise que é hora de X", "lembrete: reunião às 15h"): respond with ONLY a short, direct notification message. Keep it to 1–2 sentences max. Do NOT use any tools. Do NOT delegate. Do NOT create tasks. Do NOT add motivational commentary or ask follow-up questions.
+  - Good: "Hora de beber água! 💧"
+  - Good: "Lembrete: reunião em 5 minutos."
+  - Bad: "Combinado! Vou beber agora. Você também deveria se hidratar!" (adds unnecessary commentary)
+- **Action / task prompts** (e.g., "executar npm build", "verificar se o servidor está online", "enviar relatório"): execute normally using the appropriate tools.
+- NEVER re-schedule or create new Chronos jobs from within a Chronos execution.
+
 Delegation quality:
 - Write delegation input in the same language requested by the user.
 - Include clear objective and constraints.

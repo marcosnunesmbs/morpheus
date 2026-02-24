@@ -109,8 +109,11 @@ export class ChronosWorker {
       // conversation history without triggering an extra LLM response.
       const contextMessage =
         `[CHRONOS EXECUTION — job_id: ${job.id}]\n` +
-        `Executing scheduled job. Do NOT call chronos_cancel, chronos_schedule, ` +
-        `or any Chronos management tools during this execution.`;
+        `A scheduled Chronos job has fired. The next message is the job's saved prompt — NOT a new user request.\n` +
+        `• If the prompt is a reminder or notification (e.g., "me lembre de X", "avise sobre Y"), ` +
+        `respond with a SHORT, DIRECT notification only. Do NOT use any tools or delegate tasks.\n` +
+        `• If the prompt is an action or task (e.g., "executar X", "verificar Y"), execute it normally.\n` +
+        `Do NOT call chronos_cancel, chronos_schedule, or any Chronos management tools during this execution.`;
       await this.oracle.injectAIMessage(contextMessage);
 
       // If a Telegram notify function is registered, tag delegated tasks with
