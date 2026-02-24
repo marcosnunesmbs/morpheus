@@ -34,6 +34,7 @@ function makeJob(overrides: Partial<ChronosJob> = {}): ChronosJob {
     created_at: Date.now() - 5000,
     updated_at: Date.now() - 5000,
     created_by: 'ui',
+    notify_channels: [],
     ...overrides,
   };
 }

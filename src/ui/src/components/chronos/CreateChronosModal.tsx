@@ -26,6 +26,11 @@ const TIMEZONES = [
   'Africa/Cairo', 'Africa/Johannesburg', 'Africa/Lagos',
 ];
 
+const NOTIFY_CHANNEL_OPTIONS = [
+  { value: 'telegram', label: 'Telegram' },
+  { value: 'discord', label: 'Discord' },
+];
+
 const SCHEDULE_TYPE_OPTIONS = [
   { value: 'once', label: 'Once' },
   { value: 'cron', label: 'Recurring (Cron)' },
@@ -53,8 +58,15 @@ export function CreateChronosModal({ isOpen, onClose, onCreated, editJob }: Crea
   const [scheduleType, setScheduleType] = useState<ScheduleType>('once');
   const [expression, setExpression] = useState('');
   const [timezone, setTimezone] = useState('UTC');
+  const [notifyChannels, setNotifyChannels] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+
+  const toggleChannel = (ch: string) => {
+    setNotifyChannels((prev) =>
+      prev.includes(ch) ? prev.filter((c) => c !== ch) : [...prev, ch]
+    );
+  };
 
   // Pre-fill form when editing
   useEffect(() => {
@@ -63,11 +75,13 @@ export function CreateChronosModal({ isOpen, onClose, onCreated, editJob }: Crea
       setScheduleType(editJob.schedule_type);
       setExpression(editJob.schedule_expression);
       setTimezone(editJob.timezone);
+      setNotifyChannels(editJob.notify_channels ?? []);
     } else {
       setPrompt('');
       setScheduleType('once');
       setExpression('');
       setTimezone(config?.timezone ?? 'UTC');
+      setNotifyChannels([]);
     }
     setError(null);
   }, [editJob, isOpen, config?.timezone]);
@@ -80,10 +94,10 @@ export function CreateChronosModal({ isOpen, onClose, onCreated, editJob }: Crea
     setSaving(true);
     try {
       if (isEdit && editJob) {
-        const req: UpdateChronosJobRequest = { prompt, schedule_expression: expression, timezone };
+        const req: UpdateChronosJobRequest = { prompt, schedule_expression: expression, timezone, notify_channels: notifyChannels };
         await chronosService.updateJob(editJob.id, req);
       } else {
-        const req: CreateChronosJobRequest = { prompt, schedule_type: scheduleType, schedule_expression: expression, timezone };
+        const req: CreateChronosJobRequest = { prompt, schedule_type: scheduleType, schedule_expression: expression, timezone, notify_channels: notifyChannels };
         await chronosService.createJob(req);
       }
       await mutate((key: string) => typeof key === 'string' && key.startsWith('/chronos'));
@@ -153,6 +167,25 @@ export function CreateChronosModal({ isOpen, onClose, onCreated, editJob }: Crea
             onChange={(e) => setTimezone(e.target.value)}
             options={TIMEZONES.map((tz) => ({ value: tz, label: tz }))}
           />
+
+          <div>
+            <p className="text-sm font-medium text-azure-text-secondary dark:text-matrix-secondary mb-2">
+              Notify Channels <span className="text-xs font-normal opacity-60">(empty = all active channels)</span>
+            </p>
+            <div className="flex gap-4">
+              {NOTIFY_CHANNEL_OPTIONS.map(({ value, label }) => (
+                <label key={value} className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={notifyChannels.includes(value)}
+                    onChange={() => toggleChannel(value)}
+                    className="rounded border-azure-border dark:border-matrix-primary accent-azure-primary dark:accent-matrix-highlight"
+                  />
+                  <span className="text-sm text-azure-text-secondary dark:text-matrix-secondary capitalize">{label}</span>
+                </label>
+              ))}
+            </div>
+          </div>
 
           {error && (
             <p className="text-sm text-red-500 dark:text-red-400">{error}</p>

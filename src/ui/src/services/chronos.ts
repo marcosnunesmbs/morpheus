@@ -18,6 +18,7 @@ export interface ChronosJob {
   created_at: number;
   updated_at: number;
   created_by: CreatedBy;
+  notify_channels: string[];
 }
 
 export interface ChronosExecution {
@@ -41,6 +42,7 @@ export interface CreateChronosJobRequest {
   schedule_type: ScheduleType;
   schedule_expression: string;
   timezone?: string;
+  notify_channels?: string[];
 }
 
 export interface UpdateChronosJobRequest {
@@ -48,6 +50,7 @@ export interface UpdateChronosJobRequest {
   schedule_expression?: string;
   enabled?: boolean;
   timezone?: string;
+  notify_channels?: string[];
 }
 
 export interface CreateChronosJobResponse {

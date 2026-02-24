@@ -23,7 +23,7 @@ const container = {
 };
 const item = { hidden: { opacity: 0, y: 10 }, show: { opacity: 1, y: 0 } };
 
-const CHANNELS: NotificationChannel[] = ['ui', 'telegram'];
+const CHANNELS: NotificationChannel[] = ['ui', 'telegram', 'discord'];
 
 const emptyForm = (): CreateWebhookPayload => ({
   name: '',

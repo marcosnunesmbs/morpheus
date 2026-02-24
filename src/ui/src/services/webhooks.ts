@@ -1,6 +1,6 @@
 import { httpClient } from './httpClient';
 
-export type NotificationChannel = 'ui' | 'telegram';
+export type NotificationChannel = 'ui' | 'telegram' | 'discord';
 export type NotificationStatus = 'pending' | 'completed' | 'failed';
 
 export interface Webhook {

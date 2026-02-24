@@ -18,6 +18,7 @@ const CreateJobSchema = z.object({
   schedule_type: ScheduleTypeSchema,
   schedule_expression: z.string().min(1),
   timezone: z.string().optional(),
+  notify_channels: z.array(z.string()).optional(),
 });
 
 const UpdateJobSchema = z.object({
@@ -25,6 +26,7 @@ const UpdateJobSchema = z.object({
   schedule_expression: z.string().min(1).optional(),
   timezone: z.string().optional(),
   enabled: z.boolean().optional(),
+  notify_channels: z.array(z.string()).optional(),
 });
 
 const PreviewSchema = z.object({
@@ -99,7 +101,7 @@ export function createChronosJobRouter(repo: ChronosRepository, _worker: Chronos
     if (!parsed.success) {
       return res.status(400).json({ error: 'Invalid input', details: parsed.error.issues });
     }
-    const { prompt, schedule_type, schedule_expression, timezone } = parsed.data;
+    const { prompt, schedule_type, schedule_expression, timezone, notify_channels } = parsed.data;
     const globalTz = configManager.getChronosConfig().timezone;
     const tz = timezone ?? globalTz;
     const opts: ParseScheduleOptions = { timezone: tz };
@@ -114,6 +116,7 @@ export function createChronosJobRouter(repo: ChronosRepository, _worker: Chronos
         timezone: tz,
         next_run_at: schedule.next_run_at,
         created_by: 'ui',
+        notify_channels: notify_channels ?? [],
       });
 
       const display = DisplayManager.getInstance();
@@ -174,6 +177,7 @@ export function createChronosJobRouter(repo: ChronosRepository, _worker: Chronos
         timezone: patch.timezone,
         next_run_at: updatedSchedule?.next_run_at,
         enabled: patch.enabled,
+        notify_channels: patch.notify_channels,
       });
 
       res.json(job);

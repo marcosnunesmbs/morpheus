@@ -4,10 +4,14 @@ import { ChronosRepository } from '../chronos/repository.js';
 import { parseScheduleExpression, getNextOccurrences } from '../chronos/parser.js';
 import { ConfigManager } from '../../config/manager.js';
 import { ChronosWorker } from '../chronos/worker.js';
+import { TaskRequestContext } from '../tasks/context.js';
 
 // ─── chronos_schedule ────────────────────────────────────────────────────────
+// Channels that can be used as notify_channels on Chronos jobs
+const NON_CHANNEL_ORIGINS = new Set(['ui', 'api', 'cli', 'chronos', 'webhook']);
+
 export const ChronosScheduleTool = tool(
-  async ({ prompt, schedule_type, schedule_expression, timezone }) => {
+  async ({ prompt, schedule_type, schedule_expression, timezone, notify_channels }) => {
     if (ChronosWorker.isExecuting) {
       return JSON.stringify({ success: false, error: 'Cannot create a new Chronos job from within an active Chronos execution.' });
     }
@@ -16,6 +20,20 @@ export const ChronosScheduleTool = tool(
       const tz = timezone ?? cfg.timezone;
 
       const parsed = parseScheduleExpression(schedule_expression, schedule_type, { timezone: tz });
+
+      // Resolve notify_channels:
+      // - Explicitly provided → use as-is
+      // - Not provided → auto-detect from current conversation origin channel
+      // - If origin channel is not a real user-facing channel (ui/api/cli) → empty = broadcast all
+      let channels: string[];
+      if (notify_channels !== undefined) {
+        channels = notify_channels;
+      } else {
+        const originChannel = TaskRequestContext.get()?.origin_channel;
+        channels = originChannel && !NON_CHANNEL_ORIGINS.has(originChannel)
+          ? [originChannel]
+          : [];
+      }
 
       const repo = ChronosRepository.getInstance();
       const job = repo.createJob({
@@ -26,6 +44,7 @@ export const ChronosScheduleTool = tool(
         next_run_at: parsed.next_run_at,
         cron_normalized: parsed.cron_normalized,
         created_by: 'oracle',
+        notify_channels: channels,
       });
 
       return JSON.stringify({
@@ -36,6 +55,7 @@ export const ChronosScheduleTool = tool(
         human_readable: parsed.human_readable,
         next_run_at: job.next_run_at != null ? new Date(job.next_run_at).toISOString() : null,
         timezone: job.timezone,
+        notify_channels: job.notify_channels,
       });
     } catch (err: any) {
       return JSON.stringify({ success: false, error: err.message });
@@ -48,7 +68,9 @@ export const ChronosScheduleTool = tool(
       'Use schedule_type "once" for a single execution (e.g. "tomorrow at 9am", "in 2 hours", "2026-03-01T09:00:00"), ' +
       '"cron" for a recurring cron expression (e.g. "0 9 * * 1-5" = every weekday at 9am), ' +
       '"interval" for natural interval phrases (e.g. "every 30 minutes", "every 2 hours", "every day"). ' +
-      'Returns the created job ID and the human-readable schedule confirmation.',
+      'Returns the created job ID and the human-readable schedule confirmation. ' +
+      'Use notify_channels to control where the result is delivered: omit to auto-detect from current channel, ' +
+      'pass ["discord"] or ["telegram"] for a specific channel, or [] for all active channels.',
     schema: z.object({
       prompt: z.string().describe('The prompt text to send to Oracle at the scheduled time.'),
       schedule_type: z
@@ -65,6 +87,15 @@ export const ChronosScheduleTool = tool(
         .string()
         .optional()
         .describe('IANA timezone (e.g. "America/Sao_Paulo"). Defaults to the global Chronos timezone config.'),
+      notify_channels: z
+        .array(z.string())
+        .optional()
+        .describe(
+          'Channels to notify when this job fires. ' +
+          'Omit to auto-use the current conversation channel. ' +
+          'Pass [] to broadcast to all active channels. ' +
+          'Pass ["discord"], ["telegram"], or ["discord","telegram"] for specific channels.'
+        ),
     }),
   }
 );

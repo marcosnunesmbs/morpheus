@@ -103,9 +103,14 @@ export class ChronosWorker {
       // which would cause the LLM to reproduce the format in future scheduling responses.
       const promptWithContext = `[CHRONOS EXECUTION — job_id: ${job.id}]\n${job.prompt}`;
 
-      // Tag delegated tasks with origin_channel: 'chronos' so TaskDispatcher
-      // broadcasts their result to all registered channel adapters.
-      const taskContext: OracleTaskContext = { origin_channel: 'chronos', session_id: activeSessionId };
+      // Determine which channel to tag delegated tasks with.
+      // Single notify_channel → use it so TaskDispatcher routes back correctly.
+      // Multiple or empty → 'chronos' means broadcast to all registered adapters.
+      const taskOriginChannel: OracleTaskContext['origin_channel'] =
+        job.notify_channels.length === 1
+          ? (job.notify_channels[0] as OracleTaskContext['origin_channel'])
+          : 'chronos';
+      const taskContext: OracleTaskContext = { origin_channel: taskOriginChannel, session_id: activeSessionId };
 
       // Hard-block Chronos management tools during execution.
       ChronosWorker.isExecuting = true;
@@ -138,6 +143,28 @@ export class ChronosWorker {
   private async notify(job: ChronosJob, response: string): Promise<void> {
     if (ChannelRegistry.getAll().length === 0) return;
     const header = `⏰ *Chronos* — _${job.prompt.slice(0, 80)}${job.prompt.length > 80 ? '…' : ''}_\n\n`;
-    await ChannelRegistry.broadcast(header + response);
+    const text = header + response;
+
+    if (job.notify_channels.length === 0) {
+      // No specific channels → broadcast to all registered adapters
+      await ChannelRegistry.broadcast(text);
+    } else {
+      for (const ch of job.notify_channels) {
+        const adapter = ChannelRegistry.get(ch);
+        if (adapter) {
+          await adapter.sendMessage(text).catch((err: any) => {
+            DisplayManager.getInstance().log(
+              `Job ${job.id} notification failed on channel "${ch}": ${err.message}`,
+              { source: 'Chronos', level: 'error' }
+            );
+          });
+        } else {
+          DisplayManager.getInstance().log(
+            `Job ${job.id}: no adapter registered for channel "${ch}" — notification skipped.`,
+            { source: 'Chronos', level: 'warning' }
+          );
+        }
+      }
+    }
   }
 }

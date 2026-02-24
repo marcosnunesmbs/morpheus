@@ -22,6 +22,8 @@ export interface ChronosJob {
   created_at: number;
   updated_at: number;
   created_by: CreatedBy;
+  /** Channels to notify on execution. Empty array = broadcast to all registered adapters. */
+  notify_channels: string[];
 }
 
 export interface ChronosExecution {
@@ -42,6 +44,8 @@ export interface CreateJobInput {
   timezone: string;
   next_run_at: number;
   created_by: CreatedBy;
+  /** Channels to notify. Empty = broadcast to all. */
+  notify_channels?: string[];
 }
 
 export interface JobFilters {
@@ -57,6 +61,7 @@ export interface JobPatch {
   next_run_at?: number | null;
   last_run_at?: number | null;
   enabled?: boolean;
+  notify_channels?: string[];
 }
 
 export class ChronosError extends Error {
@@ -121,6 +126,7 @@ export class ChronosRepository {
     addJobCol(`ALTER TABLE chronos_jobs ADD COLUMN created_at INTEGER NOT NULL DEFAULT 0`, 'created_at');
     addJobCol(`ALTER TABLE chronos_jobs ADD COLUMN updated_at INTEGER NOT NULL DEFAULT 0`, 'updated_at');
     addJobCol(`ALTER TABLE chronos_jobs ADD COLUMN created_by TEXT NOT NULL DEFAULT 'api'`, 'created_by');
+    addJobCol(`ALTER TABLE chronos_jobs ADD COLUMN notify_channels TEXT NOT NULL DEFAULT '[]'`, 'notify_channels');
 
     const execInfo = this.db.pragma('table_info(chronos_executions)') as Array<{ name: string }>;
     const execCols = new Set(execInfo.map((c) => c.name));
@@ -150,6 +156,8 @@ export class ChronosRepository {
   }
 
   private deserializeJob(row: any): ChronosJob {
+    let notify_channels: string[] = [];
+    try { notify_channels = JSON.parse(row.notify_channels || '[]'); } catch { /* keep [] */ }
     return {
       id: row.id,
       prompt: row.prompt,
@@ -163,6 +171,7 @@ export class ChronosRepository {
       created_at: row.created_at,
       updated_at: row.updated_at,
       created_by: row.created_by as CreatedBy,
+      notify_channels,
     };
   }
 
@@ -194,8 +203,8 @@ export class ChronosRepository {
     this.db.prepare(`
       INSERT INTO chronos_jobs (
         id, prompt, schedule_type, schedule_expression, cron_normalized,
-        timezone, next_run_at, last_run_at, enabled, created_at, updated_at, created_by
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, NULL, 1, ?, ?, ?)
+        timezone, next_run_at, last_run_at, enabled, created_at, updated_at, created_by, notify_channels
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, NULL, 1, ?, ?, ?, ?)
     `).run(
       id,
       input.prompt,
@@ -207,6 +216,7 @@ export class ChronosRepository {
       now,
       now,
       input.created_by,
+      JSON.stringify(input.notify_channels ?? []),
     );
     return this.getJob(id)!;
   }
@@ -244,6 +254,7 @@ export class ChronosRepository {
     if ('next_run_at' in patch) { sets.push('next_run_at = ?'); params.push(patch.next_run_at ?? null); }
     if ('last_run_at' in patch) { sets.push('last_run_at = ?'); params.push(patch.last_run_at ?? null); }
     if (patch.enabled !== undefined) { sets.push('enabled = ?'); params.push(patch.enabled ? 1 : 0); }
+    if (patch.notify_channels !== undefined) { sets.push('notify_channels = ?'); params.push(JSON.stringify(patch.notify_channels)); }
 
     params.push(id);
     this.db.prepare(`UPDATE chronos_jobs SET ${sets.join(', ')} WHERE id = ?`).run(...params);

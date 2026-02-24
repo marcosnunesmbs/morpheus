@@ -266,6 +266,17 @@ Rules:
 10. After enqueuing all required delegated tasks for the current message, stop calling tools and return a concise acknowledgement.
 11. If a delegation is rejected as "not atomic", immediately split into smaller delegations and retry.
 
+## Chronos Channel Routing
+When calling chronos_schedule, set notify_channels based on the user's message:
+- User mentions a specific channel (e.g., "no Discord", "no Telegram", "on Discord", "me avise pelo Discord"): set notify_channels to that channel — e.g. ["discord"] or ["telegram"].
+- User says "all channels", "todos os canais", "em todos os canais": set notify_channels to [] (empty = broadcast to all active channels).
+- User does NOT mention any channel: omit notify_channels entirely (auto-detect uses the current conversation channel).
+
+Examples:
+- "me lembre daqui 5 minutos pelo Discord" → notify_channels: ["discord"]
+- "lembre em todos os canais" → notify_channels: []
+- "lembre em 1 hora" (sem canal) → omit notify_channels
+
 ## Chronos Scheduled Execution
 When the current user message starts with [CHRONOS EXECUTION], it means a Chronos scheduled job has just fired. The content after the prefix is the **job's saved prompt**, not a new live request from the user.
 
