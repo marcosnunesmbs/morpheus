@@ -106,11 +106,47 @@ src/devkit/tools/
 
 `buildDevKit()` in `src/devkit/index.ts` returns a `StructuredTool[]` array for LangChain.
 
+### Channel Adapter Pattern
+
+`src/channels/registry.ts` — `ChannelRegistry` singleton + `IChannelAdapter` interface.
+
+Every channel adapter implements `IChannelAdapter` and self-registers at startup via `ChannelRegistry.register()`. Notification machinery (`TaskDispatcher`, `ChronosWorker`, `WebhookDispatcher`) routes through the registry and never holds direct adapter references.
+
+**`IChannelAdapter` interface** (required fields):
+```typescript
+interface IChannelAdapter {
+  readonly channel: string;                                       // e.g. 'telegram', 'discord'
+  sendMessage(text: string): Promise<void>;                      // broadcast to all users
+  sendMessageToUser(userId: string, text: string): Promise<void>;
+  disconnect(): Promise<void>;
+}
+```
+
+**To add a new channel:**
+1. Create `src/channels/<name>.ts` implementing `IChannelAdapter` with `readonly channel = '<name>' as const`
+2. Add config to `src/types/config.ts` + `src/config/schemas.ts` + `src/config/manager.ts`
+3. `ChannelRegistry.register(adapter)` in `src/cli/commands/start.ts` **and** `restart.ts`
+4. Add UI section in `src/ui/src/pages/Settings.tsx` under the Channels tab
+5. Nothing else changes — dispatchers pick it up automatically
+
+**`OriginChannel` routing in `TaskDispatcher`:**
+
+| `origin_channel` | Routing |
+|---|---|
+| `'telegram'` / `'discord'` / any channel | `ChannelRegistry.sendToUser(channel, userId, msg)` or `adapter.sendMessage()` |
+| `'chronos'` | `ChannelRegistry.broadcast(msg)` — all registered adapters |
+| `'webhook'` | iterates `webhook.notification_channels`, calls each via registry |
+| `'ui'` | writes result to SQLite session history |
+
+**Chronos jobs** always tag delegated tasks as `origin_channel: 'chronos'` so TaskDispatcher broadcasts their result to every registered channel.
+
+---
+
 ### Background Workers
 All workers use a singleton + `start()`/`stop()` pattern:
 - **ChronosWorker** — `tick()` loop, executes due jobs, parses next run times
 - **TaskWorker** — polls `tasks` table, routes to agent by `tasks.agent` column
-- **TaskNotifier** — sends completion notifications (Telegram, webhooks)
+- **TaskNotifier** — sends completion notifications via `ChannelRegistry`
 - **Session embedding scheduler** — populates Sati embeddings asynchronously
 
 In `tasks` table, Trinity agent rows use `agent = 'trinit'` (not `'trinity'`).
@@ -121,7 +157,10 @@ In `tasks` table, Trinity agent rows use `agent = 'trinit'` (not `'trinity'`).
 |---|---|---|
 | Main entry | `src/index.ts` | |
 | CLI entry | `src/cli/index.ts` | Commander.js |
-| Start command | `src/cli/commands/start.ts` | Wires all services |
+| Start command | `src/cli/commands/start.ts` | Wires all services, registers channel adapters |
+| Channel registry | `src/channels/registry.ts` | `IChannelAdapter` + `ChannelRegistry` singleton |
+| Telegram adapter | `src/channels/telegram.ts` | `channel = 'telegram'`, implements `IChannelAdapter` |
+| Discord adapter | `src/channels/discord.ts` | `channel = 'discord'`, implements `IChannelAdapter` |
 | Oracle agent | `src/runtime/oracle.ts` | LangChain ReactAgent |
 | Apoc subagent | `src/runtime/apoc.ts` | DevKit, `apoc_delegate` |
 | Trinity subagent | `src/runtime/trinity.ts` | DB specialist, `trinity_delegate` |

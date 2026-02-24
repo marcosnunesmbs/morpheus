@@ -154,6 +154,7 @@ function escMdRaw(value: string | number | boolean): string {
 }
 
 export class TelegramAdapter {
+  readonly channel = 'telegram' as const;
   private bot: Telegraf | null = null;
   private isConnected = false;
   private display = DisplayManager.getInstance();

@@ -3,22 +3,13 @@ import { TaskRepository } from '../tasks/repository.js';
 import { DisplayManager } from '../display.js';
 import type { IOracle } from '../types.js';
 import type { Webhook } from './types.js';
-import type { TelegramAdapter } from '../../channels/telegram.js';
+import { ChannelRegistry } from '../../channels/registry.js';
 
 const STALE_NOTIFICATION_THRESHOLD_MS = 2 * 60 * 1000; // 2 minutes
 
 export class WebhookDispatcher {
-  private static telegramAdapter: TelegramAdapter | null = null;
   private static oracle: IOracle | null = null;
   private display = DisplayManager.getInstance();
-
-  /**
-   * Called at boot time after TelegramAdapter.connect() succeeds,
-   * so Telegram notifications can be dispatched from any trigger.
-   */
-  public static setTelegramAdapter(adapter: TelegramAdapter): void {
-    WebhookDispatcher.telegramAdapter = adapter;
-  }
 
   /**
    * Called at boot time with the Oracle instance so webhooks can use
@@ -76,9 +67,7 @@ export class WebhookDispatcher {
           `Webhook "${webhook.name}" completed with direct response (notification: ${notificationId})`,
           { source: 'Webhooks', level: 'success' },
         );
-        if (webhook.notification_channels.includes('telegram')) {
-          await this.sendTelegram(webhook.name, response, 'completed');
-        }
+          await this.notifyChannels(webhook, response, 'completed');
       }
     } catch (err: any) {
       const result = `Execution error: ${err.message}`;
@@ -87,9 +76,7 @@ export class WebhookDispatcher {
         { source: 'Webhooks', level: 'error' },
       );
       repo.updateNotificationResult(notificationId, 'failed', result);
-      if (webhook.notification_channels.includes('telegram')) {
-        await this.sendTelegram(webhook.name, result, 'failed');
-      }
+      await this.notifyChannels(webhook, result, 'failed');
     }
   }
 
@@ -186,33 +173,33 @@ Analyze the payload above and follow the instructions provided. Be concise and a
   }
 
   /**
-   * Sends a formatted Telegram message to all allowed users.
-   * Silently skips if the adapter is not connected.
+   * Sends a notification to all channels configured on the webhook.
+   * Uses ChannelRegistry — no adapter references needed here.
    */
-  private async sendTelegram(
-    webhookName: string,
+  private async notifyChannels(
+    webhook: Webhook,
     result: string,
     status: 'completed' | 'failed',
   ): Promise<void> {
-    const adapter = WebhookDispatcher.telegramAdapter;
-    if (!adapter) {
-      this.display.log(
-        'Telegram notification skipped — adapter not connected.',
-        { source: 'Webhooks', level: 'warning' },
-      );
-      return;
-    }
+    const icon = status === 'completed' ? '✅' : '❌';
+    const truncated = result.length > 3500 ? result.slice(0, 3500) + '…' : result;
+    const message = `${icon} Webhook: ${webhook.name}\n\n${truncated}`;
 
-    try {
-      const icon = status === 'completed' ? '✅' : '❌';
-      const truncated = result.length > 3500 ? result.slice(0, 3500) + '…' : result;
-      const message = `${icon} Webhook: ${webhookName}\n\n${truncated}`;
-      await adapter.sendMessage(message);
-    } catch (err: any) {
-      this.display.log(
-        `Failed to send Telegram notification for webhook "${webhookName}": ${err.message}`,
-        { source: 'Webhooks', level: 'error' },
-      );
+    for (const ch of webhook.notification_channels) {
+      const adapter = ChannelRegistry.get(ch);
+      if (adapter) {
+        await adapter.sendMessage(message).catch((err: any) => {
+          this.display.log(
+            `Failed to send notification via "${ch}" for webhook "${webhook.name}": ${err.message}`,
+            { source: 'Webhooks', level: 'error' },
+          );
+        });
+      } else {
+        this.display.log(
+          `Notification skipped for channel "${ch}" — adapter not registered.`,
+          { source: 'Webhooks', level: 'warning' },
+        );
+      }
     }
   }
 }

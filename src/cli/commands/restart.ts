@@ -7,6 +7,7 @@ import { writePid, readPid, isProcessRunning, clearPid, checkStalePid } from '..
 import { ConfigManager } from '../../config/manager.js';
 import { renderBanner } from '../utils/render.js';
 import { TelegramAdapter } from '../../channels/telegram.js';
+import { ChannelRegistry } from '../../channels/registry.js';
 import { PATHS } from '../../config/paths.js';
 import { Oracle } from '../../runtime/oracle.js';
 import { ProviderError } from '../../runtime/errors.js';
@@ -14,7 +15,6 @@ import { HttpServer } from '../../http/server.js';
 import { getVersion } from '../utils/version.js';
 import { TaskWorker } from '../../runtime/tasks/worker.js';
 import { TaskNotifier } from '../../runtime/tasks/notifier.js';
-import { TaskDispatcher } from '../../runtime/tasks/dispatcher.js';
 import { WebhookDispatcher } from '../../runtime/webhooks/dispatcher.js';
 
 export const restartCommand = new Command('restart')
@@ -139,8 +139,7 @@ export const restartCommand = new Command('restart')
               config.channels.telegram.token,
               config.channels.telegram.allowedUsers || []
             );
-            WebhookDispatcher.setTelegramAdapter(telegram);
-            TaskDispatcher.setTelegramAdapter(telegram);
+            ChannelRegistry.register(telegram);
             adapters.push(telegram);
           } catch (e) {
             display.log(chalk.red('Failed to initialize Telegram adapter. Continuing...'), { source: 'Zaion' });

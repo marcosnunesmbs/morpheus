@@ -9,6 +9,7 @@ import { ConfigManager } from '../../config/manager.js';
 import { renderBanner } from '../utils/render.js';
 import { TelegramAdapter } from '../../channels/telegram.js';
 import { DiscordAdapter } from '../../channels/discord.js';
+import { ChannelRegistry } from '../../channels/registry.js';
 import { WebhookDispatcher } from '../../runtime/webhooks/dispatcher.js';
 import { PATHS } from '../../config/paths.js';
 import { Oracle } from '../../runtime/oracle.js';
@@ -18,7 +19,6 @@ import { getVersion } from '../utils/version.js';
 import { startSessionEmbeddingScheduler } from '../../runtime/session-embedding-scheduler.js';
 import { TaskWorker } from '../../runtime/tasks/worker.js';
 import { TaskNotifier } from '../../runtime/tasks/notifier.js';
-import { TaskDispatcher } from '../../runtime/tasks/dispatcher.js';
 import { ChronosWorker } from '../../runtime/chronos/worker.js';
 import { ChronosRepository } from '../../runtime/chronos/repository.js';
 
@@ -166,10 +166,7 @@ export const startCommand = new Command('start')
               config.channels.telegram.token,
               config.channels.telegram.allowedUsers || []
             );
-            // Wire Telegram adapter to webhook dispatcher for proactive notifications
-            WebhookDispatcher.setTelegramAdapter(telegram);
-            TaskDispatcher.setTelegramAdapter(telegram);
-            ChronosWorker.setNotifyFn((text) => telegram.sendMessage(text));
+            ChannelRegistry.register(telegram);
             adapters.push(telegram);
           } catch (e) {
             display.log(chalk.red('Failed to initialize Telegram adapter. Continuing...'), { source: 'Zaion' });
@@ -188,6 +185,7 @@ export const startCommand = new Command('start')
               config.channels.discord.token,
               config.channels.discord.allowedUsers || []
             );
+            ChannelRegistry.register(discord);
             adapters.push(discord);
           } catch (e: any) {
             display.log(chalk.red(`Failed to initialize Discord adapter: ${e.message}`), { source: 'Zaion' });

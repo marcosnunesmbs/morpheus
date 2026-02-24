@@ -5,6 +5,7 @@ import { SQLiteChatMessageHistory } from '../runtime/memory/sqlite.js';
 import { DisplayManager } from '../runtime/display.js';
 
 export class DiscordAdapter {
+  readonly channel = 'discord' as const;
   private client: Client | null = null;
   private oracle: Oracle;
   private allowedUsers: string[] = [];

@@ -5,13 +5,10 @@ import type { IOracle } from '../types.js';
 import type { OracleTaskContext } from '../tasks/types.js';
 import { ChronosRepository, type ChronosJob } from './repository.js';
 import { parseNextRun } from './parser.js';
-
-/** Called with the Oracle's response after each successful job execution. */
-type NotifyFn = (text: string) => Promise<void>;
+import { ChannelRegistry } from '../../channels/registry.js';
 
 export class ChronosWorker {
   private static instance: ChronosWorker | null = null;
-  private static notifyFn: NotifyFn | null = null;
 
   /**
    * True while a Chronos job is being executed. Chronos management tools
@@ -38,11 +35,6 @@ export class ChronosWorker {
 
   public static setInstance(worker: ChronosWorker): void {
     ChronosWorker.instance = worker;
-  }
-
-  /** Register a function that will deliver Oracle responses to users (e.g. Telegram). */
-  public static setNotifyFn(fn: NotifyFn): void {
-    ChronosWorker.notifyFn = fn;
   }
 
   public start(): void {
@@ -111,11 +103,9 @@ export class ChronosWorker {
       // which would cause the LLM to reproduce the format in future scheduling responses.
       const promptWithContext = `[CHRONOS EXECUTION — job_id: ${job.id}]\n${job.prompt}`;
 
-      // If a Telegram notify function is registered, tag delegated tasks with
-      // origin_channel: 'telegram' so the TaskDispatcher broadcasts their result.
-      const taskContext: OracleTaskContext | undefined = ChronosWorker.notifyFn
-        ? { origin_channel: 'telegram', session_id: activeSessionId }
-        : undefined;
+      // Tag delegated tasks with origin_channel: 'chronos' so TaskDispatcher
+      // broadcasts their result to all registered channel adapters.
+      const taskContext: OracleTaskContext = { origin_channel: 'chronos', session_id: activeSessionId };
 
       // Hard-block Chronos management tools during execution.
       ChronosWorker.isExecuting = true;
@@ -146,13 +136,8 @@ export class ChronosWorker {
   }
 
   private async notify(job: ChronosJob, response: string): Promise<void> {
-    if (!ChronosWorker.notifyFn) return;
-    const display = DisplayManager.getInstance();
+    if (ChannelRegistry.getAll().length === 0) return;
     const header = `⏰ *Chronos* — _${job.prompt.slice(0, 80)}${job.prompt.length > 80 ? '…' : ''}_\n\n`;
-    try {
-      await ChronosWorker.notifyFn(header + response);
-    } catch (err: any) {
-      display.log(`Job ${job.id} notification failed — ${err.message}`, { source: 'Chronos', level: 'error' });
-    }
+    await ChannelRegistry.broadcast(header + response);
   }
 }

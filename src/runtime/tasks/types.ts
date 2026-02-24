@@ -2,7 +2,7 @@
 export type TaskNotifyStatus = 'pending' | 'sending' | 'sent' | 'failed';
 
 export type TaskAgent = 'apoc' | 'neo' | 'trinit';
-export type OriginChannel = 'telegram' | 'discord' | 'ui' | 'api' | 'webhook' | 'cli';
+export type OriginChannel = 'telegram' | 'discord' | 'ui' | 'api' | 'webhook' | 'cli' | 'chronos';
 
 export interface TaskCreateInput {
   agent: TaskAgent;
