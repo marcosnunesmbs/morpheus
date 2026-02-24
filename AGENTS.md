@@ -1,349 +1,226 @@
-# Morpheus Project - QWEN Context
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
 ## Project Overview
+Morpheus is a local-first AI operator/agent for developers. Node.js + TypeScript daemon with a React 19 + Vite + TailwindCSS web dashboard. It runs as a CLI daemon that orchestrates multiple LLM subagents, integrates with DevKit tools, MCP servers, and communicates via Terminal, Telegram, and Discord.
 
-Morpheus is a local-first AI operator/agent for developers, distributed as a global npm package. It functions as a persistent background daemon that bridges Large Language Models (LLMs) with external communication channels (Telegram, Discord), local system tools, and user interfaces (CLI, Web Dashboard). The project is inspired by the character Morpheus from *The Matrix* and acts as an intelligent orchestrator connecting developers to complex systems.
+---
 
-**Core Purpose**: Morpheus serves as a local AI agent that runs as a CLI daemon, connecting to LLMs, local tools, and Model Context Protocol (MCP) servers, enabling interaction via Terminal, Telegram, and Discord.
+## Commands
 
-## Technology Stack
-
-- **Runtime**: Node.js (ES Modules)
-- **Language**: TypeScript
-- **Build System**: TypeScript compiler (tsc)
-- **AI Framework**: LangChain.js
-- **Storage**: SQLite (via `better-sqlite3`)
-- **CLI Framework**: Commander.js
-- **Frontend**: React 19 + Vite + TailwindCSS
-- **Validation**: Zod (for configuration and API)
-- **Logging**: Winston with daily rotation
-- **Testing**: Vitest
-
-## Project Structure
-
-```
-.
-├── assets/              # Static assets (logo, etc.)
-├── bin/                 # CLI entry point (morpheus.js)
-├── dist/                # Compiled TypeScript output
-├── node_modules/        # Dependencies
-├── specs/               # Technical specifications & documentation per feature
-├── src/
-│   ├── channels/        # Communication adapters (Telegram, Discord)
-│   ├── cli/             # CLI commands and logic
-│   ├── config/          # Configuration management with Zod validation
-│   ├── http/            # Express server for Web UI and API
-│   ├── devkit/          # DevKit tool factories for Apoc (filesystem, shell, git, network, packages, processes, system)
-│   ├── devkit/          # DevKit tool factories (filesystem, shell, git, network, packages, processes, system)
-│   ├── runtime/         # Core agent logic, memory, and providers
-│   │   ├── apoc.ts      # Apoc DevTools subagent
-│   │   └── oracle.ts    # Oracle main agent
-│   │   ├── apoc.ts      # Apoc DevTools subagent (singleton, uses DevKit)
-│   │   ├── oracle.ts    # Oracle main agent (ReactAgent + apoc_delegate tool)
-│   ├── types/           # Shared TypeScript interfaces and types
-│   └── ui/              # React Web Dashboard source
-├── .github/             # GitHub templates and configurations
-├── .specify/            # Specification tools
-├── .vscode/             # VSCode settings
-├── ARCHITECTURE.md      # Architecture documentation
-├── CONTRIBUTING.md      # Contribution guidelines
-├── PRODUCT.md           # Product documentation
-├── README.md            # Main project documentation
-├── SPECIFICATION.md     # Technical specification
-├── package.json         # Project dependencies and scripts
-├── tsconfig.json        # TypeScript configuration
-└── QWEN.md              # Current file - project context for AI assistants
+### Backend Development
+```bash
+npm run dev:cli            # Run backend in watch mode (tsx watch)
+npm run build              # Build backend (tsc) + frontend (vite build)
+npm run start              # Run compiled daemon (bin/morpheus.js)
 ```
 
-## Key Features
+### Frontend Development
+```bash
+npm run dev:ui             # Vite dev server for the dashboard (src/ui/)
+npm run build:ui           # Build frontend only
+```
 
-1. **Local-First Architecture**: All data, configuration, and conversation history reside on the user's machine
-2. **Multi-Channel Support**: Interact via CLI, Web Dashboard, Telegram, and Discord
-3. **LLM Provider Agnostic**: Supports OpenAI, Anthropic, Ollama, and Google Gemini
-4. **Persistent Memory**: SQLite-backed conversation history across sessions
-5. **MCP Integration**: Full support for Model Context Protocol for external tools
-6. **Audio Transcription**: Voice message support via multi-provider Telephonist (Google Gemini, OpenAI Whisper, OpenRouter, Anthropic, Ollama)
-7. **Web Dashboard**: Matrix-themed React UI for management and monitoring
-8. **Declarative Configuration**: YAML-based configuration with environment variable support
-9. **Apoc DevTools Subagent**: Specialized subagent for developer operations (filesystem, shell, git, network, packages, processes, system) — called by Oracle via `apoc_delegate` tool
+### Testing
+```bash
+npm test                   # Run all tests (vitest)
+npx vitest run <file>      # Run a single test file
+npx vitest run src/runtime/chronos/__tests__/parser.test.ts
+```
+
+### Installing New Packages
+When adding `node-cron`, `cron-parser`, or similar scheduling/peer-dep-heavy packages, use:
+```bash
+npm install <pkg> --legacy-peer-deps
+```
+
+---
+
+## Key Conventions
+
+### TypeScript / ESM
+- Use `.js` extension in all relative imports: `import { Foo } from './foo.js'`
+- `"type": "module"` in package.json — all files are ESM
+- `tsconfig.json`: `target: ES2022`, `module: NodeNext`, `moduleResolution: NodeNext`
+- Zod v4: use `.issues` (not `.errors`) for validation error arrays
+
+### Config Precedence (highest → lowest)
+1. Environment variables (e.g., `MORPHEUS_LLM_PROVIDER`)
+2. `~/.morpheus/zaion.yaml`
+3. `DEFAULT_CONFIG` in `src/types/config.ts`
+
+When adding new config keys: define the Zod schema in `src/config/schemas.ts` (child schemas must be declared BEFORE `ConfigSchema` to avoid forward-reference TS errors), add to `src/types/config.ts`, and handle env var override in `src/config/manager.ts`.
+
+---
+
+## Architecture
+
+### Startup Flow
+```
+bin/morpheus.js             # Shebang entry: loads .env, dynamic import
+  → src/cli/index.ts        # Commander.js program, calls scaffold() preAction
+  → src/runtime/scaffold.ts # Ensures ~/.morpheus/ dirs + zaion.yaml exist
+  → src/cli/commands/start.ts  # Instantiates all services:
+      Oracle, HttpServer, ChronosRepository, ChronosWorker,
+      TaskRepository, TaskWorker, TaskNotifier, TelegramAdapter
+```
+
+### Agent Delegation Pattern
+Oracle is the root orchestrator. It delegates to specialized subagents via tools:
+
+| Tool | Subagent | File | Domain |
+|---|---|---|---|
+| `apoc_delegate` | Apoc | `src/runtime/apoc.ts` | Filesystem, shell, git, browser via DevKit |
+| `trinity_delegate` | Trinity | `src/runtime/trinity.ts` | PostgreSQL, MySQL, SQLite, MongoDB |
+| `neo_delegate` | Neo | `src/runtime/neo.ts` | MCP tool orchestration |
+
+Oracle never executes DevKit tools directly — it routes through subagents.
+
+### HTTP API Structure
+```
+src/http/
+  ├─ server.ts         # Express wrapper: middleware, routes, start/stop
+  ├─ api.ts            # createApiRouter(oracle, chronosWorker) — all endpoints
+  ├─ routers/
+  │   └─ chronos.ts    # createChronosJobRouter() + createChronosConfigRouter()
+  ├─ webhooks-router.ts
+  └─ middleware/
+      └─ auth.ts       # API key validation
+```
+
+New feature routers follow the factory-function pattern from `chronos.ts`: export `createXRouter(deps)` and mount in `api.ts`.
+
+### DevKit Tools (Apoc's toolbox)
+```
+src/devkit/tools/
+  ├─ filesystem.ts   # read, write, delete, list, mkdir, copy, move
+  ├─ shell.ts        # execShell, execCommand
+  ├─ git.ts          # clone, commit, push, pull, status, diff, log, branch
+  ├─ network.ts      # GET/POST/PUT/DELETE, health checks
+  ├─ packages.ts     # npm/pip install, list, search
+  ├─ processes.ts    # spawn, kill, list, wait
+  ├─ system.ts       # CPU, memory, disk, env vars
+  └─ browser.ts      # Puppeteer: navigate, screenshot, extract, form fill
+```
+
+`buildDevKit()` in `src/devkit/index.ts` returns a `StructuredTool[]` array for LangChain.
+
+### Background Workers
+All workers use a singleton + `start()`/`stop()` pattern:
+- **ChronosWorker** — `tick()` loop, executes due jobs, parses next run times
+- **TaskWorker** — polls `tasks` table, routes to agent by `tasks.agent` column
+- **TaskNotifier** — sends completion notifications (Telegram, webhooks)
+- **Session embedding scheduler** — populates Sati embeddings asynchronously
+
+In `tasks` table, Trinity agent rows use `agent = 'trinit'` (not `'trinity'`).
+
+### Architecture Quick Reference
+
+| Layer | Path | Notes |
+|---|---|---|
+| Main entry | `src/index.ts` | |
+| CLI entry | `src/cli/index.ts` | Commander.js |
+| Start command | `src/cli/commands/start.ts` | Wires all services |
+| Oracle agent | `src/runtime/oracle.ts` | LangChain ReactAgent |
+| Apoc subagent | `src/runtime/apoc.ts` | DevKit, `apoc_delegate` |
+| Trinity subagent | `src/runtime/trinity.ts` | DB specialist, `trinity_delegate` |
+| Neo subagent | `src/runtime/neo.ts` | MCP tools, `neo_delegate` |
+| Provider factory | `src/runtime/providers/factory.ts` | `create()` / `createBare()` |
+| HTTP API | `src/http/api.ts` | Express, mounted at `/api` |
+| Config manager | `src/config/manager.ts` | Singleton, `getInstance().get()` |
+| Config schemas | `src/config/schemas.ts` | Zod schemas |
+| Paths constants | `src/config/paths.ts` | `PATHS.root`, `PATHS.config`, etc. |
+| Frontend | `src/ui/src/` | React 19 + Vite |
+| Chronos scheduler | `src/runtime/chronos/` | parser, worker, repository |
+| Memory DB | `~/.morpheus/memory/short-memory.db` | sessions, messages, tasks, chronos |
+| Trinity DB | `~/.morpheus/memory/trinity.db` | DB registry (encrypted passwords) |
+| Sati DB | `~/.morpheus/memory/sati-memory.db` | sqlite-vec embeddings |
+| MCP config | `~/.morpheus/mcps.json` | MCP server definitions |
+| Daemon config | `~/.morpheus/zaion.yaml` | User config file |
+
+### Test File Locations
+```
+src/
+  ├─ channels/__tests__/        # Telegram adapter
+  ├─ config/__tests__/          # Config manager
+  ├─ http/__tests__/            # Auth middleware, config API
+  ├─ runtime/__tests__/         # Oracle agent behavior
+  ├─ runtime/chronos/__tests__/ # Parser + Worker
+  ├─ runtime/memory/__tests__/  # SQLite chat history
+  ├─ runtime/memory/sati/__tests__/  # Sati memory
+  └─ runtime/tools/__tests__/   # MCP tool loading + execution
+```
+
+---
 
 ## UI Design System
 
-### Color Palette
-The UI follows a dual-theme approach with Azure (light) and Matrix (dark) themes:
+The dashboard uses a **dual-theme** system: Azure (light) and Matrix (dark).
+Matrix is the default theme. All new UI must support both modes via Tailwind `dark:` classes.
 
-**Azure Theme (Light Mode)**:
-- Background: `#F0F4F8`
-- Surface: `#FFFFFF`
-- Primary: `#0066CC`
-- Secondary: `#4A90E2`
-- Accent: `#2196F3`
-- Border: `#B3D4FC`
-- Hover: `#E3F2FD`
-- Active: `#BBDEFB`
-- Text Primary: `#1A1A1A`
-- Text Secondary: `#5C6B7D`
-- Text Muted: `#8899A8`
+### Dark Mode Color Tokens
 
-**Matrix Theme (Dark Mode)**:
-- Background: `#000000`
-- Base: `#0D0208`
-- Primary: `#003B00`
-- Secondary: `#008F11` (Darker Green)
-- Highlight: `#00FF41` (Bright Green)
-- Text: `#008F11`
+| Token | Role |
+|---|---|
+| `dark:bg-black` | Modal backgrounds, interactive inputs |
+| `dark:bg-zinc-900` | Read-only content boxes inside modals |
+| `dark:border-matrix-primary` | All borders (full opacity — never `/30`) |
+| `dark:text-matrix-highlight` | Titles, headings, emphasis |
+| `dark:text-matrix-secondary` | Input text, labels, body text |
+| `dark:text-matrix-tertiary` | Icons, muted secondary text |
 
-### Typography
-- Font Family: Monospace (`"Courier New"`, `Courier`, `monospace`)
-- Consistent monospace font across the application for a terminal-like experience
+### Modal / Dialog Pattern
+```tsx
+// Container
+className="... dark:bg-black dark:border-matrix-primary shadow-xl ..."
 
-### Component Design
-- **Buttons**: Multiple variants (default, destructive, outline, secondary, ghost, link) with appropriate color schemes
-- **Layout**: Responsive sidebar navigation with mobile support
-- **Modals**: Confirmation dialogs with proper styling
-- **Forms**: Consistent input components (NumberInput, SelectInput, Switch, TextInput)
+// Title
+className="... dark:text-matrix-highlight ..."
 
-### Standardized Dark Mode Patterns
+// Close button
+className="... dark:text-matrix-tertiary dark:hover:text-matrix-highlight ..."
 
-All UI components must follow the **TrinityDatabases reference style** for consistency.
-
-#### Modals / Dialogs
-```
-Container:   dark:bg-black dark:border-matrix-primary shadow-xl
-Title:       dark:text-matrix-highlight
-Close btn:   dark:text-matrix-tertiary dark:hover:text-matrix-highlight
-Backdrop:    bg-black/50 backdrop-blur-sm
+// Backdrop
+className="fixed inset-0 bg-black/50 backdrop-blur-sm"
 ```
 
-#### Form Inputs (input, textarea, select)
-```
-Background:  dark:bg-black
-Border:      dark:border-matrix-primary
-Text:        dark:text-matrix-secondary
-Focus:       dark:focus:border-matrix-highlight
-Placeholder: dark:placeholder-matrix-secondary/50
+### Form Input Pattern (input, textarea, select)
+```tsx
+className="... dark:bg-black dark:border-matrix-primary dark:text-matrix-secondary
+            dark:focus:border-matrix-highlight dark:placeholder-matrix-secondary/50 ..."
 ```
 
-#### Form Labels
-```
-Color: dark:text-matrix-secondary
-```
-
-#### Content Boxes (read-only areas inside modals)
-```
-Background: dark:bg-zinc-900  (slightly lighter than modal bg for depth)
-Text:       dark:text-matrix-secondary
+### Form Label Pattern
+```tsx
+className="... dark:text-matrix-secondary ..."
 ```
 
-#### Do NOT use in dark mode
-- `dark:bg-zinc-800`, `dark:bg-zinc-900`, `dark:bg-zinc-950` for interactive inputs
-- `dark:bg-matrix-base` for inputs
-- `dark:text-matrix-highlight` for input text (reserve for titles/emphasis)
-- `dark:text-matrix-text`, `dark:text-matrix-dim` (deprecated in UI — use `matrix-secondary`)
-- `dark:border-matrix-primary/30` for modal borders (use full opacity)
-
-### UI Framework
-- **React 19**: Latest version for component-based architecture
-- **TailwindCSS**: Utility-first CSS framework for styling
-- **Framer Motion**: For smooth animations and transitions
-- **Lucide React**: Icon library for consistent iconography
-- **React Router DOM**: For navigation between pages
-
-### TailwindCSS Classes Available
-
-**Color Classes**:
-- Azure Colors: `bg-azure-bg`, `bg-azure-surface`, `bg-azure-primary`, `bg-azure-secondary`, `bg-azure-accent`, `bg-azure-border`, `bg-azure-hover`, `bg-azure-active`
-- Azure Text Colors: `text-azure-text-primary`, `text-azure-text-secondary`, `text-azure-text-muted`
-- Matrix Colors: `bg-matrix-bg`, `bg-matrix-base`, `bg-matrix-primary`, `bg-matrix-secondary`, `bg-matrix-highlight`, `text-matrix-text`
-- Zinc Colors: `bg-zinc-950`
-
-**Typography**:
-- Font Family: `font-mono` (uses Courier New/Courier/monospace)
-
-**Layout**:
-- Flexbox: `flex`, `flex-col`, `flex-1`, `flex-shrink-0`, `hidden`, `lg:flex`, `lg:hidden`
-- Grid: Various grid classes available through Tailwind
-- Spacing: `p-*`, `px-*`, `py-*`, `m-*`, `mx-*`, `my-*` (all standard Tailwind spacing)
-- Sizing: `w-*`, `h-*`, `min-w-*`, `min-h-*`, `max-w-*`, `max-h-*`
-- Positioning: `absolute`, `relative`, `fixed`, `inset-*`, `top-*`, `bottom-*`, `left-*`, `right-*`
-
-**Borders**:
-- Border colors: `border-azure-border`, `border-matrix-primary`
-- Border styles: `rounded`, `rounded-md`, `rounded-lg`, etc.
-
-**Effects**:
-- Shadows: `shadow-*`, `shadow-xl`, etc.
-- Transitions: `transition-colors`, `transition-opacity`, `duration-300`
-- Opacity: `opacity-*`, `dark:opacity-*`
-
-**States**:
-- Hover: `hover:*`, `dark:hover:*`
-- Focus: `focus:*`, `focus-visible:*`
-- Disabled: `disabled:*`
-
-**Dark Mode**:
-- All color classes have dark mode variants using `dark:` prefix
-- Theme toggling via `dark` class on document element
-
-### Dark/Light Theme Toggle
-- Theme preference is stored in localStorage
-- Smooth transitions between themes
-- Matrix theme is the default (inspired by The Matrix aesthetic)
-
-## Building and Running
-
-### Development Setup
-
-```bash
-# Install dependencies
-npm install
-
-# Build the project (backend + frontend)
-npm run build
-
-# Run in development mode with watch
-npm run dev
-
-# Run tests
-npm test
+### Content Box Pattern (read-only areas inside modals)
+```tsx
+className="... dark:bg-zinc-900 dark:text-matrix-secondary ..."
 ```
 
-### Production Commands
+### Anti-patterns — Never Use
+- `dark:bg-zinc-800` / `dark:bg-zinc-950` / `dark:bg-matrix-base` for inputs
+- `dark:text-matrix-highlight` for input text (titles only)
+- `dark:text-matrix-text` or `dark:text-matrix-dim` (deprecated — use `matrix-secondary`)
+- `dark:border-matrix-primary/30` for modal/input borders (full opacity only)
+- `shadow-lg` on modals (use `shadow-xl`)
 
-```bash
-# Install globally
-npm install -g morpheus-cli
+### Shared Input Components
+Prefer reusable components in `src/ui/src/components/forms/`:
+- `TextInput` — text input with label + error
+- `NumberInput` — number input with label + error
+- `SelectInput` — select with label + options + error
 
-# Initialize configuration
-morpheus init
+These already have the correct dark mode classes applied.
 
-# Start the daemon
-morpheus start
+---
 
-# Check status
-morpheus status
-
-# Stop the daemon
-morpheus stop
-
-# Diagnose issues
-morpheus doctor
-```
-
-### Development Workflow
-
-The project follows a specification-driven development approach:
-
-1. **Create a Spec**: Start a new folder `specs/NNN-feature-name/`
-2. **Required Files**:
-   - `spec.md`: Functional requirements (source of truth)
-   - `plan.md`: Technical implementation strategy
-   - `tasks.md`: Checklist of implementation steps
-   - `contracts/`: Define TypeScript interfaces before writing code
-3. **Process**: Read the spec → Update the plan → Implement → Check off tasks
-
-## Development Conventions
-
-### TypeScript & ESM
-- This project uses native ESM. Relative imports MUST include the `.js` extension:
-  ```typescript
-  // ✅ Correct
-  import { Foo } from './foo.js';
-  // ❌ Incorrect
-  import { Foo } from './foo';
-  ```
-
-### Architecture Patterns
-- **Singletons**: Use `ConfigManager.getInstance()` and `DisplayManager.getInstance()` for global concerns
-- **Directory Structure**:
-  - `src/cli/`: Command definitions
-  - `src/runtime/`: Core agent logic
-  - `src/channels/`: Input/output adapters (e.g., Telegram)
-  - `src/http/`: Express server and API
-  - `src/ui/`: React + Vite frontend
-- **Error Handling**: Log errors to `DisplayManager`, not `console.error`
-
-### Configuration Management
-- Configuration is stored in `~/.morpheus/config.yaml`
-- Uses Zod for validation
-- Supports environment variable references with `env:VARIABLE_NAME` syntax
-
-### MCP (Model Context Protocol) Support
-- MCP servers are configured in `~/.morpheus/mcps.json`
-- Full integration with standardized tools from any MCP-compatible server
-- MCP tools are registered as LangChain tools
-
-## Key Components
-
-### Runtime Core (`src/runtime/`)
-- **Oracle (`oracle.ts`)**: Main orchestrator using LangChain ReactAgent. Manages conversation, context window, Sati memory middleware, and delegates dev tasks to Apoc via `apoc_delegate` tool.
-- **Apoc (`apoc.ts`)**: Singleton DevTools subagent. Receives delegated tasks from Oracle and executes them using DevKit tools. Independently configurable LLM provider/model.
-- **DevKit (`src/devkit/`)**: Modular tool factory system. Registers factories for filesystem, shell, git, network, packages, processes, and system. Called via `buildDevKit(ctx)` with `working_dir`, `allowed_commands`, `timeout_ms`.
-- **Memory System**: Uses `SQLiteChatMessageHistory` for persistent conversation storage
-- **LLM Providers**: Factory pattern (`ProviderFactory`). Two modes:
-  - `create()`: Full Oracle agent (internal tools + MCP + `apoc_delegate`)
-  - `createBare()`: Clean subagent context (DevKit tools only, used by Apoc)
-- **Telephonist**: Multi-provider audio transcription. Supports Google Gemini, OpenAI Whisper, and Ollama Whisper. Configured via `audio.provider` in `config.yaml`.
-
-### Channel Adapters (`src/channels/`)
-- Implement adapter pattern for external communication
-- Enforce strict authorization (allow-lists) for security
-- Normalize external events to internal standard objects
-
-### CLI Interface (`src/cli/`)
-- Built with Commander.js
-- Handles process lifecycle (start/stop daemon)
-- Configuration initialization and management
-
-### Web Dashboard (`src/ui/`)
-- React-based SPA built with Vite and TailwindCSS
-- Matrix-themed UI for monitoring and management
-- Communicates with daemon via local HTTP API
-
-## Security Considerations
-
-- Tokens stored via environment variables
-- Secrets masked in UI
-- Apoc DevKit uses `working_dir` to constrain filesystem operations scope
-- Apoc tool timeout (`timeout_ms`) prevents runaway shell commands
-- Path whitelist enforcement
-- Optional human confirmation for dangerous commands
-- UI authentication via "The Architect Pass"
-
-## Testing
-
-The project uses Vitest for testing:
-
-```bash
-# Run unit tests
-npm test
-
-# Run tests in watch mode
-npm run test:watch
-```
-
-## Specifications Directory
-
-The `specs/` directory contains feature specifications organized by number:
-
-- `001-cli-structure` - CLI structure specification
-- `002-telegram-adapter` - Telegram integration
-- `003-terminal-ui-manager` - Terminal UI management
-- `004-langchain-core-agent` - Core agent implementation
-- `005-langchain-agent-integration` - LangChain integration
-- `006-agent-interaction-flow` - Interaction flow
-- `007-logging-system` - Logging implementation
-- `008-sqlite-memory-persistence` - SQLite memory persistence
-- `009-web-ui-dashboard` - Web dashboard
-- `010-settings-form-ui` - Settings UI
-- `011-npm-publish-setup` - NPM publishing
-- `012-audio-transcription` - Audio transcription
-- `013-improve-init-flow` - Initialization flow improvement
-- `014-tools-factory-memory-limit` - Tools and memory limits
-- `015-persist-tool-usage` - Tool usage persistence
-- `016-ui-config-stats` - UI configuration and stats
-- `017-chat-memory-config` - Chat memory configuration
-- `018-mcp-json-config` - MCP JSON configuration
-- `019-ui-auth-password` - UI authentication password
-
-This specification-driven approach ensures all major features are documented before implementation.
+## Spec-Driven Development
+New features require a `specs/NNN-feature-name/` folder with:
+- `spec.md` — functional requirements (source of truth)
+- `plan.md` — technical implementation strategy
+- `tasks.md` — implementation checklist
+- `contracts/` — TypeScript interfaces defined before coding
