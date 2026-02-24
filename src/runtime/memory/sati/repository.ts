@@ -241,7 +241,7 @@ export class SatiRepository {
   ): IMemoryRecord[] {
     if (!this.db) return [];
 
-    const SIMILARITY_THRESHOLD = 0.8;
+    const SIMILARITY_THRESHOLD = 0.9;
 
     const stmt = this.db.prepare(`
     SELECT *

@@ -46,6 +46,7 @@
     "cors": "^2.8.6",
     "cron-parser": "^4.9.0",
     "cronstrue": "^2.59.0",
+    "date-fns": "^4.1.0",
     "date-fns-tz": "^3.2.0",
     "express": "^5.2.1",
     "figlet": "^1.10.0",

@@ -43,6 +43,11 @@ export interface TaskRecord {
   notified_at: number | null;
   /** Earliest timestamp (ms) at which the notifier may send this task's result. */
   notify_after_at: number | null;
+  /**
+   * Whether the task creator has already been notified that this task was queued.
+   * The worker will not execute the task until this is true OR 60s have elapsed since created_at.
+   */
+  ack_sent: boolean;
 }
 
 export interface TaskFilters {

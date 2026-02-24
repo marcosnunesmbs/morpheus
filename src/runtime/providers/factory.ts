@@ -21,7 +21,7 @@ export class ProviderFactory {
         display.log(`Arguments: ${JSON.stringify(request.toolCall.args)}`, { level: "info", source: 'ConstructLoad' });
         try {
           const result = handler(request);
-          display.log("Tool completed successfully", { level: "info", source: 'ConstructLoad' });
+          display.log(`Tool completed successfully. Result: ${JSON.stringify(result)}`, { level: "info", source: 'ConstructLoad' });
           return result;
         } catch (e) {
           display.log(`Tool failed: ${e}`, { level: "error", source: 'ConstructLoad' });

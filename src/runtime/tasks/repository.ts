@@ -68,6 +68,7 @@ export class TaskRepository {
     addColumn(`ALTER TABLE tasks ADD COLUMN notify_last_error TEXT`, 'notify_last_error');
     addColumn(`ALTER TABLE tasks ADD COLUMN notified_at INTEGER`, 'notified_at');
     addColumn(`ALTER TABLE tasks ADD COLUMN notify_after_at INTEGER`, 'notify_after_at');
+    addColumn(`ALTER TABLE tasks ADD COLUMN ack_sent INTEGER NOT NULL DEFAULT 0`, 'ack_sent');
 
     this.db.exec(`
       UPDATE tasks
@@ -118,6 +119,7 @@ export class TaskRepository {
       notify_last_error: row.notify_last_error ?? null,
       notified_at: row.notified_at ?? null,
       notify_after_at: row.notify_after_at ?? null,
+      ack_sent: row.ack_sent === 1,
     };
   }
 
@@ -126,17 +128,21 @@ export class TaskRepository {
    * acknowledgement and the task result share the same delivery path (e.g. Telegram).
    * Channels with a synchronous ack (ui, api, cli, webhook) don't need this delay.
    */
-  static readonly DEFAULT_NOTIFY_AFTER_MS = 10_000;
+  static readonly DEFAULT_NOTIFY_AFTER_MS = 1_000;
   private static readonly CHANNELS_NEEDING_ACK_GRACE = new Set(['telegram', 'discord']);
 
   createTask(input: TaskCreateInput): TaskRecord {
     const now = Date.now();
     const id = randomUUID();
+    const needsAck = TaskRepository.CHANNELS_NEEDING_ACK_GRACE.has(input.origin_channel);
     const notify_after_at = input.notify_after_at !== undefined
       ? input.notify_after_at
-      : TaskRepository.CHANNELS_NEEDING_ACK_GRACE.has(input.origin_channel)
+      : needsAck
         ? now + TaskRepository.DEFAULT_NOTIFY_AFTER_MS
         : null;
+    // ack_sent starts as 0 (blocked) for channels that send an ack message (telegram, discord).
+    // For other channels (ui, api, webhook, cli) there is no ack to wait for, so start as 1 (free).
+    const ack_sent = needsAck ? 0 : 1;
 
     this.db.prepare(`
       INSERT INTO tasks (
@@ -145,14 +151,14 @@ export class TaskRepository {
         attempt_count, max_attempts, available_at,
         created_at, started_at, finished_at, updated_at, worker_id,
         notify_status, notify_attempts, notify_last_error, notified_at,
-        notify_after_at
+        notify_after_at, ack_sent
       ) VALUES (
         ?, ?, 'pending', ?, ?, NULL, NULL,
         ?, ?, ?, ?,
         0, ?, ?,
         ?, NULL, NULL, ?, NULL,
         'pending', 0, NULL, NULL,
-        ?
+        ?, ?
       )
     `).run(
       id,
@@ -168,6 +174,7 @@ export class TaskRepository {
       now,
       now,
       notify_after_at,
+      ack_sent,
     );
 
     return this.getTaskById(id)!;
@@ -240,16 +247,30 @@ export class TaskRepository {
     return stats;
   }
 
+  /** Mark ack as sent for a list of task IDs, unblocking them for execution. */
+  markAckSent(ids: string[]): void {
+    if (ids.length === 0) return;
+    const placeholders = ids.map(() => '?').join(', ');
+    this.db.prepare(
+      `UPDATE tasks SET ack_sent = 1, updated_at = ? WHERE id IN (${placeholders})`
+    ).run(Date.now(), ...ids);
+  }
+
+  /** Fallback grace period (ms): tasks older than this run even without ack_sent. */
+  static readonly ACK_FALLBACK_MS = 60_000;
+
   claimNextPending(workerId: string): TaskRecord | null {
     const now = Date.now();
     const tx = this.db.transaction(() => {
       const row = this.db.prepare(`
         SELECT id
         FROM tasks
-        WHERE status = 'pending' AND available_at <= ?
+        WHERE status = 'pending'
+          AND available_at <= ?
+          AND (ack_sent = 1 OR created_at <= ?)
         ORDER BY created_at ASC
         LIMIT 1
-      `).get(now) as { id: string } | undefined;
+      `).get(now, now - TaskRepository.ACK_FALLBACK_MS) as { id: string } | undefined;
 
       if (!row) return null;
 

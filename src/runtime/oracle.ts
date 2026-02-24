@@ -20,7 +20,7 @@ import { Trinity } from "./trinity.js";
 import { NeoDelegateTool } from "./tools/neo-tool.js";
 import { ApocDelegateTool } from "./tools/apoc-tool.js";
 import { TrinityDelegateTool } from "./tools/trinity-tool.js";
-import { TaskQueryTool, chronosTools } from "./tools/index.js";
+import { TaskQueryTool, chronosTools, timeVerifierTool } from "./tools/index.js";
 import { MCPManager } from "../config/mcp-manager.js";
 
 type AckGenerationResult = {
@@ -170,7 +170,7 @@ export class Oracle implements IOracle {
       // Fail-open: Oracle can still initialize even if catalog refresh fails.
       await Neo.refreshDelegateCatalog().catch(() => {});
       await Trinity.refreshDelegateCatalog().catch(() => {});
-      this.provider = await ProviderFactory.create(this.config.llm, [TaskQueryTool, NeoDelegateTool, ApocDelegateTool, TrinityDelegateTool, ...chronosTools]);
+      this.provider = await ProviderFactory.create(this.config.llm, [TaskQueryTool, NeoDelegateTool, ApocDelegateTool, TrinityDelegateTool, timeVerifierTool, ...chronosTools]);
       if (!this.provider) {
         throw new Error("Provider factory returned undefined");
       }
@@ -230,6 +230,14 @@ You are ${this.config.agent.name}, ${this.config.agent.personality}, the Oracle.
 
 You are an orchestrator and task router.
 
+If the user request contains ANY time-related expression
+(today, tomorrow, this week, next month, in 3 days, etc),
+you **MUST** call the tool "time_verifier" before answering or call another tool **ALWAYS**.
+
+With the time_verify, you remake the user prompt.
+
+Never assume dates.
+Always resolve temporal expressions using the tool.
 
 Rules:
 1. For conversation-only requests (greetings, conceptual explanation, memory follow-up, statements of fact, sharing personal information), answer directly. DO NOT create tasks or delegate for simple statements like "I have two cats" or "My name is John". Sati will automatically memorize facts in the background ( **ALWAYS** use SATI Memories to review or retrieve these facts if needed).
@@ -382,6 +390,9 @@ Use it to inform your response and tool selection (if needed), but do not assume
         // Persist with addMessage so ack-provider usage is tracked per message row.
         await this.history.addMessage(userMessage);
         await this.history.addMessage(ackMessage);
+        // Unblock tasks for execution: the ack message is now persisted and will be
+        // returned to the caller (Telegram / UI) immediately after this point.
+        this.taskRepository.markAckSent(validDelegationAcks.map(a => a.task_id));
       } else if (mergedDelegationAcks.length > 0 || hadDelegationToolCall) {
         this.display.log(
           `Delegation attempted but no valid task id was confirmed (context=${contextDelegationAcks.length}, tool_messages=${toolDelegationAcks.length}, had_tool_call=${hadDelegationToolCall}).`,

@@ -335,92 +335,241 @@ const browserFillTool = tool(
 const browserSearchTool = tool(
   async ({ query, num_results, language }) => {
     try {
-      const max = num_results ?? 10;
+      const max = Math.min(num_results ?? 10, 20);
+      const year = new Date().getFullYear().toString();
+      const lang = language ?? "pt";
 
-      // DDG region codes: "br-pt" for Brazil/Portuguese, "us-en" for US/English, etc.
-      // Map from simple lang code to DDG kl param
+      // ─────────────────────────────────────────────
+      // 1️⃣ Intent Classification (heurístico leve)
+      // ─────────────────────────────────────────────
+      const qLower = query.toLowerCase();
+
+      let intent: "news" | "official" | "documentation" | "price" | "general" = "general";
+
+      if (/(hoje|último|resultado|placar|próximos|futebol|202\d)/.test(qLower)) intent = "news";
+      if (/(site oficial|gov|receita federal|ministério)/.test(qLower)) intent = "official";
+      if (/(api|sdk|npm|docs|documentação)/.test(qLower)) intent = "documentation";
+      if (/(preço|valor|quanto custa)/.test(qLower)) intent = "price";
+
+      // ─────────────────────────────────────────────
+      // 2️⃣ Query Refinement
+      // ─────────────────────────────────────────────
+      let refinedQuery = query;
+
+      if (intent === "news") {
+        refinedQuery = `${query} ${year}`;
+      }
+
+      if (intent === "official") {
+        refinedQuery = `${query} site:gov.br OR site:org`;
+      }
+
+      if (intent === "documentation") {
+        refinedQuery = `${query} documentation OR docs OR github`;
+      }
+
+      if (intent === "price") {
+        refinedQuery = `${query} preço ${year} Brasil`;
+      }
+
+      // ─────────────────────────────────────────────
+      // 3️⃣ DuckDuckGo Lite Fetch
+      // ─────────────────────────────────────────────
       const regionMap: Record<string, string> = {
-        pt: 'br-pt', br: 'br-pt',
-        en: 'us-en', us: 'us-en',
-        es: 'es-es', fr: 'fr-fr',
-        de: 'de-de', it: 'it-it',
-        jp: 'jp-jp', ar: 'ar-es',
+        pt: "br-pt",
+        br: "br-pt",
+        en: "us-en",
+        us: "us-en",
       };
-      const lang = language ?? 'pt';
+
       const kl = regionMap[lang] ?? lang;
+      const body = new URLSearchParams({ q: refinedQuery, kl }).toString();
 
-      const body = new URLSearchParams({ q: query, kl }).toString();
-
-      const res = await fetch('https://lite.duckduckgo.com/lite/', {
-        method: 'POST',
+      const res = await fetch("https://lite.duckduckgo.com/lite/", {
+        method: "POST",
         headers: {
-          'Content-Type': 'application/x-www-form-urlencoded',
-          'User-Agent':
-            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 ' +
-            '(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+          "Content-Type": "application/x-www-form-urlencoded",
+          "User-Agent":
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
         },
         body,
-        signal: AbortSignal.timeout(20_000),
+        signal: AbortSignal.timeout(20000),
       });
 
       if (!res.ok) {
-        return JSON.stringify({ success: false, query, error: `HTTP ${res.status}` });
+        return JSON.stringify({ success: false, error: `HTTP ${res.status}` });
       }
 
       const html = await res.text();
 
-      // Extract all result-link anchors (href uses double quotes, class uses single quotes)
-      const linkPattern = /href="(https?:\/\/[^"]+)"[^>]*class='result-link'>([^<]+)<\/a>/g;
-      const snippetPattern = /class='result-snippet'>([\s\S]*?)<\/td>/g;
+      const linkPattern =
+        /href="(https?:\/\/[^"]+)"[^>]*class='result-link'>([^<]+)<\/a>/g;
 
-      const allLinks = [...html.matchAll(linkPattern)];
-      const allSnippets = [...html.matchAll(snippetPattern)];
+      const snippetPattern =
+        /class='result-snippet'>([\s\S]*?)<\/td>/g;
 
-      // Pair links with snippets by index, filtering sponsored (DDG y.js redirect URLs)
-      const results: { title: string; url: string; snippet: string }[] = [];
-      for (let i = 0; i < allLinks.length && results.length < max; i++) {
-        const url = allLinks[i][1];
-        const title = allLinks[i][2].trim();
-        // Skip sponsored ads (redirected through duckduckgo.com/y.js)
-        if (url.startsWith('https://duckduckgo.com/')) continue;
-        const snippet = allSnippets[i]
-          ? allSnippets[i][1].replace(/<[^>]+>/g, '').trim()
-          : '';
-        results.push({ title, url, snippet });
-      }
+      const links = [...html.matchAll(linkPattern)];
+      const snippets = [...html.matchAll(snippetPattern)];
 
-      if (results.length === 0) {
+      if (!links.length) {
         return JSON.stringify({
           success: false,
-          query,
-          error: 'No results found. The query may be too specific or DDG returned an unexpected response.',
+          query: refinedQuery,
+          error: "No results found",
         });
       }
 
-      return JSON.stringify({ success: true, query, results });
+      // ─────────────────────────────────────────────
+      // 4️⃣ Helpers
+      // ─────────────────────────────────────────────
+
+      function normalizeUrl(url: string) {
+        try {
+          const u = new URL(url);
+          u.search = ""; // remove tracking params
+          return u.toString();
+        } catch {
+          return url;
+        }
+      }
+
+      function getDomain(url: string) {
+        try {
+          return new URL(url).hostname.replace("www.", "");
+        } catch {
+          return "";
+        }
+      }
+
+      const trustedDomains = [
+        "gov.br",
+        "bbc.com",
+        "reuters.com",
+        "globo.com",
+        "uol.com",
+        "cnn.com",
+        "github.com",
+        "npmjs.com",
+        "com.br"
+      ];
+
+      function scoreResult(
+        result: { title: string; url: string; snippet: string }
+      ) {
+        let score = 0;
+
+        const domain = getDomain(result.url);
+
+        if (trustedDomains.some((d) => domain.includes(d))) score += 5;
+
+        if (intent === "official" && domain.includes("gov")) score += 5;
+        if (intent === "documentation" && domain.includes("github")) score += 4;
+        if (intent === "news" && /(globo|uol|cnn|bbc)/.test(domain)) score += 3;
+
+        if (result.title.toLowerCase().includes(query.toLowerCase()))
+          score += 2;
+
+        if (result.snippet.length > 120) score += 1;
+
+        if (/login|assine|subscribe|paywall/i.test(result.snippet))
+          score -= 3;
+
+        return score;
+      }
+
+      // ─────────────────────────────────────────────
+      // 5️⃣ Build Results + Deduplicate Domain
+      // ─────────────────────────────────────────────
+
+      const domainSeen = new Set<string>();
+      const results: {
+        title: string;
+        url: string;
+        snippet: string;
+        domain: string;
+        score: number;
+      }[] = [];
+
+      for (let i = 0; i < links.length; i++) {
+        const rawUrl = links[i][1];
+        if (rawUrl.startsWith("https://duckduckgo.com/")) continue;
+
+        const url = normalizeUrl(rawUrl);
+        const domain = getDomain(url);
+
+        if (domainSeen.has(domain)) continue;
+        domainSeen.add(domain);
+
+        const title = links[i][2].trim();
+        const snippet = snippets[i]
+          ? snippets[i][1].replace(/<[^>]+>/g, "").trim()
+          : "";
+
+        const result = { title, url, snippet };
+        const score = scoreResult(result);
+
+        results.push({ ...result, domain, score });
+      }
+
+      if (!results.length) {
+        return JSON.stringify({
+          success: false,
+          query: refinedQuery,
+          error: "No valid results after filtering",
+        });
+      }
+
+      // ─────────────────────────────────────────────
+      // 6️⃣ Ranking
+      // ─────────────────────────────────────────────
+      results.sort((a, b) => b.score - a.score);
+
+      const topResults = results.slice(0, max);
+
+      const avgScore =
+        topResults.reduce((acc, r) => acc + r.score, 0) /
+        topResults.length;
+
+      // ─────────────────────────────────────────────
+      // 7️⃣ Low-Confidence Auto Retry
+      // ─────────────────────────────────────────────
+      if (avgScore < 2 && intent !== "general") {
+        return JSON.stringify({
+          success: false,
+          query: refinedQuery,
+          warning:
+            "Low confidence results. Consider refining query further.",
+          results: topResults,
+        });
+      }
+
+      return JSON.stringify({
+        success: true,
+        original_query: query,
+        refined_query: refinedQuery,
+        intent,
+        results: topResults.map((r) => ({
+          title: r.title,
+          url: r.url,
+          snippet: r.snippet,
+          score: r.score,
+        })),
+      });
     } catch (err: any) {
-      return JSON.stringify({ success: false, query, error: err.message });
+      return JSON.stringify({
+        success: false,
+        error: err.message,
+      });
     }
   },
   {
-    name: 'browser_search',
+    name: "browser_search",
     description:
-      'Search the internet using DuckDuckGo and return structured results (title, URL, snippet). ' +
-      'Use this when you need to find current information, news, articles, documentation, or any web content. ' +
-      'Returns up to 10 results by default. Does NOT require browser_navigate first — it is self-contained and fast.',
+      "Enhanced internet search with query refinement, ranking, deduplication, and confidence scoring. Uses DuckDuckGo Lite.",
     schema: z.object({
-      query: z.string().describe('Search query'),
-      num_results: z
-        .number()
-        .int()
-        .min(1)
-        .max(20)
-        .optional()
-        .describe('Number of results to return. Default: 10, max: 20'),
-      language: z
-        .string()
-        .optional()
-        .describe('Language/region code (e.g. "pt" for Portuguese/Brazil, "en" for English). Default: "pt"'),
+      query: z.string(),
+      num_results: z.number().int().min(1).max(20).optional(),
+      language: z.string().optional(),
     }),
   }
 );

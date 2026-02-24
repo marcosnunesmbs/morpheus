@@ -30,8 +30,9 @@ export class SQLiteChatMessageHistory extends BaseListChatMessageHistory {
 
   private display = DisplayManager.getInstance();
 
+  private static migrationDone = false; // run migrations only once per process
+
   private db: Database.Database;
-  private dbSati?: Database.Database; // Optional separate DB for Sati memory, if needed in the future
   private sessionId: string;
   private limit?: number;
   private titleSet = false; // cache: skip setSessionTitleIfNeeded after title is set
@@ -47,11 +48,9 @@ export class SQLiteChatMessageHistory extends BaseListChatMessageHistory {
 
     // Default path: ~/.morpheus/memory/short-memory.db
     const dbPath = fields.databasePath || path.join(homedir(), ".morpheus", "memory", "short-memory.db");
-    const dbSatiPath = path.join(homedir(), '.morpheus', 'memory', 'sati-memory.db');
 
     // Ensure the directory exists
     this.ensureDirectory(dbPath);
-    this.ensureDirectory(dbSatiPath);
 
     // Initialize database with retry logic for locked databases
     try {
@@ -59,11 +58,8 @@ export class SQLiteChatMessageHistory extends BaseListChatMessageHistory {
         ...fields.config,
         timeout: 5000, // 5 second timeout for locks
       });
-
-      this.dbSati = new Database(dbSatiPath, {
-        ...fields.config,
-        timeout: 5000,
-      });
+      this.db.pragma('journal_mode = WAL');
+      this.db.pragma('synchronous = NORMAL');
 
       try {
         this.ensureTable();
@@ -207,6 +203,8 @@ export class SQLiteChatMessageHistory extends BaseListChatMessageHistory {
    * Checks for missing columns and adds them if necessary.
    */
   private migrateTable(): void {
+    if (SQLiteChatMessageHistory.migrationDone) return;
+    SQLiteChatMessageHistory.migrationDone = true;
     try {
       // Migrate messages table
       const tableInfo = this.db.pragma('table_info(messages)') as Array<{ name: string }>;
@@ -815,6 +813,24 @@ export class SQLiteChatMessageHistory extends BaseListChatMessageHistory {
   }
 
 
+  private chunkText(text: string, chunkSize = 500, overlap = 50): string[] {
+    if (!text || text.length === 0) return [];
+    const chunks: string[] = [];
+    let start = 0;
+    while (start < text.length) {
+      let end = start + chunkSize;
+      if (end < text.length) {
+        const lastSpace = text.lastIndexOf(' ', end);
+        if (lastSpace > start) end = lastSpace;
+      }
+      const chunk = text.slice(start, end).trim();
+      if (chunk.length > 0) chunks.push(chunk);
+      start = end - overlap;
+      if (start < 0) start = 0;
+    }
+    return chunks;
+  }
+
   /**
    * Encerrar uma sessão e transformá-la em memória do Sati.
    * Validar sessão existe e está em active ou paused.
@@ -864,40 +880,52 @@ export class SQLiteChatMessageHistory extends BaseListChatMessageHistory {
           .map(m => `[${m.type}] ${m.content}`)
           .join('\n\n');
 
-        // Criar chunks (session_chunks) usando dbSati
-        if (this.dbSati) {
-          const chunks = this.chunkText(sessionText);
-
-          for (let i = 0; i < chunks.length; i++) {
-            this.dbSati.prepare(`
-              INSERT INTO session_chunks (
-                id,
-                session_id,
-                chunk_index,
-                content,
-                created_at
-              ) VALUES (?, ?, ?, ?, ?)
-            `).run(
-              randomUUID(),
-              sessionId,
-              i,
-              chunks[i],
-              now
-            );
-          }
-
-          this.display.log(`🧩 ${chunks.length} chunks criados para sessão ${sessionId}`, { source: 'Sati' });
-        }
-
         // Remover mensagens da sessão após criar os chunks
         this.db.prepare(`
           DELETE FROM messages
           WHERE session_id = ?
         `).run(sessionId);
+
+        return sessionText;
       }
+      return null;
     });
 
-    tx(); // Executar a transação
+    const sessionText: string | null = tx(); // Executar a transação
+
+    // Criar chunks no banco Sati — conexão aberta localmente e fechada ao fim
+    if (sessionText) {
+      const dbSatiPath = path.join(homedir(), '.morpheus', 'memory', 'sati-memory.db');
+      this.ensureDirectory(dbSatiPath);
+      const dbSati = new Database(dbSatiPath, { timeout: 5000 });
+      dbSati.pragma('journal_mode = WAL');
+      try {
+        dbSati.exec(`
+          CREATE TABLE IF NOT EXISTS session_chunks (
+            id TEXT PRIMARY KEY,
+            session_id TEXT NOT NULL,
+            chunk_index INTEGER NOT NULL,
+            content TEXT NOT NULL,
+            created_at INTEGER NOT NULL
+          );
+          CREATE INDEX IF NOT EXISTS idx_session_chunks_session_id ON session_chunks(session_id);
+        `);
+
+        const chunks = this.chunkText(sessionText);
+        const now = Date.now();
+        const insert = dbSati.prepare(`
+          INSERT INTO session_chunks (id, session_id, chunk_index, content, created_at)
+          VALUES (?, ?, ?, ?, ?)
+        `);
+        const insertMany = dbSati.transaction((items: string[]) => {
+          items.forEach((chunk, i) => insert.run(randomUUID(), sessionId, i, chunk, now));
+        });
+        insertMany(chunks);
+        this.display.log(`${chunks.length} chunks criados para sessão ${sessionId}`, { source: 'Sati' });
+      } finally {
+        dbSati.close();
+      }
+    }
   }
 
   /**
@@ -1111,43 +1139,6 @@ export class SQLiteChatMessageHistory extends BaseListChatMessageHistory {
   `).run(newId, now);
 
     return newId;
-  }
-
-  private chunkText(
-    text: string,
-    chunkSize: number = 500,
-    overlap: number = 50
-  ): string[] {
-
-    if (!text || text.length === 0) {
-      return [];
-    }
-
-    const chunks: string[] = [];
-    let start = 0;
-
-    while (start < text.length) {
-      let end = start + chunkSize;
-
-      // Evita cortar no meio da palavra
-      if (end < text.length) {
-        const lastSpace = text.lastIndexOf(' ', end);
-        if (lastSpace > start) {
-          end = lastSpace;
-        }
-      }
-
-      const chunk = text.slice(start, end).trim();
-      if (chunk.length > 0) {
-        chunks.push(chunk);
-      }
-
-      start = end - overlap;
-
-      if (start < 0) start = 0;
-    }
-
-    return chunks;
   }
 
   /**

@@ -10,15 +10,17 @@ export class TaskWorker {
   private readonly workerId: string;
   private readonly pollIntervalMs: number;
   private readonly staleRunningMs: number;
+  private readonly maxConcurrent: number;
   private readonly repository = TaskRepository.getInstance();
   private readonly display = DisplayManager.getInstance();
   private timer: NodeJS.Timeout | null = null;
-  private running = false;
+  private readonly activeTasks = new Set<string>(); // task IDs currently executing
 
-  constructor(opts?: { pollIntervalMs?: number; staleRunningMs?: number }) {
+  constructor(opts?: { pollIntervalMs?: number; staleRunningMs?: number; maxConcurrent?: number }) {
     this.workerId = `task-worker-${randomUUID().slice(0, 8)}`;
-    this.pollIntervalMs = opts?.pollIntervalMs ?? 1000;
+    this.pollIntervalMs = opts?.pollIntervalMs ?? 300;
     this.staleRunningMs = opts?.staleRunningMs ?? 5 * 60 * 1000;
+    this.maxConcurrent = opts?.maxConcurrent ?? parseInt(process.env.MORPHEUS_TASK_CONCURRENCY ?? '3', 10);
   }
 
   start(): void {
@@ -30,7 +32,7 @@ export class TaskWorker {
     }
 
     this.timer = setInterval(() => {
-      void this.tick();
+      this.tick();
     }, this.pollIntervalMs);
 
     this.display.log(`Task worker started (${this.workerId}).`, { source: 'TaskWorker' });
@@ -44,16 +46,12 @@ export class TaskWorker {
     }
   }
 
-  private async tick(): Promise<void> {
-    if (this.running) return;
-    this.running = true;
-    try {
-      const task = this.repository.claimNextPending(this.workerId);
-      if (!task) return;
-      await this.executeTask(task);
-    } finally {
-      this.running = false;
-    }
+  private tick(): void {
+    if (this.activeTasks.size >= this.maxConcurrent) return;
+    const task = this.repository.claimNextPending(this.workerId);
+    if (!task) return;
+    this.activeTasks.add(task.id);
+    this.executeTask(task).finally(() => this.activeTasks.delete(task.id));
   }
 
   private async executeTask(task: TaskRecord): Promise<void> {
