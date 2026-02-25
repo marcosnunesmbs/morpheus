@@ -1,8 +1,93 @@
-import { Client, GatewayIntentBits, Partials, Events, ChannelType } from 'discord.js';
+import {
+  Client,
+  GatewayIntentBits,
+  Partials,
+  Events,
+  ChannelType,
+  REST,
+  Routes,
+  SlashCommandBuilder,
+  ChatInputCommandInteraction,
+} from 'discord.js';
 import chalk from 'chalk';
 import { Oracle } from '../runtime/oracle.js';
 import { SQLiteChatMessageHistory } from '../runtime/memory/sqlite.js';
 import { DisplayManager } from '../runtime/display.js';
+import { ConfigManager } from '../config/manager.js';
+
+// ─── Slash Command Definitions ────────────────────────────────────────────────
+
+const SLASH_COMMANDS = [
+  new SlashCommandBuilder()
+    .setName('help')
+    .setDescription('Show available commands')
+    .setDMPermission(true),
+
+  new SlashCommandBuilder()
+    .setName('status')
+    .setDescription('Check Morpheus agent status')
+    .setDMPermission(true),
+
+  new SlashCommandBuilder()
+    .setName('stats')
+    .setDescription('Show token usage statistics')
+    .setDMPermission(true),
+
+  new SlashCommandBuilder()
+    .setName('newsession')
+    .setDescription('Archive current session and start a new one')
+    .setDMPermission(true),
+
+  new SlashCommandBuilder()
+    .setName('chronos')
+    .setDescription('Schedule a prompt for the Oracle')
+    .addStringOption(opt =>
+      opt.setName('prompt').setDescription('What should the Oracle do?').setRequired(true)
+    )
+    .addStringOption(opt =>
+      opt.setName('time').setDescription('When? e.g. "tomorrow at 9am", "in 30 minutes"').setRequired(true)
+    )
+    .setDMPermission(true),
+
+  new SlashCommandBuilder()
+    .setName('chronos_list')
+    .setDescription('List all Chronos scheduled jobs')
+    .setDMPermission(true),
+
+  new SlashCommandBuilder()
+    .setName('chronos_view')
+    .setDescription('View a Chronos job and its last executions')
+    .addStringOption(opt =>
+      opt.setName('id').setDescription('Job ID').setRequired(true)
+    )
+    .setDMPermission(true),
+
+  new SlashCommandBuilder()
+    .setName('chronos_disable')
+    .setDescription('Disable a Chronos job')
+    .addStringOption(opt =>
+      opt.setName('id').setDescription('Job ID').setRequired(true)
+    )
+    .setDMPermission(true),
+
+  new SlashCommandBuilder()
+    .setName('chronos_enable')
+    .setDescription('Enable a Chronos job')
+    .addStringOption(opt =>
+      opt.setName('id').setDescription('Job ID').setRequired(true)
+    )
+    .setDMPermission(true),
+
+  new SlashCommandBuilder()
+    .setName('chronos_delete')
+    .setDescription('Delete a Chronos job')
+    .addStringOption(opt =>
+      opt.setName('id').setDescription('Job ID').setRequired(true)
+    )
+    .setDMPermission(true),
+].map(cmd => cmd.toJSON());
+
+// ─── Adapter ──────────────────────────────────────────────────────────────────
 
 export class DiscordAdapter {
   readonly channel = 'discord' as const;
@@ -11,6 +96,7 @@ export class DiscordAdapter {
   private allowedUsers: string[] = [];
   private rateLimitMap = new Map<string, number>();
   private display = DisplayManager.getInstance();
+  private config = ConfigManager.getInstance();
   private history = new SQLiteChatMessageHistory({ sessionId: '' });
 
   private readonly RATE_LIMIT_MS = 3000;
@@ -30,7 +116,7 @@ export class DiscordAdapter {
       partials: [Partials.Channel, Partials.Message],
     });
 
-    this.client.once(Events.ClientReady, (readyClient) => {
+    this.client.once(Events.ClientReady, async (readyClient) => {
       this.display.log(
         chalk.green(`✓ Discord bot online: @${readyClient.user.tag}`),
         { source: 'Discord' }
@@ -39,11 +125,40 @@ export class DiscordAdapter {
         `Allowed Users: ${allowedUsers.length > 0 ? allowedUsers.join(', ') : '(none)'}`,
         { source: 'Discord', level: 'info' }
       );
+
+      // Register slash commands globally
+      try {
+        const rest = new REST().setToken(token);
+        await rest.put(
+          Routes.applicationCommands(readyClient.user.id),
+          { body: SLASH_COMMANDS }
+        );
+        this.display.log('Discord slash commands registered.', { source: 'Discord', level: 'info' });
+      } catch (err: any) {
+        this.display.log(
+          `Failed to register slash commands: ${err.message}`,
+          { source: 'Discord', level: 'error' }
+        );
+      }
     });
 
     this.client.on(Events.ShardError, (error) => {
       this.display.log(`Discord WebSocket error: ${error.message}`, { source: 'Discord', level: 'error' });
     });
+
+    // ─── Slash Command Interactions ──────────────────────────────────────────
+
+    this.client.on(Events.InteractionCreate, async (interaction) => {
+      if (!interaction.isChatInputCommand()) return;
+      if (interaction.inGuild()) return; // DM only
+
+      const userId = interaction.user.id;
+      if (!this.isAuthorized(userId)) return;
+
+      await this.handleSlashCommand(interaction);
+    });
+
+    // ─── Direct Messages ─────────────────────────────────────────────────────
 
     this.client.on(Events.MessageCreate, async (message) => {
       if (message.author.bot) return;
@@ -87,10 +202,7 @@ export class DiscordAdapter {
           for (const chunk of chunks) {
             await message.channel.send(chunk);
           }
-          this.display.log(
-            `Responded to ${message.author.tag}`,
-            { source: 'Discord' }
-          );
+          this.display.log(`Responded to ${message.author.tag}`, { source: 'Discord' });
         }
       } catch (error: any) {
         this.display.log(
@@ -98,9 +210,7 @@ export class DiscordAdapter {
           { source: 'Discord', level: 'error' }
         );
         try {
-          await message.channel.send(
-            `Sorry, I encountered an error: ${error.message}`
-          );
+          await message.channel.send(`Sorry, I encountered an error: ${error.message}`);
         } catch {
           // ignore
         }
@@ -124,9 +234,6 @@ export class DiscordAdapter {
     this.display.log(chalk.gray('Discord disconnected.'), { source: 'Discord' });
   }
 
-  /**
-   * Sends a message to all allowed users via DM.
-   */
   public async sendMessage(text: string): Promise<void> {
     if (!this.client) {
       this.display.log('Cannot send message: Discord bot not connected.', { source: 'Discord', level: 'warning' });
@@ -158,6 +265,238 @@ export class DiscordAdapter {
       );
     }
   }
+
+  // ─── Slash Command Handlers ───────────────────────────────────────────────
+
+  private async handleSlashCommand(interaction: ChatInputCommandInteraction): Promise<void> {
+    const { commandName } = interaction;
+    switch (commandName) {
+      case 'help':          await this.cmdHelp(interaction);           break;
+      case 'status':        await this.cmdStatus(interaction);         break;
+      case 'stats':         await this.cmdStats(interaction);          break;
+      case 'newsession':    await this.cmdNewSession(interaction);     break;
+      case 'chronos':       await this.cmdChronos(interaction);        break;
+      case 'chronos_list':  await this.cmdChronosList(interaction);    break;
+      case 'chronos_view':  await this.cmdChronosView(interaction);    break;
+      case 'chronos_disable': await this.cmdChronosDisable(interaction); break;
+      case 'chronos_enable':  await this.cmdChronosEnable(interaction);  break;
+      case 'chronos_delete':  await this.cmdChronosDelete(interaction);  break;
+    }
+  }
+
+  private async cmdHelp(interaction: ChatInputCommandInteraction): Promise<void> {
+    const content = [
+      '**Available Commands**',
+      '',
+      '`/help` — Show this message',
+      '`/status` — Check Morpheus status',
+      '`/stats` — Token usage statistics',
+      '`/newsession` — Start a new session',
+      '',
+      '**Chronos (Scheduler)**',
+      '`/chronos prompt: time:` — Schedule a job for the Oracle',
+      '`/chronos_list` — List all scheduled jobs',
+      '`/chronos_view id:` — View a job and its executions',
+      '`/chronos_disable id:` — Disable a job',
+      '`/chronos_enable id:` — Enable a job',
+      '`/chronos_delete id:` — Delete a job',
+      '',
+      'Or just send any message to chat with the Oracle.',
+    ].join('\n');
+    await interaction.reply({ content });
+  }
+
+  private async cmdStatus(interaction: ChatInputCommandInteraction): Promise<void> {
+    await interaction.reply({ content: '✅ Morpheus is running.' });
+  }
+
+  private async cmdStats(interaction: ChatInputCommandInteraction): Promise<void> {
+    await interaction.deferReply();
+    try {
+      const history = new SQLiteChatMessageHistory({ sessionId: 'default' });
+      const [stats, groupedStats] = await Promise.all([
+        history.getGlobalUsageStats(),
+        history.getUsageStatsByProviderAndModel(),
+      ]);
+      history.close();
+
+      const totalTokens = stats.totalInputTokens + stats.totalOutputTokens;
+      const totalAudioSeconds = groupedStats.reduce((sum, s) => sum + (s.totalAudioSeconds || 0), 0);
+
+      let content = '**Token Usage Statistics**\n\n';
+      content += `Input: ${stats.totalInputTokens.toLocaleString()} tokens\n`;
+      content += `Output: ${stats.totalOutputTokens.toLocaleString()} tokens\n`;
+      content += `Total: ${totalTokens.toLocaleString()} tokens\n`;
+      if (totalAudioSeconds > 0) content += `Audio: ${totalAudioSeconds.toFixed(1)}s\n`;
+      if (stats.totalEstimatedCostUsd != null) content += `Estimated Cost: $${stats.totalEstimatedCostUsd.toFixed(4)}\n`;
+
+      if (groupedStats.length > 0) {
+        content += '\n**By Provider/Model:**\n';
+        for (const s of groupedStats.slice(0, 5)) {
+          content += `\n**${s.provider}/${s.model}**\n`;
+          content += `  ${s.totalTokens.toLocaleString()} tokens (${s.messageCount} msgs)`;
+          if (s.estimatedCostUsd != null) content += ` — $${s.estimatedCostUsd.toFixed(4)}`;
+          content += '\n';
+        }
+      }
+
+      await interaction.editReply({ content: content.slice(0, 2000) });
+    } catch (err: any) {
+      await interaction.editReply({ content: `Error: ${err.message}` });
+    }
+  }
+
+  private async cmdNewSession(interaction: ChatInputCommandInteraction): Promise<void> {
+    try {
+      const history = new SQLiteChatMessageHistory({ sessionId: '' });
+      await history.createNewSession();
+      history.close();
+      await interaction.reply({ content: '✅ New session started.' });
+    } catch (err: any) {
+      await interaction.reply({ content: `Error: ${err.message}` });
+    }
+  }
+
+  private async cmdChronos(interaction: ChatInputCommandInteraction): Promise<void> {
+    const prompt = interaction.options.getString('prompt', true);
+    const timeExpr = interaction.options.getString('time', true);
+    await interaction.deferReply();
+    try {
+      const { parseScheduleExpression } = await import('../runtime/chronos/parser.js');
+      const { ChronosRepository } = await import('../runtime/chronos/repository.js');
+      const globalTz = this.config.getChronosConfig().timezone;
+      const schedule = parseScheduleExpression(timeExpr, 'once', { timezone: globalTz });
+
+      const formatted = new Date(schedule.next_run_at).toLocaleString('en-US', {
+        timeZone: globalTz, year: 'numeric', month: 'short', day: 'numeric',
+        hour: '2-digit', minute: '2-digit', timeZoneName: 'short',
+      });
+
+      const repo = ChronosRepository.getInstance();
+      const job = repo.createJob({
+        prompt,
+        schedule_type: 'once',
+        schedule_expression: timeExpr,
+        cron_normalized: schedule.cron_normalized,
+        timezone: globalTz,
+        next_run_at: schedule.next_run_at,
+        created_by: 'discord',
+      });
+
+      await interaction.editReply({
+        content: `✅ Job created (\`${job.id.slice(0, 8)}\`)\n**${prompt}**\n${schedule.human_readable} — ${formatted}`,
+      });
+    } catch (err: any) {
+      await interaction.editReply({ content: `Error: ${err.message}` });
+    }
+  }
+
+  private async cmdChronosList(interaction: ChatInputCommandInteraction): Promise<void> {
+    try {
+      const { ChronosRepository } = await import('../runtime/chronos/repository.js');
+      const repo = ChronosRepository.getInstance();
+      const jobs = repo.listJobs();
+
+      if (!jobs.length) {
+        await interaction.reply({ content: 'No Chronos jobs found.' });
+        return;
+      }
+
+      const lines = jobs.map((j, i) => {
+        const status = j.enabled ? '🟢' : '🔴';
+        const next = j.enabled && j.next_run_at
+          ? new Date(j.next_run_at).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
+          : j.enabled ? 'N/A' : 'disabled';
+        const shortPrompt = j.prompt.length > 40 ? j.prompt.slice(0, 40) + '…' : j.prompt;
+        return `${status} ${i + 1}. \`${j.id.slice(0, 8)}\` — ${shortPrompt} — *${next}*`;
+      });
+
+      await interaction.reply({ content: `**Chronos Jobs**\n\n${lines.join('\n')}`.slice(0, 2000) });
+    } catch (err: any) {
+      await interaction.reply({ content: `Error: ${err.message}` });
+    }
+  }
+
+  private async cmdChronosView(interaction: ChatInputCommandInteraction): Promise<void> {
+    const id = interaction.options.getString('id', true);
+    try {
+      const { ChronosRepository } = await import('../runtime/chronos/repository.js');
+      const repo = ChronosRepository.getInstance();
+      const job = repo.getJob(id);
+      if (!job) { await interaction.reply({ content: 'Job not found.' }); return; }
+
+      const executions = repo.listExecutions(id, 3);
+      const next = job.next_run_at ? new Date(job.next_run_at).toLocaleString() : 'N/A';
+      const last = job.last_run_at ? new Date(job.last_run_at).toLocaleString() : 'Never';
+      const execLines = executions.map(e =>
+        `• ${e.status.toUpperCase()} — ${new Date(e.triggered_at).toLocaleString()}`
+      ).join('\n') || 'None yet';
+
+      const content =
+        `**Chronos Job** \`${id.slice(0, 8)}\`\n\n` +
+        `**Prompt:** ${job.prompt}\n` +
+        `**Schedule:** ${job.schedule_type} — \`${job.schedule_expression}\`\n` +
+        `**Timezone:** ${job.timezone}\n` +
+        `**Status:** ${job.enabled ? 'Enabled' : 'Disabled'}\n` +
+        `**Next Run:** ${next}\n` +
+        `**Last Run:** ${last}\n\n` +
+        `**Last 3 Executions:**\n${execLines}`;
+
+      await interaction.reply({ content: content.slice(0, 2000) });
+    } catch (err: any) {
+      await interaction.reply({ content: `Error: ${err.message}` });
+    }
+  }
+
+  private async cmdChronosDisable(interaction: ChatInputCommandInteraction): Promise<void> {
+    const id = interaction.options.getString('id', true);
+    try {
+      const { ChronosRepository } = await import('../runtime/chronos/repository.js');
+      const repo = ChronosRepository.getInstance();
+      const job = repo.disableJob(id);
+      if (!job) { await interaction.reply({ content: 'Job not found.' }); return; }
+      await interaction.reply({ content: `Job \`${id.slice(0, 8)}\` disabled.` });
+    } catch (err: any) {
+      await interaction.reply({ content: `Error: ${err.message}` });
+    }
+  }
+
+  private async cmdChronosEnable(interaction: ChatInputCommandInteraction): Promise<void> {
+    const id = interaction.options.getString('id', true);
+    try {
+      const { ChronosRepository } = await import('../runtime/chronos/repository.js');
+      const { parseNextRun } = await import('../runtime/chronos/parser.js');
+      const repo = ChronosRepository.getInstance();
+      const existing = repo.getJob(id);
+      if (!existing) { await interaction.reply({ content: 'Job not found.' }); return; }
+
+      let nextRunAt: number | undefined;
+      if (existing.cron_normalized) {
+        nextRunAt = parseNextRun(existing.cron_normalized, existing.timezone);
+      }
+      repo.updateJob(id, { enabled: true, next_run_at: nextRunAt });
+      const job = repo.getJob(id)!;
+      const next = job.next_run_at ? new Date(job.next_run_at).toLocaleString() : 'N/A';
+      await interaction.reply({ content: `Job \`${id.slice(0, 8)}\` enabled. Next run: ${next}` });
+    } catch (err: any) {
+      await interaction.reply({ content: `Error: ${err.message}` });
+    }
+  }
+
+  private async cmdChronosDelete(interaction: ChatInputCommandInteraction): Promise<void> {
+    const id = interaction.options.getString('id', true);
+    try {
+      const { ChronosRepository } = await import('../runtime/chronos/repository.js');
+      const repo = ChronosRepository.getInstance();
+      const deleted = repo.deleteJob(id);
+      if (!deleted) { await interaction.reply({ content: 'Job not found.' }); return; }
+      await interaction.reply({ content: `Job \`${id.slice(0, 8)}\` deleted.` });
+    } catch (err: any) {
+      await interaction.reply({ content: `Error: ${err.message}` });
+    }
+  }
+
+  // ─── Helpers ──────────────────────────────────────────────────────────────
 
   private isAuthorized(userId: string): boolean {
     return this.allowedUsers.includes(userId);

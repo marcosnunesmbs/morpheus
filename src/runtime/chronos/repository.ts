@@ -7,7 +7,7 @@ import { ConfigManager } from '../../config/manager.js';
 
 export type ScheduleType = 'once' | 'cron' | 'interval';
 export type ExecutionStatus = 'running' | 'success' | 'failed' | 'timeout';
-export type CreatedBy = 'ui' | 'telegram' | 'api' | 'oracle';
+export type CreatedBy = 'ui' | 'telegram' | 'discord' | 'api' | 'oracle';
 
 export interface ChronosJob {
   id: string;
