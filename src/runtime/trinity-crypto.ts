@@ -61,3 +61,35 @@ export function decrypt(ciphertext: string): string {
 export function canEncrypt(): boolean {
   return !!process.env.MORPHEUS_SECRET;
 }
+
+/**
+ * Checks if a string appears to be an encrypted value.
+ * Format: base64(iv):base64(authTag):base64(ciphertext)
+ */
+export function looksLikeEncrypted(value: string): boolean {
+  const parts = value.split(':');
+  if (parts.length !== 3) return false;
+  
+  // Each part should be valid base64
+  return parts.every(part => {
+    try {
+      const decoded = Buffer.from(part, 'base64');
+      return decoded.toString('base64') === part;
+    } catch {
+      return false;
+    }
+  });
+}
+
+/**
+ * Safely decrypts a value, returning null if decryption fails.
+ * Use this for fail-open scenarios where MORPHEUS_SECRET may not be set.
+ */
+export function safeDecrypt(ciphertext: string | null): string | null {
+  if (!ciphertext) return null;
+  try {
+    return decrypt(ciphertext);
+  } catch {
+    return null;
+  }
+}

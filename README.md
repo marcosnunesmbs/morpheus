@@ -82,7 +82,10 @@ Minimal `env.docker`:
 ```env
 OPENAI_API_KEY=sk-...
 THE_ARCHITECT_PASS=changeme
+MORPHEUS_SECRET=<generate-a-random-secret>
 ```
+
+> **Tip:** Generate a secure `MORPHEUS_SECRET` with: `openssl rand -base64 32` or `node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"`
 
 **2. Run:**
 
@@ -121,6 +124,7 @@ docker run -d \
   -p 3333:3333 \
   -e OPENAI_API_KEY=sk-... \
   -e THE_ARCHITECT_PASS=changeme \
+  -e MORPHEUS_SECRET=<generate-a-random-secret> \
   -v morpheus_data:/root/.morpheus \
   morpheus
 ```
@@ -133,6 +137,7 @@ docker run -d \
   -p 3333:3333 \
   -e OPENAI_API_KEY=sk-... \
   -e THE_ARCHITECT_PASS=changeme \
+  -e MORPHEUS_SECRET=<generate-a-random-secret> \
   -e MORPHEUS_TELEGRAM_ENABLED=true \
   -e MORPHEUS_TELEGRAM_TOKEN=<bot-token> \
   -e MORPHEUS_TELEGRAM_ALLOWED_USERS=123456789 \
@@ -148,6 +153,7 @@ docker run -d \
   -p 3333:3333 \
   -e OPENAI_API_KEY=sk-... \
   -e THE_ARCHITECT_PASS=changeme \
+  -e MORPHEUS_SECRET=<generate-a-random-secret> \
   -e MORPHEUS_DISCORD_ENABLED=true \
   -e MORPHEUS_DISCORD_TOKEN=<bot-token> \
   -e MORPHEUS_DISCORD_ALLOWED_USERS=987654321 \
@@ -365,7 +371,7 @@ Provider-specific keys:
 - `THE_ARCHITECT_PASS`
 
 Security:
-- `MORPHEUS_SECRET` — AES-256-GCM key for encrypting Trinity database passwords (required when using Trinity)
+- `MORPHEUS_SECRET` — AES-256-GCM encryption key for Trinity database passwords and agent API keys. When set, all API keys saved via UI or config file are automatically encrypted at rest.
 
 Generic Morpheus overrides (selected):
 

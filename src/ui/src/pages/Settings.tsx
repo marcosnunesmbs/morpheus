@@ -66,6 +66,10 @@ export default function Settings() {
     '/api/config/trinity',
     configService.getTrinityConfig
   );
+  const { data: encryptionStatus } = useSWR(
+    '/api/config/encryption-status',
+    configService.fetchConfig
+  );
 
   const { data: chronosServerConfig } = useChronosConfig();
   const [localChronosConfig, setLocalChronosConfig] = useState<ChronosConfig | null>(null);
@@ -144,6 +148,54 @@ export default function Settings() {
     JSON.stringify(neoServerConfig) !== JSON.stringify(localNeoConfig) ||
     JSON.stringify(apocServerConfig) !== JSON.stringify(localApocConfig) ||
     JSON.stringify(trinityServerConfig) !== JSON.stringify(localTrinityConfig);
+
+  /**
+   * Renders encryption status badge for an agent's API key.
+   */
+  const renderEncryptionBadge = (
+    agentName: 'oracle' | 'sati' | 'neo' | 'apoc' | 'trinity',
+    apiKey: string | undefined
+  ) => {
+    if (!encryptionStatus) return null;
+
+    const { morpheusSecretSet, apiKeysEncrypted } = encryptionStatus;
+    const isEncrypted = apiKeysEncrypted[agentName];
+    const hasKey = !!apiKey;
+
+    // No API key set
+    if (!hasKey) {
+      return (
+        <span className="inline-flex items-center px-2 py-1 text-xs rounded bg-azure-surface border border-azure-border text-azure-text-secondary dark:bg-matrix-primary/10 dark:border-matrix-primary dark:text-matrix-tertiary">
+          No API key
+        </span>
+      );
+    }
+
+    // MORPHEUS_SECRET not set
+    if (!morpheusSecretSet) {
+      return (
+        <span className="inline-flex items-center px-2 py-1 text-xs rounded bg-amber-100 border border-amber-300 text-amber-800 dark:bg-amber-900/30 dark:border-amber-700 dark:text-amber-400" title="Set MORPHEUS_SECRET to enable encryption">
+          ⚠️ Plaintext
+        </span>
+      );
+    }
+
+    // Encrypted
+    if (isEncrypted) {
+      return (
+        <span className="inline-flex items-center px-2 py-1 text-xs rounded bg-emerald-100 border border-emerald-300 text-emerald-800 dark:bg-emerald-900/30 dark:border-emerald-700 dark:text-emerald-400" title="API key encrypted with AES-256-GCM">
+          🔒 Encrypted
+        </span>
+      );
+    }
+
+    // Plaintext (has key, secret set, but not encrypted yet)
+    return (
+      <span className="inline-flex items-center px-2 py-1 text-xs rounded bg-amber-100 border border-amber-300 text-amber-800 dark:bg-amber-900/30 dark:border-amber-700 dark:text-amber-400" title="Re-save this configuration to encrypt the API key">
+        ⚠️ Re-save to encrypt
+      </span>
+    );
+  };
 
   const handleUpdate = (path: string[], value: any) => {
     if (!localConfig) return;
@@ -441,8 +493,14 @@ export default function Settings() {
                   error={errors['llm.context_window']}
                   helperText="Number of past interactions to load into LLM context (e.g., 100)."
                 />
+                <div className="flex items-center justify-between">
+                  <label className="block text-sm font-medium text-azure-text-primary dark:text-matrix-secondary">
+                    API Key
+                  </label>
+                  {renderEncryptionBadge('oracle', localConfig.llm.api_key)}
+                </div>
                 <TextInput
-                  label="API Key"
+                  label=""
                   type="password"
                   value={localConfig.llm.api_key || ''}
                   onChange={(e) =>
@@ -502,8 +560,14 @@ export default function Settings() {
                       value={localSatiConfig.model}
                       onChange={(e) => handleSatiUpdate('model', e.target.value)}
                     />
+                    <div className="flex items-center justify-between">
+                      <label className="block text-sm font-medium text-azure-text-primary dark:text-matrix-secondary">
+                        API Key
+                      </label>
+                      {renderEncryptionBadge('sati', localSatiConfig.api_key)}
+                    </div>
                     <TextInput
-                      label="API Key"
+                      label=""
                       type="password"
                       value={localSatiConfig.api_key || ''}
                       onChange={(e) =>
@@ -620,8 +684,14 @@ export default function Settings() {
                       min={1}
                       step={1}
                     />
+                    <div className="flex items-center justify-between">
+                      <label className="block text-sm font-medium text-azure-text-primary dark:text-matrix-secondary">
+                        API Key
+                      </label>
+                      {renderEncryptionBadge('neo', localNeoConfig.api_key)}
+                    </div>
                     <TextInput
-                      label="API Key"
+                      label=""
                       type="password"
                       value={localNeoConfig.api_key || ''}
                       onChange={(e) =>
@@ -706,8 +776,14 @@ export default function Settings() {
                       min={1}
                       helperText="Maximum tokens per response. Leave empty for model default."
                     />
+                    <div className="flex items-center justify-between">
+                      <label className="block text-sm font-medium text-azure-text-primary dark:text-matrix-secondary">
+                        API Key
+                      </label>
+                      {renderEncryptionBadge('trinity', localTrinityConfig.api_key)}
+                    </div>
                     <TextInput
-                      label="API Key"
+                      label=""
                       type="password"
                       value={localTrinityConfig.api_key || ''}
                       onChange={(e) =>
@@ -777,8 +853,14 @@ export default function Settings() {
                       min={0}
                       max={1}
                     />
+                    <div className="flex items-center justify-between">
+                      <label className="block text-sm font-medium text-azure-text-primary dark:text-matrix-secondary">
+                        API Key
+                      </label>
+                      {renderEncryptionBadge('apoc', localApocConfig.api_key)}
+                    </div>
                     <TextInput
-                      label="API Key"
+                      label=""
                       type="password"
                       value={localApocConfig.api_key || ''}
                       onChange={(e) =>

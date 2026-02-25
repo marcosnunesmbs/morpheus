@@ -872,6 +872,17 @@ export function createApiRouter(oracle: IOracle, chronosWorker?: ChronosWorker) 
     }
   });
 
+  // ─── Encryption Status ─────────────────────────────────────────────────────
+
+  router.get('/config/encryption-status', (req, res) => {
+    try {
+      const status = configManager.getEncryptionStatus();
+      res.json(status);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   // ─── Trinity Databases CRUD ─────────────────────────────────────────────────
 
   const DatabaseCreateSchema = z.object({

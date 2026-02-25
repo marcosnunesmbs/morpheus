@@ -29,15 +29,15 @@ Create a `.env` file:
 # Required
 OPENAI_API_KEY=sk-...
 THE_ARCHITECT_PASS=changeme
+MORPHEUS_SECRET=<generate-a-random-secret>
 
 # Optional — Telegram
 MORPHEUS_TELEGRAM_ENABLED=false
 MORPHEUS_TELEGRAM_TOKEN=
 MORPHEUS_TELEGRAM_ALLOWED_USERS=
-
-# Optional — Trinity (database passwords encryption key)
-MORPHEUS_SECRET=
 ```
+
+> **Tip:** Generate a secure `MORPHEUS_SECRET` with: `openssl rand -base64 32` or `node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"`
 
 Create a `docker-compose.yml`:
 
@@ -110,6 +110,7 @@ docker run -d \
   -e MORPHEUS_LLM_PROVIDER=openai \
   -e OPENAI_API_KEY=sk-... \
   -e THE_ARCHITECT_PASS=changeme \
+  -e MORPHEUS_SECRET=<generate-a-random-secret> \
   marcodalpra/morpheus-agent:latest
 ```
 
@@ -122,6 +123,7 @@ docker run -d \
   -v morpheus_data:/root/.morpheus \
   -e OPENAI_API_KEY=sk-... \
   -e THE_ARCHITECT_PASS=changeme \
+  -e MORPHEUS_SECRET=<generate-a-random-secret> \
   -e MORPHEUS_TELEGRAM_ENABLED=true \
   -e MORPHEUS_TELEGRAM_TOKEN=<bot-token> \
   -e MORPHEUS_TELEGRAM_ALLOWED_USERS=123456789 \
@@ -137,6 +139,7 @@ docker run -d \
   -v morpheus_data:/root/.morpheus \
   -e OPENAI_API_KEY=sk-... \
   -e THE_ARCHITECT_PASS=changeme \
+  -e MORPHEUS_SECRET=<generate-a-random-secret> \
   -e MORPHEUS_DISCORD_ENABLED=true \
   -e MORPHEUS_DISCORD_TOKEN=<bot-token> \
   -e MORPHEUS_DISCORD_ALLOWED_USERS=987654321 \
@@ -166,6 +169,15 @@ docker run -d \
 | `GOOGLE_API_KEY` | Google Gemini |
 | `OPENROUTER_API_KEY` | OpenRouter |
 
+### Security
+
+| Variable | Description | Default |
+|---|---|---|
+| `THE_ARCHITECT_PASS` | Dashboard login password | `iamthearchitect` |
+| `MORPHEUS_SECRET` | AES-256-GCM encryption key for database passwords and agent API keys | — |
+
+> **Important:** Set `MORPHEUS_SECRET` to enable automatic encryption of sensitive data. Generate a secure value with: `openssl rand -base64 32`
+
 ### Agent-Specific Overrides
 
 Each subagent falls back to Oracle config if not set.
@@ -178,13 +190,6 @@ Each subagent falls back to Oracle config if not set.
 | `MORPHEUS_APOC_WORKING_DIR` | Apoc working directory |
 | `MORPHEUS_APOC_TIMEOUT_MS` | Apoc tool timeout (ms) |
 | `MORPHEUS_TRINITY_PROVIDER` / `_MODEL` / `_API_KEY` | Trinity (databases) |
-
-### Security
-
-| Variable | Description | Default |
-|---|---|---|
-| `THE_ARCHITECT_PASS` | Dashboard + API password | `iamthearchitect` |
-| `MORPHEUS_SECRET` | AES-256-GCM key for encrypting database passwords (Trinity) | — |
 
 ### Telegram
 

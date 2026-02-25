@@ -970,6 +970,36 @@ Success response `200`:
 }
 ```
 
+### GET `/api/config/encryption-status`
+Returns the encryption status of all agent API keys and whether `MORPHEUS_SECRET` is configured.
+
+Success response `200`:
+
+```json
+{
+  "morpheusSecretSet": true,
+  "apiKeysEncrypted": {
+    "oracle": true,
+    "sati": true,
+    "neo": true,
+    "apoc": true,
+    "trinity": true
+  },
+  "hasPlaintextKeys": false
+}
+```
+
+**Response fields:**
+- `morpheusSecretSet` (boolean): `true` if `MORPHEUS_SECRET` environment variable is set
+- `apiKeysEncrypted` (object): Encryption status for each agent's API key
+  - `oracle`, `sati`, `neo`, `apoc`, `trinity` (boolean): `true` if the API key is encrypted or not set, `false` if stored in plaintext
+- `hasPlaintextKeys` (boolean): `true` if any agent has a plaintext API key (indicates re-save needed or `MORPHEUS_SECRET` not set when key was saved)
+
+**Behavior:**
+- When `morpheusSecretSet` is `false`, all saved API keys are stored in plaintext
+- When `morpheusSecretSet` is `true`, newly saved API keys are automatically encrypted with AES-256-GCM
+- Existing plaintext keys remain in plaintext until re-saved via UI or API
+
 ## 8.9 Usage and Pricing Endpoints (Protected)
 
 ### GET `/api/stats/usage`

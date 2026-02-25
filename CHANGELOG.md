@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **Agent API Key Encryption**: AES-256-GCM encryption for all agent API keys (Oracle, Sati, Neo, Apoc, Trinity)
+  - Uses same encryption module as Trinity database passwords (`src/runtime/trinity-crypto.ts`)
+  - Automatic encryption on save when `MORPHEUS_SECRET` is set
+  - Automatic decryption on config load (fail-open: plaintext keys remain usable)
+  - New endpoint `GET /api/config/encryption-status` — returns encryption status for all agents
+  - UI badges showing encryption status: 🔒 Encrypted, ⚠️ Plaintext, ⚠️ Re-save to encrypt
+  - Backward compatible: systems without `MORPHEUS_SECRET` continue working with plaintext keys
+  - Warning logged when saving API keys without encryption enabled
+
+### Changed
+- `README.md` — updated `MORPHEUS_SECRET` description to include agent API key encryption
+- `DOCUMENTATION.md` — added `/api/config/encryption-status` endpoint documentation
+
 ## [0.5.6] - 2026-02-22
 
 ### Added

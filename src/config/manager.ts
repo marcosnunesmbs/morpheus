@@ -6,15 +6,17 @@ import { PATHS } from './paths.js';
 import { setByPath } from './utils.js';
 import { ConfigSchema } from './schemas.js';
 import { migrateConfigFile } from '../runtime/migration.js';
-import { 
-  resolveApiKey, 
-  resolveModel, 
-  resolveNumeric, 
-  resolveString, 
-  resolveBoolean, 
+import {
+  resolveApiKey,
+  resolveModel,
+  resolveNumeric,
+  resolveString,
+  resolveBoolean,
   resolveProvider,
   resolveStringArray
 } from './precedence.js';
+import { encrypt, safeDecrypt, looksLikeEncrypted, canEncrypt } from '../runtime/trinity-crypto.js';
+import { DisplayManager } from '../runtime/display.js';
 
 export class ConfigManager {
   private static instance: ConfigManager;
@@ -27,6 +29,93 @@ export class ConfigManager {
       ConfigManager.instance = new ConfigManager();
     }
     return ConfigManager.instance;
+  }
+
+  /**
+   * Decrypts API keys in config if they appear to be encrypted.
+   * Fail-open: returns original value if decryption fails.
+   */
+  private decryptAgentApiKeys(config: MorpheusConfig): MorpheusConfig {
+    const decrypted = { ...config };
+
+    // Helper to decrypt a single key
+    const tryDecrypt = (apiKey: string | undefined): string | undefined => {
+      if (!apiKey) return undefined;
+      if (!looksLikeEncrypted(apiKey)) return apiKey;
+      const decrypted = safeDecrypt(apiKey);
+      return decrypted ?? apiKey; // Return original if decryption fails
+    };
+
+    // Decrypt Oracle/LLM
+    if (decrypted.llm.api_key) {
+      decrypted.llm = { ...decrypted.llm, api_key: tryDecrypt(decrypted.llm.api_key) };
+    }
+
+    // Decrypt Sati
+    if (decrypted.sati?.api_key) {
+      decrypted.sati = { ...decrypted.sati, api_key: tryDecrypt(decrypted.sati.api_key) };
+    }
+
+    // Decrypt Apoc
+    if (decrypted.apoc?.api_key) {
+      decrypted.apoc = { ...decrypted.apoc, api_key: tryDecrypt(decrypted.apoc.api_key) };
+    }
+
+    // Decrypt Neo
+    if (decrypted.neo?.api_key) {
+      decrypted.neo = { ...decrypted.neo, api_key: tryDecrypt(decrypted.neo.api_key) };
+    }
+
+    // Decrypt Trinity
+    if (decrypted.trinity?.api_key) {
+      decrypted.trinity = { ...decrypted.trinity, api_key: tryDecrypt(decrypted.trinity.api_key) };
+    }
+
+    return decrypted;
+  }
+
+  /**
+   * Encrypts API keys in config if MORPHEUS_SECRET is set.
+   */
+  private encryptAgentApiKeys(config: MorpheusConfig): MorpheusConfig {
+    if (!canEncrypt()) return config;
+
+    const encrypted = { ...config };
+
+    // Helper to encrypt a single key
+    const tryEncrypt = (apiKey: string | undefined): string | undefined => {
+      if (!apiKey) return undefined;
+      // Don't double-encrypt
+      if (looksLikeEncrypted(apiKey)) return apiKey;
+      return encrypt(apiKey);
+    };
+
+    // Encrypt Oracle/LLM
+    if (encrypted.llm.api_key) {
+      encrypted.llm = { ...encrypted.llm, api_key: tryEncrypt(encrypted.llm.api_key) };
+    }
+
+    // Encrypt Sati
+    if (encrypted.sati?.api_key) {
+      encrypted.sati = { ...encrypted.sati, api_key: tryEncrypt(encrypted.sati.api_key) };
+    }
+
+    // Encrypt Apoc
+    if (encrypted.apoc?.api_key) {
+      encrypted.apoc = { ...encrypted.apoc, api_key: tryEncrypt(encrypted.apoc.api_key) };
+    }
+
+    // Encrypt Neo
+    if (encrypted.neo?.api_key) {
+      encrypted.neo = { ...encrypted.neo, api_key: tryEncrypt(encrypted.neo.api_key) };
+    }
+
+    // Encrypt Trinity
+    if (encrypted.trinity?.api_key) {
+      encrypted.trinity = { ...encrypted.trinity, api_key: tryEncrypt(encrypted.trinity.api_key) };
+    }
+
+    return encrypted;
   }
 
   public async load(): Promise<MorpheusConfig> {
@@ -42,8 +131,11 @@ export class ConfigManager {
         rawConfig = ConfigSchema.parse(parsed) as MorpheusConfig;
       }
 
+      // Decrypt API keys if they appear to be encrypted (fail-open)
+      const decryptedConfig = this.decryptAgentApiKeys(rawConfig);
+
       // Apply environment variable precedence to the loaded config
-      this.config = this.applyEnvironmentVariablePrecedence(rawConfig);
+      this.config = this.applyEnvironmentVariablePrecedence(decryptedConfig);
     } catch (error) {
       console.error('Failed to load configuration:', error);
       // Fallback to default if load fails
@@ -264,10 +356,23 @@ export class ConfigManager {
 
   public async save(newConfig: Partial<MorpheusConfig>): Promise<void> {
     // Deep merge or overwrite? simpler to overwrite for now or merge top level
-    const updated = { ...this.config, ...newConfig };
+    let updated = { ...this.config, ...newConfig };
+    
+    // Encrypt API keys before saving if MORPHEUS_SECRET is set
+    updated = this.encryptAgentApiKeys(updated);
+    
     // Validate before saving
     const valid = ConfigSchema.parse(updated);
-    
+
+    // Warn if saving without encryption
+    if (!canEncrypt()) {
+      const display = DisplayManager.getInstance();
+      display.log(
+        'API keys saved in PLAINTEXT. Set MORPHEUS_SECRET environment variable to enable AES-256-GCM encryption.',
+        { source: 'ConfigManager', level: 'warning' }
+      );
+    }
+
     await fs.ensureDir(PATHS.root);
     await fs.writeFile(PATHS.config, yaml.dump(valid), 'utf8');
     this.config = valid as MorpheusConfig;
@@ -337,5 +442,41 @@ export class ConfigManager {
       return { ...defaults, ...this.config.chronos };
     }
     return defaults;
+  }
+
+  /**
+   * Returns encryption status for all agent API keys.
+   */
+  public getEncryptionStatus(): {
+    morpheusSecretSet: boolean;
+    apiKeysEncrypted: {
+      oracle: boolean;
+      sati: boolean;
+      neo: boolean;
+      apoc: boolean;
+      trinity: boolean;
+    };
+    hasPlaintextKeys: boolean;
+  } {
+    const checkKey = (apiKey: string | undefined): boolean => {
+      if (!apiKey) return true; // No key = not plaintext
+      return looksLikeEncrypted(apiKey);
+    };
+
+    const apiKeysEncrypted = {
+      oracle: checkKey(this.config.llm.api_key),
+      sati: checkKey(this.config.sati?.api_key),
+      neo: checkKey(this.config.neo?.api_key),
+      apoc: checkKey(this.config.apoc?.api_key),
+      trinity: checkKey(this.config.trinity?.api_key),
+    };
+
+    const hasPlaintextKeys = Object.values(apiKeysEncrypted).some(encrypted => !encrypted);
+
+    return {
+      morpheusSecretSet: canEncrypt(),
+      apiKeysEncrypted,
+      hasPlaintextKeys,
+    };
   }
 }
