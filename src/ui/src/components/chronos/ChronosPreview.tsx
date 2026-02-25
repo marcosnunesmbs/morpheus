@@ -39,6 +39,24 @@ export function ChronosPreview({ scheduleExpression, scheduleType, timezone }: C
 
   if (!scheduleExpression.trim()) return null;
 
+  // Format date in the selected timezone
+  const formatInTimezone = (timestamp: number, tz: string): string => {
+    try {
+      return new Date(timestamp).toLocaleString('pt-BR', {
+        timeZone: tz,
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+      });
+    } catch {
+      // Fallback to local timezone if specified timezone is invalid
+      return new Date(timestamp).toLocaleString();
+    }
+  };
+
   return (
     <div className="mt-2 rounded border border-azure-border dark:border-matrix-primary bg-azure-surface dark:bg-zinc-900 p-3 text-sm">
       {error ? (
@@ -50,7 +68,7 @@ export function ChronosPreview({ scheduleExpression, scheduleType, timezone }: C
           <div className="flex items-center gap-1.5 text-azure-text-secondary dark:text-matrix-secondary">
             <Clock className="w-3.5 h-3.5 text-azure-primary dark:text-matrix-highlight shrink-0" />
             <span className="font-medium dark:text-matrix-highlight">Next run:</span>
-            <span>{new Date(preview.next_run_at).toLocaleString()}</span>
+            <span>{formatInTimezone(preview.next_run_at, timezone || 'UTC')}</span>
           </div>
           {preview.human_readable && (
             <p className="text-azure-text-muted dark:text-matrix-secondary/70 pl-5">

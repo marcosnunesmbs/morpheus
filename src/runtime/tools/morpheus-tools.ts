@@ -8,10 +8,63 @@ import Database from "better-sqlite3";
 import { TaskRepository } from "../tasks/repository.js";
 import { TaskRequestContext } from "../tasks/context.js";
 import type { TaskRecord } from "../tasks/types.js";
+import { isEnvVarSet } from "../../config/precedence.js";
 
 // ─── Shared ───────────────────────────────────────────────────────────────────
 
 const shortMemoryDbPath = path.join(homedir(), ".morpheus", "memory", "short-memory.db");
+
+/**
+ * Map of config paths to their corresponding environment variable names.
+ * Used to check if a config field is being overridden by an env var.
+ */
+const CONFIG_TO_ENV_MAP: Record<string, string[]> = {
+  'llm.provider': ['MORPHEUS_LLM_PROVIDER'],
+  'llm.model': ['MORPHEUS_LLM_MODEL'],
+  'llm.temperature': ['MORPHEUS_LLM_TEMPERATURE'],
+  'llm.max_tokens': ['MORPHEUS_LLM_MAX_TOKENS'],
+  'llm.api_key': ['MORPHEUS_LLM_API_KEY', 'OPENAI_API_KEY', 'ANTHROPIC_API_KEY', 'GOOGLE_API_KEY', 'OPENROUTER_API_KEY'],
+  'llm.context_window': ['MORPHEUS_LLM_CONTEXT_WINDOW'],
+  'sati.provider': ['MORPHEUS_SATI_PROVIDER'],
+  'sati.model': ['MORPHEUS_SATI_MODEL'],
+  'sati.temperature': ['MORPHEUS_SATI_TEMPERATURE'],
+  'sati.api_key': ['MORPHEUS_SATI_API_KEY'],
+  'neo.provider': ['MORPHEUS_NEO_PROVIDER'],
+  'neo.model': ['MORPHEUS_NEO_MODEL'],
+  'neo.temperature': ['MORPHEUS_NEO_TEMPERATURE'],
+  'neo.api_key': ['MORPHEUS_NEO_API_KEY'],
+  'apoc.provider': ['MORPHEUS_APOC_PROVIDER'],
+  'apoc.model': ['MORPHEUS_APOC_MODEL'],
+  'apoc.temperature': ['MORPHEUS_APOC_TEMPERATURE'],
+  'apoc.api_key': ['MORPHEUS_APOC_API_KEY'],
+  'apoc.working_dir': ['MORPHEUS_APOC_WORKING_DIR'],
+  'apoc.timeout_ms': ['MORPHEUS_APOC_TIMEOUT_MS'],
+  'trinity.provider': ['MORPHEUS_TRINITY_PROVIDER'],
+  'trinity.model': ['MORPHEUS_TRINITY_MODEL'],
+  'trinity.temperature': ['MORPHEUS_TRINITY_TEMPERATURE'],
+  'trinity.api_key': ['MORPHEUS_TRINITY_API_KEY'],
+  'audio.provider': ['MORPHEUS_AUDIO_PROVIDER'],
+  'audio.model': ['MORPHEUS_AUDIO_MODEL'],
+  'audio.apiKey': ['MORPHEUS_AUDIO_API_KEY'],
+  'audio.maxDurationSeconds': ['MORPHEUS_AUDIO_MAX_DURATION'],
+};
+
+/**
+ * Checks if a config field is overridden by an environment variable.
+ */
+function isFieldOverriddenByEnv(fieldPath: string): boolean {
+  const envVars = CONFIG_TO_ENV_MAP[fieldPath];
+  if (!envVars) return false;
+  
+  return envVars.some(envVar => isEnvVarSet(envVar));
+}
+
+/**
+ * Gets all fields that are overridden by environment variables.
+ */
+function getOverriddenFields(): string[] {
+  return Object.keys(CONFIG_TO_ENV_MAP).filter(isFieldOverriddenByEnv);
+}
 
 // ─── Config ───────────────────────────────────────────────────────────────────
 
@@ -54,24 +107,43 @@ export const ConfigQueryTool = tool(
 
 export const ConfigUpdateTool = tool(
   async ({ updates }) => {
-    try {
-      const configManager = ConfigManager.getInstance();
-      await configManager.load();
-      const currentConfig = configManager.get();
-      const newConfig = { ...currentConfig };
-      for (const key in updates) {
-        setNestedValue(newConfig, key, updates[key]);
+    const configManager = ConfigManager.getInstance();
+    await configManager.load();
+    
+    // Check if any fields are overridden by environment variables
+    const overriddenFields: string[] = [];
+    for (const key in updates) {
+      if (isFieldOverriddenByEnv(key)) {
+        overriddenFields.push(key);
       }
-      await configManager.save(newConfig);
-      return JSON.stringify({ success: true, message: "Configuration updated successfully" });
-    } catch (error) {
-      return JSON.stringify({ error: `Failed to update configuration: ${(error as Error).message}` });
     }
+    
+    if (overriddenFields.length > 0) {
+      const envVarNames = overriddenFields
+        .flatMap(field => CONFIG_TO_ENV_MAP[field] || [])
+        .filter((v, i, arr) => arr.indexOf(v) === i) // Remove duplicates
+        .join(', ');
+      
+      const errorMsg = `BLOCKED_BY_ENV: Cannot update ${overriddenFields.join(', ')} because these fields are controlled by environment variables (${envVarNames}). To change them, edit your .env file and restart Morpheus.`;
+      throw new Error(errorMsg);
+    }
+    
+    const currentConfig = configManager.get();
+    const newConfig = { ...currentConfig };
+    for (const key in updates) {
+      setNestedValue(newConfig, key, updates[key]);
+    }
+    await configManager.save(newConfig);
+    return JSON.stringify({ 
+      success: true, 
+      message: "Configuration updated successfully",
+      updatedFields: Object.keys(updates),
+    });
   },
   {
     name: "morpheus_config_update",
     description:
-      "Updates configuration values with validation. Accepts an 'updates' object containing key-value pairs to update. Supports dot notation for nested fields (e.g. 'llm.model').",
+      "Updates configuration values with validation. Accepts an 'updates' object containing key-value pairs to update. Supports dot notation for nested fields (e.g. 'llm.model'). Note: Fields overridden by environment variables cannot be updated.",
     schema: z.object({
       updates: z.object({}).passthrough(),
     }),
@@ -94,29 +166,41 @@ export const DiagnosticTool = tool(
         const config = configManager.get();
         const requiredFields = ["llm", "logging", "ui"];
         const missingFields = requiredFields.filter((field) => !(field in config));
+        
+        // Check MORPHEUS_SECRET
+        const hasSecret = !!process.env.MORPHEUS_SECRET;
+        
         if (missingFields.length === 0) {
           const sati = (config as any).sati;
           const apoc = (config as any).apoc;
+          const details: any = {
+            oracleProvider: config.llm?.provider,
+            oracleModel: config.llm?.model,
+            satiProvider: sati?.provider ?? `${config.llm?.provider} (inherited)`,
+            satiModel: sati?.model ?? `${config.llm?.model} (inherited)`,
+            apocProvider: apoc?.provider ?? `${config.llm?.provider} (inherited)`,
+            apocModel: apoc?.model ?? `${config.llm?.model} (inherited)`,
+            apocWorkingDir: apoc?.working_dir ?? "not set",
+            uiEnabled: config.ui?.enabled,
+            uiPort: config.ui?.port,
+            morpheusSecret: hasSecret ? "configured ✓" : "NOT SET ⚠️",
+          };
+          
           components.config = {
-            status: "healthy",
-            message: "Configuration is valid and complete",
-            details: {
-              oracleProvider: config.llm?.provider,
-              oracleModel: config.llm?.model,
-              satiProvider: sati?.provider ?? `${config.llm?.provider} (inherited)`,
-              satiModel: sati?.model ?? `${config.llm?.model} (inherited)`,
-              apocProvider: apoc?.provider ?? `${config.llm?.provider} (inherited)`,
-              apocModel: apoc?.model ?? `${config.llm?.model} (inherited)`,
-              apocWorkingDir: apoc?.working_dir ?? "not set",
-              uiEnabled: config.ui?.enabled,
-              uiPort: config.ui?.port,
-            },
+            status: hasSecret ? "healthy" : "warning",
+            message: hasSecret 
+              ? "Configuration is valid and complete" 
+              : "Configuration is valid but MORPHEUS_SECRET is not set. API keys and database passwords will be stored in plaintext.",
+            details,
           };
         } else {
           components.config = {
             status: "warning",
             message: `Missing required configuration fields: ${missingFields.join(", ")}`,
-            details: { missingFields },
+            details: { 
+              missingFields,
+              morpheusSecret: hasSecret ? "configured ✓" : "NOT SET ⚠️",
+            },
           };
         }
       } catch (error) {
