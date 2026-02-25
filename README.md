@@ -5,13 +5,14 @@
 # Morpheus
 
 Morpheus is a local-first AI operator for developers.
-It runs as a daemon and orchestrates LLMs, MCP tools, DevKit tools, memory, and channels (Web UI, Telegram, API, webhooks).
+It runs as a daemon and orchestrates LLMs, MCP tools, DevKit tools, memory, and channels (Web UI, Telegram, Discord, API, webhooks).
 
 ## Why Morpheus
 - Local-first persistence (sessions, messages, usage, tasks).
 - Multi-agent architecture (Oracle, Neo, Apoc, Sati, Trinity).
 - Async task execution with queue + worker + notifier.
 - Chronos temporal scheduler for recurring and one-time Oracle executions.
+- Multi-channel output via ChannelRegistry (Telegram, Discord) with per-job routing.
 - Rich operational visibility in UI (chat traces, tasks, usage, logs).
 
 ## Multi-Agent Roles
@@ -139,6 +140,21 @@ docker run -d \
   morpheus
 ```
 
+**With Discord:**
+
+```bash
+docker run -d \
+  --name morpheus-agent \
+  -p 3333:3333 \
+  -e OPENAI_API_KEY=sk-... \
+  -e THE_ARCHITECT_PASS=changeme \
+  -e MORPHEUS_DISCORD_ENABLED=true \
+  -e MORPHEUS_DISCORD_TOKEN=<bot-token> \
+  -e MORPHEUS_DISCORD_ALLOWED_USERS=987654321 \
+  -v morpheus_data:/root/.morpheus \
+  morpheus
+```
+
 **Health check:** the container exposes `GET /health` and Docker will probe it every 30s (60s start period, 3 retries before marking unhealthy).
 
 ## Async Task Execution
@@ -170,7 +186,8 @@ Chronos lets you schedule any Oracle prompt to run at a fixed time or on a recur
 **Execution model:**
 - Jobs run inside the currently active Oracle session — no isolated sessions are created per job.
 - Chronos injects context as an AI message before invoking `oracle.chat()`, keeping conversation history clean.
-- Delegated tasks spawned during Chronos execution carry `origin_channel: 'telegram'` when a Telegram notify function is registered, so task results are delivered to you.
+- Each job has a `notify_channels` field: empty = broadcast to all active channels, `["telegram"]` = Telegram only, `["discord"]` = Discord only.
+- When creating jobs via Oracle chat, the channel is auto-detected from the conversation origin. You can override it explicitly: *"lembre no Discord"*, *"em todos os canais"*.
 
 **Oracle tools:** `chronos_schedule`, `chronos_list`, `chronos_cancel`, `chronos_preview`
 
@@ -179,6 +196,11 @@ Chronos lets you schedule any Oracle prompt to run at a fixed time or on a recur
 - `/chronos_list` — list all jobs (🟢 active / 🔴 disabled)
 - `/chronos_view <id>` — view job details and last 5 executions
 - `/chronos_enable <id>` / `/chronos_disable <id>` / `/chronos_delete <id>`
+
+**Discord slash commands:**
+- `/chronos prompt: time:` — create a job (prompt and time as separate fields)
+- `/chronos_list` — list all jobs
+- `/chronos_view id:` / `/chronos_disable id:` / `/chronos_enable id:` / `/chronos_delete id:`
 
 **API endpoints (protected):**
 - `GET/POST /api/chronos` — list / create jobs
@@ -196,6 +218,47 @@ Telegram responses use rich HTML formatting conversion with:
 - auto-wrapped UUIDs in `<code>` for easier copy
 
 Task results are delivered proactively with metadata (task id, agent, status) and output/error body.
+
+**Voice messages:** Telegram voice messages are automatically transcribed (Gemini / Whisper / OpenRouter) and processed as text through the Oracle.
+
+## Discord Experience
+
+Discord bot responds to **DMs only** from authorized user IDs (`allowedUsers`).
+
+**Slash commands** (registered automatically on startup):
+
+| Command | Description |
+|---|---|
+| `/help` | Show available commands |
+| `/status` | Check Morpheus status |
+| `/stats` | Token usage statistics |
+| `/newsession` | Start a new session |
+| `/chronos prompt: time:` | Schedule a job |
+| `/chronos_list` | List all scheduled jobs |
+| `/chronos_view id:` | View job + executions |
+| `/chronos_disable id:` | Disable a job |
+| `/chronos_enable id:` | Enable a job |
+| `/chronos_delete id:` | Delete a job |
+
+**Voice messages:** Discord voice messages and audio file attachments are transcribed and processed identically to Telegram.
+
+**Setup:**
+1. Create an application at [discord.com/developers](https://discord.com/developers/applications).
+2. Under **Bot**, enable **Message Content Intent** (Privileged Gateway Intents).
+3. Copy the Bot Token and add it to Settings → Channels → Discord.
+4. Add your Discord user ID to **Allowed Users**.
+5. Invite the bot to a server via OAuth2 URL Generator (`bot` scope). The bot must share a server with you for DMs to work.
+
+## Channel Routing
+
+Morpheus uses a central `ChannelRegistry` so every adapter (Telegram, Discord) registers itself at startup. Task notifications and Chronos job results are routed through the registry:
+
+- `notify_channels: []` → broadcast to all active channels
+- `notify_channels: ["telegram"]` → Telegram only
+- `notify_channels: ["discord"]` → Discord only
+- `origin_channel: 'chronos'` (on tasks) → broadcast
+
+Adding a new channel requires only implementing `IChannelAdapter` (`channel`, `sendMessage`, `sendMessageToUser`, `disconnect`) and calling `ChannelRegistry.register()` in `start.ts`.
 
 ## Web UI
 
@@ -271,6 +334,8 @@ channels:
     allowedUsers: ["123456789"]
   discord:
     enabled: false
+    token: env:DISCORD_BOT_TOKEN
+    allowedUsers: ["987654321"]
 
 ui:
   enabled: true
@@ -296,6 +361,7 @@ Provider-specific keys:
 - `GOOGLE_API_KEY`
 - `OPENROUTER_API_KEY`
 - `TELEGRAM_BOT_TOKEN`
+- `DISCORD_BOT_TOKEN`
 - `THE_ARCHITECT_PASS`
 
 Security:
@@ -348,6 +414,9 @@ Generic Morpheus overrides (selected):
 | `MORPHEUS_TELEGRAM_ENABLED` | `channels.telegram.enabled` |
 | `MORPHEUS_TELEGRAM_TOKEN` | `channels.telegram.token` |
 | `MORPHEUS_TELEGRAM_ALLOWED_USERS` | `channels.telegram.allowedUsers` |
+| `MORPHEUS_DISCORD_ENABLED` | `channels.discord.enabled` |
+| `MORPHEUS_DISCORD_TOKEN` | `channels.discord.token` |
+| `MORPHEUS_DISCORD_ALLOWED_USERS` | `channels.discord.allowedUsers` |
 | `MORPHEUS_UI_ENABLED` | `ui.enabled` |
 | `MORPHEUS_UI_PORT` | `ui.port` |
 | `MORPHEUS_LOGGING_ENABLED` | `logging.enabled` |
@@ -488,7 +557,10 @@ npm test
 
 ```text
 src/
-  channels/    # Telegram adapter
+  channels/
+    telegram.ts          # Telegram adapter (commands, voice, inline buttons)
+    discord.ts           # Discord adapter (slash commands, voice, DM-only)
+    registry.ts          # ChannelRegistry — central adapter router
   cli/         # start/stop/restart/status/doctor
   config/      # config loading, precedence, schemas
   devkit/      # Apoc tool factories
