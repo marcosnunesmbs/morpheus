@@ -82,22 +82,36 @@ Notification lifecycle:
 - Neo and Apoc persist delegated task outputs with usage metadata
 - UI renders message-level token badges using persisted usage data
 
-## 5. Telegram Channel Behavior
+## 5. Channel Adapters
 
-### 5.1 Rendering
+Morpheus uses a central `ChannelRegistry` so every adapter (Telegram, Discord) registers itself at startup. Task notifications and Chronos job results are routed through the registry:
+
+- `notify_channels: []` → broadcast to all active channels
+- `notify_channels: ["telegram"]` → Telegram only
+- `notify_channels: ["discord"]` → Discord only
+- `origin_channel: 'chronos'` (on tasks) → broadcast
+
+Adding a new channel requires only implementing `IChannelAdapter` (`channel`, `sendMessage`, `sendMessageToUser`, `disconnect`) and calling `ChannelRegistry.register()` in `start.ts`.
+
+## 5.1 Telegram Channel Behavior
+
+### Rendering
 Telegram outbound messages use HTML parse mode with conversion layer:
 - markdown-like bold/italic/list rendering
 - inline and fenced code support
 - UUID auto-wrapped in `<code>` for easier copy
 
-### 5.2 Proactive Task Notifications
+### Voice Messages
+Telegram voice messages are automatically transcribed (Gemini / Whisper / OpenRouter) and processed as text through the Oracle.
+
+### Proactive Task Notifications
 Task completion/failure notifications include:
 - task id
 - agent
 - status
 - output or error body
 
-### 5.3 Commands
+### Commands
 - `/start`
 - `/status`
 - `/doctor`
@@ -117,6 +131,36 @@ Task completion/failure notifications include:
 - `/chronos_enable <id>` — re-enable a disabled job (recomputes next run)
 - `/chronos_disable <id>` — pause a job without deleting it
 - `/chronos_delete <id>` — delete a job (asks for confirmation)
+
+## 5.2 Discord Channel Behavior
+
+Discord bot responds to **DMs only** from authorized user IDs (`allowedUsers`).
+
+### Slash Commands
+Registered automatically on startup:
+
+| Command | Description |
+|---|---|
+| `/help` | Show available commands |
+| `/status` | Check Morpheus status |
+| `/stats` | Token usage statistics |
+| `/newsession` | Start a new session |
+| `/chronos prompt: time:` | Schedule a job |
+| `/chronos_list` | List all scheduled jobs |
+| `/chronos_view id:` | View job + executions |
+| `/chronos_disable id:` | Disable a job |
+| `/chronos_enable id:` | Enable a job |
+| `/chronos_delete id:` | Delete a job |
+
+### Voice Messages
+Discord voice messages and audio file attachments are transcribed and processed identically to Telegram.
+
+### Setup
+1. Create an application at [discord.com/developers](https://discord.com/developers/applications).
+2. Under **Bot**, enable **Message Content Intent** (Privileged Gateway Intents).
+3. Copy the Bot Token and add it to Settings → Channels → Discord.
+4. Add your Discord user ID to **Allowed Users**.
+5. Invite the bot to a server via OAuth2 URL Generator (`bot` scope). The bot must share a server with you for DMs to work.
 
 ## 6. Web UI Behavior
 
@@ -209,6 +253,8 @@ channels:
     allowedUsers: []
   discord:
     enabled: false
+    token: env:DISCORD_BOT_TOKEN
+    allowedUsers: []
 
 ui:
   enabled: true

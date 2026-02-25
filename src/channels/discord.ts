@@ -210,7 +210,7 @@ export class DiscordAdapter {
       this.display.log(`${message.author.tag}: ${text}`, { source: 'Discord' });
 
       try {
-        const sessionId = `discord-${userId}`;
+        const sessionId = await this.history.getCurrentSessionOrCreate();
         await this.oracle.setSessionId(sessionId);
 
         const response = await this.oracle.chat(text, undefined, false, {
@@ -359,7 +359,7 @@ export class DiscordAdapter {
       await channel.send(`🎤 "${text}"`);
 
       // Process with Oracle
-      const sessionId = `discord-${userId}`;
+      const sessionId = await this.history.getCurrentSessionOrCreate();
       await this.oracle.setSessionId(sessionId);
 
       const response = await this.oracle.chat(text, usage, true, {

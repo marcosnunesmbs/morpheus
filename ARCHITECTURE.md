@@ -15,14 +15,17 @@ The runtime is a modular monolith built on Node.js + TypeScript, with SQLite as 
 - `oracle.ts`: orchestration brain. Routes requests, decides whether to answer directly or enqueue delegated work.
 - `neo.ts`: execution subagent for MCP + Morpheus internal tools (config, diagnostics, analytics).
 - `apoc.ts`: execution subagent for DevKit operations (filesystem, shell, git, network, processes, packages, system).
+- `trinity.ts`: database specialist subagent for SQL/NoSQL query execution.
 - `memory/sati/*`: long-term memory pipeline (retrieval + post-response memory evaluation).
 - `tasks/*`: async task queue repository, worker, notifier, dispatcher, and request context.
 - `chronos/*`: temporal scheduler — job store, polling worker, natural-language schedule parser.
 
 ### 2.2 Interfaces
-- `src/channels/telegram.ts`: Telegram adapter (commands, chat, voice transcription, proactive task notifications).
+- `src/channels/registry.ts`: `ChannelRegistry` singleton — central router for all channel adapters.
+- `src/channels/telegram.ts`: Telegram adapter (commands, voice transcription, inline buttons, proactive task notifications).
+- `src/channels/discord.ts`: Discord adapter (slash commands, voice/audio transcription, DM-only routing).
 - `src/http/*`: Express API + UI hosting + webhooks.
-- `src/ui/*`: React dashboard for chat, tasks, settings, logs, stats, MCP, webhooks.
+- `src/ui/*`: React dashboard for chat, tasks, settings, logs, stats, MCP, webhooks, Chronos.
 
 ### 2.3 Infrastructure
 - `src/config/*`: zod-validated config + env precedence.
@@ -46,7 +49,7 @@ Key design choice: Oracle no longer carries MCP tool load directly. It delegates
 1. User request arrives at Oracle.
 2. Oracle decides:
    - direct response (conversation only), or
-   - delegated execution via `neo_delegate` / `apoc_delegate`.
+   - delegated execution via `neo_delegate` / `apoc_delegate` / `trinity_delegate`.
 3. Delegate tool writes a task into `tasks` table (`status = pending`) with full origin context:
    - `origin_channel`
    - `session_id`
@@ -57,9 +60,12 @@ Key design choice: Oracle no longer carries MCP tool load directly. It delegates
 5. `TaskWorker` claims pending tasks and executes subagent work.
 6. Worker marks task `completed` or `failed`.
 7. `TaskNotifier` picks finished tasks awaiting notification.
-8. `TaskDispatcher` delivers result:
-   - Telegram proactive message for telegram-origin tasks
-   - webhook notification update for webhook-origin tasks
+8. `TaskDispatcher` delivers result via `ChannelRegistry`:
+   - `origin_channel: 'telegram'` → `ChannelRegistry.sendToUser('telegram', userId, msg)`
+   - `origin_channel: 'discord'` → `ChannelRegistry.sendToUser('discord', userId, msg)`
+   - `origin_channel: 'chronos'` → `ChannelRegistry.broadcast(msg)` (all active channels)
+   - `origin_channel: 'webhook'` → iterates `webhook.notification_channels`, routes via registry
+   - `origin_channel: 'ui'` → writes result to SQLite session history
 
 ### 4.2 Queue and Reliability
 Implemented in `src/runtime/tasks/repository.ts`:
@@ -122,14 +128,45 @@ Webhooks router (`src/http/webhooks-router.ts`) provides:
 - Chronos page: create/edit/delete scheduled jobs, enable/disable toggle, execution history per job.
 - Logs viewer: browse log files, auto-scroll to latest entries, timestamps hidden on mobile.
 
-## 7. Telegram Delivery Model
+## 7. Multi-Channel Delivery
 
+### 7.1 Channel Registry Pattern
+`ChannelRegistry` is a singleton that manages all channel adapters via the `IChannelAdapter` interface:
+
+```typescript
+interface IChannelAdapter {
+  readonly channel: string;                                       // e.g. 'telegram', 'discord'
+  sendMessage(text: string): Promise<void>;                      // broadcast to all users
+  sendMessageToUser(userId: string, text: string): Promise<void>;
+  disconnect(): Promise<void>;
+}
+```
+
+Each adapter self-registers at startup via `ChannelRegistry.register()`. Notification machinery (`TaskDispatcher`, `ChronosWorker`, `WebhookDispatcher`) routes through the registry and never holds direct adapter references.
+
+### 7.2 Telegram Adapter
 Telegram adapter uses rich HTML formatting conversion for dynamic responses:
 - markdown-like bold/italic/lists/code support
 - code blocks and inline code preservation
 - UUID auto-wrapping in `<code>` for easier copy
+- voice message transcription (Gemini/Whisper/OpenRouter)
+- inline buttons for Trinity database actions
 
 Task completion notifications are proactive and include task metadata (id, agent, status) plus output/error body.
+
+### 7.3 Discord Adapter
+Discord adapter responds to **DMs only** from authorized user IDs (`allowedUsers`):
+- slash commands registered automatically on startup
+- voice message and audio file transcription
+- message content intent required for DM reception
+
+### 7.4 Adding New Channels
+To add a new channel:
+1. Create `src/channels/<name>.ts` implementing `IChannelAdapter` with `readonly channel = '<name>' as const`
+2. Add config to `src/types/config.ts` + `src/config/schemas.ts` + `src/config/manager.ts`
+3. Call `ChannelRegistry.register(adapter)` in `src/cli/commands/start.ts` **and** `restart.ts`
+4. Add UI section in `src/ui/src/pages/Settings.tsx` under the Channels tab
+5. Dispatchers pick it up automatically — no other changes required
 
 ## 8. Trinity — Database Subsystem
 
@@ -154,7 +191,7 @@ Trinity tasks are stored in the `tasks` table with `agent = 'trinit'` (not `'tri
 ## 9. Chronos — Temporal Scheduler
 
 ### 9.1 Components
-- `src/runtime/chronos/worker.ts`: `ChronosWorker` — polling timer, due-job detection, Oracle execution, and Telegram notification delivery.
+- `src/runtime/chronos/worker.ts`: `ChronosWorker` — polling timer, due-job detection, Oracle execution, and notification delivery via `ChannelRegistry`.
 - `src/runtime/chronos/repository.ts`: `ChronosRepository` — SQLite-backed job and execution history store. Tables: `chronos_jobs`, `chronos_executions`.
 - `src/runtime/chronos/parser.ts`: `parseScheduleExpression` / `parseNextRun` / `intervalToCron` — natural-language schedule parsing, cron normalization, and next-run computation.
 
@@ -163,7 +200,12 @@ Trinity tasks are stored in the `tasks` table with `agent = 'trinit'` (not `'tri
 - Due jobs are executed by calling `oracle.injectAIMessage(context)` then `oracle.chat(job.prompt)` against the currently active Oracle session — no dedicated session is created per job.
 - The injected AI message provides job metadata (job ID, execution guard instructions) without incurring an extra LLM call.
 - `ChronosWorker.isExecuting` static flag prevents management tools (`chronos_schedule`, `chronos_cancel`) from operating during an active execution to avoid self-deletion or re-scheduling races.
-- Delegated tasks spawned during Chronos execution carry `origin_channel: 'telegram'` when a notify function is registered, ensuring completion notifications route correctly.
+- Each job has a `notify_channels` field:
+  - `[]` (empty) → broadcast to all active channels via `ChannelRegistry.broadcast()`
+  - `["telegram"]` → Telegram only
+  - `["discord"]` → Discord only
+- When creating jobs via Oracle chat, the channel is auto-detected from the conversation origin. Users can override explicitly: *"lembre no Discord"*, *"em todos os canais"*.
+- Delegated tasks spawned during Chronos execution carry `origin_channel: 'chronos'`, ensuring completion notifications broadcast to all active channels.
 
 ### 9.3 Schedule Parser
 Three schedule types are supported:
@@ -185,6 +227,7 @@ These tools are blocked (`ChronosWorker.isExecuting`) while a Chronos job is exe
 - `x-architect-pass` protects `/api/*` management routes.
 - webhook trigger uses per-webhook `x-api-key`.
 - Telegram allowlist enforces authorized user IDs.
+- Discord DM-only responses with authorized user IDs and Message Content Intent requirement.
 - Apoc execution constrained by configurable `working_dir` and `timeout_ms`.
 - Trinity database passwords encrypted at rest with AES-256-GCM (`MORPHEUS_SECRET` env var).
 - Per-database permission flags (`allow_read`, `allow_insert`, `allow_update`, `allow_delete`, `allow_ddl`) gate Trinity query execution.
@@ -193,7 +236,9 @@ These tools are blocked (`ChronosWorker.isExecuting`) while a Chronos job is exe
 At daemon boot (`start` / `restart` commands):
 - load config and initialize Oracle
 - start HTTP server (optional)
-- connect Telegram (optional)
+- register channel adapters via `ChannelRegistry`:
+  - `TelegramAdapter` (if enabled)
+  - `DiscordAdapter` (if enabled)
 - start background workers when `runtime.async_tasks.enabled != false`:
   - `TaskWorker`
   - `TaskNotifier`
