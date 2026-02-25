@@ -8,12 +8,19 @@ import {
   Routes,
   SlashCommandBuilder,
   ChatInputCommandInteraction,
+  Message,
+  Attachment,
+  DMChannel,
 } from 'discord.js';
 import chalk from 'chalk';
+import fs from 'fs-extra';
+import path from 'path';
+import os from 'os';
 import { Oracle } from '../runtime/oracle.js';
 import { SQLiteChatMessageHistory } from '../runtime/memory/sqlite.js';
 import { DisplayManager } from '../runtime/display.js';
 import { ConfigManager } from '../config/manager.js';
+import { createTelephonist, ITelephonist } from '../runtime/telephonist.js';
 
 // ─── Slash Command Definitions ────────────────────────────────────────────────
 
@@ -99,6 +106,10 @@ export class DiscordAdapter {
   private config = ConfigManager.getInstance();
   private history = new SQLiteChatMessageHistory({ sessionId: '' });
 
+  private telephonist: ITelephonist | null = null;
+  private telephonistProvider: string | null = null;
+  private telephonistModel: string | null = null;
+
   private readonly RATE_LIMIT_MS = 3000;
 
   constructor(oracle: Oracle) {
@@ -183,7 +194,19 @@ export class DiscordAdapter {
         return;
       }
 
+      // ── Audio attachment ──────────────────────────────────────────────────
+      const audioAttachment = message.attachments.find(
+        att => att.contentType?.startsWith('audio/')
+      );
+      if (audioAttachment) {
+        await this.handleAudioMessage(message, userId, audioAttachment);
+        return;
+      }
+
+      // ── Text message ──────────────────────────────────────────────────────
       const text = message.content;
+      if (!text.trim()) return;
+
       this.display.log(`${message.author.tag}: ${text}`, { source: 'Discord' });
 
       try {
@@ -266,21 +289,144 @@ export class DiscordAdapter {
     }
   }
 
+  // ─── Audio Handler ────────────────────────────────────────────────────────
+
+  private async handleAudioMessage(message: Message, userId: string, attachment: Attachment): Promise<void> {
+    const channel = message.channel as DMChannel;
+    const config = this.config.get();
+
+    if (!config.audio.enabled) {
+      await channel.send('Audio transcription is currently disabled.');
+      return;
+    }
+
+    const apiKey = config.audio.apiKey ||
+      (config.llm.provider === config.audio.provider ? config.llm.api_key : undefined);
+
+    if (!apiKey) {
+      this.display.log(
+        `Audio transcription failed: No API key for provider '${config.audio.provider}'`,
+        { source: 'Telephonist', level: 'error' }
+      );
+      await channel.send(
+        `Audio transcription requires an API key for provider '${config.audio.provider}'.`
+      );
+      return;
+    }
+
+    // Reuse telephonist instance unless provider/model changed
+    if (
+      !this.telephonist ||
+      this.telephonistProvider !== config.audio.provider ||
+      this.telephonistModel !== config.audio.model
+    ) {
+      this.telephonist = createTelephonist(config.audio);
+      this.telephonistProvider = config.audio.provider;
+      this.telephonistModel = config.audio.model;
+    }
+
+    // Voice messages expose duration (in seconds); regular attachments don't
+    const duration = (attachment as any).duration as number | null | undefined;
+    if (duration && duration > config.audio.maxDurationSeconds) {
+      await channel.send(`Audio too long. Max duration is ${config.audio.maxDurationSeconds}s.`);
+      return;
+    }
+
+    const contentType = attachment.contentType ?? 'audio/ogg';
+    this.display.log(
+      `Receiving audio from ${message.author.tag} (${contentType})...`,
+      { source: 'Telephonist' }
+    );
+
+    let processingMsg: Message | null = null;
+    let filePath: string | null = null;
+
+    try {
+      processingMsg = await channel.send('🎧 Listening...');
+
+      // Download audio to temp file
+      filePath = await this.downloadAudioToTemp(attachment.url, contentType);
+
+      // Transcribe
+      this.display.log(`Transcribing audio for ${message.author.tag}...`, { source: 'Telephonist' });
+      const { text, usage } = await this.telephonist.transcribe(filePath, contentType, apiKey);
+      this.display.log(
+        `Transcription for ${message.author.tag}: "${text}"`,
+        { source: 'Telephonist', level: 'success' }
+      );
+
+      // Show transcription
+      await channel.send(`🎤 "${text}"`);
+
+      // Process with Oracle
+      const sessionId = `discord-${userId}`;
+      await this.oracle.setSessionId(sessionId);
+
+      const response = await this.oracle.chat(text, usage, true, {
+        origin_channel: 'discord',
+        session_id: sessionId,
+        origin_message_id: message.id,
+        origin_user_id: userId,
+      });
+
+      if (response) {
+        const chunks = this.chunkText(response);
+        for (const chunk of chunks) {
+          await channel.send(chunk);
+        }
+        this.display.log(`Responded to ${message.author.tag} (via audio)`, { source: 'Discord' });
+      }
+
+      processingMsg?.delete().catch(() => {});
+    } catch (error: any) {
+      const detail = error?.cause?.message || error?.response?.data?.error?.message || error.message;
+      this.display.log(
+        `Audio processing error for ${message.author.tag}: ${detail}`,
+        { source: 'Telephonist', level: 'error' }
+      );
+      try {
+        await channel.send('Sorry, I failed to process your audio message.');
+      } catch {
+        // ignore
+      }
+    } finally {
+      if (filePath && await fs.pathExists(filePath)) {
+        await fs.unlink(filePath).catch(() => {});
+      }
+    }
+  }
+
+  private async downloadAudioToTemp(url: string, contentType: string): Promise<string> {
+    const ext =
+      contentType === 'audio/ogg'  ? '.ogg'  :
+      contentType === 'audio/mpeg' ? '.mp3'  :
+      contentType === 'audio/mp4'  ? '.m4a'  :
+      contentType === 'audio/wav'  ? '.wav'  :
+      contentType === 'audio/webm' ? '.webm' : '.audio';
+
+    const filePath = path.join(os.tmpdir(), `morpheus-discord-${Date.now()}${ext}`);
+    const response = await fetch(url);
+    if (!response.ok) throw new Error(`Failed to download audio: ${response.statusText}`);
+    const buffer = Buffer.from(await response.arrayBuffer());
+    await fs.writeFile(filePath, buffer);
+    return filePath;
+  }
+
   // ─── Slash Command Handlers ───────────────────────────────────────────────
 
   private async handleSlashCommand(interaction: ChatInputCommandInteraction): Promise<void> {
     const { commandName } = interaction;
     switch (commandName) {
-      case 'help':          await this.cmdHelp(interaction);           break;
-      case 'status':        await this.cmdStatus(interaction);         break;
-      case 'stats':         await this.cmdStats(interaction);          break;
-      case 'newsession':    await this.cmdNewSession(interaction);     break;
-      case 'chronos':       await this.cmdChronos(interaction);        break;
-      case 'chronos_list':  await this.cmdChronosList(interaction);    break;
-      case 'chronos_view':  await this.cmdChronosView(interaction);    break;
-      case 'chronos_disable': await this.cmdChronosDisable(interaction); break;
-      case 'chronos_enable':  await this.cmdChronosEnable(interaction);  break;
-      case 'chronos_delete':  await this.cmdChronosDelete(interaction);  break;
+      case 'help':            await this.cmdHelp(interaction);            break;
+      case 'status':          await this.cmdStatus(interaction);          break;
+      case 'stats':           await this.cmdStats(interaction);           break;
+      case 'newsession':      await this.cmdNewSession(interaction);      break;
+      case 'chronos':         await this.cmdChronos(interaction);         break;
+      case 'chronos_list':    await this.cmdChronosList(interaction);     break;
+      case 'chronos_view':    await this.cmdChronosView(interaction);     break;
+      case 'chronos_disable': await this.cmdChronosDisable(interaction);  break;
+      case 'chronos_enable':  await this.cmdChronosEnable(interaction);   break;
+      case 'chronos_delete':  await this.cmdChronosDelete(interaction);   break;
     }
   }
 
@@ -301,7 +447,7 @@ export class DiscordAdapter {
       '`/chronos_enable id:` — Enable a job',
       '`/chronos_delete id:` — Delete a job',
       '',
-      'Or just send any message to chat with the Oracle.',
+      'You can also send text or voice messages to chat with the Oracle.',
     ].join('\n');
     await interaction.reply({ content });
   }
@@ -328,7 +474,9 @@ export class DiscordAdapter {
       content += `Output: ${stats.totalOutputTokens.toLocaleString()} tokens\n`;
       content += `Total: ${totalTokens.toLocaleString()} tokens\n`;
       if (totalAudioSeconds > 0) content += `Audio: ${totalAudioSeconds.toFixed(1)}s\n`;
-      if (stats.totalEstimatedCostUsd != null) content += `Estimated Cost: $${stats.totalEstimatedCostUsd.toFixed(4)}\n`;
+      if (stats.totalEstimatedCostUsd != null) {
+        content += `Estimated Cost: $${stats.totalEstimatedCostUsd.toFixed(4)}\n`;
+      }
 
       if (groupedStats.length > 0) {
         content += '\n**By Provider/Model:**\n';
