@@ -1,5 +1,5 @@
 export type NotificationStatus = 'pending' | 'completed' | 'failed';
-export type NotificationChannel = 'ui' | 'telegram';
+export type NotificationChannel = 'ui' | 'telegram' | 'discord';
 
 export interface Webhook {
   id: string;
