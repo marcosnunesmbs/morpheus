@@ -10,6 +10,7 @@ import { createAgent, createMiddleware, ReactAgent, toolCallLimitMiddleware } fr
 import { z } from "zod";
 import { DisplayManager } from "../display.js";
 import { StructuredTool } from "@langchain/core/tools";
+import { getUsableApiKey } from "../trinity-crypto.js";
 
 export class ProviderFactory {
   private static buildMonitoringMiddleware() {
@@ -32,24 +33,26 @@ export class ProviderFactory {
   }
 
   private static buildModel(config: LLMConfig): BaseChatModel {
+    const usableApiKey = getUsableApiKey(config.api_key);
+    
     switch (config.provider) {
       case 'openai':
         return new ChatOpenAI({
           modelName: config.model,
           temperature: config.temperature,
-          apiKey: process.env.OPENAI_API_KEY || config.api_key,
+          apiKey: process.env.OPENAI_API_KEY || usableApiKey,
         });
       case 'anthropic':
         return new ChatAnthropic({
           modelName: config.model,
           temperature: config.temperature,
-          apiKey: process.env.ANTHROPIC_API_KEY || config.api_key,
+          apiKey: process.env.ANTHROPIC_API_KEY || usableApiKey,
         });
       case 'openrouter':
         return new ChatOpenAI({
           modelName: config.model,
           temperature: config.temperature,
-          apiKey: process.env.OPENROUTER_API_KEY || config.api_key,
+          apiKey: process.env.OPENROUTER_API_KEY || usableApiKey,
           configuration: {
             baseURL: config.base_url || 'https://openrouter.ai/api/v1'
           }
@@ -58,13 +61,13 @@ export class ProviderFactory {
         return new ChatOllama({
           model: config.model,
           temperature: config.temperature,
-          baseUrl: config.base_url || config.api_key,
+          baseUrl: config.base_url || usableApiKey,
         });
       case 'gemini':
         return new ChatGoogleGenerativeAI({
           model: config.model,
           temperature: config.temperature,
-          apiKey: process.env.GOOGLE_API_KEY || config.api_key
+          apiKey: process.env.GOOGLE_API_KEY || usableApiKey
         });
       default:
         throw new Error(`Unsupported provider: ${config.provider}`);

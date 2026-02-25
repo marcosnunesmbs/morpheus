@@ -21,6 +21,7 @@ import { SQLiteChatMessageHistory } from '../runtime/memory/sqlite.js';
 import { DisplayManager } from '../runtime/display.js';
 import { ConfigManager } from '../config/manager.js';
 import { createTelephonist, ITelephonist } from '../runtime/telephonist.js';
+import { getUsableApiKey } from '../runtime/trinity-crypto.js';
 
 // ─── Slash Command Definitions ────────────────────────────────────────────────
 
@@ -300,8 +301,8 @@ export class DiscordAdapter {
       return;
     }
 
-    const apiKey = config.audio.apiKey ||
-      (config.llm.provider === config.audio.provider ? config.llm.api_key : undefined);
+    const apiKey = getUsableApiKey(config.audio.apiKey) ||
+      (config.llm.provider === config.audio.provider ? getUsableApiKey(config.llm.api_key) : undefined);
 
     if (!apiKey) {
       this.display.log(

@@ -71,6 +71,11 @@ export class ConfigManager {
       decrypted.trinity = { ...decrypted.trinity, api_key: tryDecrypt(decrypted.trinity.api_key) };
     }
 
+    // Decrypt Audio (Telephonist)
+    if (decrypted.audio?.apiKey) {
+      decrypted.audio = { ...decrypted.audio, apiKey: tryDecrypt(decrypted.audio.apiKey) };
+    }
+
     return decrypted;
   }
 
@@ -115,6 +120,11 @@ export class ConfigManager {
       encrypted.trinity = { ...encrypted.trinity, api_key: tryEncrypt(encrypted.trinity.api_key) };
     }
 
+    // Encrypt Audio (Telephonist)
+    if (encrypted.audio?.apiKey) {
+      encrypted.audio = { ...encrypted.audio, apiKey: tryEncrypt(encrypted.audio.apiKey) };
+    }
+
     return encrypted;
   }
 
@@ -131,11 +141,8 @@ export class ConfigManager {
         rawConfig = ConfigSchema.parse(parsed) as MorpheusConfig;
       }
 
-      // Decrypt API keys if they appear to be encrypted (fail-open)
-      const decryptedConfig = this.decryptAgentApiKeys(rawConfig);
-
       // Apply environment variable precedence to the loaded config
-      this.config = this.applyEnvironmentVariablePrecedence(decryptedConfig);
+      this.config = this.applyEnvironmentVariablePrecedence(rawConfig);
     } catch (error) {
       console.error('Failed to load configuration:', error);
       // Fallback to default if load fails
@@ -455,6 +462,7 @@ export class ConfigManager {
       neo: boolean;
       apoc: boolean;
       trinity: boolean;
+      audio: boolean;
     };
     hasPlaintextKeys: boolean;
   } {
@@ -469,6 +477,7 @@ export class ConfigManager {
       neo: checkKey(this.config.neo?.api_key),
       apoc: checkKey(this.config.apoc?.api_key),
       trinity: checkKey(this.config.trinity?.api_key),
+      audio: checkKey(this.config.audio?.apiKey),
     };
 
     const hasPlaintextKeys = Object.values(apiKeysEncrypted).some(encrypted => !encrypted);

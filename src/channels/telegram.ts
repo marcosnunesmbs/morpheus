@@ -9,6 +9,7 @@ import { ConfigManager } from '../config/manager.js';
 import { DisplayManager } from '../runtime/display.js';
 import { Oracle } from '../runtime/oracle.js';
 import { createTelephonist, ITelephonist } from '../runtime/telephonist.js';
+import { getUsableApiKey } from '../runtime/trinity-crypto.js';
 import { readPid, isProcessRunning, checkStalePid } from '../runtime/lifecycle.js';
 import { SQLiteChatMessageHistory } from '../runtime/memory/sqlite.js';
 import { SatiRepository } from '../runtime/memory/sati/repository.js';
@@ -327,8 +328,8 @@ export class TelegramAdapter {
           return;
         }
 
-        const apiKey = config.audio.apiKey ||
-          (config.llm.provider === config.audio.provider ? config.llm.api_key : undefined);
+        const apiKey = getUsableApiKey(config.audio.apiKey) ||
+          (config.llm.provider === config.audio.provider ? getUsableApiKey(config.llm.api_key) : undefined);
         if (!apiKey) {
           this.display.log(`Audio transcription failed: No API key available for provider '${config.audio.provider}'`, { source: 'Telephonist', level: 'error' });
           await ctx.reply(`Audio transcription requires an API key for provider '${config.audio.provider}'. Please configure \`audio.apiKey\` or use the same provider as your LLM.`);

@@ -58,4 +58,19 @@ export const configService = {
   deleteTrinityConfig: async (): Promise<{ success: boolean }> => {
     return httpClient.delete<{ success: boolean }>('/config/trinity');
   },
+
+  getEncryptionStatus: async () => {
+    return httpClient.get<{
+      morpheusSecretSet: boolean;
+      apiKeysEncrypted: {
+        oracle: boolean;
+        sati: boolean;
+        neo: boolean;
+        apoc: boolean;
+        trinity: boolean;
+        audio: boolean;
+      };
+      hasPlaintextKeys: boolean;
+    }>('/config/encryption-status');
+  },
 };

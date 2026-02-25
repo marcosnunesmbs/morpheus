@@ -8,7 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
-- **Agent API Key Encryption**: AES-256-GCM encryption for all agent API keys (Oracle, Sati, Neo, Apoc, Trinity)
+- **Agent API Key Encryption**: AES-256-GCM encryption for all agent API keys (Oracle, Sati, Neo, Apoc, Trinity, Audio/Telephonist)
   - Uses same encryption module as Trinity database passwords (`src/runtime/trinity-crypto.ts`)
   - Automatic encryption on save when `MORPHEUS_SECRET` is set
   - Automatic decryption on config load (fail-open: plaintext keys remain usable)

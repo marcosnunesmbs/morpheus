@@ -93,3 +93,23 @@ export function safeDecrypt(ciphertext: string | null): string | null {
     return null;
   }
 }
+
+/**
+ * Gets the usable API key from a potentially encrypted value.
+ * If the value looks encrypted, attempts to decrypt it.
+ * If decryption fails or MORPHEUS_SECRET is not set, returns the original value.
+ * Use this when you need the actual plaintext key for API calls.
+ */
+export function getUsableApiKey(encryptedOrPlain: string | undefined): string | undefined {
+  if (!encryptedOrPlain) return undefined;
+  
+  // If it looks encrypted, try to decrypt
+  if (looksLikeEncrypted(encryptedOrPlain)) {
+    const decrypted = safeDecrypt(encryptedOrPlain);
+    // If decryption succeeded, return it; otherwise return original
+    return decrypted ?? encryptedOrPlain;
+  }
+  
+  // Not encrypted, return as-is
+  return encryptedOrPlain;
+}

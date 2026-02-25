@@ -68,7 +68,7 @@ export default function Settings() {
   );
   const { data: encryptionStatus } = useSWR(
     '/api/config/encryption-status',
-    configService.fetchConfig
+    () => configService.getEncryptionStatus()
   );
 
   const { data: chronosServerConfig } = useChronosConfig();
@@ -153,10 +153,10 @@ export default function Settings() {
    * Renders encryption status badge for an agent's API key.
    */
   const renderEncryptionBadge = (
-    agentName: 'oracle' | 'sati' | 'neo' | 'apoc' | 'trinity',
+    agentName: 'oracle' | 'sati' | 'neo' | 'apoc' | 'trinity' | 'audio',
     apiKey: string | undefined
   ) => {
-    if (!encryptionStatus) return null;
+    if (!encryptionStatus?.apiKeysEncrypted) return null;
 
     const { morpheusSecretSet, apiKeysEncrypted } = encryptionStatus;
     const isEncrypted = apiKeysEncrypted[agentName];
@@ -960,8 +960,14 @@ export default function Settings() {
               />
             )}
 
+            <div className="flex items-center justify-between">
+              <label className="block text-sm font-medium text-azure-text-primary dark:text-matrix-secondary">
+                API Key
+              </label>
+              {renderEncryptionBadge('audio', localConfig.audio.apiKey)}
+            </div>
             <TextInput
-              label="API Key"
+              label=""
               type="password"
               value={localConfig.audio.apiKey || ''}
               onChange={(e: any) =>
