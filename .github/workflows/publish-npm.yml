@@ -4,9 +4,12 @@ on:
   push:
     branches:
       - main
-    paths:
-      - 'package.json'
   workflow_dispatch:
+    inputs:
+      force:
+        description: 'Force publish even if version has not changed'
+        type: boolean
+        default: false
 
 jobs:
   publish:
@@ -32,25 +35,25 @@ jobs:
           fi
 
       - name: Setup Node.js
-        if: steps.version_check.outputs.changed == 'true' || github.event_name == 'workflow_dispatch'
+        if: steps.version_check.outputs.changed == 'true' || inputs.force == 'true'
         uses: actions/setup-node@v4
         with:
           node-version: '20'
           registry-url: 'https://registry.npmjs.org'
 
       - name: Install dependencies
-        if: steps.version_check.outputs.changed == 'true' || github.event_name == 'workflow_dispatch'
+        if: steps.version_check.outputs.changed == 'true' || inputs.force == 'true'
         run: npm ci --legacy-peer-deps
 
       - name: Publish
-        if: steps.version_check.outputs.changed == 'true' || github.event_name == 'workflow_dispatch'
+        if: steps.version_check.outputs.changed == 'true' || inputs.force == 'true'
         id: publish
         run: npm publish --access public
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
       - name: Notify Morpheus — npm published
-        if: always() && (steps.version_check.outputs.changed == 'true' || github.event_name == 'workflow_dispatch')
+        if: always() && (steps.version_check.outputs.changed == 'true' || inputs.force == 'true')
         run: |
           VERSION=$(jq -r '.version' package.json)
           PACKAGE=$(jq -r '.name' package.json)
