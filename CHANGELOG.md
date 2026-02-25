@@ -5,7 +5,7 @@ All notable changes to Morpheus will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.6.8] - 2026-02-25
 
 ### Added
 - **Agent API Key Encryption**: AES-256-GCM encryption for all agent API keys (Oracle, Sati, Neo, Apoc, Trinity, Audio/Telephonist)
@@ -17,9 +17,41 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Backward compatible: systems without `MORPHEUS_SECRET` continue working with plaintext keys
   - Warning logged when saving API keys without encryption enabled
 
+- **Environment Variable Override Detection**: UI now detects and blocks fields controlled by environment variables
+  - Blue badge "🔒 Env Var" indicates field is managed by environment variable
+  - Fields are disabled (read-only) when overridden by env vars
+  - Applies to all agent configurations (Oracle, Sati, Neo, Apoc, Trinity, Audio)
+  - New endpoint `GET /api/config/env-overrides` returns active overrides
+
+- **ConfigUpdateTool Protection**: Tool now blocks updates to fields overridden by environment variables
+  - Throws clear error: `BLOCKED_BY_ENV: Cannot update <fields> because these fields are controlled by environment variables`
+  - Prevents Oracle/agents from accidentally overriding env-managed config
+  - Guides users to edit `.env` file instead
+
+- **DiagnosticTool Enhancement**: Now checks for `MORPHEUS_SECRET` configuration
+  - Warning status if `MORPHEUS_SECRET` is not set
+  - Clear message: "API keys and database passwords will be stored in plaintext"
+  - Visual indicator: `morpheusSecret: "configured ✓"` or `"NOT SET ⚠️"`
+
+- **Chronos Timezone Fixes**:
+  - `ChronosPreview` component now displays next run in selected timezone (not browser local time)
+  - `time_verifier` tool returns ISO timestamps with timezone offset (e.g., `2026-02-25T17:25:00-03:00`)
+  - Fixes issue where scheduled jobs ran at wrong time on servers with different timezone
+
 ### Changed
-- `README.md` — updated `MORPHEUS_SECRET` description to include agent API key encryption
+- `README.md` — updated `MORPHEUS_SECRET` description and added to all Docker examples
+- `REPOSITORY.md` — moved `MORPHEUS_SECRET` to required env vars, added generation tip
+- `.env.example` — added `MORPHEUS_SECRET` to Security section
 - `DOCUMENTATION.md` — added `/api/config/encryption-status` endpoint documentation
+- `src/config/manager.ts` — removed auto-decrypt on load (keys stay encrypted in memory)
+- `src/config/precedence.ts` — added `getActiveEnvOverrides()`, `isEnvVarSet()`, `isOverriddenByEnv()`
+- `src/runtime/trinity-crypto.ts` — added `getUsableApiKey()` for on-demand decryption
+- `src/runtime/providers/factory.ts` — uses `getUsableApiKey()` for LLM API calls
+- `src/channels/telegram.ts` — uses `getUsableApiKey()` for audio transcription
+- `src/channels/discord.ts` — uses `getUsableApiKey()` for audio transcription
+- `src/runtime/tools/time-verify-tools.ts` — added `formatDateWithTimezone()` helper
+
+## [Unreleased]
 
 ## [0.5.6] - 2026-02-22
 

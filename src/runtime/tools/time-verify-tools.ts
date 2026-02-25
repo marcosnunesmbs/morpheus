@@ -19,6 +19,31 @@ const casualChrono = new chrono.Chrono({
   ],
 });
 
+/**
+ * Formats a Date as ISO string with timezone offset (not UTC).
+ * Example: "2026-02-25T17:25:00-03:00" instead of "2026-02-25T17:25:00.000Z"
+ */
+function formatDateWithTimezone(date: Date, timezone: string): string {
+  // Get the offset for the given timezone
+  const offsetMinutes = -new Date(date.toLocaleString('en-US', { timeZone: timezone, timeZoneName: 'longOffset' })).getTimezoneOffset();
+  
+  // Format date without timezone
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  const hours = String(date.getHours()).padStart(2, '0');
+  const minutes = String(date.getMinutes()).padStart(2, '0');
+  const seconds = String(date.getSeconds()).padStart(2, '0');
+  
+  // Calculate offset string
+  const offsetHours = Math.floor(Math.abs(offsetMinutes) / 60);
+  const offsetMins = Math.abs(offsetMinutes) % 60;
+  const offsetSign = offsetMinutes >= 0 ? '+' : '-';
+  const offsetStr = `${offsetSign}${String(offsetHours).padStart(2, '0')}:${String(offsetMins).padStart(2, '0')}`;
+  
+  return `${year}-${month}-${day}T${hours}:${minutes}:${seconds}${offsetStr}`;
+}
+
 export const timeVerifierTool = tool(
   async ({ text, timezone }: { text: string; timezone?: string }) => {
     // If a timezone is provided, use it for parsing context. 
@@ -45,12 +70,19 @@ export const timeVerifierTool = tool(
       const startDate = result.start.date();
       const endDate = result.end?.date();
 
+      // Format the date in the user's timezone for clarity
+      const formatted = startDate.toLocaleString('pt-BR', { timeZone: effectiveTimezone, timeZoneName: 'short' });
+      
+      // Convert to ISO string WITH timezone offset (not UTC)
+      // This ensures Chronos schedules at the correct local time
+      const isoStart = formatDateWithTimezone(startDate, effectiveTimezone);
+      const isoEnd = endDate ? formatDateWithTimezone(endDate, effectiveTimezone) : null;
+
       return {
         expression: result.text,
-        isoStart: startDate.toISOString(),
-        isoEnd: endDate ? endDate.toISOString() : null,
-        // Format the date in the user's timezone for clarity
-        formatted: startDate.toLocaleString('pt-BR', { timeZone: effectiveTimezone, timeZoneName: 'short' }),
+        isoStart,
+        isoEnd,
+        formatted,
         isRange: !!endDate,
       };
     });
