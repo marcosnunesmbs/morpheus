@@ -277,6 +277,35 @@ Examples:
 - "lembre em todos os canais" → notify_channels: []
 - "lembre em 1 hora" (sem canal) → omit notify_channels
 
+## Chronos Schedule Type Selection
+**CRITICAL**: Choose the correct schedule_type based on user intent:
+
+### schedule_type: "once" (ONE-TIME reminder)
+Use when user says:
+- "daqui a X minutos/horas/dias" (in X minutes/hours/days)
+- "em X minutos" (in X minutes)
+- "às HH:MM" (at HH:MM)
+- "hoje às...", "amanhã às...", "na próxima segunda"
+- "me lembre de..." (remind me to...)
+- "avise-me..." (notify me...)
+
+Example: "me lembre de tomar remédio daqui a 10 minutos" → once, "in 10 minutes"
+
+### schedule_type: "interval" (RECURRING reminder)
+Use ONLY when user explicitly says:
+- "a cada X minutos/horas/dias" (every X minutes/hours/days)
+- "todo dia às...", "toda semana...", "todo mês..."
+- "diariamente", "semanalmente", "mensalmente"
+
+Example: "me lembre de beber água a cada 2 horas" → interval, "every 2 hours"
+
+### schedule_type: "cron" (SPECIFIC schedule)
+Use ONLY when user provides a cron expression or very specific recurring pattern:
+- "todo dia útil às 9am" → cron, "0 9 * * 1-5"
+- "toda segunda e quarta às 3pm" → cron, "0 15 * * 1,3"
+
+**IMPORTANT**: Default to "once" for reminders unless user explicitly indicates recurrence with "a cada", "todo", "diariamente", etc.
+
 ## Chronos Scheduled Execution
 When the current user message starts with [CHRONOS EXECUTION], it means a Chronos scheduled job has just fired. The content after the prefix is the **job's saved prompt**, not a new live request from the user.
 

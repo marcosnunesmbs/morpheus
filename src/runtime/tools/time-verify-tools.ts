@@ -20,28 +20,74 @@ const casualChrono = new chrono.Chrono({
 });
 
 /**
- * Formats a Date as ISO string with timezone offset (not UTC).
- * Example: "2026-02-25T17:25:00-03:00" instead of "2026-02-25T17:25:00.000Z"
+ * Formats a Date as ISO string with timezone offset, preserving the local time.
+ * 
+ * When user says "20:00" in America/Sao_Paulo, we want 20:00 in that timezone,
+ * not a converted time. This function extracts the local time components and
+ * creates an ISO string with the proper timezone offset.
+ * 
+ * Example: "2026-02-25T20:00:00-03:00" instead of "2026-02-25T20:00:00.000Z"
  */
 function formatDateWithTimezone(date: Date, timezone: string): string {
-  // Get the offset for the given timezone
-  const offsetMinutes = -new Date(date.toLocaleString('en-US', { timeZone: timezone, timeZoneName: 'longOffset' })).getTimezoneOffset();
+  // Extract the local time components in the target timezone
+  const localTimeStr = date.toLocaleString('en-US', {
+    timeZone: timezone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false,
+  });
   
-  // Format date without timezone
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const day = String(date.getDate()).padStart(2, '0');
-  const hours = String(date.getHours()).padStart(2, '0');
-  const minutes = String(date.getMinutes()).padStart(2, '0');
-  const seconds = String(date.getSeconds()).padStart(2, '0');
+  // Parse the local time string (format: "MM/DD/YYYY, HH:MM:SS")
+  const [datePart, timePart] = localTimeStr.split(', ');
+  const [month, day, year] = datePart.split('/');
+  const [hours, minutes, seconds] = timePart.split(':');
   
-  // Calculate offset string
+  // Create a date object representing this local time in the target timezone
+  // We need to find the offset for this specific date/time
+  const testDate = new Date(Date.UTC(
+    parseInt(year),
+    parseInt(month) - 1,
+    parseInt(day),
+    parseInt(hours),
+    parseInt(minutes),
+    parseInt(seconds)
+  ));
+  
+  // Get the offset for this timezone at this specific date
+  const offsetStr = getOffsetString(testDate, timezone);
+  
+  // Format as ISO with offset
+  return `${year}-${month}-${day}T${hours}:${minutes}:${seconds}${offsetStr}`;
+}
+
+/**
+ * Gets the timezone offset string for a given date and timezone.
+ * Example: "-03:00" for America/Sao_Paulo
+ */
+function getOffsetString(date: Date, timezone: string): string {
+  // Get the timezone offset by comparing UTC and local time
+  const utcStr = date.toLocaleString('en-US', { timeZone: 'UTC', timeZoneName: 'short' });
+  const tzStr = date.toLocaleString('en-US', { timeZone: timezone, timeZoneName: 'longOffset' });
+  
+  // Extract offset from timezone name (e.g., "GMT-03:00" → "-03:00")
+  const match = tzStr.match(/GMT([+-]\d{2}):?(\d{2})?/);
+  if (match) {
+    const sign = match[1].charAt(0);
+    const hours = match[1].slice(1);
+    const mins = match[2] || '00';
+    return `${sign}${hours}:${mins}`;
+  }
+  
+  // Fallback: calculate offset from Date
+  const offsetMinutes = -date.getTimezoneOffset();
   const offsetHours = Math.floor(Math.abs(offsetMinutes) / 60);
   const offsetMins = Math.abs(offsetMinutes) % 60;
   const offsetSign = offsetMinutes >= 0 ? '+' : '-';
-  const offsetStr = `${offsetSign}${String(offsetHours).padStart(2, '0')}:${String(offsetMins).padStart(2, '0')}`;
-  
-  return `${year}-${month}-${day}T${hours}:${minutes}:${seconds}${offsetStr}`;
+  return `${offsetSign}${String(offsetHours).padStart(2, '0')}:${String(offsetMins).padStart(2, '0')}`;
 }
 
 export const timeVerifierTool = tool(
