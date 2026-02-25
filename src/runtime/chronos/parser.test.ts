@@ -30,6 +30,81 @@ describe('parseScheduleExpression — once type', () => {
     expect(result.next_run_at).toBeGreaterThan(REF);
     expect(result.cron_normalized).toBeNull();
   });
+
+  it('parses Portuguese "às 15h" in America/Sao_Paulo timezone', () => {
+    const result = parseScheduleExpression('às 15h', 'once', {
+      timezone: 'America/Sao_Paulo',
+      referenceDate: REF,
+    });
+    expect(result.type).toBe('once');
+    expect(result.next_run_at).toBeGreaterThan(REF);
+    
+    // Verify the hour is 15 in Sao Paulo timezone
+    const dateInTz = new Date(result.next_run_at).toLocaleString('en-US', {
+      timeZone: 'America/Sao_Paulo',
+      hour: '2-digit',
+      hour12: false,
+    });
+    expect(dateInTz).toContain('15:00');
+  });
+
+  it('parses Portuguese "hoje às 15:30"', () => {
+    // Use a reference time before 15:30 to ensure it schedules for today
+    const morningRef = new Date().setHours(9, 0, 0, 0);
+    const result = parseScheduleExpression('hoje às 15:30', 'once', {
+      timezone: 'America/Sao_Paulo',
+      referenceDate: morningRef,
+    });
+    expect(result.type).toBe('once');
+    
+    const dateInTz = new Date(result.next_run_at).toLocaleString('en-US', {
+      timeZone: 'America/Sao_Paulo',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false,
+    });
+    expect(dateInTz).toContain('15:30');
+  });
+
+  it('parses Portuguese "amanhã às 9h"', () => {
+    const result = parseScheduleExpression('amanhã às 9h', 'once', {
+      timezone: 'America/Sao_Paulo',
+      referenceDate: REF,
+    });
+    expect(result.type).toBe('once');
+    
+    const dateInTz = new Date(result.next_run_at).toLocaleString('en-US', {
+      timeZone: 'America/Sao_Paulo',
+      hour: '2-digit',
+      hour12: false,
+    });
+    expect(dateInTz).toContain('09:00');
+  });
+
+  it('parses Portuguese "daqui a 30 minutos"', () => {
+    const result = parseScheduleExpression('daqui a 30 minutos', 'once', {
+      timezone: 'America/Sao_Paulo',
+      referenceDate: REF,
+    });
+    expect(result.type).toBe('once');
+    
+    // Should be approximately 30 minutes from now
+    const diffMinutes = (result.next_run_at - REF) / 1000 / 60;
+    expect(diffMinutes).toBeGreaterThanOrEqual(29);
+    expect(diffMinutes).toBeLessThanOrEqual(31);
+  });
+
+  it('parses Portuguese "daqui a 2 horas"', () => {
+    const result = parseScheduleExpression('daqui a 2 horas', 'once', {
+      timezone: 'America/Sao_Paulo',
+      referenceDate: REF,
+    });
+    expect(result.type).toBe('once');
+    
+    const diffHours = (result.next_run_at - REF) / 1000 / 60 / 60;
+    expect(diffHours).toBeGreaterThanOrEqual(1.9);
+    expect(diffHours).toBeLessThanOrEqual(2.1);
+  });
 });
 
 describe('parseScheduleExpression — cron type', () => {

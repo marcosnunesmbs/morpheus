@@ -901,8 +901,9 @@ export class TelegramAdapter {
     }
 
     try {
+      const globalTz = this.config.getChronosConfig().timezone;
       const { parse: chronoParse } = await import('chrono-node');
-      const results = chronoParse(fullText);
+      const results = chronoParse(fullText, { timezone: globalTz });
 
       if (!results.length) {
         await ctx.reply(
@@ -919,7 +920,6 @@ export class TelegramAdapter {
         fullText.slice(0, match.index) + fullText.slice(match.index + match.text.length)
       ).replace(/\s+/g, ' ').trim() || fullText;
 
-      const globalTz = this.config.getChronosConfig().timezone;
       const { parseScheduleExpression } = await import('../runtime/chronos/parser.js');
       const schedule = parseScheduleExpression(matchedText, 'once', { timezone: globalTz });
 

@@ -100,6 +100,78 @@ function intervalToCron(expression: string): string {
   );
 }
 
+/**
+ * Parses Portuguese time expressions and converts to ISO 8601 format.
+ * Handles patterns like "às 15h", "hoje às 15:30", "amanhã às 9h".
+ */
+function parsePortugueseTimeExpression(expression: string, refDate: Date, timezone: string): Date | null {
+  const lower = expression.toLowerCase().trim();
+  
+  // Pattern: "às 15h", "as 15h", "às 15:30", "as 15:30"
+  const timeOnlyMatch = lower.match(/^(?:à|a)s?\s+(\d{1,2})(?::(\d{2}))?h?$/);
+  if (timeOnlyMatch) {
+    let hour = parseInt(timeOnlyMatch[1], 10);
+    const minute = timeOnlyMatch[2] ? parseInt(timeOnlyMatch[2], 10) : 0;
+    
+    // Create date by setting hours in the target timezone
+    // We use Intl.DateTimeFormat to properly handle timezone
+    const targetDate = new Date();
+    const tzDate = new Date(targetDate.toLocaleString('en-US', { timeZone: timezone }));
+    tzDate.setHours(hour, minute, 0, 0);
+    
+    // If time is in the past today, schedule for tomorrow
+    if (tzDate.getTime() <= refDate.getTime()) {
+      tzDate.setDate(tzDate.getDate() + 1);
+    }
+    
+    return tzDate;
+  }
+  
+  // Pattern: "hoje às 15h", "hoje as 15:30"
+  const todayMatch = lower.match(/^hoje\s+(?:à|a)s?\s+(\d{1,2})(?::(\d{2}))?h?$/);
+  if (todayMatch) {
+    let hour = parseInt(todayMatch[1], 10);
+    const minute = todayMatch[2] ? parseInt(todayMatch[2], 10) : 0;
+    
+    const tzDate = new Date(new Date().toLocaleString('en-US', { timeZone: timezone }));
+    tzDate.setHours(hour, minute, 0, 0);
+    
+    // If already passed, return null (can't schedule in the past)
+    if (tzDate.getTime() <= refDate.getTime()) {
+      return null;
+    }
+    
+    return tzDate;
+  }
+  
+  // Pattern: "amanhã às 15h", "amanha as 15:30", "amanhã às 15h da tarde"
+  const tomorrowMatch = lower.match(/^amanhã(?:ã)?\s+(?:à|a)s?\s+(\d{1,2})(?::(\d{2}))?h?(?:\s+(?:da|do)\s+(?:manhã|tarde|noite))?$/);
+  if (tomorrowMatch) {
+    let hour = parseInt(tomorrowMatch[1], 10);
+    const minute = tomorrowMatch[2] ? parseInt(tomorrowMatch[2], 10) : 0;
+    
+    const tzDate = new Date(new Date().toLocaleString('en-US', { timeZone: timezone }));
+    tzDate.setDate(tzDate.getDate() + 1);
+    tzDate.setHours(hour, minute, 0, 0);
+    
+    return tzDate;
+  }
+  
+  // Pattern: "daqui a X minutos/horas/dias"
+  const relativeMatch = lower.match(/^daqui\s+a\s+(\d+)\s+(minutos?|horas?|dias?|semanas?)$/);
+  if (relativeMatch) {
+    const amount = parseInt(relativeMatch[1], 10);
+    const unit = relativeMatch[2];
+    const ms = unit.startsWith('min') ? amount * 60_000
+             : unit.startsWith('hor') ? amount * 3_600_000
+             : unit.startsWith('dia') ? amount * 86_400_000
+             : amount * 7 * 86_400_000;
+    return new Date(refDate.getTime() + ms);
+  }
+  
+  return null;
+}
+
 function formatDatetime(date: Date, timezone: string): string {
   try {
     return date.toLocaleString('en-US', {
@@ -142,13 +214,18 @@ export function parseScheduleExpression(
         parsed = new Date(refDate.getTime() + ms);
       }
 
-      // 2. ISO 8601
+      // 2. Portuguese time expressions: "às 15h", "hoje às 15:30", "amanhã às 9h", "daqui a 30 minutos"
+      if (!parsed) {
+        parsed = parsePortugueseTimeExpression(expression, refDate, timezone);
+      }
+
+      // 3. ISO 8601
       if (!parsed) {
         const isoDate = new Date(expression);
         if (!isNaN(isoDate.getTime())) parsed = isoDate;
       }
 
-      // 3. chrono-node NLP fallback ("tomorrow at 9am", "next friday", etc.)
+      // 4. chrono-node NLP fallback ("tomorrow at 9am", "next friday", etc.)
       if (!parsed) {
         const results = chrono.parse(expression, { instant: refDate, timezone });
         if (results.length > 0 && results[0].date()) {
@@ -159,7 +236,8 @@ export function parseScheduleExpression(
       if (!parsed) {
         throw new Error(
           `Could not parse date/time expression: "${expression}". ` +
-          `Try: "in 30 minutes", "in 2 hours", "tomorrow at 9am", "next friday at 3pm", or an ISO 8601 datetime.`
+          `Try: "in 30 minutes", "in 2 hours", "tomorrow at 9am", "next friday at 3pm", ` +
+          `"às 15h", "hoje às 15:30", "amanhã às 9h", "daqui a 30 minutos", or an ISO 8601 datetime.`
         );
       }
 
