@@ -1,6 +1,6 @@
 # Morpheus — Local-First AI Operator for Developers
 
-Morpheus is a local-first AI operator that runs as a daemon and orchestrates LLMs, tools, memory, and delivery channels (Web UI, Telegram, API, webhooks). All data stays on your machine.
+Morpheus is a local-first AI operator that runs as a daemon and orchestrates LLMs, tools, memory, and delivery channels (Web UI, Telegram, Discord, API, webhooks). All data stays on your machine.
 
 ---
 
@@ -8,13 +8,14 @@ Morpheus is a local-first AI operator that runs as a daemon and orchestrates LLM
 
 - **Multi-agent architecture** — Oracle (orchestrator), Neo (MCP + internal tools), Apoc (DevKit / shell / git / browser), Trinity (database specialist), Sati (long-term memory)
 - **LLM provider agnostic** — OpenAI, Anthropic, Google Gemini, OpenRouter, Ollama
-- **Async task queue** — Oracle delegates execution to subagents; results are delivered proactively via Telegram or UI
+- **Async task queue** — Oracle delegates execution to subagents; results are delivered proactively via Telegram, Discord, or UI
 - **Persistent memory** — SQLite-backed sessions, Sati long-term memory with vector search
 - **MCP integration** — connect any Model Context Protocol server
 - **Database management** — Trinity connects to PostgreSQL, MySQL, SQLite, MongoDB; passwords encrypted at rest
 - **Webhooks** — trigger Oracle via HTTP; results delivered to UI and/or Telegram
-- **Audio transcription** — voice messages via Google Gemini or Whisper
-- **Web Dashboard** — Matrix-themed React UI for chat, tasks, settings, logs, stats, MCP, Trinity databases
+- **Audio transcription** — voice messages via Google Gemini or Whisper (Telegram & Discord)
+- **Chronos scheduler** — schedule prompts for future execution (once, interval, cron)
+- **Web Dashboard** — Matrix-themed React UI for chat, tasks, settings, logs, stats, MCP, Trinity databases, Chronos jobs
 
 ---
 
@@ -127,6 +128,21 @@ docker run -d \
   marcodalpra/morpheus-agent:latest
 ```
 
+With Discord:
+
+```bash
+docker run -d \
+  --name morpheus-agent \
+  -p 3333:3333 \
+  -v morpheus_data:/root/.morpheus \
+  -e OPENAI_API_KEY=sk-... \
+  -e THE_ARCHITECT_PASS=changeme \
+  -e MORPHEUS_DISCORD_ENABLED=true \
+  -e MORPHEUS_DISCORD_TOKEN=<bot-token> \
+  -e MORPHEUS_DISCORD_ALLOWED_USERS=987654321 \
+  marcodalpra/morpheus-agent:latest
+```
+
 ---
 
 ## Environment Variables
@@ -178,6 +194,23 @@ Each subagent falls back to Oracle config if not set.
 | `MORPHEUS_TELEGRAM_TOKEN` | Bot token from @BotFather | — |
 | `MORPHEUS_TELEGRAM_ALLOWED_USERS` | Comma-separated Telegram user IDs | — |
 
+### Discord
+
+| Variable | Description | Default |
+|---|---|---|
+| `MORPHEUS_DISCORD_ENABLED` | Enable Discord bot | `false` |
+| `MORPHEUS_DISCORD_TOKEN` | Bot token from Discord Developer Portal | — |
+| `MORPHEUS_DISCORD_ALLOWED_USERS` | Comma-separated Discord user IDs | — |
+
+> **Discord Setup:** Enable **Message Content Intent** in your bot's settings. The bot responds to DMs only from authorized users.
+
+### Chronos
+
+| Variable | Description | Default |
+|---|---|---|
+| `MORPHEUS_CHRONOS_CHECK_INTERVAL_MS` | Polling interval for scheduled jobs | `60000` |
+| `MORPHEUS_CHRONOS_DEFAULT_TIMEZONE` | Default timezone for schedule parsing | `UTC` |
+
 ### Audio
 
 | Variable | Description | Default |
@@ -210,7 +243,8 @@ All configuration and databases are stored in `/root/.morpheus` inside the conta
 └── memory/
     ├── short-memory.db # sessions, messages, tasks, usage, webhooks
     ├── sati-memory.db  # long-term memory with vector embeddings
-    └── trinity.db      # registered database registry (encrypted passwords)
+    ├── trinity.db      # registered database registry (encrypted passwords)
+    └── chronos.db      # scheduled jobs and execution history
 ```
 
 Mount a named volume to persist across restarts and image upgrades:
@@ -249,6 +283,7 @@ The container probes this endpoint every 30s (60s start period, 3 retries).
 | `/stats` | Token usage, cost by provider/model |
 | `/model-pricing` | Configure per-model pricing for cost tracking |
 | `/webhooks` | Manage webhook triggers and notifications |
+| `/chronos` | Schedule and manage automated jobs |
 | `/logs` | Browse application log files |
 | `/zaion` | Agent, LLM, audio, channel settings |
 
@@ -269,6 +304,31 @@ The container probes this endpoint every 30s (60s start period, 3 retries).
 | `/zaion` | Show current agent configuration |
 | `/doctor` | Diagnose environment and configuration |
 | `/restart` | Restart the daemon |
+| `/chronos <prompt> @ <schedule>` | Schedule a prompt (e.g., `/chronos check BTC price @ every day at 9am`) |
+| `/chronos_list` | List all scheduled jobs |
+| `/chronos_view <id>` | View job details and executions |
+| `/chronos_enable <id>` | Enable a disabled job |
+| `/chronos_disable <id>` | Disable a job |
+| `/chronos_delete <id>` | Delete a job |
+
+---
+
+## Discord Slash Commands
+
+| Command | Description |
+|---|---|
+| `/help` | Show available commands |
+| `/status` | Check Morpheus status |
+| `/stats` | Token usage statistics |
+| `/newsession` | Start a new session |
+| `/chronos prompt: time:` | Schedule a job |
+| `/chronos_list` | List all scheduled jobs |
+| `/chronos_view id:` | View job details |
+| `/chronos_enable id:` | Enable a job |
+| `/chronos_disable id:` | Disable a job |
+| `/chronos_delete id:` | Delete a job |
+
+> **Note:** Discord bot responds to DMs only from authorized users (`MORPHEUS_DISCORD_ALLOWED_USERS`).
 
 ---
 
