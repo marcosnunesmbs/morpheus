@@ -152,10 +152,104 @@ export function resolveProvider<T extends LLMProvider>(genericEnvVar: string, co
   if (process.env[genericEnvVar]) {
     return process.env[genericEnvVar] as T;
   }
-  
+
   if (configFileValue !== undefined) {
     return configFileValue;
   }
-  
+
   return defaultValue;
+}
+
+/**
+ * Check if a configuration value is being overridden by an environment variable.
+ * Returns true if the value comes from an environment variable (either provider-specific or generic).
+ */
+export function isOverriddenByEnv(
+  provider: LLMProvider,
+  genericEnvVar: string,
+  configFileValue: string | undefined
+): boolean {
+  const providerSpecificVars: Record<LLMProvider, string> = {
+    'openai': 'OPENAI_API_KEY',
+    'anthropic': 'ANTHROPIC_API_KEY',
+    'openrouter': 'OPENROUTER_API_KEY',
+    'ollama': '',
+    'gemini': 'GOOGLE_API_KEY'
+  };
+
+  const providerSpecificVar = providerSpecificVars[provider];
+
+  // Check if provider-specific variable is set
+  if (providerSpecificVar && process.env[providerSpecificVar]) {
+    return true;
+  }
+
+  // Check if generic variable is set
+  if (process.env[genericEnvVar]) {
+    return true;
+  }
+
+  return false;
+}
+
+/**
+ * Check if a generic configuration value is being overridden by an environment variable.
+ */
+export function isEnvVarSet(envVarName: string): boolean {
+  return process.env[envVarName] !== undefined && process.env[envVarName] !== '';
+}
+
+/**
+ * Get list of all active environment variable overrides for agent configurations.
+ */
+export function getActiveEnvOverrides(): Record<string, boolean> {
+  const overrides: Record<string, boolean> = {};
+  
+  // LLM/Oracle
+  if (isEnvVarSet('MORPHEUS_LLM_PROVIDER')) overrides['llm.provider'] = true;
+  if (isEnvVarSet('MORPHEUS_LLM_MODEL')) overrides['llm.model'] = true;
+  if (isEnvVarSet('MORPHEUS_LLM_TEMPERATURE')) overrides['llm.temperature'] = true;
+  if (isEnvVarSet('MORPHEUS_LLM_MAX_TOKENS')) overrides['llm.max_tokens'] = true;
+  if (isEnvVarSet('MORPHEUS_LLM_API_KEY')) overrides['llm.api_key'] = true;
+  if (isEnvVarSet('MORPHEUS_LLM_CONTEXT_WINDOW')) overrides['llm.context_window'] = true;
+  
+  // Provider-specific API keys
+  if (isEnvVarSet('OPENAI_API_KEY')) overrides['llm.api_key_openai'] = true;
+  if (isEnvVarSet('ANTHROPIC_API_KEY')) overrides['llm.api_key_anthropic'] = true;
+  if (isEnvVarSet('GOOGLE_API_KEY')) overrides['llm.api_key_gemini'] = true;
+  if (isEnvVarSet('OPENROUTER_API_KEY')) overrides['llm.api_key_openrouter'] = true;
+  
+  // Sati
+  if (isEnvVarSet('MORPHEUS_SATI_PROVIDER')) overrides['sati.provider'] = true;
+  if (isEnvVarSet('MORPHEUS_SATI_MODEL')) overrides['sati.model'] = true;
+  if (isEnvVarSet('MORPHEUS_SATI_TEMPERATURE')) overrides['sati.temperature'] = true;
+  if (isEnvVarSet('MORPHEUS_SATI_API_KEY')) overrides['sati.api_key'] = true;
+  
+  // Neo
+  if (isEnvVarSet('MORPHEUS_NEO_PROVIDER')) overrides['neo.provider'] = true;
+  if (isEnvVarSet('MORPHEUS_NEO_MODEL')) overrides['neo.model'] = true;
+  if (isEnvVarSet('MORPHEUS_NEO_TEMPERATURE')) overrides['neo.temperature'] = true;
+  if (isEnvVarSet('MORPHEUS_NEO_API_KEY')) overrides['neo.api_key'] = true;
+  
+  // Apoc
+  if (isEnvVarSet('MORPHEUS_APOC_PROVIDER')) overrides['apoc.provider'] = true;
+  if (isEnvVarSet('MORPHEUS_APOC_MODEL')) overrides['apoc.model'] = true;
+  if (isEnvVarSet('MORPHEUS_APOC_TEMPERATURE')) overrides['apoc.temperature'] = true;
+  if (isEnvVarSet('MORPHEUS_APOC_API_KEY')) overrides['apoc.api_key'] = true;
+  if (isEnvVarSet('MORPHEUS_APOC_WORKING_DIR')) overrides['apoc.working_dir'] = true;
+  if (isEnvVarSet('MORPHEUS_APOC_TIMEOUT_MS')) overrides['apoc.timeout_ms'] = true;
+  
+  // Trinity
+  if (isEnvVarSet('MORPHEUS_TRINITY_PROVIDER')) overrides['trinity.provider'] = true;
+  if (isEnvVarSet('MORPHEUS_TRINITY_MODEL')) overrides['trinity.model'] = true;
+  if (isEnvVarSet('MORPHEUS_TRINITY_TEMPERATURE')) overrides['trinity.temperature'] = true;
+  if (isEnvVarSet('MORPHEUS_TRINITY_API_KEY')) overrides['trinity.api_key'] = true;
+  
+  // Audio
+  if (isEnvVarSet('MORPHEUS_AUDIO_PROVIDER')) overrides['audio.provider'] = true;
+  if (isEnvVarSet('MORPHEUS_AUDIO_MODEL')) overrides['audio.model'] = true;
+  if (isEnvVarSet('MORPHEUS_AUDIO_API_KEY')) overrides['audio.apiKey'] = true;
+  if (isEnvVarSet('MORPHEUS_AUDIO_MAX_DURATION')) overrides['audio.maxDurationSeconds'] = true;
+  
+  return overrides;
 }

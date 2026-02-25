@@ -73,4 +73,8 @@ export const configService = {
       hasPlaintextKeys: boolean;
     }>('/config/encryption-status');
   },
+
+  getEnvOverrides: async () => {
+    return httpClient.get<Record<string, boolean>>('/config/env-overrides');
+  },
 };

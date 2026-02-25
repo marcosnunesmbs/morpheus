@@ -1,6 +1,7 @@
 import { Command } from 'commander';
 import chalk from 'chalk';
 import fs from 'fs-extra';
+import path from 'path';
 import { confirm } from '@inquirer/prompts';
 import { scaffold } from '../../runtime/scaffold.js';
 import { DisplayManager } from '../../runtime/display.js';
@@ -21,6 +22,35 @@ import { TaskWorker } from '../../runtime/tasks/worker.js';
 import { TaskNotifier } from '../../runtime/tasks/notifier.js';
 import { ChronosWorker } from '../../runtime/chronos/worker.js';
 import { ChronosRepository } from '../../runtime/chronos/repository.js';
+
+// Load .env file explicitly in start command
+const envPath = path.join(process.cwd(), '.env');
+if (fs.existsSync(envPath)) {
+  try {
+    const envConfig = fs.readFileSync(envPath, 'utf-8');
+    envConfig.split('\n').forEach(line => {
+      const trimmed = line.trim();
+      if (!trimmed || trimmed.startsWith('#')) return;
+
+      const match = trimmed.match(/^([^=]+)=(.*)$/);
+      if (match) {
+        const key = match[1].trim();
+        let value = match[2].trim();
+        // Remove quotes if present
+        if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) {
+          value = value.slice(1, -1);
+        }
+        // Don't overwrite existing env vars
+        if (!process.env[key]) {
+          process.env[key] = value;
+        }
+      }
+    });
+    console.log('[DEBUG] Loaded .env file from:', envPath);
+  } catch (err) {
+    console.error('[WARN] Failed to load .env:', err);
+  }
+}
 
 export const startCommand = new Command('start')
   .description('Start the Morpheus agent')

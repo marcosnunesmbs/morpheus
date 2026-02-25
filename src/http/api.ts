@@ -22,6 +22,7 @@ import { Trinity } from '../runtime/trinity.js';
 import { ChronosRepository } from '../runtime/chronos/repository.js';
 import { ChronosWorker } from '../runtime/chronos/worker.js';
 import { createChronosJobRouter, createChronosConfigRouter } from './routers/chronos.js';
+import { getActiveEnvOverrides } from '../config/precedence.js';
 
 async function readLastLines(filePath: string, n: number): Promise<string[]> {
   try {
@@ -879,6 +880,25 @@ export function createApiRouter(oracle: IOracle, chronosWorker?: ChronosWorker) 
       const status = configManager.getEncryptionStatus();
       res.json(status);
     } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // ─── Environment Variable Overrides ────────────────────────────────────────
+
+  router.get('/config/env-overrides', (req, res) => {
+    try {
+      const overrides = getActiveEnvOverrides();
+      // Debug log to see what's being detected
+      // console.log('[DEBUG] Env overrides:', JSON.stringify(overrides, null, 2));
+      // console.log('[DEBUG] Sample env vars:', {
+      //   MORPHEUS_LLM_PROVIDER: !!process.env.MORPHEUS_LLM_PROVIDER,
+      //   MORPHEUS_LLM_MODEL: !!process.env.MORPHEUS_LLM_MODEL,
+      //   OPENAI_API_KEY: !!process.env.OPENAI_API_KEY,
+      // });
+      res.json(overrides);
+    } catch (error: any) {
+      console.error('[ERROR] Failed to get env overrides:', error);
       res.status(500).json({ error: error.message });
     }
   });

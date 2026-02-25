@@ -70,6 +70,10 @@ export default function Settings() {
     '/api/config/encryption-status',
     () => configService.getEncryptionStatus()
   );
+  const { data: envOverrides } = useSWR(
+    '/api/config/env-overrides',
+    () => configService.getEnvOverrides()
+  );
 
   const { data: chronosServerConfig } = useChronosConfig();
   const [localChronosConfig, setLocalChronosConfig] = useState<ChronosConfig | null>(null);
@@ -171,6 +175,12 @@ export default function Settings() {
       );
     }
 
+    // Check if this field is overridden by env var - if so, don't show encryption status
+    // Env vars are not stored in YAML and can't be encrypted
+    if (envOverrides && envOverrides[getEnvKey(agentName)]) {
+      return null; // Don't show badge for env var overrides
+    }
+
     // MORPHEUS_SECRET not set
     if (!morpheusSecretSet) {
       return (
@@ -195,6 +205,42 @@ export default function Settings() {
         ⚠️ Re-save to encrypt
       </span>
     );
+  };
+
+  /**
+   * Maps agent name to env override key.
+   */
+  const getEnvKey = (agentName: string): string => {
+    const keys: Record<string, string> = {
+      'oracle': 'llm.api_key',
+      'sati': 'sati.api_key',
+      'neo': 'neo.api_key',
+      'apoc': 'apoc.api_key',
+      'trinity': 'trinity.api_key',
+      'audio': 'audio.apiKey',
+    };
+    return keys[agentName];
+  };
+
+  /**
+   * Renders environment override badge for a field.
+   * Returns null if not overridden.
+   */
+  const renderEnvOverrideBadge = (fieldPath: string) => {
+    if (!envOverrides || !envOverrides[fieldPath]) return null;
+
+    return (
+      <span className="inline-flex items-center px-2 py-1 text-xs rounded bg-blue-100 border border-blue-300 text-blue-800 dark:bg-blue-900/30 dark:border-blue-700 dark:text-blue-400" title="This field is set by an environment variable and cannot be edited">
+        🔒 Env Var
+      </span>
+    );
+  };
+
+  /**
+   * Checks if a field is overridden by an environment variable.
+   */
+  const isEnvOverridden = (fieldPath: string): boolean => {
+    return !!(envOverrides && envOverrides[fieldPath]);
   };
 
   const handleUpdate = (path: string[], value: any) => {
@@ -437,23 +483,42 @@ export default function Settings() {
                 <p className="text-sm text-azure-text-secondary dark:text-matrix-secondary mb-4">
                   Main orchestration agent — handles user requests and delegates to subagents
                 </p>
+                <div className="flex items-center justify-between">
+                  <label className="block text-sm font-medium text-azure-text-primary dark:text-matrix-secondary">
+                    Provider
+                  </label>
+                  {renderEnvOverrideBadge('llm.provider')}
+                </div>
                 <SelectInput
-                  label="Provider"
+                  label=""
                   value={localConfig.llm.provider}
                   onChange={(e) =>
                     handleUpdate(['llm', 'provider'], e.target.value)
                   }
                   options={PROVIDER_OPTIONS}
                   error={errors['llm.provider']}
+                  disabled={isEnvOverridden('llm.provider')}
                 />
+                <div className="flex items-center justify-between">
+                  <label className="block text-sm font-medium text-azure-text-primary dark:text-matrix-secondary">
+                    Model Name
+                  </label>
+                  {renderEnvOverrideBadge('llm.model')}
+                </div>
                 <TextInput
-                  label="Model Name"
+                  label=""
                   value={localConfig.llm.model}
                   onChange={(e) => handleUpdate(['llm', 'model'], e.target.value)}
-                  error={errors['llm.model']}
+                  disabled={isEnvOverridden('llm.model')}
                 />
+                <div className="flex items-center justify-between">
+                  <label className="block text-sm font-medium text-azure-text-primary dark:text-matrix-secondary">
+                    Temperature
+                  </label>
+                  {renderEnvOverrideBadge('llm.temperature')}
+                </div>
                 <NumberInput
-                  label="Temperature"
+                  label=""
                   value={localConfig.llm.temperature}
                   onChange={(e) =>
                     handleUpdate(
@@ -465,9 +530,16 @@ export default function Settings() {
                   min={0}
                   max={1}
                   error={errors['llm.temperature']}
+                  disabled={isEnvOverridden('llm.temperature')}
                 />
+                <div className="flex items-center justify-between">
+                  <label className="block text-sm font-medium text-azure-text-primary dark:text-matrix-secondary">
+                    Max Tokens
+                  </label>
+                  {renderEnvOverrideBadge('llm.max_tokens')}
+                </div>
                 <NumberInput
-                  label="Max Tokens"
+                  label=""
                   value={localConfig.llm.max_tokens ?? ''}
                   onChange={(e: any) =>
                     handleUpdate(
@@ -478,9 +550,16 @@ export default function Settings() {
                   min={1}
                   error={errors['llm.max_tokens']}
                   helperText="Maximum tokens per response. Leave empty for model default."
+                  disabled={isEnvOverridden('llm.max_tokens')}
                 />
+                <div className="flex items-center justify-between">
+                  <label className="block text-sm font-medium text-azure-text-primary dark:text-matrix-secondary">
+                    Context Window (Messages)
+                  </label>
+                  {renderEnvOverrideBadge('llm.context_window')}
+                </div>
                 <NumberInput
-                  label="Context Window (Messages)"
+                  label=""
                   value={localConfig.llm.context_window ?? 100}
                   onChange={(e: any) =>
                     handleUpdate(
@@ -492,12 +571,16 @@ export default function Settings() {
                   step={1}
                   error={errors['llm.context_window']}
                   helperText="Number of past interactions to load into LLM context (e.g., 100)."
+                  disabled={isEnvOverridden('llm.context_window')}
                 />
                 <div className="flex items-center justify-between">
                   <label className="block text-sm font-medium text-azure-text-primary dark:text-matrix-secondary">
                     API Key
                   </label>
-                  {renderEncryptionBadge('oracle', localConfig.llm.api_key)}
+                  <div className="flex items-center gap-2">
+                    {renderEnvOverrideBadge('llm.api_key')}
+                    {renderEncryptionBadge('oracle', localConfig.llm.api_key)}
+                  </div>
                 </div>
                 <TextInput
                   label=""
@@ -508,6 +591,7 @@ export default function Settings() {
                   }
                   placeholder="sk-..."
                   helperText="Stored locally."
+                  disabled={isEnvOverridden('llm.api_key')}
                 />
                 {localConfig.llm.provider === 'openrouter' && (
                   <TextInput
@@ -547,24 +631,41 @@ export default function Settings() {
 
                 {localSatiConfig && (
                   <>
+                    <div className="flex items-center justify-between">
+                      <label className="block text-sm font-medium text-azure-text-primary dark:text-matrix-secondary">
+                        Provider
+                      </label>
+                      {renderEnvOverrideBadge('sati.provider')}
+                    </div>
                     <SelectInput
-                      label="Provider"
+                      label=""
                       value={localSatiConfig.provider}
                       onChange={(e) =>
                         handleSatiUpdate('provider', e.target.value)
                       }
                       options={PROVIDER_OPTIONS}
+                      disabled={isEnvOverridden('sati.provider')}
                     />
+                    <div className="flex items-center justify-between">
+                      <label className="block text-sm font-medium text-azure-text-primary dark:text-matrix-secondary">
+                        Model Name
+                      </label>
+                      {renderEnvOverrideBadge('sati.model')}
+                    </div>
                     <TextInput
-                      label="Model Name"
+                      label=""
                       value={localSatiConfig.model}
                       onChange={(e) => handleSatiUpdate('model', e.target.value)}
+                      disabled={isEnvOverridden('sati.model')}
                     />
                     <div className="flex items-center justify-between">
                       <label className="block text-sm font-medium text-azure-text-primary dark:text-matrix-secondary">
                         API Key
                       </label>
-                      {renderEncryptionBadge('sati', localSatiConfig.api_key)}
+                      <div className="flex items-center gap-2">
+                        {renderEnvOverrideBadge('sati.api_key')}
+                        {renderEncryptionBadge('sati', localSatiConfig.api_key)}
+                      </div>
                     </div>
                     <TextInput
                       label=""
@@ -575,6 +676,7 @@ export default function Settings() {
                       }
                       placeholder="sk-..."
                       helperText="Stored locally."
+                      disabled={isEnvOverridden('sati.api_key')}
                     />
                     {localSatiConfig.provider === 'openrouter' && (
                       <TextInput
@@ -637,21 +739,41 @@ export default function Settings() {
 
                 {localNeoConfig && (
                   <>
+                    <div className="flex items-center justify-between">
+                      <label className="block text-sm font-medium text-azure-text-primary dark:text-matrix-secondary">
+                        Provider
+                      </label>
+                      {renderEnvOverrideBadge('neo.provider')}
+                    </div>
                     <SelectInput
-                      label="Provider"
+                      label=""
                       value={localNeoConfig.provider}
                       onChange={(e) =>
                         handleNeoUpdate('provider', e.target.value as any)
                       }
                       options={PROVIDER_OPTIONS}
+                      disabled={isEnvOverridden('neo.provider')}
                     />
+                    <div className="flex items-center justify-between">
+                      <label className="block text-sm font-medium text-azure-text-primary dark:text-matrix-secondary">
+                        Model Name
+                      </label>
+                      {renderEnvOverrideBadge('neo.model')}
+                    </div>
                     <TextInput
-                      label="Model Name"
+                      label=""
                       value={localNeoConfig.model}
                       onChange={(e) => handleNeoUpdate('model', e.target.value)}
+                      disabled={isEnvOverridden('neo.model')}
                     />
+                    <div className="flex items-center justify-between">
+                      <label className="block text-sm font-medium text-azure-text-primary dark:text-matrix-secondary">
+                        Temperature
+                      </label>
+                      {renderEnvOverrideBadge('neo.temperature')}
+                    </div>
                     <NumberInput
-                      label="Temperature"
+                      label=""
                       value={localNeoConfig.temperature}
                       onChange={(e) =>
                         handleNeoUpdate('temperature', parseFloat(e.target.value))
@@ -659,9 +781,16 @@ export default function Settings() {
                       step={0.1}
                       min={0}
                       max={1}
+                      disabled={isEnvOverridden('neo.temperature')}
                     />
+                    <div className="flex items-center justify-between">
+                      <label className="block text-sm font-medium text-azure-text-primary dark:text-matrix-secondary">
+                        Max Tokens
+                      </label>
+                      {renderEnvOverrideBadge('neo.max_tokens')}
+                    </div>
                     <NumberInput
-                      label="Max Tokens"
+                      label=""
                       value={localNeoConfig.max_tokens ?? ''}
                       onChange={(e: any) =>
                         handleNeoUpdate(
@@ -671,9 +800,16 @@ export default function Settings() {
                       }
                       min={1}
                       helperText="Maximum tokens per response. Leave empty for model default."
+                      disabled={isEnvOverridden('neo.max_tokens')}
                     />
+                    <div className="flex items-center justify-between">
+                      <label className="block text-sm font-medium text-azure-text-primary dark:text-matrix-secondary">
+                        Context Window (Messages)
+                      </label>
+                      {renderEnvOverrideBadge('neo.context_window')}
+                    </div>
                     <NumberInput
-                      label="Context Window (Messages)"
+                      label=""
                       value={localNeoConfig.context_window ?? 100}
                       onChange={(e: any) =>
                         handleNeoUpdate(
@@ -683,12 +819,16 @@ export default function Settings() {
                       }
                       min={1}
                       step={1}
+                      disabled={isEnvOverridden('neo.context_window')}
                     />
                     <div className="flex items-center justify-between">
                       <label className="block text-sm font-medium text-azure-text-primary dark:text-matrix-secondary">
                         API Key
                       </label>
-                      {renderEncryptionBadge('neo', localNeoConfig.api_key)}
+                      <div className="flex items-center gap-2">
+                        {renderEnvOverrideBadge('neo.api_key')}
+                        {renderEncryptionBadge('neo', localNeoConfig.api_key)}
+                      </div>
                     </div>
                     <TextInput
                       label=""
@@ -699,6 +839,7 @@ export default function Settings() {
                       }
                       placeholder="sk-..."
                       helperText="Stored locally."
+                      disabled={isEnvOverridden('neo.api_key')}
                     />
                     {localNeoConfig.provider === 'openrouter' && (
                       <TextInput
@@ -741,21 +882,41 @@ export default function Settings() {
 
                 {localTrinityConfig && (
                   <>
+                    <div className="flex items-center justify-between">
+                      <label className="block text-sm font-medium text-azure-text-primary dark:text-matrix-secondary">
+                        Provider
+                      </label>
+                      {renderEnvOverrideBadge('trinity.provider')}
+                    </div>
                     <SelectInput
-                      label="Provider"
+                      label=""
                       value={localTrinityConfig.provider}
                       onChange={(e) =>
                         handleTrinityUpdate('provider', e.target.value as any)
                       }
                       options={PROVIDER_OPTIONS}
+                      disabled={isEnvOverridden('trinity.provider')}
                     />
+                    <div className="flex items-center justify-between">
+                      <label className="block text-sm font-medium text-azure-text-primary dark:text-matrix-secondary">
+                        Model Name
+                      </label>
+                      {renderEnvOverrideBadge('trinity.model')}
+                    </div>
                     <TextInput
-                      label="Model Name"
+                      label=""
                       value={localTrinityConfig.model}
                       onChange={(e) => handleTrinityUpdate('model', e.target.value)}
+                      disabled={isEnvOverridden('trinity.model')}
                     />
+                    <div className="flex items-center justify-between">
+                      <label className="block text-sm font-medium text-azure-text-primary dark:text-matrix-secondary">
+                        Temperature
+                      </label>
+                      {renderEnvOverrideBadge('trinity.temperature')}
+                    </div>
                     <NumberInput
-                      label="Temperature"
+                      label=""
                       value={localTrinityConfig.temperature}
                       onChange={(e) =>
                         handleTrinityUpdate('temperature', parseFloat(e.target.value))
@@ -763,9 +924,16 @@ export default function Settings() {
                       step={0.1}
                       min={0}
                       max={1}
+                      disabled={isEnvOverridden('trinity.temperature')}
                     />
+                    <div className="flex items-center justify-between">
+                      <label className="block text-sm font-medium text-azure-text-primary dark:text-matrix-secondary">
+                        Max Tokens
+                      </label>
+                      {renderEnvOverrideBadge('trinity.max_tokens')}
+                    </div>
                     <NumberInput
-                      label="Max Tokens"
+                      label=""
                       value={localTrinityConfig.max_tokens ?? ''}
                       onChange={(e: any) =>
                         handleTrinityUpdate(
@@ -775,12 +943,16 @@ export default function Settings() {
                       }
                       min={1}
                       helperText="Maximum tokens per response. Leave empty for model default."
+                      disabled={isEnvOverridden('trinity.max_tokens')}
                     />
                     <div className="flex items-center justify-between">
                       <label className="block text-sm font-medium text-azure-text-primary dark:text-matrix-secondary">
                         API Key
                       </label>
-                      {renderEncryptionBadge('trinity', localTrinityConfig.api_key)}
+                      <div className="flex items-center gap-2">
+                        {renderEnvOverrideBadge('trinity.api_key')}
+                        {renderEncryptionBadge('trinity', localTrinityConfig.api_key)}
+                      </div>
                     </div>
                     <TextInput
                       label=""
@@ -791,6 +963,7 @@ export default function Settings() {
                       }
                       placeholder="sk-..."
                       helperText="Stored locally."
+                      disabled={isEnvOverridden('trinity.api_key')}
                     />
                     {localTrinityConfig.provider === 'openrouter' && (
                       <TextInput
@@ -830,21 +1003,41 @@ export default function Settings() {
 
                 {localApocConfig && (
                   <>
+                    <div className="flex items-center justify-between">
+                      <label className="block text-sm font-medium text-azure-text-primary dark:text-matrix-secondary">
+                        Provider
+                      </label>
+                      {renderEnvOverrideBadge('apoc.provider')}
+                    </div>
                     <SelectInput
-                      label="Provider"
+                      label=""
                       value={localApocConfig.provider}
                       onChange={(e) =>
                         handleApocUpdate('provider', e.target.value as any)
                       }
                       options={PROVIDER_OPTIONS}
+                      disabled={isEnvOverridden('apoc.provider')}
                     />
+                    <div className="flex items-center justify-between">
+                      <label className="block text-sm font-medium text-azure-text-primary dark:text-matrix-secondary">
+                        Model Name
+                      </label>
+                      {renderEnvOverrideBadge('apoc.model')}
+                    </div>
                     <TextInput
-                      label="Model Name"
+                      label=""
                       value={localApocConfig.model}
                       onChange={(e) => handleApocUpdate('model', e.target.value)}
+                      disabled={isEnvOverridden('apoc.model')}
                     />
+                    <div className="flex items-center justify-between">
+                      <label className="block text-sm font-medium text-azure-text-primary dark:text-matrix-secondary">
+                        Temperature
+                      </label>
+                      {renderEnvOverrideBadge('apoc.temperature')}
+                    </div>
                     <NumberInput
-                      label="Temperature"
+                      label=""
                       value={localApocConfig.temperature}
                       onChange={(e) =>
                         handleApocUpdate('temperature', parseFloat(e.target.value))
@@ -852,12 +1045,16 @@ export default function Settings() {
                       step={0.1}
                       min={0}
                       max={1}
+                      disabled={isEnvOverridden('apoc.temperature')}
                     />
                     <div className="flex items-center justify-between">
                       <label className="block text-sm font-medium text-azure-text-primary dark:text-matrix-secondary">
                         API Key
                       </label>
-                      {renderEncryptionBadge('apoc', localApocConfig.api_key)}
+                      <div className="flex items-center gap-2">
+                        {renderEnvOverrideBadge('apoc.api_key')}
+                        {renderEncryptionBadge('apoc', localApocConfig.api_key)}
+                      </div>
                     </div>
                     <TextInput
                       label=""
@@ -868,6 +1065,7 @@ export default function Settings() {
                       }
                       placeholder="sk-..."
                       helperText="Stored locally."
+                      disabled={isEnvOverridden('apoc.api_key')}
                     />
                     {localApocConfig.provider === 'openrouter' && (
                       <TextInput
@@ -922,8 +1120,14 @@ export default function Settings() {
               }
             />
 
+            <div className="flex items-center justify-between">
+              <label className="block text-sm font-medium text-azure-text-primary dark:text-matrix-secondary">
+                Provider
+              </label>
+              {renderEnvOverrideBadge('audio.provider')}
+            </div>
             <SelectInput
-              label="Provider"
+              label=""
               value={localConfig.audio.provider || 'google'}
               onChange={(e: any) =>
                 handleUpdate(['audio', 'provider'], e.target.value)
@@ -935,10 +1139,17 @@ export default function Settings() {
                 { label: 'Ollama (Whisper local)', value: 'ollama' },
               ]}
               error={errors['audio.provider']}
+              disabled={isEnvOverridden('audio.provider')}
             />
 
+            <div className="flex items-center justify-between">
+              <label className="block text-sm font-medium text-azure-text-primary dark:text-matrix-secondary">
+                Model
+              </label>
+              {renderEnvOverrideBadge('audio.model')}
+            </div>
             <TextInput
-              label="Model"
+              label=""
               value={localConfig.audio.model}
               onChange={(e: any) =>
                 handleUpdate(['audio', 'model'], e.target.value)
@@ -946,6 +1157,7 @@ export default function Settings() {
               placeholder="e.g. whisper-1, gemini-2.5-flash-lite..."
               helperText="Model to use for audio transcription."
               error={errors['audio.model']}
+              disabled={isEnvOverridden('audio.model')}
             />
 
             {localConfig.audio.provider === 'ollama' && (
@@ -964,7 +1176,10 @@ export default function Settings() {
               <label className="block text-sm font-medium text-azure-text-primary dark:text-matrix-secondary">
                 API Key
               </label>
-              {renderEncryptionBadge('audio', localConfig.audio.apiKey)}
+              <div className="flex items-center gap-2">
+                {renderEnvOverrideBadge('audio.apiKey')}
+                {renderEncryptionBadge('audio', localConfig.audio.apiKey)}
+              </div>
             </div>
             <TextInput
               label=""
@@ -975,10 +1190,17 @@ export default function Settings() {
               }
               placeholder="If different from LLM key..."
               helperText="Leave empty to use LLM API key if using the same provider."
+              disabled={isEnvOverridden('audio.apiKey')}
             />
 
+            <div className="flex items-center justify-between">
+              <label className="block text-sm font-medium text-azure-text-primary dark:text-matrix-secondary">
+                Max Duration (Seconds)
+              </label>
+              {renderEnvOverrideBadge('audio.maxDurationSeconds')}
+            </div>
             <NumberInput
-              label="Max Duration (Seconds)"
+              label=""
               value={localConfig.audio.maxDurationSeconds}
               onChange={(e: any) =>
                 handleUpdate(
@@ -987,6 +1209,7 @@ export default function Settings() {
                 )
               }
               min={1}
+              disabled={isEnvOverridden('audio.maxDurationSeconds')}
             />
 
             <TextInput
