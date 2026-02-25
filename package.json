@@ -14,7 +14,7 @@
   "type": "module",
   "scripts": {
     "build": "tsc && npm run build:ui",
-    "build:ui": "npm install --prefix src/ui && npm run build --prefix src/ui",
+    "build:ui": "npm install --prefix src/ui --legacy-peer-deps && npm run build --prefix src/ui",
     "prepublishOnly": "npm run build",
     "start": "node bin/morpheus.js",
     "dev:ui": "npm run dev --prefix src/ui",
