@@ -63,11 +63,16 @@ export interface SatiConfig extends LLMConfig {
 export interface ApocConfig extends LLMConfig {
   working_dir?: string;
   timeout_ms?: number;
+  personality?: string;
 }
 
-export interface NeoConfig extends LLMConfig {}
+export interface NeoConfig extends LLMConfig {
+  personality?: string;
+}
 
-export interface TrinityConfig extends LLMConfig {}
+export interface TrinityConfig extends LLMConfig {
+  personality?: string;
+}
 
 export interface WebhookConfig {
   /** If true, all webhook notifications are also sent to Telegram by default */
@@ -167,10 +172,18 @@ export const DEFAULT_CONFIG: MorpheusConfig = {
     model: 'gpt-4',
     temperature: 0.2,
     timeout_ms: 30000,
+    personality: 'pragmatic_dev',
   },
   neo: {
     provider: 'openai',
     model: 'gpt-4',
     temperature: 0.2,
+    personality: 'analytical_engineer',
+  },
+  trinity: {
+    provider: 'openai',
+    model: 'gpt-4',
+    temperature: 0.2,
+    personality: 'data_specialist',
   }
 };

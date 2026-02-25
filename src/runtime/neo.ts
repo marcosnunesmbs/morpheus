@@ -46,11 +46,12 @@ export class Neo {
 
   async initialize(): Promise<void> {
     const neoConfig = this.config.neo || this.config.llm;
+    const personality = this.config.neo?.personality || 'analytical_engineer';
     const mcpTools = await Construtor.create();
     const tools = [...mcpTools, ...morpheusTools];
     updateNeoDelegateToolDescription(mcpTools);
 
-    this.display.log(`Neo initialized with ${tools.length} tools.`, { source: "Neo" });
+    this.display.log(`Neo initialized with ${tools.length} tools (personality: ${personality}).`, { source: "Neo" });
 
     try {
       this.agent = await ProviderFactory.create(neoConfig, tools);
@@ -77,9 +78,9 @@ export class Neo {
     this.display.log(`Executing delegated task in Neo: ${task.slice(0, 80)}...`, {
       source: "Neo",
     });
-
+    const personality = this.config.neo?.personality || 'analytical_engineer';
     const systemMessage = new SystemMessage(`
-You are Neo, an execution subagent in Morpheus.
+You are Neo, ${personality === 'analytical_engineer' ? 'an analytical and precise engineer' : personality}, an execution subagent in Morpheus.
 
 You execute tasks using MCP and internal tools.
 Focus on verifiable execution and return objective results.

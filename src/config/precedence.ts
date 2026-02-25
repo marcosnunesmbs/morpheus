@@ -230,6 +230,7 @@ export function getActiveEnvOverrides(): Record<string, boolean> {
   if (isEnvVarSet('MORPHEUS_NEO_MODEL')) overrides['neo.model'] = true;
   if (isEnvVarSet('MORPHEUS_NEO_TEMPERATURE')) overrides['neo.temperature'] = true;
   if (isEnvVarSet('MORPHEUS_NEO_API_KEY')) overrides['neo.api_key'] = true;
+  if (isEnvVarSet('MORPHEUS_NEO_PERSONALITY')) overrides['neo.personality'] = true;
   
   // Apoc
   if (isEnvVarSet('MORPHEUS_APOC_PROVIDER')) overrides['apoc.provider'] = true;
@@ -238,12 +239,14 @@ export function getActiveEnvOverrides(): Record<string, boolean> {
   if (isEnvVarSet('MORPHEUS_APOC_API_KEY')) overrides['apoc.api_key'] = true;
   if (isEnvVarSet('MORPHEUS_APOC_WORKING_DIR')) overrides['apoc.working_dir'] = true;
   if (isEnvVarSet('MORPHEUS_APOC_TIMEOUT_MS')) overrides['apoc.timeout_ms'] = true;
+  if (isEnvVarSet('MORPHEUS_APOC_PERSONALITY')) overrides['apoc.personality'] = true;
   
   // Trinity
   if (isEnvVarSet('MORPHEUS_TRINITY_PROVIDER')) overrides['trinity.provider'] = true;
   if (isEnvVarSet('MORPHEUS_TRINITY_MODEL')) overrides['trinity.model'] = true;
   if (isEnvVarSet('MORPHEUS_TRINITY_TEMPERATURE')) overrides['trinity.temperature'] = true;
   if (isEnvVarSet('MORPHEUS_TRINITY_API_KEY')) overrides['trinity.api_key'] = true;
+  if (isEnvVarSet('MORPHEUS_TRINITY_PERSONALITY')) overrides['trinity.personality'] = true;
   
   // Audio
   if (isEnvVarSet('MORPHEUS_AUDIO_PROVIDER')) overrides['audio.provider'] = true;

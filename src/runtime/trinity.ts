@@ -189,10 +189,11 @@ export class Trinity {
 
   async initialize(): Promise<void> {
     const trinityConfig = (this.config as any).trinity || this.config.llm;
+    const personality = (this.config as any).trinity?.personality || 'data_specialist';
 
     const tools = this.buildTrinityTools();
 
-    this.display.log(`Trinity initialized with ${tools.length} tools.`, { source: 'Trinity' });
+    this.display.log(`Trinity initialized with ${tools.length} tools (personality: ${personality}).`, { source: 'Trinity' });
 
     try {
       this.agent = await ProviderFactory.createBare(trinityConfig, tools);
@@ -223,9 +224,9 @@ export class Trinity {
           return `- [${db.id}] ${db.name} (${db.type}): ${tables}`;
         }).join('\n')
       : '  (no databases registered)';
-
+    const personality = (this.config as any).trinity?.personality || 'data_specialist';
     const systemMessage = new SystemMessage(`
-You are Trinity, a specialized database subagent within the Morpheus system.
+You are Trinity, ${personality === 'data_specialist' ? 'a meticulous data specialist' : personality}, a specialized database subagent within the Morpheus system.
 
 You receive natural-language database tasks from Oracle and execute them using your available tools.
 

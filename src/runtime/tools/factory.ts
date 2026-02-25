@@ -58,8 +58,12 @@ export type MCPProbeResult = {
   error?: string;
 };
 
-/** Timeout (ms) for connecting to each MCP server and fetching its tools list. */
-const MCP_CONNECT_TIMEOUT_MS = 15_000;
+/** 
+ * Timeout (ms) for connecting to each MCP server and fetching its tools list.
+ * Increased to 60s to allow time for npx to download and install packages.
+ * First connection may take longer as npx downloads the package.
+ */
+const MCP_CONNECT_TIMEOUT_MS = 60_000;
 
 /**
  * Returns a promise that rejects after `ms` milliseconds with a timeout error.
@@ -68,7 +72,7 @@ const MCP_CONNECT_TIMEOUT_MS = 15_000;
 function connectTimeout(serverName: string, ms: number): Promise<never> {
   return new Promise((_, reject) =>
     setTimeout(
-      () => reject(new Error(`MCP server '${serverName}' timed out after ${ms}ms`)),
+      () => reject(new Error(`MCP server '${serverName}' timed out after ${ms}ms. If using 'npx', first run may take longer to download packages.`)),
       ms,
     ),
   );
@@ -121,6 +125,12 @@ export class Construtor {
       });
 
       try {
+        display.log(`Connecting to MCP server '${serverName}'... (timeout: ${MCP_CONNECT_TIMEOUT_MS/1000}s)`, { 
+          level: 'info', 
+          source: 'Construtor',
+          meta: { server: serverName, transport: serverConfig.transport }
+        });
+        
         const tools = await Promise.race([
           client.getTools(),
           connectTimeout(serverName, MCP_CONNECT_TIMEOUT_MS),
@@ -137,6 +147,7 @@ export class Construtor {
         const sanitizedTools = tools.map(tool => wrapToolWithSanitizedSchema(tool));
 
         allTools.push(...sanitizedTools);
+        display.log(`Successfully loaded ${tools.length} tools from MCP server '${serverName}'`, { level: 'info', source: 'Construtor' });
       } catch (error) {
         display.log(`Failed to initialize MCP tools for server '${serverName}': ${error}`, { level: 'warning', source: 'Construtor' });
         // Continue to other servers even if one fails

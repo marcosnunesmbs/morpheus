@@ -200,7 +200,8 @@ export class ConfigManager {
         base_url: config.apoc.base_url || config.llm.base_url,
         context_window: config.apoc.context_window !== undefined ? resolveNumeric('MORPHEUS_APOC_CONTEXT_WINDOW', config.apoc.context_window, config.apoc.context_window!) : llmConfig.context_window,
         working_dir: resolveString('MORPHEUS_APOC_WORKING_DIR', config.apoc.working_dir, process.cwd()),
-        timeout_ms: config.apoc.timeout_ms !== undefined ? resolveNumeric('MORPHEUS_APOC_TIMEOUT_MS', config.apoc.timeout_ms, 30_000) : 30_000
+        timeout_ms: config.apoc.timeout_ms !== undefined ? resolveNumeric('MORPHEUS_APOC_TIMEOUT_MS', config.apoc.timeout_ms, 30_000) : 30_000,
+        personality: resolveString('MORPHEUS_APOC_PERSONALITY', config.apoc.personality, 'pragmatic_dev'),
       };
     }
 
@@ -250,6 +251,7 @@ export class ConfigManager {
         api_key: resolveApiKey(neoProvider, 'MORPHEUS_NEO_API_KEY', config.neo?.api_key || llmConfig.api_key),
         base_url: neoBaseUrl || undefined,
         context_window: resolveOptionalNumeric('MORPHEUS_NEO_CONTEXT_WINDOW', config.neo?.context_window, neoContextWindowFallback),
+        personality: resolveString('MORPHEUS_NEO_PERSONALITY', config.neo?.personality, 'analytical_engineer'),
       };
     }
 
@@ -276,6 +278,7 @@ export class ConfigManager {
         api_key: resolveApiKey(trinityProvider, 'MORPHEUS_TRINITY_API_KEY', config.trinity?.api_key || llmConfig.api_key),
         base_url: config.trinity?.base_url || config.llm.base_url,
         context_window: resolveOptionalNumeric('MORPHEUS_TRINITY_CONTEXT_WINDOW', config.trinity?.context_window, trinityContextWindowFallback),
+        personality: resolveString('MORPHEUS_TRINITY_PERSONALITY', config.trinity?.personality, 'data_specialist'),
       };
     }
 

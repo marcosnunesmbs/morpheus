@@ -54,6 +54,7 @@ export class Apoc {
 
     const working_dir = this.config.apoc?.working_dir || process.cwd();
     const timeout_ms = this.config.apoc?.timeout_ms || 30_000;
+    const personality = this.config.apoc?.personality || 'pragmatic_dev';
 
     // Import all devkit tool factories (side-effect registration)
     await import("../devkit/index.js");
@@ -64,7 +65,7 @@ export class Apoc {
     });
 
     this.display.log(
-      `Apoc initialized with ${tools.length} DevKit tools (working_dir: ${working_dir})`,
+      `Apoc initialized with ${tools.length} DevKit tools (working_dir: ${working_dir}, personality: ${personality})`,
       { source: "Apoc" }
     );
 
@@ -93,9 +94,10 @@ export class Apoc {
     this.display.log(`Executing delegated task: ${task.slice(0, 80)}...`, {
       source: "Apoc",
     });
+    const personality = this.config.apoc?.personality || 'pragmatic_dev';
 
     const systemMessage = new SystemMessage(`
-You are Apoc, a high-reliability execution and verification subagent inside the Morpheus system.
+You are Apoc, ${personality === 'pragmatic_dev' ? 'a pragmatic and methodical developer' : personality}, a high-reliability execution and verification subagent inside the Morpheus system.
 
 You are NOT a conversational assistant.
 You are a task executor, evidence collector, and autonomous verifier.
