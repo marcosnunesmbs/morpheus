@@ -1,7 +1,7 @@
 import fs from 'fs-extra';
 import yaml from 'js-yaml';
 import { z } from 'zod';
-import { MorpheusConfig, DEFAULT_CONFIG, SatiConfig, ApocConfig, NeoConfig, TrinityConfig, LLMProvider, ChronosConfig, SubAgentExecutionMode } from '../types/config.js';
+import { MorpheusConfig, DEFAULT_CONFIG, SatiConfig, ApocConfig, NeoConfig, TrinityConfig, LLMProvider, ChronosConfig, SubAgentExecutionMode, DevKitConfig } from '../types/config.js';
 import { PATHS } from './paths.js';
 import { setByPath } from './utils.js';
 import { ConfigSchema } from './schemas.js';
@@ -340,6 +340,23 @@ export class ConfigManager {
       };
     }
 
+    // Apply precedence to DevKit config
+    // Migration: if devkit is absent but apoc.working_dir exists, migrate it
+    const rawDevKit = config.devkit ?? {};
+    const migratedSandboxDir = rawDevKit.sandbox_dir || config.apoc?.working_dir || undefined;
+    const devkitConfig: DevKitConfig = {
+      sandbox_dir: resolveString('MORPHEUS_DEVKIT_SANDBOX_DIR', migratedSandboxDir, process.cwd()),
+      readonly_mode: resolveBoolean('MORPHEUS_DEVKIT_READONLY_MODE', rawDevKit.readonly_mode, false),
+      allowed_shell_commands: process.env.MORPHEUS_DEVKIT_ALLOWED_SHELL_COMMANDS
+        ? process.env.MORPHEUS_DEVKIT_ALLOWED_SHELL_COMMANDS.split(',').map(s => s.trim()).filter(Boolean)
+        : (rawDevKit.allowed_shell_commands ?? []),
+      enable_filesystem: resolveBoolean('MORPHEUS_DEVKIT_ENABLE_FILESYSTEM', rawDevKit.enable_filesystem, true),
+      enable_shell: resolveBoolean('MORPHEUS_DEVKIT_ENABLE_SHELL', rawDevKit.enable_shell, true),
+      enable_git: resolveBoolean('MORPHEUS_DEVKIT_ENABLE_GIT', rawDevKit.enable_git, true),
+      enable_network: resolveBoolean('MORPHEUS_DEVKIT_ENABLE_NETWORK', rawDevKit.enable_network, true),
+      timeout_ms: resolveNumeric('MORPHEUS_DEVKIT_TIMEOUT_MS', rawDevKit.timeout_ms, 30_000),
+    };
+
     return {
       agent: agentConfig,
       llm: llmConfig,
@@ -353,6 +370,7 @@ export class ConfigManager {
       logging: loggingConfig,
       memory: memoryConfig,
       chronos: chronosConfig,
+      devkit: devkitConfig,
       verbose_mode: resolveBoolean('MORPHEUS_VERBOSE_MODE', config.verbose_mode, true),
     };
   }
@@ -454,6 +472,23 @@ export class ConfigManager {
     const defaults: ChronosConfig = { timezone: 'UTC', check_interval_ms: 60000, max_active_jobs: 100 };
     if (this.config.chronos) {
       return { ...defaults, ...this.config.chronos };
+    }
+    return defaults;
+  }
+
+  public getDevKitConfig(): DevKitConfig {
+    const defaults: DevKitConfig = {
+      sandbox_dir: process.cwd(),
+      readonly_mode: false,
+      allowed_shell_commands: [],
+      enable_filesystem: true,
+      enable_shell: true,
+      enable_git: true,
+      enable_network: true,
+      timeout_ms: 30_000,
+    };
+    if (this.config.devkit) {
+      return { ...defaults, ...this.config.devkit };
     }
     return defaults;
   }

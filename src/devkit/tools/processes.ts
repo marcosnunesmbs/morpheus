@@ -149,4 +149,4 @@ export function createProcessTools(ctx: ToolContext): StructuredTool[] {
   ];
 }
 
-registerToolFactory(createProcessTools);
+registerToolFactory(createProcessTools, 'processes');

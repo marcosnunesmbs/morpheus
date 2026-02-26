@@ -9,17 +9,25 @@ import { truncateOutput, isWithinDir } from '../utils.js';
 import { registerToolFactory } from '../registry.js';
 
 function resolveSafe(ctx: ToolContext, filePath: string): string {
-  // Always resolve relative to working_dir
-  const resolved = path.isAbsolute(filePath) ? filePath : path.resolve(ctx.working_dir, filePath);
+  // Resolve relative to sandbox_dir (preferred) or working_dir
+  const base = ctx.sandbox_dir || ctx.working_dir;
+  const resolved = path.isAbsolute(filePath) ? filePath : path.resolve(base, filePath);
   return resolved;
 }
 
+/**
+ * Guards a resolved path against the sandbox directory.
+ * When sandbox_dir is set, ALL paths (read and write) must be within it.
+ * When readonly_mode is true, destructive operations are blocked.
+ */
 function guardPath(ctx: ToolContext, resolved: string, destructive = false): void {
-  // If allowed_commands is empty (Merovingian), no path restriction
-  if (!destructive) return;
-  // For Apoc (non-empty allowed_commands) or explicit working_dir set, guard destructive ops
-  if (ctx.allowed_commands.length > 0 && !isWithinDir(resolved, ctx.working_dir)) {
-    throw new Error(`Path '${resolved}' is outside the working directory '${ctx.working_dir}'. Operation denied.`);
+  // Enforce readonly_mode for destructive operations
+  if (destructive && ctx.readonly_mode) {
+    throw new Error(`Operation denied: DevKit is in read-only mode. Write/delete operations are blocked.`);
+  }
+  // Enforce sandbox_dir for ALL operations (read and write)
+  if (ctx.sandbox_dir && !isWithinDir(resolved, ctx.sandbox_dir)) {
+    throw new Error(`Path '${resolved}' is outside the sandbox directory '${ctx.sandbox_dir}'. Operation denied.`);
   }
 }
 
@@ -28,6 +36,7 @@ export function createFilesystemTools(ctx: ToolContext): StructuredTool[] {
     tool(
       async ({ file_path, encoding, start_line, end_line }) => {
         const resolved = resolveSafe(ctx, file_path);
+        guardPath(ctx, resolved);
         const content = await fs.readFile(resolved, encoding as BufferEncoding ?? 'utf8');
         const lines = content.split('\n');
         const sliced = (start_line || end_line)
@@ -101,6 +110,7 @@ export function createFilesystemTools(ctx: ToolContext): StructuredTool[] {
       async ({ source, destination }) => {
         const src = resolveSafe(ctx, source);
         const dest = resolveSafe(ctx, destination);
+        guardPath(ctx, src, true);
         guardPath(ctx, dest, true);
         await fs.ensureDir(path.dirname(dest));
         await fs.move(src, dest, { overwrite: true });
@@ -120,6 +130,8 @@ export function createFilesystemTools(ctx: ToolContext): StructuredTool[] {
       async ({ source, destination }) => {
         const src = resolveSafe(ctx, source);
         const dest = resolveSafe(ctx, destination);
+        guardPath(ctx, src);
+        guardPath(ctx, dest, true);
         await fs.ensureDir(path.dirname(dest));
         await fs.copy(src, dest);
         return JSON.stringify({ success: true, from: src, to: dest });
@@ -137,6 +149,7 @@ export function createFilesystemTools(ctx: ToolContext): StructuredTool[] {
     tool(
       async ({ dir_path, recursive, pattern }) => {
         const resolved = resolveSafe(ctx, dir_path ?? '.');
+        guardPath(ctx, resolved);
         const entries = await fs.readdir(resolved, { withFileTypes: true });
         let results = entries.map(e => ({
           name: e.name,
@@ -180,6 +193,7 @@ export function createFilesystemTools(ctx: ToolContext): StructuredTool[] {
     tool(
       async ({ dir_path }) => {
         const resolved = resolveSafe(ctx, dir_path);
+        guardPath(ctx, resolved, true);
         await fs.ensureDir(resolved);
         return JSON.stringify({ success: true, path: resolved });
       },
@@ -193,6 +207,7 @@ export function createFilesystemTools(ctx: ToolContext): StructuredTool[] {
     tool(
       async ({ file_path }) => {
         const resolved = resolveSafe(ctx, file_path);
+        guardPath(ctx, resolved);
         const stat = await fs.stat(resolved);
         return JSON.stringify({
           path: resolved,
@@ -214,6 +229,7 @@ export function createFilesystemTools(ctx: ToolContext): StructuredTool[] {
     tool(
       async ({ pattern, search_path, regex, case_insensitive, max_results }) => {
         const base = resolveSafe(ctx, search_path ?? '.');
+        guardPath(ctx, base);
         const files = await glob('**/*', { cwd: base, nodir: true, absolute: true });
         const re = new RegExp(pattern, case_insensitive ? 'i' : undefined);
         const results: Array<{ file: string; line: number; match: string }> = [];
@@ -250,6 +266,7 @@ export function createFilesystemTools(ctx: ToolContext): StructuredTool[] {
     tool(
       async ({ pattern, search_path }) => {
         const base = resolveSafe(ctx, search_path ?? '.');
+        guardPath(ctx, base);
         const files = await glob(pattern, { cwd: base, absolute: true });
         return truncateOutput(JSON.stringify(files.map(f => path.relative(base, f)), null, 2));
       },
@@ -265,4 +282,4 @@ export function createFilesystemTools(ctx: ToolContext): StructuredTool[] {
   ];
 }
 
-registerToolFactory(createFilesystemTools);
+registerToolFactory(createFilesystemTools, 'filesystem');

@@ -88,4 +88,4 @@ export function createPackageTools(ctx: ToolContext): StructuredTool[] {
   ];
 }
 
-registerToolFactory(createPackageTools);
+registerToolFactory(createPackageTools, 'packages');

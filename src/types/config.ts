@@ -62,7 +62,29 @@ export interface SatiConfig extends LLMConfig {
 
 export type SubAgentExecutionMode = 'sync' | 'async';
 
+export interface DevKitConfig {
+  /** Root directory for all DevKit operations. All file/shell/git paths are confined here. */
+  sandbox_dir?: string;
+  /** When true, blocks all write/delete/create operations (read-only mode). */
+  readonly_mode?: boolean;
+  /** Shell command allowlist. Empty array = no restriction. When populated, only listed binaries can run. */
+  allowed_shell_commands?: string[];
+  /** Enable filesystem tools (read, write, list, copy, move, delete). Default: true. */
+  enable_filesystem?: boolean;
+  /** Enable shell tools (run_command, run_script, which). Default: true. */
+  enable_shell?: boolean;
+  /** Enable git tools (status, diff, commit, push, pull, clone, etc.). Default: true. */
+  enable_git?: boolean;
+  /** Enable network tools (http_request, ping, dns_lookup, download_file). Default: true. */
+  enable_network?: boolean;
+  /** Default timeout in ms for shell operations. Default: 30000. */
+  timeout_ms?: number;
+}
+
 export interface ApocConfig extends LLMConfig {
+  /**
+   * @deprecated Use devkit.sandbox_dir instead. Kept for backward compatibility.
+   */
   working_dir?: string;
   timeout_ms?: number;
   personality?: string;
@@ -124,6 +146,7 @@ export interface MorpheusConfig {
   apoc?: ApocConfig;
   trinity?: TrinityConfig;
   keymaker?: KeymakerConfig;
+  devkit?: DevKitConfig;
   webhooks?: WebhookConfig;
   channels: ChannelsConfig;
   ui: UIConfig;
@@ -181,6 +204,16 @@ export const DEFAULT_CONFIG: MorpheusConfig = {
     context_window: 100,
     memory_limit: 100,
     enabled_archived_sessions: true,
+  },
+  devkit: {
+    sandbox_dir: '',
+    readonly_mode: false,
+    allowed_shell_commands: [],
+    enable_filesystem: true,
+    enable_shell: true,
+    enable_git: true,
+    enable_network: true,
+    timeout_ms: 30000,
   },
   apoc: {
     provider: 'openai',

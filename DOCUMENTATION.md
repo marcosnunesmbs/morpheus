@@ -48,6 +48,33 @@ When `verbose_mode` is `true` (default), every tool execution by any agent sends
 - Configurable via `zaion.yaml` (`verbose_mode: false`), env var `MORPHEUS_VERBOSE_MODE=false`, or Settings UI → General.
 - When a subagent runs in **sync mode**, the originating channel also receives `⏳ <Agent> is executing your request...` before execution begins.
 
+### 2.2c DevKit Security
+
+DevKit tools are shared by both Apoc and Keymaker. Security is configured via a **shared** `devkit` section in `zaion.yaml`:
+
+```yaml
+devkit:
+  sandbox_dir: /home/user/projects
+  readonly_mode: false
+  enable_filesystem: true
+  enable_shell: true
+  enable_git: true
+  enable_network: true
+  allowed_shell_commands: []
+  timeout_ms: 30000
+```
+
+**Security model:**
+- **Sandbox enforcement:** `guardPath()` confines ALL filesystem operations (reads AND writes) to `sandbox_dir`. Shell `cwd`, git clone destinations, and network downloads are also validated. Default: CWD (current working directory).
+- **Readonly mode:** When enabled, destructive operations (write, delete, move, copy) return an error.
+- **Category toggles:** Disable entire tool categories (filesystem, shell, git, network). Non-toggleable categories (processes, packages, system, browser) always load.
+- **Shell allowlist:** When `allowed_shell_commands` is non-empty, only listed commands are permitted.
+- **Migration:** `apoc.working_dir` is auto-migrated to `devkit.sandbox_dir` if the latter is not set.
+
+Environment variables: `MORPHEUS_DEVKIT_SANDBOX_DIR`, `MORPHEUS_DEVKIT_READONLY_MODE`, `MORPHEUS_DEVKIT_ENABLE_FILESYSTEM`, `MORPHEUS_DEVKIT_ENABLE_SHELL`, `MORPHEUS_DEVKIT_ENABLE_GIT`, `MORPHEUS_DEVKIT_ENABLE_NETWORK`, `MORPHEUS_DEVKIT_ALLOWED_SHELL_COMMANDS`, `MORPHEUS_DEVKIT_TIMEOUT_MS`.
+
+UI: Settings → DevKit tab (3 sections: Security, Tool Categories, Shell Allowlist).
+
 ### 2.3 Delegation Rules
 Oracle behavior:
 - direct answer only for conversation-only requests
@@ -272,7 +299,7 @@ apoc:
   provider: openai
   model: gpt-4o-mini
   temperature: 0.2
-  working_dir: /home/user/projects
+  # working_dir: /home/user/projects  # DEPRECATED — use devkit.sandbox_dir instead
   timeout_ms: 30000
   personality: pragmatic_dev
   execution_mode: async        # 'sync' = inline response, 'async' = background task (default)
@@ -283,6 +310,16 @@ trinity:
   temperature: 0.2
   personality: data_specialist
   execution_mode: async        # 'sync' = inline response, 'async' = background task (default)
+
+devkit:
+  sandbox_dir: /home/user/projects    # All file/shell ops confined here (default: CWD)
+  readonly_mode: false                 # Block destructive filesystem ops
+  enable_filesystem: true              # Toggle filesystem tools
+  enable_shell: true                   # Toggle shell tools
+  enable_git: true                     # Toggle git tools
+  enable_network: true                 # Toggle network tools
+  allowed_shell_commands: []           # Shell command allowlist (empty = allow all)
+  timeout_ms: 30000                    # Tool execution timeout
 
 chronos:
   check_interval_ms: 60000   # polling interval (minimum 60000)

@@ -141,4 +141,4 @@ export function createSystemTools(ctx: ToolContext): StructuredTool[] {
   ];
 }
 
-registerToolFactory(createSystemTools);
+registerToolFactory(createSystemTools, 'system');

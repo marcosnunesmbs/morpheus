@@ -22,6 +22,7 @@ import { ZodError } from 'zod';
 const TABS = [
   { id: 'general', label: 'General' },
   { id: 'agents', label: 'Agents' },
+  { id: 'devkit', label: 'DevKit' },
   { id: 'audio', label: 'Audio' },
   { id: 'channels', label: 'Channels' },
   { id: 'ui', label: 'Interface' },
@@ -249,6 +250,9 @@ export default function Settings() {
     const newConfig = JSON.parse(JSON.stringify(localConfig));
     let current = newConfig;
     for (let i = 0; i < path.length - 1; i++) {
+      if (current[path[i]] === undefined || current[path[i]] === null) {
+        current[path[i]] = {};
+      }
       current = current[path[i]];
     }
     current[path[path.length - 1]] = value;
@@ -1153,8 +1157,9 @@ export default function Settings() {
                       onChange={(e) =>
                         handleApocUpdate('working_dir' as any, e.target.value)
                       }
-                      placeholder="/home/user/projects"
-                      helperText="Root directory for file and shell operations. Leave empty to use process working directory."
+                      placeholder="(deprecated — use DevKit tab)"
+                      helperText="Deprecated: Use the DevKit tab's Sandbox Directory instead."
+                      disabled={true}
                     />
                     <NumberInput
                       label="Timeout (ms)"
@@ -1174,6 +1179,113 @@ export default function Settings() {
               </Section>
             )}
           </div>
+        )}
+
+        {activeTab === 'devkit' && (
+          <>
+          <Section title="DevKit Security">
+            <p className="text-sm text-azure-text-secondary dark:text-matrix-secondary mb-4">
+              Shared security configuration for DevKit tools used by Apoc and Keymaker.
+              Controls path sandboxing, shell command restrictions, and tool category access.
+            </p>
+
+            <TextInput
+              label="Sandbox Directory"
+              value={localConfig.devkit?.sandbox_dir || ''}
+              onChange={(e) =>
+                handleUpdate(['devkit', 'sandbox_dir'], e.target.value)
+              }
+              placeholder={typeof window !== 'undefined' ? '(defaults to process.cwd())' : ''}
+              helperText="Root directory for all DevKit operations. All file, shell, and git paths are confined here."
+              disabled={isEnvOverridden('devkit.sandbox_dir')}
+            />
+
+            <SelectInput
+              label="Read-Only Mode"
+              value={localConfig.devkit?.readonly_mode ? 'true' : 'false'}
+              onChange={(e) =>
+                handleUpdate(['devkit', 'readonly_mode'], e.target.value === 'true')
+              }
+              options={[
+                { value: 'false', label: 'Disabled (read + write)' },
+                { value: 'true', label: 'Enabled (read-only, blocks writes/deletes)' },
+              ]}
+              helperText="When enabled, blocks all write, delete, and create operations on the filesystem."
+              disabled={isEnvOverridden('devkit.readonly_mode')}
+            />
+
+            <NumberInput
+              label="Timeout (ms)"
+              value={localConfig.devkit?.timeout_ms ?? 30000}
+              onChange={(e: any) =>
+                handleUpdate(['devkit', 'timeout_ms'], parseInt(e.target.value))
+              }
+              min={1000}
+              step={1000}
+              helperText="Default timeout for shell and system operations in milliseconds."
+              disabled={isEnvOverridden('devkit.timeout_ms')}
+            />
+          </Section>
+
+          <Section title="Tool Categories">
+            <p className="text-sm text-azure-text-secondary dark:text-matrix-secondary mb-4">
+              Enable or disable entire categories of DevKit tools.
+            </p>
+
+            <Switch
+              label="Filesystem (read, write, list, copy, move, delete files)"
+              checked={localConfig.devkit?.enable_filesystem !== false}
+              onChange={(checked: boolean) =>
+                handleUpdate(['devkit', 'enable_filesystem'], checked)
+              }
+            />
+            <Switch
+              label="Shell (run_command, run_script, which)"
+              checked={localConfig.devkit?.enable_shell !== false}
+              onChange={(checked: boolean) =>
+                handleUpdate(['devkit', 'enable_shell'], checked)
+              }
+            />
+            <Switch
+              label="Git (status, diff, commit, push, pull, clone, branch)"
+              checked={localConfig.devkit?.enable_git !== false}
+              onChange={(checked: boolean) =>
+                handleUpdate(['devkit', 'enable_git'], checked)
+              }
+            />
+            <Switch
+              label="Network (http_request, ping, dns_lookup, download_file)"
+              checked={localConfig.devkit?.enable_network !== false}
+              onChange={(checked: boolean) =>
+                handleUpdate(['devkit', 'enable_network'], checked)
+              }
+            />
+          </Section>
+
+          <Section title="Shell Command Allowlist">
+            <p className="text-sm text-azure-text-secondary dark:text-matrix-secondary mb-4">
+              Restrict which shell commands Apoc and Keymaker can execute.
+              Leave empty to allow all commands (default).
+            </p>
+
+            <TextInput
+              label="Allowed Commands"
+              value={(localConfig.devkit?.allowed_shell_commands || []).join(', ')}
+              onChange={(e) =>
+                handleUpdate(
+                  ['devkit', 'allowed_shell_commands'],
+                  e.target.value
+                    .split(',')
+                    .map((s: string) => s.trim())
+                    .filter(Boolean)
+                )
+              }
+              placeholder="e.g. node, npm, git, python, cargo"
+              helperText="Comma-separated list of allowed binary names. Empty = all commands allowed."
+              disabled={isEnvOverridden('devkit.allowed_shell_commands')}
+            />
+          </Section>
+          </>
         )}
 
         {activeTab === 'audio' && (

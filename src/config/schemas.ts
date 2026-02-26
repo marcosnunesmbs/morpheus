@@ -54,6 +54,17 @@ export const ChronosConfigSchema = z.object({
   max_active_jobs: z.number().min(1).max(1000).default(100),
 });
 
+export const DevKitConfigSchema = z.object({
+  sandbox_dir: z.string().optional(),
+  readonly_mode: z.boolean().default(false),
+  allowed_shell_commands: z.array(z.string()).default([]),
+  enable_filesystem: z.boolean().default(true),
+  enable_shell: z.boolean().default(true),
+  enable_git: z.boolean().default(true),
+  enable_network: z.boolean().default(true),
+  timeout_ms: z.number().int().positive().default(30000),
+});
+
 // Zod Schema matching MorpheusConfig interface
 export const ConfigSchema = z.object({
   agent: z.object({
@@ -77,6 +88,7 @@ export const ConfigSchema = z.object({
     }).default(DEFAULT_CONFIG.runtime?.async_tasks ?? { enabled: true }),
   }).optional(),
   chronos: ChronosConfigSchema.optional(),
+  devkit: DevKitConfigSchema.optional(),
   verbose_mode: z.boolean().default(true),
   channels: z.object({
     telegram: z.object({

@@ -7,7 +7,7 @@ import { randomUUID } from 'crypto';
 import type { StructuredTool } from '@langchain/core/tools';
 import type { ToolContext } from '../types.js';
 import { ShellAdapter } from '../adapters/shell.js';
-import { truncateOutput, isCommandAllowed } from '../utils.js';
+import { truncateOutput, isCommandAllowed, isWithinDir } from '../utils.js';
 import { registerToolFactory } from '../registry.js';
 
 export function createShellTools(ctx: ToolContext): StructuredTool[] {
@@ -23,8 +23,21 @@ export function createShellTools(ctx: ToolContext): StructuredTool[] {
           });
         }
 
+        // Enforce sandbox_dir: override cwd to stay within sandbox
+        let effectiveCwd = cwd ?? ctx.working_dir;
+        if (ctx.sandbox_dir) {
+          const resolvedCwd = path.isAbsolute(effectiveCwd) ? effectiveCwd : path.resolve(ctx.sandbox_dir, effectiveCwd);
+          if (!isWithinDir(resolvedCwd, ctx.sandbox_dir)) {
+            return JSON.stringify({
+              success: false,
+              error: `Working directory '${resolvedCwd}' is outside the sandbox directory '${ctx.sandbox_dir}'. Operation denied.`,
+            });
+          }
+          effectiveCwd = resolvedCwd;
+        }
+
         const result = await shell.run(command, args ?? [], {
-          cwd: cwd ?? ctx.working_dir,
+          cwd: effectiveCwd,
           timeout_ms: timeout_ms ?? ctx.timeout_ms ?? 30_000,
         });
 
@@ -114,4 +127,4 @@ export function createShellTools(ctx: ToolContext): StructuredTool[] {
   ];
 }
 
-registerToolFactory(createShellTools);
+registerToolFactory(createShellTools, 'shell');

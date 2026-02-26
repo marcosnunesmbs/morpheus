@@ -56,6 +56,16 @@ When enabled, every tool execution by any agent sends a real-time notification (
   # Instructions for Keymaker...
   ```
 
+### DevKit Security (Shared Config)
+- **Shared config:** `devkit` section in `zaion.yaml` governs both Apoc and Keymaker
+- **Sandbox:** `sandbox_dir` confines ALL file/shell/git/network operations (default: CWD)
+- **Readonly:** `readonly_mode` blocks destructive ops (write, delete, move, copy)
+- **Category toggles:** `enable_filesystem`, `enable_shell`, `enable_git`, `enable_network`
+- **Shell allowlist:** `allowed_shell_commands: []` (empty = allow all)
+- **Migration:** `apoc.working_dir` auto-migrates to `devkit.sandbox_dir`
+- **UI:** Settings → DevKit tab (Security, Tool Categories, Shell Allowlist)
+- **Env vars:** `MORPHEUS_DEVKIT_SANDBOX_DIR`, `MORPHEUS_DEVKIT_READONLY_MODE`, etc.
+
 ### Memory System (Three-Database Architecture)
 - **Short-term:** `~/.morpheus/memory/short-memory.db` - per-session chat history
 - **Long-term (Sati):** `~/.morpheus/memory/sati-memory.db` - persistent facts + session embeddings
@@ -148,6 +158,7 @@ npm start -- skills --reload # Reload skills from disk
 | Skills system | `src/runtime/skills/` |
 | Keymaker (skill executor) | `src/runtime/keymaker.ts` |
 | Apoc (DevKit) | `src/runtime/apoc.ts` |
+| DevKit config | `src/devkit/registry.ts` |
 | Trinity (databases) | `src/runtime/trinity.ts` |
 | Neo (MCP) | `src/runtime/neo.ts` |
 | Chronos (scheduler) | `src/runtime/chronos/` |

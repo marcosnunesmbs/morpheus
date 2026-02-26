@@ -8,6 +8,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **DevKit Security Sandboxing**: Shared security configuration for all DevKit consumers (Apoc & Keymaker)
+  - New `devkit` config section in `zaion.yaml` with sandbox, readonly, category toggles, and shell allowlist
+  - **Sandbox enforcement:** `guardPath()` confines ALL file operations (reads AND writes) to `sandbox_dir` (default: CWD)
+  - **Shell sandbox:** `run_command` validates `cwd` parameter against `sandbox_dir`
+  - **Git sandbox:** `git_clone` and `git_worktree_add` validate destination paths against sandbox
+  - **Network sandbox:** `download_file` validates destination path against sandbox
+  - **Readonly mode:** Blocks destructive filesystem operations (write, delete, move, copy)
+  - **Category toggles:** `enable_filesystem`, `enable_shell`, `enable_git`, `enable_network` to disable entire tool categories
+  - **Shell command allowlist:** `allowed_shell_commands` restricts which commands can be executed (empty = allow all)
+  - **Auto-migration:** `apoc.working_dir` automatically migrates to `devkit.sandbox_dir`
+  - Environment variables: `MORPHEUS_DEVKIT_SANDBOX_DIR`, `MORPHEUS_DEVKIT_READONLY_MODE`, etc.
+  - New "DevKit" tab in Settings UI with Security, Tool Categories, and Shell Allowlist sections
+  - `apoc.working_dir` deprecated in favor of `devkit.sandbox_dir`
 - **Subagent Execution Mode**: Neo, Apoc, and Trinity can now be configured to run synchronously or asynchronously
   - `execution_mode: 'sync' | 'async'` in `zaion.yaml` (under `neo`, `apoc`, `trinity` sections)
   - Environment variables: `MORPHEUS_NEO_EXECUTION_MODE`, `MORPHEUS_APOC_EXECUTION_MODE`, `MORPHEUS_TRINITY_EXECUTION_MODE`

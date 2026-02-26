@@ -103,7 +103,7 @@ src/http/
 
 New feature routers follow the factory-function pattern from `chronos.ts`: export `createXRouter(deps)` and mount in `api.ts`.
 
-### DevKit Tools (Apoc's toolbox)
+### DevKit Tools (Apoc & Keymaker's toolbox)
 ```
 src/devkit/tools/
   ├─ filesystem.ts   # read, write, delete, list, mkdir, copy, move
@@ -117,6 +117,33 @@ src/devkit/tools/
 ```
 
 `buildDevKit()` in `src/devkit/index.ts` returns a `StructuredTool[]` array for LangChain.
+
+### DevKit Security (Shared Config)
+
+DevKit tools are shared by both Apoc and Keymaker. Security is configured via a **shared** `devkit` section in `zaion.yaml` (not per-agent):
+
+```yaml
+devkit:
+  sandbox_dir: /home/user/projects    # All file/shell ops confined here (default: CWD)
+  readonly_mode: false                 # Block destructive filesystem ops (write, delete, move)
+  enable_filesystem: true              # Toggle filesystem tools
+  enable_shell: true                   # Toggle shell tools
+  enable_git: true                     # Toggle git tools
+  enable_network: true                 # Toggle network tools
+  allowed_shell_commands: []           # Shell command allowlist (empty = allow all)
+  timeout_ms: 30000                    # Tool execution timeout
+```
+
+**Security model:**
+- **Sandbox enforcement:** `guardPath()` confines ALL filesystem operations (reads AND writes) to `sandbox_dir`. Shell `cwd`, git clone destinations, and network downloads are also validated.
+- **Readonly mode:** When enabled, destructive operations (write, delete, move, copy) return an error.
+- **Category toggles:** Disable entire tool categories (filesystem, shell, git, network). Non-toggleable categories (processes, packages, system, browser) always load.
+- **Shell allowlist:** When `allowed_shell_commands` is non-empty, only listed commands are permitted.
+- **Migration:** `apoc.working_dir` is auto-migrated to `devkit.sandbox_dir` if the latter is not set.
+
+Environment variables: `MORPHEUS_DEVKIT_SANDBOX_DIR`, `MORPHEUS_DEVKIT_READONLY_MODE`, `MORPHEUS_DEVKIT_ENABLE_FILESYSTEM`, etc.
+
+UI: Settings → DevKit tab (3 sections: Security, Tool Categories, Shell Allowlist).
 
 ### Channel Adapter Pattern
 
@@ -175,6 +202,7 @@ In `tasks` table, Trinity agent rows use `agent = 'trinit'` (not `'trinity'`).
 | Discord adapter | `src/channels/discord.ts` | `channel = 'discord'`, implements `IChannelAdapter` |
 | Oracle agent | `src/runtime/oracle.ts` | LangChain ReactAgent |
 | Apoc subagent | `src/runtime/apoc.ts` | DevKit, `apoc_delegate` |
+| DevKit config | `src/devkit/registry.ts` | Shared security: sandbox, readonly, category toggles |
 | Trinity subagent | `src/runtime/trinity.ts` | DB specialist, `trinity_delegate` |
 | Neo subagent | `src/runtime/neo.ts` | MCP tools, `neo_delegate` |
 | Provider factory | `src/runtime/providers/factory.ts` | `create()` / `createBare()` |

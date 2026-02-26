@@ -1,9 +1,10 @@
 import { tool } from '@langchain/core/tools';
 import { z } from 'zod';
+import path from 'path';
 import type { StructuredTool } from '@langchain/core/tools';
 import type { ToolContext } from '../types.js';
 import { ShellAdapter } from '../adapters/shell.js';
-import { truncateOutput, isCommandAllowed } from '../utils.js';
+import { truncateOutput, isCommandAllowed, isWithinDir } from '../utils.js';
 import { registerToolFactory } from '../registry.js';
 
 export function createGitTools(ctx: ToolContext): StructuredTool[] {
@@ -205,7 +206,16 @@ export function createGitTools(ctx: ToolContext): StructuredTool[] {
     tool(
       async ({ url, destination, depth }) => {
         const args = ['clone', url];
-        if (destination) args.push(destination);
+        if (destination) {
+          // Enforce sandbox_dir on clone destination
+          if (ctx.sandbox_dir) {
+            const resolvedDest = path.isAbsolute(destination) ? destination : path.resolve(ctx.working_dir, destination);
+            if (!isWithinDir(resolvedDest, ctx.sandbox_dir)) {
+              return JSON.stringify({ success: false, output: `Clone destination '${resolvedDest}' is outside the sandbox directory '${ctx.sandbox_dir}'. Operation denied.` });
+            }
+          }
+          args.push(destination);
+        }
         if (depth) args.push('--depth', String(depth));
         const r = await git(args);
         return JSON.stringify({ success: r.success, output: r.output });
@@ -223,6 +233,13 @@ export function createGitTools(ctx: ToolContext): StructuredTool[] {
 
     tool(
       async ({ path: worktreePath, branch }) => {
+        // Enforce sandbox_dir on worktree path
+        if (ctx.sandbox_dir) {
+          const resolvedPath = path.isAbsolute(worktreePath) ? worktreePath : path.resolve(ctx.working_dir, worktreePath);
+          if (!isWithinDir(resolvedPath, ctx.sandbox_dir)) {
+            return JSON.stringify({ success: false, output: `Worktree path '${resolvedPath}' is outside the sandbox directory '${ctx.sandbox_dir}'. Operation denied.` });
+          }
+        }
         const args = ['worktree', 'add', worktreePath];
         if (branch) args.push('-b', branch);
         const r = await git(args);
@@ -240,4 +257,4 @@ export function createGitTools(ctx: ToolContext): StructuredTool[] {
   ];
 }
 
-registerToolFactory(createGitTools);
+registerToolFactory(createGitTools, 'git');

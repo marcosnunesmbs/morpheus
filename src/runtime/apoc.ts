@@ -52,20 +52,26 @@ export class Apoc {
     const apocConfig = this.config.apoc || this.config.llm;
     // console.log(`Apoc configuration: ${JSON.stringify(apocConfig)}`);
 
-    const working_dir = this.config.apoc?.working_dir || process.cwd();
-    const timeout_ms = this.config.apoc?.timeout_ms || 30_000;
+    const devkit = ConfigManager.getInstance().getDevKitConfig();
+    const timeout_ms = devkit.timeout_ms || this.config.apoc?.timeout_ms || 30_000;
     const personality = this.config.apoc?.personality || 'pragmatic_dev';
 
     // Import all devkit tool factories (side-effect registration)
     await import("../devkit/index.js");
     const tools = buildDevKit({
-      working_dir,
-      allowed_commands: [], // no restriction — Oracle is trusted orchestrator
+      working_dir: devkit.sandbox_dir || process.cwd(),
+      allowed_commands: devkit.allowed_shell_commands || [],
       timeout_ms,
+      sandbox_dir: devkit.sandbox_dir,
+      readonly_mode: devkit.readonly_mode,
+      enable_filesystem: devkit.enable_filesystem,
+      enable_shell: devkit.enable_shell,
+      enable_git: devkit.enable_git,
+      enable_network: devkit.enable_network,
     });
 
     this.display.log(
-      `Apoc initialized with ${tools.length} DevKit tools (working_dir: ${working_dir}, personality: ${personality})`,
+      `Apoc initialized with ${tools.length} DevKit tools (sandbox_dir: ${devkit.sandbox_dir}, personality: ${personality})`,
       { source: "Apoc" }
     );
 

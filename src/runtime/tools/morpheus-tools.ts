@@ -50,6 +50,14 @@ const CONFIG_TO_ENV_MAP: Record<string, string[]> = {
   'audio.model': ['MORPHEUS_AUDIO_MODEL'],
   'audio.apiKey': ['MORPHEUS_AUDIO_API_KEY'],
   'audio.maxDurationSeconds': ['MORPHEUS_AUDIO_MAX_DURATION'],
+  'devkit.sandbox_dir': ['MORPHEUS_DEVKIT_SANDBOX_DIR'],
+  'devkit.readonly_mode': ['MORPHEUS_DEVKIT_READONLY_MODE'],
+  'devkit.allowed_shell_commands': ['MORPHEUS_DEVKIT_ALLOWED_SHELL_COMMANDS'],
+  'devkit.enable_filesystem': ['MORPHEUS_DEVKIT_ENABLE_FILESYSTEM'],
+  'devkit.enable_shell': ['MORPHEUS_DEVKIT_ENABLE_SHELL'],
+  'devkit.enable_git': ['MORPHEUS_DEVKIT_ENABLE_GIT'],
+  'devkit.enable_network': ['MORPHEUS_DEVKIT_ENABLE_NETWORK'],
+  'devkit.timeout_ms': ['MORPHEUS_DEVKIT_TIMEOUT_MS'],
   'verbose_mode': ['MORPHEUS_VERBOSE_MODE'],
 };
 

@@ -6,7 +6,7 @@ import fs from 'fs-extra';
 import path from 'path';
 import type { StructuredTool } from '@langchain/core/tools';
 import type { ToolContext } from '../types.js';
-import { truncateOutput } from '../utils.js';
+import { truncateOutput, isWithinDir } from '../utils.js';
 import { registerToolFactory } from '../registry.js';
 
 export function createNetworkTools(ctx: ToolContext): StructuredTool[] {
@@ -145,6 +145,14 @@ export function createNetworkTools(ctx: ToolContext): StructuredTool[] {
           ? destination
           : path.resolve(ctx.working_dir, destination);
 
+        // Enforce sandbox_dir on download destination
+        if (ctx.sandbox_dir && !isWithinDir(destPath, ctx.sandbox_dir)) {
+          return JSON.stringify({
+            success: false,
+            error: `Download destination '${destPath}' is outside the sandbox directory '${ctx.sandbox_dir}'. Operation denied.`,
+          });
+        }
+
         await fs.ensureDir(path.dirname(destPath));
 
         const controller = new AbortController();
@@ -184,4 +192,4 @@ export function createNetworkTools(ctx: ToolContext): StructuredTool[] {
   ];
 }
 
-registerToolFactory(createNetworkTools);
+registerToolFactory(createNetworkTools, 'network');

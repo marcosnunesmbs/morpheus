@@ -589,4 +589,4 @@ export function createBrowserTools(_ctx: ToolContext): StructuredTool[] {
   ];
 }
 
-registerToolFactory(createBrowserTools);
+registerToolFactory(createBrowserTools, 'browser');

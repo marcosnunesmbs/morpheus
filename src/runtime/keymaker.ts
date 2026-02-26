@@ -41,13 +41,19 @@ export class Keymaker {
     const personality = this.config.keymaker?.personality || 'versatile_specialist';
 
     // Build DevKit tools (filesystem, shell, git, browser, network, etc.)
-    const working_dir = process.cwd();
-    const timeout_ms = 30_000;
+    const devkit = ConfigManager.getInstance().getDevKitConfig();
+    const timeout_ms = devkit.timeout_ms || 30_000;
     await import("../devkit/index.js");
     const devKitTools = buildDevKit({
-      working_dir,
-      allowed_commands: [], // no restriction
+      working_dir: devkit.sandbox_dir || process.cwd(),
+      allowed_commands: devkit.allowed_shell_commands || [],
       timeout_ms,
+      sandbox_dir: devkit.sandbox_dir,
+      readonly_mode: devkit.readonly_mode,
+      enable_filesystem: devkit.enable_filesystem,
+      enable_shell: devkit.enable_shell,
+      enable_git: devkit.enable_git,
+      enable_network: devkit.enable_network,
     });
 
     // Load MCP tools from configured servers
