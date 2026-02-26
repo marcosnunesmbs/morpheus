@@ -36,6 +36,22 @@ export interface SkillToggleResponse {
   enabled: boolean;
 }
 
+export interface SkillUploadResponse {
+  success: boolean;
+  skill: {
+    name: string;
+    description: string;
+    version?: string;
+    author?: string;
+    path: string;
+  };
+}
+
+export interface SkillUploadError {
+  error: string;
+  details?: string;
+}
+
 const httpClient = HttpClient.getInstance();
 
 export const skillsService = {
@@ -58,4 +74,8 @@ export const skillsService = {
   /** Disable a skill */
   disableSkill: async (name: string): Promise<SkillToggleResponse> =>
     httpClient.post<SkillToggleResponse>(`/skills/${encodeURIComponent(name)}/disable`, {}),
+
+  /** Upload a skill ZIP file */
+  uploadSkill: async (file: File): Promise<SkillUploadResponse> =>
+    httpClient.uploadFile<SkillUploadResponse>('/skills/upload', file),
 };

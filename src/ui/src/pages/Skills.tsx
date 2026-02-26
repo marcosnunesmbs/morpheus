@@ -1,7 +1,7 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import useSWR from 'swr';
 import { motion } from 'framer-motion';
-import { Wand2, RefreshCw, Eye, ToggleLeft, ToggleRight, Tag, User, FolderOpen } from 'lucide-react';
+import { Wand2, RefreshCw, Eye, ToggleLeft, ToggleRight, Tag, User, FolderOpen, Upload, AlertCircle, CheckCircle } from 'lucide-react';
 import { skillsService, type Skill, type SkillDetailResponse } from '../services/skills';
 import { Dialog, DialogHeader, DialogTitle } from '../components/Dialog';
 
@@ -187,6 +187,11 @@ function SkillDetailModal({
 export function SkillsPage() {
   const [selectedSkill, setSelectedSkill] = useState<SkillDetailResponse | null>(null);
   const [loadingDetail, setLoadingDetail] = useState(false);
+  const [uploadOpen, setUploadOpen] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState<{ error: string; details?: string } | null>(null);
+  const [uploadSuccess, setUploadSuccess] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const {
     data,
@@ -221,6 +226,36 @@ export function SkillsPage() {
     }
   };
 
+  const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setUploadError(null);
+    setUploadSuccess(null);
+    setUploading(true);
+
+    try {
+      const result = await skillsService.uploadSkill(file);
+      setUploadSuccess(`Skill "${result.skill.name}" uploaded successfully!`);
+      mutate();
+      // Reset file input
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    } catch (err: any) {
+      setUploadError({
+        error: err.message || 'Upload failed',
+        details: err.details,
+      });
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const openUploadDialog = () => {
+    setUploadError(null);
+    setUploadSuccess(null);
+    setUploadOpen(true);
+  };
+
   return (
     <motion.div variants={container} initial="hidden" animate="show" className="space-y-6">
       <motion.div variants={item} className="flex items-center justify-between">
@@ -235,13 +270,22 @@ export function SkillsPage() {
             </p>
           </div>
         </div>
-        <button
-          onClick={handleReload}
-          className="flex items-center gap-2 px-4 py-2 rounded-lg bg-azure-primary dark:bg-matrix-primary text-white dark:text-black font-medium hover:opacity-90 transition-opacity"
-        >
-          <RefreshCw className="w-4 h-4" />
-          Reload
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={openUploadDialog}
+            className="flex items-center gap-2 px-4 py-2 rounded-lg border border-azure-primary dark:border-matrix-primary text-azure-primary dark:text-matrix-primary font-medium hover:bg-azure-primary/10 dark:hover:bg-matrix-primary/10 transition-colors"
+          >
+            <Upload className="w-4 h-4" />
+            Upload
+          </button>
+          <button
+            onClick={handleReload}
+            className="flex items-center gap-2 px-4 py-2 rounded-lg bg-azure-primary dark:bg-matrix-primary text-white dark:text-black font-medium hover:opacity-90 transition-opacity"
+          >
+            <RefreshCw className="w-4 h-4" />
+            Reload
+          </button>
+        </div>
       </motion.div>
 
       {isLoading ? (
@@ -259,10 +303,18 @@ export function SkillsPage() {
             No skills found
           </h3>
           <p className="mt-2 text-azure-text-secondary dark:text-matrix-secondary max-w-md mx-auto">
-            Add skills to <code className="bg-azure-hover dark:bg-zinc-800 px-1 rounded">~/.morpheus/skills/</code>.
-            Each skill should have a <code className="bg-azure-hover dark:bg-zinc-800 px-1 rounded">skill.yaml</code> and{' '}
-            <code className="bg-azure-hover dark:bg-zinc-800 px-1 rounded">SKILL.md</code> file.
+            Upload a skill ZIP or add skills manually to{' '}
+            <code className="bg-azure-hover dark:bg-zinc-800 px-1 rounded">~/.morpheus/skills/</code>.
+            Each skill folder must contain a{' '}
+            <code className="bg-azure-hover dark:bg-zinc-800 px-1 rounded">SKILL.md</code> file with frontmatter.
           </p>
+          <button
+            onClick={openUploadDialog}
+            className="mt-4 inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-azure-primary dark:bg-matrix-primary text-white dark:text-black font-medium hover:opacity-90 transition-opacity"
+          >
+            <Upload className="w-4 h-4" />
+            Upload Skill
+          </button>
         </motion.div>
       ) : (
         <motion.div
@@ -282,11 +334,94 @@ export function SkillsPage() {
         </motion.div>
       )}
 
-            <SkillDetailModal
+      <SkillDetailModal
         skill={selectedSkill}
         open={!!selectedSkill}
         onOpenChange={(open) => !open && setSelectedSkill(null)}
       />
+
+      {/* Upload Modal */}
+      <Dialog open={uploadOpen} onOpenChange={setUploadOpen}>
+        <DialogHeader>
+          <DialogTitle>
+            <div className="flex items-center gap-2">
+              <Upload className="w-5 h-5" />
+              Upload Skill
+            </div>
+          </DialogTitle>
+        </DialogHeader>
+        <div className="space-y-4">
+          <p className="text-azure-text-secondary dark:text-matrix-secondary text-sm">
+            Upload a ZIP file containing your skill folder. The ZIP must have exactly one folder
+            at root level with a valid <code className="bg-azure-hover dark:bg-zinc-800 px-1 rounded">SKILL.md</code> file.
+          </p>
+
+          <div className="border-2 border-dashed border-azure-border dark:border-matrix-primary rounded-lg p-6">
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".zip,application/zip,application/x-zip-compressed"
+              onChange={handleUpload}
+              disabled={uploading}
+              className="hidden"
+              id="skill-upload-input"
+            />
+            <label
+              htmlFor="skill-upload-input"
+              className={`flex flex-col items-center gap-2 cursor-pointer ${
+                uploading ? 'opacity-50 cursor-not-allowed' : ''
+              }`}
+            >
+              {uploading ? (
+                <RefreshCw className="w-8 h-8 animate-spin text-azure-primary dark:text-matrix-primary" />
+              ) : (
+                <Upload className="w-8 h-8 text-azure-text-tertiary dark:text-matrix-dim" />
+              )}
+              <span className="text-azure-text-secondary dark:text-matrix-secondary">
+                {uploading ? 'Uploading...' : 'Click to select ZIP file'}
+              </span>
+            </label>
+          </div>
+
+          {uploadError && (
+            <div className="flex items-start gap-2 p-3 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800">
+              <AlertCircle className="w-5 h-5 text-red-600 dark:text-red-400 flex-shrink-0 mt-0.5" />
+              <div>
+                <p className="text-sm font-medium text-red-800 dark:text-red-200">
+                  {uploadError.error}
+                </p>
+                {uploadError.details && (
+                  <p className="text-xs text-red-600 dark:text-red-300 mt-1">
+                    {uploadError.details}
+                  </p>
+                )}
+              </div>
+            </div>
+          )}
+
+          {uploadSuccess && (
+            <div className="flex items-center gap-2 p-3 rounded-lg bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800">
+              <CheckCircle className="w-5 h-5 text-green-600 dark:text-green-400" />
+              <p className="text-sm text-green-800 dark:text-green-200">{uploadSuccess}</p>
+            </div>
+          )}
+
+          <div className="rounded-lg bg-azure-hover dark:bg-zinc-900 p-3">
+            <h4 className="text-sm font-medium text-azure-text-primary dark:text-matrix-highlight mb-2">
+              ZIP Structure Example
+            </h4>
+            <pre className="text-xs text-azure-text-secondary dark:text-matrix-secondary">
+{`my-skill.zip
+└── my-skill/
+    ├── SKILL.md (required)
+    ├── scripts/ (optional)
+    │   └── script.js
+    └── examples/ (optional)
+        └── output.txt`}
+            </pre>
+          </div>
+        </div>
+      </Dialog>
 
       {loadingDetail && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">

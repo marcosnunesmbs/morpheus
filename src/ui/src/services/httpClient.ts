@@ -93,6 +93,18 @@ export class HttpClient {
     });
     return this.handleResponse(response);
   }
+
+  public async uploadFile<T>(path: string, file: File, fieldName = 'file'): Promise<T> {
+    const formData = new FormData();
+    formData.append(fieldName, file);
+
+    const response = await fetch(`${API_BASE}${path}`, {
+      method: 'POST',
+      headers: this.getHeaders(), // No Content-Type - browser sets it with boundary
+      body: formData,
+    });
+    return this.handleResponse(response);
+  }
 }
 
 export const httpClient = HttpClient.getInstance();
