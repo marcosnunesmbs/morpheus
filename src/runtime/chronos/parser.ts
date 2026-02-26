@@ -172,6 +172,22 @@ function parsePortugueseTimeExpression(expression: string, refDate: Date, timezo
   return null;
 }
 
+/**
+ * Converts an IANA timezone name (e.g. "America/Sao_Paulo") to a UTC offset in minutes.
+ * chrono-node only understands abbreviations (EST, BRT) and numeric offsets,
+ * NOT IANA names — passing an unrecognised string makes it silently fall back
+ * to the system timezone, which breaks on servers running in UTC.
+ */
+function ianaToOffsetMinutes(timezone: string, refDate: Date): number {
+  try {
+    const utcStr = refDate.toLocaleString('en-US', { timeZone: 'UTC' });
+    const tzStr  = refDate.toLocaleString('en-US', { timeZone: timezone });
+    return Math.round((new Date(tzStr).getTime() - new Date(utcStr).getTime()) / 60_000);
+  } catch {
+    return 0; // fall back to UTC on invalid timezone
+  }
+}
+
 function formatDatetime(date: Date, timezone: string): string {
   try {
     return date.toLocaleString('en-US', {
@@ -227,7 +243,9 @@ export function parseScheduleExpression(
 
       // 4. chrono-node NLP fallback ("tomorrow at 9am", "next friday", etc.)
       if (!parsed) {
-        const results = chrono.parse(expression, { instant: refDate, timezone });
+        // chrono-node does NOT support IANA timezone names — convert to numeric offset
+        const tzOffset = ianaToOffsetMinutes(timezone, refDate);
+        const results = chrono.parse(expression, { instant: refDate, timezone: tzOffset });
         if (results.length > 0 && results[0].date()) {
           parsed = results[0].date()!;
         }
