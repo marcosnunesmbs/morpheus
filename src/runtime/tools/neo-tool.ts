@@ -5,6 +5,8 @@ import { TaskRepository } from "../tasks/repository.js";
 import { TaskRequestContext } from "../tasks/context.js";
 import { compositeDelegationError, isLikelyCompositeDelegationTask } from "./delegation-guard.js";
 import { DisplayManager } from "../display.js";
+import { ConfigManager } from "../../config/manager.js";
+import { Neo } from "../neo.js";
 
 const NEO_BUILTIN_CAPABILITIES = `
 Neo built-in capabilities (always available — no MCP required):
@@ -46,6 +48,14 @@ function buildCatalogSection(mcpTools: StructuredTool[]): string {
   return `\n\nRuntime MCP tools:\n${lines.join("\n")}`;
 }
 
+/**
+ * Returns true when Neo is configured to execute synchronously (inline).
+ */
+function isNeoSync(): boolean {
+  const config = ConfigManager.getInstance().get();
+  return config.neo?.execution_mode === 'sync';
+}
+
 export function updateNeoDelegateToolDescription(tools: StructuredTool[]): void {
   const full = `${NEO_BASE_DESCRIPTION}${buildCatalogSection(tools)}`;
   (NeoDelegateTool as any).description = full;
@@ -64,6 +74,32 @@ export const NeoDelegateTool = tool(
         return compositeDelegationError();
       }
 
+      // ── Sync mode: execute inline and return result directly ──
+      if (isNeoSync()) {
+        display.log(`Neo executing synchronously: ${task.slice(0, 80)}...`, {
+          source: "NeoDelegateTool",
+          level: "info",
+        });
+
+        const ctx = TaskRequestContext.get();
+        const sessionId = ctx?.session_id ?? "default";
+        const neo = Neo.getInstance();
+        const result = await neo.execute(task, context, sessionId, {
+          origin_channel: ctx?.origin_channel ?? "api",
+          session_id: sessionId,
+          origin_message_id: ctx?.origin_message_id,
+          origin_user_id: ctx?.origin_user_id,
+        });
+
+        display.log(`Neo sync execution completed.`, {
+          source: "NeoDelegateTool",
+          level: "info",
+        });
+
+        return result;
+      }
+
+      // ── Async mode (default): create background task ──
       const existingAck = TaskRequestContext.findDuplicateDelegation("neo", task);
       if (existingAck) {
         display.log(`Neo delegation deduplicated. Reusing task ${existingAck.task_id}.`, {

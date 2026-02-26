@@ -773,6 +773,17 @@ export default function Settings() {
                       placeholder="analytical_engineer"
                       helperText="e.g., analytical_engineer, meticulous_auditor, systems_thinker"
                     />
+                    <SelectInput
+                      label="Execution Mode"
+                      value={localNeoConfig.execution_mode || 'async'}
+                      onChange={(e) =>
+                        handleNeoUpdate('execution_mode' as any, e.target.value as any)
+                      }
+                      options={[
+                        { value: 'async', label: 'Async (background task)' },
+                        { value: 'sync', label: 'Sync (inline response)' },
+                      ]}
+                    />
                     <div className="flex items-center justify-between">
                       <label className="block text-sm font-medium text-azure-text-primary dark:text-matrix-secondary">
                         Temperature
@@ -923,6 +934,17 @@ export default function Settings() {
                       placeholder="data_specialist"
                       helperText="e.g., data_specialist, query_optimizer, db_architect"
                     />
+                    <SelectInput
+                      label="Execution Mode"
+                      value={localTrinityConfig.execution_mode || 'async'}
+                      onChange={(e) =>
+                        handleTrinityUpdate('execution_mode' as any, e.target.value as any)
+                      }
+                      options={[
+                        { value: 'async', label: 'Async (background task)' },
+                        { value: 'sync', label: 'Sync (inline response)' },
+                      ]}
+                    />
                     <div className="flex items-center justify-between">
                       <label className="block text-sm font-medium text-azure-text-primary dark:text-matrix-secondary">
                         Temperature
@@ -1050,6 +1072,17 @@ export default function Settings() {
                       onChange={(e) => handleApocUpdate('personality', e.target.value)}
                       placeholder="pragmatic_dev"
                       helperText="e.g., pragmatic_dev, cautious_admin, automation_specialist"
+                    />
+                    <SelectInput
+                      label="Execution Mode"
+                      value={(localApocConfig as any).execution_mode || 'async'}
+                      onChange={(e) =>
+                        handleApocUpdate('execution_mode' as any, e.target.value as any)
+                      }
+                      options={[
+                        { value: 'async', label: 'Async (background task)' },
+                        { value: 'sync', label: 'Sync (inline response)' },
+                      ]}
                     />
                     <div className="flex items-center justify-between">
                       <label className="block text-sm font-medium text-azure-text-primary dark:text-matrix-secondary">

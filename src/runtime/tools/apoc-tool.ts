@@ -4,6 +4,16 @@ import { TaskRepository } from "../tasks/repository.js";
 import { TaskRequestContext } from "../tasks/context.js";
 import { compositeDelegationError, isLikelyCompositeDelegationTask } from "./delegation-guard.js";
 import { DisplayManager } from "../display.js";
+import { ConfigManager } from "../../config/manager.js";
+import { Apoc } from "../apoc.js";
+
+/**
+ * Returns true when Apoc is configured to execute synchronously (inline).
+ */
+function isApocSync(): boolean {
+  const config = ConfigManager.getInstance().get();
+  return config.apoc?.execution_mode === 'sync';
+}
 
 /**
  * Tool that Oracle uses to delegate devtools tasks to Apoc.
@@ -29,6 +39,27 @@ export const ApocDelegateTool = tool(
         return compositeDelegationError();
       }
 
+      // ── Sync mode: execute inline and return result directly ──
+      if (isApocSync()) {
+        display.log(`Apoc executing synchronously: ${task.slice(0, 80)}...`, {
+          source: "ApocDelegateTool",
+          level: "info",
+        });
+
+        const ctx = TaskRequestContext.get();
+        const sessionId = ctx?.session_id ?? "default";
+        const apoc = Apoc.getInstance();
+        const result = await apoc.execute(task, context, sessionId);
+
+        display.log(`Apoc sync execution completed.`, {
+          source: "ApocDelegateTool",
+          level: "info",
+        });
+
+        return result;
+      }
+
+      // ── Async mode (default): create background task ──
       const existingAck = TaskRequestContext.findDuplicateDelegation("apoc", task);
       if (existingAck) {
         display.log(`Apoc delegation deduplicated. Reusing task ${existingAck.task_id}.`, {
@@ -77,7 +108,7 @@ export const ApocDelegateTool = tool(
   },
   {
     name: "apoc_delegate",
-    description: `Delegate a devtools task to Apoc, the specialized development subagent, asynchronously.
+    description: `Delegate a devtools task to Apoc, the specialized development subagent.
 
 This tool enqueues a background task and returns an acknowledgement with task id.
 Do not expect final execution output in the same response.

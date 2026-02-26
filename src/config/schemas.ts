@@ -29,11 +29,16 @@ export const SatiConfigSchema = LLMConfigSchema.extend({
 export const ApocConfigSchema = LLMConfigSchema.extend({
     working_dir: z.string().optional(),
     timeout_ms: z.number().int().positive().optional(),
+    execution_mode: z.enum(['sync', 'async']).default('async'),
 });
 
-export const NeoConfigSchema = LLMConfigSchema;
+export const NeoConfigSchema = LLMConfigSchema.extend({
+    execution_mode: z.enum(['sync', 'async']).default('async'),
+});
 
-export const TrinityConfigSchema = LLMConfigSchema;
+export const TrinityConfigSchema = LLMConfigSchema.extend({
+    execution_mode: z.enum(['sync', 'async']).default('async'),
+});
 
 export const KeymakerConfigSchema = LLMConfigSchema.extend({
     skills_dir: z.string().optional(),

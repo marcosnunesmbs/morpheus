@@ -5,6 +5,16 @@ All notable changes to Morpheus will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+- **Subagent Execution Mode**: Neo, Apoc, and Trinity can now be configured to run synchronously or asynchronously
+  - `execution_mode: 'sync' | 'async'` in `zaion.yaml` (under `neo`, `apoc`, `trinity` sections)
+  - Environment variables: `MORPHEUS_NEO_EXECUTION_MODE`, `MORPHEUS_APOC_EXECUTION_MODE`, `MORPHEUS_TRINITY_EXECUTION_MODE`
+  - **Sync mode**: Oracle executes the subagent inline — result returned directly in the same response turn (no task created)
+  - **Async mode** (default): Creates a background task in the queue, delivered via originating channel on completion
+  - New "Execution Mode" dropdown in Settings UI for each subagent
+
 ## [0.6.8] - 2026-02-25
 
 ### Added

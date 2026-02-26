@@ -75,7 +75,15 @@ Oracle is the root orchestrator. It delegates to specialized subagents via tools
 | `trinity_delegate` | Trinity | `src/runtime/trinity.ts` | PostgreSQL, MySQL, SQLite, MongoDB |
 | `neo_delegate` | Neo | `src/runtime/neo.ts` | MCP tool orchestration |
 
-Oracle never executes DevKit tools directly — it routes through subagents.
+Oracle never executes DevKit/MCP tools directly — it routes through subagents.
+
+**Subagent Execution Mode** (`execution_mode: 'sync' | 'async'`):
+
+Each subagent (Apoc, Neo, Trinity) can be configured to run synchronously or asynchronously:
+- **`async`** (default): Creates a background task in the queue. TaskWorker picks it up, executes it, and TaskNotifier delivers the result via the originating channel. Oracle responds immediately with a task acknowledgement.
+- **`sync`**: Oracle executes the subagent inline during the same turn. The result is returned directly in Oracle's response, like `skill_execute` does for Keymaker. No task is created in the queue.
+
+Configurable via `zaion.yaml` (e.g., `neo.execution_mode: sync`), env var (e.g., `MORPHEUS_NEO_EXECUTION_MODE=sync`), or the Settings UI.
 
 ### HTTP API Structure
 ```

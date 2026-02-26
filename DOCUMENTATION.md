@@ -27,10 +27,19 @@ This document reflects the current runtime behavior and API contracts.
 | Keymaker (`src/runtime/keymaker.ts`) | Skill executor | DevKit + MCP + morpheusTools (full tool access) | `keymaker.personality` (default: `versatile_specialist`) |
 | Sati (`src/runtime/memory/sati/*`) | Long-term memory retrieval/evaluation | Memory-only reasoning | uses Oracle personality |
 
-### 2.2 Delegation Rules
+### 2.2 Subagent Execution Mode
+
+Neo, Apoc, and Trinity each support an `execution_mode` setting (`'sync'` or `'async'`):
+
+- **`async`** (default): Oracle creates a background task in the queue. `TaskWorker` picks it up, executes it, and `TaskNotifier` delivers the result via the originating channel. Oracle responds immediately with a task acknowledgement.
+- **`sync`**: Oracle executes the subagent inline during the same turn. The result is returned directly in Oracle's response — no task is created in the queue.
+
+Configurable via `zaion.yaml` (e.g., `neo.execution_mode: sync`), env var (e.g., `MORPHEUS_NEO_EXECUTION_MODE=sync`), or the Settings UI.
+
+### 2.3 Delegation Rules
 Oracle behavior:
 - direct answer only for conversation-only requests
-- execution requests are delegated asynchronously
+- execution requests are delegated (sync or async depending on `execution_mode`)
 - multi-action requests are split into multiple atomic tasks
 - each delegated task has a single objective
 - task status inquiries are handled through `task_query`
@@ -245,6 +254,7 @@ neo:
   model: gpt-4o-mini
   temperature: 0.2
   personality: analytical_engineer
+  execution_mode: async        # 'sync' = inline response, 'async' = background task (default)
 
 apoc:
   provider: openai
@@ -253,12 +263,14 @@ apoc:
   working_dir: /home/user/projects
   timeout_ms: 30000
   personality: pragmatic_dev
+  execution_mode: async        # 'sync' = inline response, 'async' = background task (default)
 
 trinity:
   provider: openai
   model: gpt-4o-mini
   temperature: 0.2
   personality: data_specialist
+  execution_mode: async        # 'sync' = inline response, 'async' = background task (default)
 
 chronos:
   check_interval_ms: 60000   # polling interval (minimum 60000)
@@ -720,7 +732,8 @@ Success response `200` (example):
     "provider": "openai",
     "model": "gpt-4o-mini",
     "temperature": 0.2,
-    "personality": "analytical_engineer"
+    "personality": "analytical_engineer",
+    "execution_mode": "async"
   },
   "apoc": {
     "provider": "openai",
@@ -728,13 +741,15 @@ Success response `200` (example):
     "temperature": 0.2,
     "working_dir": "E:/morpheus",
     "timeout_ms": 30000,
-    "personality": "pragmatic_dev"
+    "personality": "pragmatic_dev",
+    "execution_mode": "async"
   },
   "trinity": {
     "provider": "openai",
     "model": "gpt-4o-mini",
     "temperature": 0.2,
-    "personality": "data_specialist"
+    "personality": "data_specialist",
+    "execution_mode": "async"
   },
   "channels": {
     "telegram": {
@@ -883,7 +898,8 @@ Success response `200` example:
   "temperature": 0.2,
   "context_window": 100,
   "api_key": "env:OPENAI_API_KEY",
-  "personality": "analytical_engineer"
+  "personality": "analytical_engineer",
+  "execution_mode": "async"
 }
 ```
 
@@ -928,7 +944,8 @@ Success response `200` example:
   "temperature": 0.2,
   "working_dir": "E:/morpheus",
   "timeout_ms": 30000,
-  "personality": "pragmatic_dev"
+  "personality": "pragmatic_dev",
+  "execution_mode": "async"
 }
 ```
 
@@ -973,7 +990,8 @@ Success response `200` example:
   "provider": "openai",
   "model": "gpt-4o-mini",
   "temperature": 0.2,
-  "personality": "data_specialist"
+  "personality": "data_specialist",
+  "execution_mode": "async"
 }
 ```
 
