@@ -51,6 +51,8 @@ export const ApocDelegateTool = tool(
         const apoc = Apoc.getInstance();
         const result = await apoc.execute(task, context, sessionId);
 
+        TaskRequestContext.incrementSyncDelegation();
+
         display.log(`Apoc sync execution completed.`, {
           source: "ApocDelegateTool",
           level: "info",

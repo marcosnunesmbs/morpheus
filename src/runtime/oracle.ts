@@ -402,9 +402,11 @@ Use it to inform your response and tool selection (if needed), but do not assume
         origin_user_id: taskContext?.origin_user_id,
       };
       let contextDelegationAcks: Array<{ task_id: string; agent: string; task: string }> = [];
+      let syncDelegationCount = 0;
       const response = await TaskRequestContext.run(invokeContext, async () => {
         const agentResponse = await this.provider!.invoke({ messages });
         contextDelegationAcks = TaskRequestContext.getDelegationAcks();
+        syncDelegationCount = TaskRequestContext.getSyncDelegationCount();
         return agentResponse;
       });
 
@@ -428,6 +430,10 @@ Use it to inform your response and tool selection (if needed), but do not assume
       const toolDelegationAcks = this.extractDelegationAcksFromMessages(newGeneratedMessages);
       const hadDelegationToolCall = this.hasDelegationToolCall(newGeneratedMessages);
       const hadChronosToolCall = this.hasChronosToolCall(newGeneratedMessages);
+      // When all delegation tool calls ran synchronously, there are no task IDs to validate.
+      // Treat as a normal (non-delegation) response so the inline result flows through.
+      const allDelegationsSyncInline = hadDelegationToolCall && syncDelegationCount > 0
+        && contextDelegationAcks.length === 0;
       const mergedDelegationAcks = [
         ...contextDelegationAcks.map((ack) => ({ task_id: ack.task_id, agent: ack.agent })),
         ...toolDelegationAcks,
@@ -436,7 +442,7 @@ Use it to inform your response and tool selection (if needed), but do not assume
 
       if (mergedDelegationAcks.length > 0) {
         this.display.log(
-          `Delegation trace: context=${contextDelegationAcks.length}, tool_messages=${toolDelegationAcks.length}, valid=${validDelegationAcks.length}`,
+          `Delegation trace: context=${contextDelegationAcks.length}, tool_messages=${toolDelegationAcks.length}, valid=${validDelegationAcks.length}, sync_inline=${syncDelegationCount}`,
           { source: "Oracle", level: "info" }
         );
       }
@@ -462,7 +468,7 @@ Use it to inform your response and tool selection (if needed), but do not assume
         // Unblock tasks for execution: the ack message is now persisted and will be
         // returned to the caller (Telegram / UI) immediately after this point.
         this.taskRepository.markAckSent(validDelegationAcks.map(a => a.task_id));
-      } else if (mergedDelegationAcks.length > 0 || hadDelegationToolCall) {
+      } else if (!allDelegationsSyncInline && (mergedDelegationAcks.length > 0 || hadDelegationToolCall)) {
         this.display.log(
           `Delegation attempted but no valid task id was confirmed (context=${contextDelegationAcks.length}, tool_messages=${toolDelegationAcks.length}, had_tool_call=${hadDelegationToolCall}).`,
           { source: "Oracle", level: "error" }

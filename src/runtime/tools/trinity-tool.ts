@@ -72,6 +72,8 @@ export const TrinityDelegateTool = tool(
         const trinity = Trinity.getInstance();
         const result = await trinity.execute(task, context, sessionId);
 
+        TaskRequestContext.incrementSyncDelegation();
+
         display.log(`Trinity sync execution completed.`, {
           source: 'TrinityDelegateTool',
           level: 'info',

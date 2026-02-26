@@ -91,6 +91,8 @@ export const NeoDelegateTool = tool(
           origin_user_id: ctx?.origin_user_id,
         });
 
+        TaskRequestContext.incrementSyncDelegation();
+
         display.log(`Neo sync execution completed.`, {
           source: "NeoDelegateTool",
           level: "info",
