@@ -1,11 +1,11 @@
 /**
- * Skills Zod Schema for skill.yaml validation
+ * Skills Zod Schema for SKILL.md frontmatter validation
  */
 
 import { z } from 'zod';
 
 /**
- * Schema for skill.yaml metadata
+ * Schema for SKILL.md frontmatter metadata
  */
 export const SkillMetadataSchema = z.object({
   name: z
@@ -21,6 +21,11 @@ export const SkillMetadataSchema = z.object({
     .string()
     .min(1, 'Description is required')
     .max(500, 'Description must be at most 500 characters'),
+
+  execution_mode: z
+    .enum(['sync', 'async'])
+    .default('sync')
+    .describe('Execution mode: sync returns result inline, async creates background task'),
 
   version: z
     .string()

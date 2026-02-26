@@ -1,7 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import fs from 'fs-extra';
 import path from 'path';
-import yaml from 'js-yaml';
 
 // Define test directory as a static string path
 const TEST_DIR = process.cwd() + '/test-skills-registry';
@@ -15,6 +14,28 @@ vi.mock('../../../config/paths.js', () => ({
 
 // Import after mock setup
 import { SkillRegistry } from '../registry.js';
+
+/**
+ * Helper to create SKILL.md with YAML frontmatter
+ */
+function createSkillMd(dir: string, frontmatter: Record<string, unknown>, content: string = ''): void {
+  const lines: string[] = [];
+  for (const [key, value] of Object.entries(frontmatter)) {
+    if (Array.isArray(value)) {
+      lines.push(`${key}:`);
+      for (const item of value) {
+        lines.push(`  - ${item}`);
+      }
+    } else if (typeof value === 'boolean') {
+      lines.push(`${key}: ${value ? 'true' : 'false'}`);
+    } else {
+      lines.push(`${key}: ${value}`);
+    }
+  }
+  const yaml = lines.join('\n');
+  const md = `---\n${yaml}\n---\n${content}`;
+  fs.writeFileSync(path.join(dir, 'SKILL.md'), md);
+}
 
 describe('SkillRegistry', () => {
   beforeEach(() => {
@@ -45,10 +66,7 @@ describe('SkillRegistry', () => {
     it('should load skills from directory', async () => {
       const skillDir = path.join(TEST_DIR, 'test-skill');
       fs.ensureDirSync(skillDir);
-      fs.writeFileSync(
-        path.join(skillDir, 'skill.yaml'),
-        yaml.dump({ name: 'test-skill', description: 'Test skill' })
-      );
+      createSkillMd(skillDir, { name: 'test-skill', description: 'Test skill' }, 'Instructions');
 
       const registry = SkillRegistry.getInstance();
       await registry.load();
@@ -60,10 +78,7 @@ describe('SkillRegistry', () => {
     it('should clear previous skills on reload', async () => {
       const skillDir = path.join(TEST_DIR, 'skill-a');
       fs.ensureDirSync(skillDir);
-      fs.writeFileSync(
-        path.join(skillDir, 'skill.yaml'),
-        yaml.dump({ name: 'skill-a', description: 'Skill A' })
-      );
+      createSkillMd(skillDir, { name: 'skill-a', description: 'Skill A' }, 'Instructions');
 
       const registry = SkillRegistry.getInstance();
       await registry.load();
@@ -81,10 +96,7 @@ describe('SkillRegistry', () => {
     it('should enable a disabled skill', async () => {
       const skillDir = path.join(TEST_DIR, 'toggle-skill');
       fs.ensureDirSync(skillDir);
-      fs.writeFileSync(
-        path.join(skillDir, 'skill.yaml'),
-        yaml.dump({ name: 'toggle-skill', description: 'Toggle test', enabled: false })
-      );
+      createSkillMd(skillDir, { name: 'toggle-skill', description: 'Toggle test', enabled: false }, 'Instructions');
 
       const registry = SkillRegistry.getInstance();
       await registry.load();
@@ -101,10 +113,7 @@ describe('SkillRegistry', () => {
     it('should disable an enabled skill', async () => {
       const skillDir = path.join(TEST_DIR, 'toggle-skill');
       fs.ensureDirSync(skillDir);
-      fs.writeFileSync(
-        path.join(skillDir, 'skill.yaml'),
-        yaml.dump({ name: 'toggle-skill', description: 'Toggle test', enabled: true })
-      );
+      createSkillMd(skillDir, { name: 'toggle-skill', description: 'Toggle test', enabled: true }, 'Instructions');
 
       const registry = SkillRegistry.getInstance();
       await registry.load();
@@ -131,18 +140,12 @@ describe('SkillRegistry', () => {
       // Create enabled skill
       const enabledDir = path.join(TEST_DIR, 'enabled-skill');
       fs.ensureDirSync(enabledDir);
-      fs.writeFileSync(
-        path.join(enabledDir, 'skill.yaml'),
-        yaml.dump({ name: 'enabled-skill', description: 'Enabled', enabled: true })
-      );
+      createSkillMd(enabledDir, { name: 'enabled-skill', description: 'Enabled', enabled: true }, 'Instructions');
 
       // Create disabled skill
       const disabledDir = path.join(TEST_DIR, 'disabled-skill');
       fs.ensureDirSync(disabledDir);
-      fs.writeFileSync(
-        path.join(disabledDir, 'skill.yaml'),
-        yaml.dump({ name: 'disabled-skill', description: 'Disabled', enabled: false })
-      );
+      createSkillMd(disabledDir, { name: 'disabled-skill', description: 'Disabled', enabled: false }, 'Instructions');
 
       const registry = SkillRegistry.getInstance();
       await registry.load();
@@ -154,17 +157,15 @@ describe('SkillRegistry', () => {
   });
 
   describe('getSystemPromptSection()', () => {
-    it('should generate prompt section with enabled skills', async () => {
+    it('should generate prompt section with sync skills', async () => {
       const skillDir = path.join(TEST_DIR, 'prompt-skill');
       fs.ensureDirSync(skillDir);
-      fs.writeFileSync(
-        path.join(skillDir, 'skill.yaml'),
-        yaml.dump({
-          name: 'prompt-skill',
-          description: 'A skill for prompts',
-          examples: ['example usage'],
-        })
-      );
+      createSkillMd(skillDir, {
+        name: 'prompt-skill',
+        description: 'A skill for prompts',
+        execution_mode: 'sync',
+        examples: ['example usage'],
+      }, 'Instructions for prompt skill');
 
       const registry = SkillRegistry.getInstance();
       await registry.load();
@@ -174,6 +175,25 @@ describe('SkillRegistry', () => {
       expect(section).toContain('Available Skills');
       expect(section).toContain('prompt-skill');
       expect(section).toContain('A skill for prompts');
+      expect(section).toContain('skill_execute');
+    });
+
+    it('should generate prompt section with async skills', async () => {
+      const skillDir = path.join(TEST_DIR, 'async-skill');
+      fs.ensureDirSync(skillDir);
+      createSkillMd(skillDir, {
+        name: 'async-skill',
+        description: 'An async skill',
+        execution_mode: 'async',
+      }, 'Instructions for async skill');
+
+      const registry = SkillRegistry.getInstance();
+      await registry.load();
+
+      const section = registry.getSystemPromptSection();
+      
+      expect(section).toContain('Async Skills');
+      expect(section).toContain('async-skill');
       expect(section).toContain('skill_delegate');
     });
 
@@ -188,14 +208,11 @@ describe('SkillRegistry', () => {
     it('should not include disabled skills', async () => {
       const skillDir = path.join(TEST_DIR, 'disabled-prompt');
       fs.ensureDirSync(skillDir);
-      fs.writeFileSync(
-        path.join(skillDir, 'skill.yaml'),
-        yaml.dump({
-          name: 'disabled-prompt',
-          description: 'Disabled skill',
-          enabled: false,
-        })
-      );
+      createSkillMd(skillDir, {
+        name: 'disabled-prompt',
+        description: 'Disabled skill',
+        enabled: false,
+      }, 'Instructions');
 
       const registry = SkillRegistry.getInstance();
       await registry.load();
@@ -206,17 +223,10 @@ describe('SkillRegistry', () => {
   });
 
   describe('getContent()', () => {
-    it('should return SKILL.md content', async () => {
+    it('should return skill content from loaded skill', async () => {
       const skillDir = path.join(TEST_DIR, 'content-skill');
       fs.ensureDirSync(skillDir);
-      fs.writeFileSync(
-        path.join(skillDir, 'skill.yaml'),
-        yaml.dump({ name: 'content-skill', description: 'Test' })
-      );
-      fs.writeFileSync(
-        path.join(skillDir, 'SKILL.md'),
-        '# Instructions\n\nDo the thing.'
-      );
+      createSkillMd(skillDir, { name: 'content-skill', description: 'Test' }, '# Instructions\n\nDo the thing.');
 
       const registry = SkillRegistry.getInstance();
       await registry.load();
@@ -230,21 +240,6 @@ describe('SkillRegistry', () => {
       await registry.load();
 
       const content = registry.getContent('non-existent');
-      expect(content).toBeNull();
-    });
-
-    it('should return null for missing SKILL.md', async () => {
-      const skillDir = path.join(TEST_DIR, 'no-md');
-      fs.ensureDirSync(skillDir);
-      fs.writeFileSync(
-        path.join(skillDir, 'skill.yaml'),
-        yaml.dump({ name: 'no-md', description: 'No MD file' })
-      );
-
-      const registry = SkillRegistry.getInstance();
-      await registry.load();
-
-      const content = registry.getContent('no-md');
       expect(content).toBeNull();
     });
   });

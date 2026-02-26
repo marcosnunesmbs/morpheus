@@ -22,7 +22,7 @@ import { ApocDelegateTool } from "./tools/apoc-tool.js";
 import { TrinityDelegateTool } from "./tools/trinity-tool.js";
 import { TaskQueryTool, chronosTools, timeVerifierTool } from "./tools/index.js";
 import { MCPManager } from "../config/mcp-manager.js";
-import { SkillRegistry, SkillDelegateTool, updateSkillDelegateDescription } from "./skills/index.js";
+import { SkillRegistry, SkillExecuteTool, SkillDelegateTool, updateSkillToolDescriptions } from "./skills/index.js";
 
 type AckGenerationResult = {
   content: string;
@@ -184,8 +184,8 @@ export class Oracle implements IOracle {
       // Fail-open: Oracle can still initialize even if catalog refresh fails.
       await Neo.refreshDelegateCatalog().catch(() => {});
       await Trinity.refreshDelegateCatalog().catch(() => {});
-      updateSkillDelegateDescription();
-      this.provider = await ProviderFactory.create(this.config.llm, [TaskQueryTool, NeoDelegateTool, ApocDelegateTool, TrinityDelegateTool, SkillDelegateTool, timeVerifierTool, ...chronosTools]);
+      updateSkillToolDescriptions();
+      this.provider = await ProviderFactory.create(this.config.llm, [TaskQueryTool, NeoDelegateTool, ApocDelegateTool, TrinityDelegateTool, SkillExecuteTool, SkillDelegateTool, timeVerifierTool, ...chronosTools]);
       if (!this.provider) {
         throw new Error("Provider factory returned undefined");
       }
@@ -636,8 +636,8 @@ Use it to inform your response and tool selection (if needed), but do not assume
 
     await Neo.refreshDelegateCatalog().catch(() => {});
     await Trinity.refreshDelegateCatalog().catch(() => {});
-    updateSkillDelegateDescription();
-    this.provider = await ProviderFactory.create(this.config.llm, [TaskQueryTool, NeoDelegateTool, ApocDelegateTool, TrinityDelegateTool, SkillDelegateTool, ...chronosTools]);
+    updateSkillToolDescriptions();
+    this.provider = await ProviderFactory.create(this.config.llm, [TaskQueryTool, NeoDelegateTool, ApocDelegateTool, TrinityDelegateTool, SkillExecuteTool, SkillDelegateTool, ...chronosTools]);
     await Neo.getInstance().reload();
     this.display.log(`Oracle and Neo tools reloaded`, { source: 'Oracle' });
   }

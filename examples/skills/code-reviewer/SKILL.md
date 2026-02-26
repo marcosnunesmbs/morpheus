@@ -1,3 +1,20 @@
+---
+name: code-reviewer
+description: Reviews code files for issues, best practices, and potential improvements. Analyzes code quality and provides actionable feedback.
+execution_mode: sync
+version: 1.0.0
+author: morpheus
+tags:
+  - code
+  - review
+  - quality
+  - analysis
+examples:
+  - "Review the code in src/auth.ts"
+  - "Check this PR for issues"
+  - "Analyze the user service for best practices"
+---
+
 # Code Reviewer Skill
 
 You are an expert code reviewer with deep knowledge of software engineering best practices.

@@ -1,17 +1,86 @@
 /**
  * SkillLoader - Discovers and loads skills from filesystem
+ * 
+ * Skills are SKILL.md files with YAML frontmatter containing metadata.
+ * Format:
+ * ---
+ * name: my-skill
+ * description: What this skill does
+ * execution_mode: sync
+ * ---
+ * 
+ * # Skill Instructions...
  */
 
 import fs from 'fs';
 import path from 'path';
-import yaml from 'js-yaml';
 import { SkillMetadataSchema } from './schema.js';
-import type { Skill, SkillLoadResult, SkillLoadError, SkillMetadata } from './types.js';
+import type { Skill, SkillLoadResult, SkillLoadError } from './types.js';
 import { DisplayManager } from '../display.js';
 
-const SKILL_YAML = 'skill.yaml';
 const SKILL_MD = 'SKILL.md';
 const MAX_SKILL_MD_SIZE = 50 * 1024; // 50KB
+const FRONTMATTER_REGEX = /^---\r?\n([\s\S]*?)\r?\n---\r?\n?([\s\S]*)$/;
+
+/**
+ * Simple YAML frontmatter parser
+ * Handles basic key: value pairs and arrays
+ */
+function parseFrontmatter(yaml: string): Record<string, unknown> {
+  const result: Record<string, unknown> = {};
+  const lines = yaml.split('\n');
+  let currentKey: string | null = null;
+  let currentArray: string[] | null = null;
+
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith('#')) continue;
+
+    // Check for array item (indented with -)
+    if (trimmed.startsWith('- ') && currentKey && currentArray !== null) {
+      currentArray.push(trimmed.slice(2).trim().replace(/^["']|["']$/g, ''));
+      continue;
+    }
+
+    // Check for key: value
+    const colonIndex = line.indexOf(':');
+    if (colonIndex > 0) {
+      // Save previous array if exists
+      if (currentKey && currentArray !== null && currentArray.length > 0) {
+        result[currentKey] = currentArray;
+      }
+      currentArray = null;
+
+      const key = line.slice(0, colonIndex).trim();
+      const value = line.slice(colonIndex + 1).trim();
+
+      currentKey = key;
+
+      if (value === '') {
+        // Could be start of array
+        currentArray = [];
+      } else if (value === 'true') {
+        result[key] = true;
+      } else if (value === 'false') {
+        result[key] = false;
+      } else if (/^\d+$/.test(value)) {
+        result[key] = parseInt(value, 10);
+      } else if (/^\d+\.\d+$/.test(value)) {
+        result[key] = parseFloat(value);
+      } else {
+        // Remove quotes if present
+        result[key] = value.replace(/^["']|["']$/g, '');
+      }
+    }
+  }
+
+  // Save last array if exists
+  if (currentKey && currentArray !== null && currentArray.length > 0) {
+    result[currentKey] = currentArray;
+  }
+
+  return result;
+}
 
 export class SkillLoader {
   private display = DisplayManager.getInstance();
@@ -70,36 +139,68 @@ export class SkillLoader {
     dirPath: string,
     dirName: string
   ): { skill?: Skill; error?: SkillLoadError } {
-    const yamlPath = path.join(dirPath, SKILL_YAML);
     const mdPath = path.join(dirPath, SKILL_MD);
 
-    // Check skill.yaml exists
-    if (!fs.existsSync(yamlPath)) {
+    // Check SKILL.md exists
+    if (!fs.existsSync(mdPath)) {
       return {
         error: {
           directory: dirName,
-          message: `Missing ${SKILL_YAML}`,
+          message: `Missing ${SKILL_MD}`,
         },
       };
     }
 
-    // Parse skill.yaml
-    let rawYaml: unknown;
+    // Read SKILL.md content
+    let rawContent: string;
     try {
-      const yamlContent = fs.readFileSync(yamlPath, 'utf-8');
-      rawYaml = yaml.load(yamlContent);
+      const stats = fs.statSync(mdPath);
+      if (stats.size > MAX_SKILL_MD_SIZE) {
+        this.display.log(
+          `SKILL.md for "${dirName}" exceeds ${MAX_SKILL_MD_SIZE / 1024}KB`,
+          { source: 'SkillLoader', level: 'warning' }
+        );
+      }
+      rawContent = fs.readFileSync(mdPath, 'utf-8').slice(0, MAX_SKILL_MD_SIZE);
     } catch (err) {
       return {
         error: {
           directory: dirName,
-          message: `Invalid YAML: ${err instanceof Error ? err.message : String(err)}`,
+          message: `Failed to read ${SKILL_MD}: ${err instanceof Error ? err.message : String(err)}`,
+          error: err instanceof Error ? err : undefined,
+        },
+      };
+    }
+
+    // Parse frontmatter
+    const match = rawContent.match(FRONTMATTER_REGEX);
+    if (!match) {
+      return {
+        error: {
+          directory: dirName,
+          message: `Invalid format: ${SKILL_MD} must start with YAML frontmatter (--- ... ---)`,
+        },
+      };
+    }
+
+    const [, frontmatterYaml, content] = match;
+
+    // Parse YAML frontmatter
+    let rawMeta: Record<string, unknown>;
+    try {
+      rawMeta = parseFrontmatter(frontmatterYaml);
+    } catch (err) {
+      return {
+        error: {
+          directory: dirName,
+          message: `Invalid YAML frontmatter: ${err instanceof Error ? err.message : String(err)}`,
           error: err instanceof Error ? err : undefined,
         },
       };
     }
 
     // Validate against schema
-    const parseResult = SkillMetadataSchema.safeParse(rawYaml);
+    const parseResult = SkillMetadataSchema.safeParse(rawMeta);
     if (!parseResult.success) {
       const issues = parseResult.error.issues
         .map((i) => `${i.path.join('.')}: ${i.message}`)
@@ -114,51 +215,23 @@ export class SkillLoader {
 
     const metadata = parseResult.data;
 
-    // Check SKILL.md exists (warning only, skill still loads)
-    const hasSkillMd = fs.existsSync(mdPath);
-    if (!hasSkillMd) {
-      this.display.log(`Skill "${metadata.name}" is missing ${SKILL_MD}`, {
-        source: 'SkillLoader',
-        level: 'warning',
-      });
-    }
-
     // Build Skill object
     const skill: Skill = {
       ...metadata,
-      path: dirPath,
-      contentPath: mdPath,
+      path: mdPath,
+      dirName,
+      content: content.trim(),
       enabled: metadata.enabled ?? true,
+      execution_mode: metadata.execution_mode ?? 'sync',
     };
 
     return { skill };
   }
 
   /**
-   * Read SKILL.md content for a skill (lazy loading)
+   * Read SKILL.md content for a skill (returns just the body, no frontmatter)
    */
   readContent(skill: Skill): string | null {
-    if (!fs.existsSync(skill.contentPath)) {
-      return null;
-    }
-
-    try {
-      const stats = fs.statSync(skill.contentPath);
-      if (stats.size > MAX_SKILL_MD_SIZE) {
-        this.display.log(
-          `SKILL.md for "${skill.name}" exceeds ${MAX_SKILL_MD_SIZE / 1024}KB, truncating`,
-          { source: 'SkillLoader', level: 'warning' }
-        );
-      }
-
-      const content = fs.readFileSync(skill.contentPath, 'utf-8');
-      return content.slice(0, MAX_SKILL_MD_SIZE);
-    } catch (err) {
-      this.display.log(`Failed to read SKILL.md for "${skill.name}": ${err}`, {
-        source: 'SkillLoader',
-        level: 'error',
-      });
-      return null;
-    }
+    return skill.content || null;
   }
 }

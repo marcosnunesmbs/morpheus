@@ -2,7 +2,26 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { SkillLoader } from '../loader.js';
 import fs from 'fs-extra';
 import path from 'path';
-import yaml from 'js-yaml';
+
+/**
+ * Helper to create SKILL.md with YAML frontmatter
+ */
+function createSkillMd(dir: string, frontmatter: Record<string, unknown>, content: string = ''): void {
+  const lines: string[] = [];
+  for (const [key, value] of Object.entries(frontmatter)) {
+    if (Array.isArray(value)) {
+      lines.push(`${key}:`);
+      for (const item of value) {
+        lines.push(`  - ${item}`);
+      }
+    } else {
+      lines.push(`${key}: ${value}`);
+    }
+  }
+  const yaml = lines.join('\n');
+  const md = `---\n${yaml}\n---\n${content}`;
+  fs.writeFileSync(path.join(dir, 'SKILL.md'), md);
+}
 
 describe('SkillLoader', () => {
   const testDir = path.join(process.cwd(), 'test-skills');
@@ -35,24 +54,16 @@ describe('SkillLoader', () => {
       const skillDir = path.join(testDir, 'test-skill');
       fs.ensureDirSync(skillDir);
       
-      const metadata = {
+      createSkillMd(skillDir, {
         name: 'test-skill',
         description: 'A test skill for unit testing',
         version: '1.0.0',
         author: 'Test Author',
         enabled: true,
+        execution_mode: 'sync',
         tags: ['test', 'unit'],
         examples: ['do something', 'do another thing'],
-      };
-      
-      fs.writeFileSync(
-        path.join(skillDir, 'skill.yaml'),
-        yaml.dump(metadata)
-      );
-      fs.writeFileSync(
-        path.join(skillDir, 'SKILL.md'),
-        '# Test Skill\n\nInstructions here.'
-      );
+      }, '# Test Skill\n\nInstructions here.');
 
       const result = await loader.scan();
       
@@ -65,23 +76,20 @@ describe('SkillLoader', () => {
       expect(skill.version).toBe('1.0.0');
       expect(skill.author).toBe('Test Author');
       expect(skill.enabled).toBe(true);
+      expect(skill.execution_mode).toBe('sync');
       expect(skill.tags).toEqual(['test', 'unit']);
       expect(skill.examples).toEqual(['do something', 'do another thing']);
+      expect(skill.content).toBe('# Test Skill\n\nInstructions here.');
     });
 
-    it('should load skill with minimal metadata', async () => {
+    it('should load skill with minimal metadata (defaults)', async () => {
       const skillDir = path.join(testDir, 'minimal-skill');
       fs.ensureDirSync(skillDir);
       
-      const metadata = {
+      createSkillMd(skillDir, {
         name: 'minimal-skill',
         description: 'A minimal skill',
-      };
-      
-      fs.writeFileSync(
-        path.join(skillDir, 'skill.yaml'),
-        yaml.dump(metadata)
-      );
+      }, 'Minimal instructions');
 
       const result = await loader.scan();
       
@@ -91,38 +99,36 @@ describe('SkillLoader', () => {
       const skill = result.skills[0];
       expect(skill.name).toBe('minimal-skill');
       expect(skill.enabled).toBe(true); // default
+      expect(skill.execution_mode).toBe('sync'); // default
     });
 
-    it('should report error for missing skill.yaml', async () => {
-      const skillDir = path.join(testDir, 'no-yaml-skill');
+    it('should report error for missing SKILL.md', async () => {
+      const skillDir = path.join(testDir, 'no-md-skill');
+      fs.ensureDirSync(skillDir);
+      // No SKILL.md file created
+
+      const result = await loader.scan();
+      
+      expect(result.skills).toHaveLength(0);
+      expect(result.errors).toHaveLength(1);
+      expect(result.errors[0].directory).toBe('no-md-skill');
+      expect(result.errors[0].message).toContain('Missing SKILL.md');
+    });
+
+    it('should report error for SKILL.md without frontmatter', async () => {
+      const skillDir = path.join(testDir, 'no-frontmatter');
       fs.ensureDirSync(skillDir);
       fs.writeFileSync(
         path.join(skillDir, 'SKILL.md'),
-        '# No YAML\n'
+        '# No Frontmatter\n\nJust plain markdown.'
       );
 
       const result = await loader.scan();
       
       expect(result.skills).toHaveLength(0);
       expect(result.errors).toHaveLength(1);
-      expect(result.errors[0].directory).toBe('no-yaml-skill');
-      expect(result.errors[0].message).toContain('Missing skill.yaml');
-    });
-
-    it('should report error for invalid YAML syntax', async () => {
-      const skillDir = path.join(testDir, 'invalid-yaml');
-      fs.ensureDirSync(skillDir);
-      fs.writeFileSync(
-        path.join(skillDir, 'skill.yaml'),
-        'name: test\n  invalid: yaml: syntax:'
-      );
-
-      const result = await loader.scan();
-      
-      expect(result.skills).toHaveLength(0);
-      expect(result.errors).toHaveLength(1);
-      expect(result.errors[0].directory).toBe('invalid-yaml');
-      expect(result.errors[0].message).toContain('Invalid YAML');
+      expect(result.errors[0].directory).toBe('no-frontmatter');
+      expect(result.errors[0].message).toContain('Invalid format');
     });
 
     it('should report error for schema validation failure', async () => {
@@ -130,14 +136,9 @@ describe('SkillLoader', () => {
       fs.ensureDirSync(skillDir);
       
       // Missing required 'description' field
-      const metadata = {
+      createSkillMd(skillDir, {
         name: 'bad-schema',
-      };
-      
-      fs.writeFileSync(
-        path.join(skillDir, 'skill.yaml'),
-        yaml.dump(metadata)
-      );
+      }, 'No description provided');
 
       const result = await loader.scan();
       
@@ -150,15 +151,10 @@ describe('SkillLoader', () => {
       const skillDir = path.join(testDir, 'invalid-name');
       fs.ensureDirSync(skillDir);
       
-      const metadata = {
+      createSkillMd(skillDir, {
         name: 'Invalid Name With Spaces!',
         description: 'Should fail validation',
-      };
-      
-      fs.writeFileSync(
-        path.join(skillDir, 'skill.yaml'),
-        yaml.dump(metadata)
-      );
+      }, 'Content');
 
       const result = await loader.scan();
       
@@ -171,18 +167,12 @@ describe('SkillLoader', () => {
       // Create skill 1
       const skill1Dir = path.join(testDir, 'skill-one');
       fs.ensureDirSync(skill1Dir);
-      fs.writeFileSync(
-        path.join(skill1Dir, 'skill.yaml'),
-        yaml.dump({ name: 'skill-one', description: 'First skill' })
-      );
+      createSkillMd(skill1Dir, { name: 'skill-one', description: 'First skill' }, 'Instructions 1');
 
       // Create skill 2
       const skill2Dir = path.join(testDir, 'skill-two');
       fs.ensureDirSync(skill2Dir);
-      fs.writeFileSync(
-        path.join(skill2Dir, 'skill.yaml'),
-        yaml.dump({ name: 'skill-two', description: 'Second skill' })
-      );
+      createSkillMd(skill2Dir, { name: 'skill-two', description: 'Second skill' }, 'Instructions 2');
 
       const result = await loader.scan();
       
@@ -202,42 +192,46 @@ describe('SkillLoader', () => {
       expect(result.skills).toHaveLength(0);
       expect(result.errors).toHaveLength(0);
     });
+
+    it('should load async skill correctly', async () => {
+      const skillDir = path.join(testDir, 'async-skill');
+      fs.ensureDirSync(skillDir);
+      
+      createSkillMd(skillDir, {
+        name: 'async-skill',
+        description: 'An async skill',
+        execution_mode: 'async',
+      }, 'Long-running task instructions');
+
+      const result = await loader.scan();
+      
+      expect(result.skills).toHaveLength(1);
+      expect(result.skills[0].execution_mode).toBe('async');
+    });
   });
 
-  describe('readContent()', () => {
-    it('should return SKILL.md content', async () => {
+  describe('content handling', () => {
+    it('should include content in skill object', async () => {
       const skillDir = path.join(testDir, 'content-skill');
       fs.ensureDirSync(skillDir);
       
-      fs.writeFileSync(
-        path.join(skillDir, 'skill.yaml'),
-        yaml.dump({ name: 'content-skill', description: 'Test' })
-      );
-      
       const mdContent = '# Content Skill\n\nThis is the instruction content.';
-      fs.writeFileSync(path.join(skillDir, 'SKILL.md'), mdContent);
+      createSkillMd(skillDir, { name: 'content-skill', description: 'Test' }, mdContent);
 
       const result = await loader.scan();
       expect(result.skills).toHaveLength(1);
-      
-      const content = loader.readContent(result.skills[0]);
-      expect(content).toBe(mdContent);
+      expect(result.skills[0].content).toBe(mdContent);
     });
 
-    it('should return null for missing SKILL.md', async () => {
-      const skillDir = path.join(testDir, 'no-md-skill');
+    it('should handle empty content after frontmatter', async () => {
+      const skillDir = path.join(testDir, 'empty-content');
       fs.ensureDirSync(skillDir);
       
-      fs.writeFileSync(
-        path.join(skillDir, 'skill.yaml'),
-        yaml.dump({ name: 'no-md-skill', description: 'Test' })
-      );
+      createSkillMd(skillDir, { name: 'empty-content', description: 'Test' }, '');
 
       const result = await loader.scan();
       expect(result.skills).toHaveLength(1);
-      
-      const content = loader.readContent(result.skills[0]);
-      expect(content).toBeNull();
+      expect(result.skills[0].content).toBe('');
     });
   });
 });

@@ -1,3 +1,19 @@
+---
+name: git-helper
+description: Helps with Git operations like creating branches, writing commit messages, analyzing diffs, and managing workflows.
+execution_mode: sync
+version: 1.0.0
+author: morpheus
+tags:
+  - git
+  - version-control
+  - workflow
+examples:
+  - "Create a branch for the login feature"
+  - "Write a commit message for my changes"
+  - "Show me what changed in the last 5 commits"
+---
+
 # Git Helper Skill
 
 You are an expert Git specialist helping developers with version control operations.

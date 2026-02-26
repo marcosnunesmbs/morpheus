@@ -265,7 +265,12 @@ export function SkillsPage() {
           </p>
         </motion.div>
       ) : (
-        <motion.div variants={container} className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+        <motion.div
+          variants={container}
+          initial="hidden"
+          animate="show"
+          className="grid gap-4 md:grid-cols-2 lg:grid-cols-3"
+        >
           {skills.map((skill) => (
             <SkillCard
               key={skill.name}

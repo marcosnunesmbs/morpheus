@@ -2,18 +2,28 @@
  * Skills System Type Definitions
  *
  * Skills are user-defined behavioral extensions loaded from ~/.morpheus/skills/
- * Each skill has metadata (skill.yaml) and instructions (SKILL.md).
+ * Each skill is a SKILL.md file with YAML frontmatter containing metadata.
  */
 
 /**
- * Metadata loaded from skill.yaml
+ * Execution mode for a skill
+ * - sync: Execute inline, result returned immediately to Oracle
+ * - async: Execute as background task, result delivered via notification
+ */
+export type SkillExecutionMode = 'sync' | 'async';
+
+/**
+ * Metadata parsed from SKILL.md frontmatter
  */
 export interface SkillMetadata {
-  /** Unique identifier (alphanumeric + hyphen, max 64 chars) */
+  /** Unique identifier (kebab-case, max 64 chars) */
   name: string;
 
   /** Short description for LLM context (max 500 chars) */
   description: string;
+
+  /** Execution mode: sync (default) or async */
+  execution_mode?: SkillExecutionMode;
 
   /** Semantic version (optional) */
   version?: string;
@@ -32,17 +42,23 @@ export interface SkillMetadata {
 }
 
 /**
- * Skill loaded in runtime with resolved paths
+ * Skill loaded in runtime with resolved paths and content
  */
 export interface Skill extends SkillMetadata {
-  /** Absolute path to skill directory */
+  /** Absolute path to the SKILL.md file */
   path: string;
 
-  /** Absolute path to SKILL.md file */
-  contentPath: string;
+  /** Directory name containing the skill */
+  dirName: string;
+
+  /** Skill content (markdown body after frontmatter) */
+  content: string;
 
   /** Resolved enabled state (default: true) */
   enabled: boolean;
+
+  /** Resolved execution mode (default: sync) */
+  execution_mode: SkillExecutionMode;
 }
 
 /**

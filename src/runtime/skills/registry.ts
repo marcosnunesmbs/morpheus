@@ -108,12 +108,12 @@ export class SkillRegistry {
   }
 
   /**
-   * Read SKILL.md content for a skill (lazy loading)
+   * Read SKILL.md content for a skill
    */
   getContent(name: string): string | null {
     const skill = this.skills.get(name);
     if (!skill) return null;
-    return this.loader.readContent(skill);
+    return skill.content || null;
   }
 
   /**
@@ -125,23 +125,31 @@ export class SkillRegistry {
       return '';
     }
 
-    const skillLines = enabled
-      .map((s) => `- **${s.name}**: ${s.description}`)
-      .join('\n');
+    const syncSkills = enabled.filter((s) => s.execution_mode === 'sync');
+    const asyncSkills = enabled.filter((s) => s.execution_mode === 'async');
 
-    return `
-## Available Skills
+    const lines: string[] = ['## Available Skills', ''];
 
-You have access to user-defined skills that provide specialized expertise.
-When a request matches a skill's domain, use \`skill_delegate\` to delegate execution to Keymaker.
-Keymaker has full access to filesystem, shell, git, MCP tools, and databases.
+    if (syncSkills.length > 0) {
+      lines.push('### Sync Skills (immediate result via skill_execute)');
+      for (const s of syncSkills) {
+        lines.push(`- **${s.name}**: ${s.description}`);
+      }
+      lines.push('');
+    }
 
-Skills available:
-${skillLines}
+    if (asyncSkills.length > 0) {
+      lines.push('### Async Skills (background task via skill_delegate)');
+      for (const s of asyncSkills) {
+        lines.push(`- **${s.name}**: ${s.description}`);
+      }
+      lines.push('');
+    }
 
-To use a skill: call skill_delegate(skillName, objective)
-The skill will be executed asynchronously and results delivered when complete.
-`;
+    lines.push('Use `skill_execute(skillName, objective)` for sync skills — result returned immediately.');
+    lines.push('Use `skill_delegate(skillName, objective)` for async skills — runs in background, notifies when done.');
+
+    return lines.join('\n');
   }
 
   /**

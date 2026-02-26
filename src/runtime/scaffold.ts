@@ -18,21 +18,20 @@ This folder contains custom skills for Morpheus.
    mkdir my-skill
    \`\`\`
 
-2. Create \`skill.yaml\` with metadata:
-   \`\`\`yaml
+2. Create \`SKILL.md\` with YAML frontmatter + instructions:
+   \`\`\`markdown
+   ---
    name: my-skill
+   description: What this skill does (max 500 chars)
+   execution_mode: sync
    version: 1.0.0
-   description: "What this skill does (max 500 chars)"
    author: your-name
-   enabled: true
    tags:
      - category
    examples:
      - "Example request that triggers this skill"
-   \`\`\`
+   ---
 
-3. Create \`SKILL.md\` with instructions:
-   \`\`\`markdown
    # My Skill
 
    Instructions for Keymaker to follow when executing this skill.
@@ -45,24 +44,36 @@ This folder contains custom skills for Morpheus.
    How to format the result.
    \`\`\`
 
+## Execution Modes
+
+| Mode | Tool | Description |
+|------|------|-------------|
+| sync | skill_execute | Result returned immediately (default) |
+| async | skill_delegate | Runs in background, notifies when done |
+
+**sync** (default): Best for quick tasks like code review, analysis.
+**async**: Best for long-running tasks like builds, deployments.
+
 ## How It Works
 
 - Oracle lists available skills in its system prompt
-- When a request matches a skill, Oracle delegates to Keymaker
+- When a request matches a sync skill, Oracle calls \`skill_execute\`
+- When a request matches an async skill, Oracle calls \`skill_delegate\`
 - Keymaker has access to ALL tools (filesystem, shell, git, MCP, databases)
 - Keymaker follows SKILL.md instructions to complete the task
 
-## Skill Schema
+## Frontmatter Schema
 
-| Field | Required | Description |
-|-------|----------|-------------|
-| name | Yes | Unique identifier (a-z, 0-9, hyphens) |
-| description | Yes | Short description (max 500 chars) |
-| version | No | Semver (e.g., 1.0.0) |
-| author | No | Your name |
-| enabled | No | true/false (default: true) |
-| tags | No | Array of tags (max 10) |
-| examples | No | Example requests (max 5) |
+| Field | Required | Default | Description |
+|-------|----------|---------|-------------|
+| name | Yes | - | Unique identifier (a-z, 0-9, hyphens) |
+| description | Yes | - | Short description (max 500 chars) |
+| execution_mode | No | sync | sync or async |
+| version | No | - | Semver (e.g., 1.0.0) |
+| author | No | - | Your name |
+| enabled | No | true | true/false |
+| tags | No | - | Array of tags (max 10) |
+| examples | No | - | Example requests (max 5) |
 `;
 
 export async function scaffold(): Promise<void> {

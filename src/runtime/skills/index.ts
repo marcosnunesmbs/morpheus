@@ -5,10 +5,18 @@
 export { SkillRegistry } from './registry.js';
 export { SkillLoader } from './loader.js';
 export { SkillMetadataSchema } from './schema.js';
-export { SkillDelegateTool, updateSkillDelegateDescription, getSkillDelegateDescription } from './tool.js';
+export {
+  SkillExecuteTool,
+  SkillDelegateTool,
+  getSkillExecuteDescription,
+  getSkillDelegateDescription,
+  updateSkillToolDescriptions,
+  updateSkillDelegateDescription, // backwards compat
+} from './tool.js';
 export type {
   Skill,
   SkillMetadata,
   SkillLoadResult,
   SkillLoadError,
+  SkillExecutionMode,
 } from './types.js';
