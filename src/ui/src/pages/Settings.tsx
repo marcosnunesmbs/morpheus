@@ -766,6 +766,13 @@ export default function Settings() {
                       onChange={(e) => handleNeoUpdate('model', e.target.value)}
                       disabled={isEnvOverridden('neo.model')}
                     />
+                    <TextInput
+                      label="Personality"
+                      value={localNeoConfig.personality || 'analytical_engineer'}
+                      onChange={(e) => handleNeoUpdate('personality', e.target.value)}
+                      placeholder="analytical_engineer"
+                      helperText="e.g., analytical_engineer, meticulous_auditor, systems_thinker"
+                    />
                     <div className="flex items-center justify-between">
                       <label className="block text-sm font-medium text-azure-text-primary dark:text-matrix-secondary">
                         Temperature
@@ -909,6 +916,13 @@ export default function Settings() {
                       onChange={(e) => handleTrinityUpdate('model', e.target.value)}
                       disabled={isEnvOverridden('trinity.model')}
                     />
+                    <TextInput
+                      label="Personality"
+                      value={localTrinityConfig.personality || 'data_specialist'}
+                      onChange={(e) => handleTrinityUpdate('personality', e.target.value)}
+                      placeholder="data_specialist"
+                      helperText="e.g., data_specialist, query_optimizer, db_architect"
+                    />
                     <div className="flex items-center justify-between">
                       <label className="block text-sm font-medium text-azure-text-primary dark:text-matrix-secondary">
                         Temperature
@@ -1029,6 +1043,13 @@ export default function Settings() {
                       value={localApocConfig.model}
                       onChange={(e) => handleApocUpdate('model', e.target.value)}
                       disabled={isEnvOverridden('apoc.model')}
+                    />
+                    <TextInput
+                      label="Personality"
+                      value={localApocConfig.personality || 'pragmatic_dev'}
+                      onChange={(e) => handleApocUpdate('personality', e.target.value)}
+                      placeholder="pragmatic_dev"
+                      helperText="e.g., pragmatic_dev, cautious_admin, automation_specialist"
                     />
                     <div className="flex items-center justify-between">
                       <label className="block text-sm font-medium text-azure-text-primary dark:text-matrix-secondary">
