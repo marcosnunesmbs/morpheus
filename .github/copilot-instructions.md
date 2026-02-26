@@ -1,9 +1,9 @@
 # Morpheus Copilot Instructions
 
 ## 🧠 Project Context
-**Morpheus** is a local-first AI operator/agent for developers. It runs as a persistent background daemon (CLI + HTTP Server), bridging LLMs (via LangChain) to external channels (Telegram), a Web UI, and local tools (MCP support).
+**Morpheus** is a local-first AI operator/agent for developers. It runs as a persistent background daemon (CLI + HTTP Server), bridging LLMs (via LangChain) to external channels (Telegram, Discord), a Web UI, and local tools (MCP + DevKit + Skills).
 
-**Key Insight**: Morpheus is an *orchestrator* not just a chatbot - it manages LLM lifecycle, persistent memory (short & long-term), tool execution, and multi-channel communication as a unified daemon process.
+**Key Insight**: Morpheus is an *orchestrator* not just a chatbot - it manages LLM lifecycle, persistent memory (short & long-term), tool execution, async task queues, scheduled jobs, and multi-channel communication as a unified daemon process.
 
 ## 🏗 Architecture & Core Components
 
@@ -11,154 +11,144 @@
 - **Entry:** `bin/morpheus.js` → executes built `src/cli/index.ts`
 - **Framework:** `commander` parses commands (`src/cli/commands/*.ts`)
 - **Daemon:** `src/runtime/lifecycle.ts` manages PID file (`~/.morpheus/morpheus.pid`)
-- **Startup Flow:** `start.ts` → scaffold → checkStalePid → load config → initialize Oracle → start channels/HTTP
+- **Startup Flow:** `start.ts` → scaffold → checkStalePid → load config → load SkillRegistry → initialize Oracle → start channels/HTTP → start workers
 
-### Runtime & Agent
-- **Oracle Engine:** `src/runtime/oracle.ts` implements `IOracle` - the main conversation loop using LangChain's `ReactAgent`
-  - **Memory System (Three-Database Architecture):**
-    - **Short-term:** `SQLiteChatMessageHistory` (`src/runtime/memory/sqlite.ts`) - per-session chat history
-      - **Storage:** `~/.morpheus/memory/short-memory.db`
-    - **Long-term (Sati):** `src/runtime/memory/sati/` - persistent facts/preferences across sessions
-      - **Architecture Rule:** Sati is an *independent sub-agent* invoked by middleware, NOT part of Oracle's main flow
-      - **Middleware:** `SatiMemoryMiddleware` (`src/runtime/memory/sati/index.ts`) hooks into `beforeAgent` (retrieval) and `afterAgent` (consolidation)
-      - **Storage:** Dedicated `sati-memory.db` (separate from chat history)
-    - **Session Embeddings:** Background worker for semantic search over past sessions
-      - **Service:** `EmbeddingService` (`src/runtime/memory/embedding.service.ts`) - uses `@xenova/transformers` with `Xenova/all-MiniLM-L6-v2` (384-dim embeddings)
-      - **Worker:** `runSessionEmbeddingWorker()` processes completed sessions asynchronously
-      - **Scheduler:** Runs every 5 minutes to embed pending sessions (`startSessionEmbeddingScheduler()`)
-      - **Storage:** Vector embeddings stored in `sati-memory.db` using `sqlite-vec` extension
-    - **Context Window:** Configurable via `llm.context_window` (default: 100 messages) - controls how many messages from history are loaded into LLM context
-  - **Providers:** `src/runtime/providers/factory.ts` creates LLMs (OpenAI, Anthropic, Google Gemini, Ollama)
-  - **Tools:** `src/runtime/tools/factory.ts` loads MCP servers from `~/.morpheus/mcps.json`
-    - **Schema Sanitization:** `wrapToolWithSanitizedSchema()` removes fields unsupported by Google Gemini (`examples`, `additionalInfo`, `$schema`, etc.)
-- **Specialized Agents:**
-  - **Audio:** `src/runtime/audio-agent.ts` (Telegram voice → Google Gemini transcription)
-  - **Telephonist:** `src/runtime/telephonist.ts` handles phone-style interactions
-- **Output:** `DisplayManager` (`src/runtime/display.ts`) - centralized logging (NEVER use `console.log`)
+### Multi-Agent Architecture
+Oracle is the root orchestrator. It delegates to specialized subagents via tools:
+
+| Tool | Subagent | File | Domain |
+|---|---|---|---|
+| `skill_execute` | Keymaker | `src/runtime/keymaker.ts` | Sync skill execution (immediate result) |
+| `skill_delegate` | Keymaker | `src/runtime/keymaker.ts` | Async skill execution (background task) |
+| `apoc_delegate` | Apoc | `src/runtime/apoc.ts` | Filesystem, shell, git, browser via DevKit |
+| `trinity_delegate` | Trinity | `src/runtime/trinity.ts` | PostgreSQL/MySQL/SQLite/MongoDB queries |
+| `neo_delegate` | Neo | `src/runtime/neo.ts` | MCP tool orchestration |
+| `chronos_schedule` | Chronos | `src/runtime/chronos/` | Scheduled job management |
+
+Oracle never executes DevKit/MCP tools directly — it routes through subagents.
+
+### Skills System (Keymaker)
+- **Location:** `src/runtime/skills/` (loader, registry, tool, types)
+- **User Skills:** `~/.morpheus/skills/` folders with `SKILL.md` (YAML frontmatter + instructions)
+- **Execution Modes:**
+  - `sync` (default): `skill_execute` returns result inline
+  - `async`: `skill_delegate` queues background task, notifies on completion
+- **Format:** Single `SKILL.md` with frontmatter:
+  ```markdown
+  ---
+  name: my-skill
+  description: Brief description
+  execution_mode: sync
+  tags: [automation]
+  ---
+  # Instructions for Keymaker...
+  ```
+
+### Memory System (Three-Database Architecture)
+- **Short-term:** `~/.morpheus/memory/short-memory.db` - per-session chat history
+- **Long-term (Sati):** `~/.morpheus/memory/sati-memory.db` - persistent facts + session embeddings
+- **Trinity:** `~/.morpheus/memory/trinity.db` - database registry (encrypted passwords)
+
+**Sati Middleware:** `SatiMemoryMiddleware` hooks `beforeAgent` (retrieval) and `afterAgent` (consolidation).
 
 ### Channels & Adapters
-- **Location:** `src/channels/` (e.g., `telegram.ts`)
-- **Pattern:** Each adapter converts external protocol → Oracle prompts → external responses
-- **Security:** Strict `allowedUsers` allowlist enforcement (see `TelegramAdapter.isAuthorized()`)
-- **Voice Handling:** Telegram adapter delegates audio to `Telephonist` → Audio Agent
+- **Pattern:** `src/channels/registry.ts` (`ChannelRegistry` singleton) + `IChannelAdapter` interface
+- **Adding a channel:**
+  1. Create `src/channels/<name>.ts` implementing `IChannelAdapter`
+  2. Add config to `src/types/config.ts` + `src/config/schemas.ts`
+  3. Register in `start.ts` via `ChannelRegistry.register(adapter)`
+  4. Dispatchers pick it up automatically
+
+### Background Workers
+All use singleton + `start()`/`stop()` pattern:
+- **TaskWorker** — polls `tasks` table, routes to agent by `tasks.agent` column
+- **TaskNotifier** — sends completion notifications via `ChannelRegistry`
+- **ChronosWorker** — executes due scheduled jobs
+
+**Note:** Trinity tasks use `agent = 'trinit'` (not `'trinity'`).
 
 ### HTTP Server & Web UI
-- **Server:** `src/http/server.ts` (Express.js)
-  - **API:** `/api/*` routes in `src/http/api.ts`
-  - **Auth:** Optional `THE_ARCHITECT_PASS` environment variable (checked via `x-architect-pass` header)
-  - **Static:** Serves compiled React UI from `dist/ui/`
+- **Server:** `src/http/server.ts` (Express.js) → API routes in `src/http/api.ts`
+- **Auth:** `x-architect-pass` header (optional `THE_ARCHITECT_PASS` env var)
 - **UI:** `src/ui/` (React 19, Vite, TailwindCSS)
-  - **Theme:** Matrix-inspired green/dark aesthetic
-  - **Data:** SWR hooks for API client (`src/ui/src/services/`)
-
-### Configuration
-- **Manager:** `ConfigManager` singleton (`src/config/manager.ts`)
-- **Schema:** Zod schemas in `src/config/schemas.ts` (shared between Backend & Frontend)
-- **Persistence:** YAML at `~/.morpheus/config.yaml` (aliased as `zaion.yaml` in some docs)
-- **Migration:** `src/runtime/migration.ts` handles config schema upgrades
-
-## 📝 Specification-Driven Development
-**CRITICAL:** Do not write code without understanding the active spec in `specs/NNN-feature/`.
-
-### Workflow
-1. **Read Spec:** Start with `specs/NNN-feature/spec.md` (Requirements, User Stories, Acceptance Criteria)
-2. **Read Plan:** Study `specs/NNN-feature/plan.md` (Technical Design, Architecture Decisions)
-3. **Define Contracts:** Create interfaces in `src/types/` or `specs/NNN-feature/contracts/` *before* implementation
-4. **Implement:** Follow tech design in plan.md
-5. **Track Progress:** Update `specs/NNN-feature/tasks.md` as you complete items
-
-### Spec Structure (Mandatory Elements)
-- **User Stories:** P1/P2/P3 priority scenarios with acceptance criteria
-- **Edge Cases:** Must document cold start, error states, boundary conditions
-- **Functional Requirements:** FR-XXX format with explicit MUST/SHOULD language
-- **Independent Testing:** Each user story must be testable in isolation
 
 ## 🛠 Developer Patterns & Conventions
 
 ### TypeScript & ESM (STRICT)
-- **Native ESM Only:**
-  - ✅ `import { Foo } from './foo.js';` (MUST include `.js` extension for relative imports)
-  - ❌ `import { Foo } from './foo';` (will break at runtime)
+- **Native ESM:** `import { Foo } from './foo.js';` — MUST include `.js` extension
 - **Type Imports:** Use `import type` for type-only imports
-- **Build:** `tsc` compiles TS → JS (preserving `.js` extensions in output)
+- **Zod v4:** Use `.issues` (not `.errors`) for validation error arrays
+
+### Config Precedence (highest → lowest)
+1. Environment variables (e.g., `MORPHEUS_LLM_PROVIDER`)
+2. `~/.morpheus/zaion.yaml`
+3. `DEFAULT_CONFIG` in `src/types/config.ts`
+
+**Adding config keys:** Define Zod schema in `schemas.ts` (child schemas BEFORE parent), add to `types/config.ts`, handle env override in `manager.ts`.
 
 ### Infrastructure Patterns
-- **Singletons:** Access via `ClassName.getInstance()` (e.g., `ConfigManager`, `DisplayManager`, `SatiMemoryMiddleware`)
-- **Logging:** `DisplayManager.getInstance().log(message, { source: 'ComponentName', level: 'info' })` - NEVER `console.log`
-- **Validation:** Zod schemas for all external inputs (CLI args, API bodies, Channel messages)
-- **Error Handling:** Fail open for non-critical features (e.g., Sati middleware returns null on error to allow Oracle to continue)
+- **Singletons:** `ClassName.getInstance()` (ConfigManager, DisplayManager, SkillRegistry, etc.)
+- **Logging:** `DisplayManager.getInstance().log(message, { source: 'ComponentName', level: 'info' })` — NEVER `console.log`
+- **Validation:** Zod schemas for all external inputs
 
-### File Organization
-- **Types:** `src/types/` for shared interfaces (e.g., `config.ts`, `display.ts`)
-- **Tests:** Co-located `__tests__/` directories (Vitest)
-- **Specs:** `specs/NNN-feature/` for feature documentation
-- **Plans:** `plans/` for implementation roadmaps (separate from specs)
+### UI Design System (Dual-Theme)
+- **Themes:** Azure (light) + Matrix (dark). Dark is default.
+- **Dark mode tokens:**
+  - `dark:bg-black` — modals/inputs
+  - `dark:bg-zinc-900` — read-only content
+  - `dark:border-matrix-primary` — all borders (full opacity)
+  - `dark:text-matrix-highlight` — titles only
+  - `dark:text-matrix-secondary` — body text, labels
+- **Anti-patterns:** Never use `dark:bg-zinc-800`, `dark:border-matrix-primary/30`, `dark:text-matrix-highlight` for input text
 
 ## 🚀 Workflows
 
 ### Building & Running
-- **Build All:** `npm run build` (Backend `tsc` + UI `vite build`)
-- **Dev Backend:** `npm run dev:cli` (Watches `src/cli/index.ts` with `tsx`)
-- **Dev UI:** `npm run dev:ui` (alias for `npm run dev --prefix src/ui`)
-- **Run Daemon:** `npm start -- start` (or `npx . start` in dev)
-- **Tests:** `npm test` (Vitest)
+```bash
+npm run build          # Backend tsc + UI vite build
+npm run dev:cli        # Watch backend with tsx
+npm run dev:ui         # Vite dev server for dashboard
+npm start -- start     # Run daemon
+npm test               # Vitest
+```
 
 ### Key Commands
-- `npm start -- init` - Scaffold config/keys (creates `~/.morpheus/`)
-- `npm start -- doctor` - Diagnose environment (checks API keys, config, processes)
-- `npm start -- status` - Check if daemon is running
-- `npm start -- stop` - Kill daemon process
-- `npm start -- session new` - Start a new session (archives current conversation)
-- `npm start -- session status` - Get current session information
-- `npm run backfill` - Manually trigger embedding generation for existing sessions
-- `npx tsx src/runtime/__tests__/manual_start_verify.ts` - Quick sanity check for Oracle initialization
+```bash
+npm start -- init           # Scaffold ~/.morpheus/
+npm start -- doctor         # Diagnose environment
+npm start -- status         # Check daemon running
+npm start -- session new    # Start new session
+npm start -- skills         # List loaded skills
+npm start -- skills --reload # Reload skills from disk
+```
 
 ### Adding Features
-1. **Spec:** Create `specs/NNN-new-feature/` with `spec.md`, `plan.md`, `tasks.md`
-2. **Contracts:** Define types in `src/types/` or `specs/NNN-feature/contracts/`
-3. **Implement:** 
-   - Core logic in `src/runtime/` (if agent-related)
-   - CLI commands in `src/cli/commands/`
-   - API endpoints in `src/http/api.ts`
-   - UI components in `src/ui/src/components/`
-4. **Register:** 
-   - CLI: Add to `src/cli/index.ts` command tree
-   - API: Add route to `src/http/api.ts`
-   - Config: Update Zod schemas in `src/config/schemas.ts`
+1. **Config:** Define Zod schema in `schemas.ts`, types in `types/config.ts`
+2. **Backend:** Core logic in `src/runtime/`, CLI in `src/cli/commands/`
+3. **API:** Add routes to `src/http/api.ts`
+4. **UI:** Components in `src/ui/src/`
+5. **Register:** CLI in `index.ts`, API routes in `api.ts`
 
-### Publishing
-- **Package:** `morpheus-cli` on npm
-- **Build Before Publish:** `prepublishOnly` script runs `npm run build`
-- **Files:** `dist/`, `bin/`, `README.md`, `LICENSE` (see `package.json` `files` field)
+### Architecture Quick Reference
+| Component | Path |
+|---|---|
+| Oracle (main agent) | `src/runtime/oracle.ts` |
+| Skills system | `src/runtime/skills/` |
+| Keymaker (skill executor) | `src/runtime/keymaker.ts` |
+| Apoc (DevKit) | `src/runtime/apoc.ts` |
+| Trinity (databases) | `src/runtime/trinity.ts` |
+| Neo (MCP) | `src/runtime/neo.ts` |
+| Chronos (scheduler) | `src/runtime/chronos/` |
+| Channel adapters | `src/channels/` |
+| Task queue | `src/runtime/tasks/` |
+| Memory (Sati) | `src/runtime/memory/sati/` |
+| Config | `src/config/` |
+| HTTP API | `src/http/api.ts` |
+| UI | `src/ui/src/` |
 
-## 🔍 Key Implementation Notes
-
-### MCP Tool Loading
-- **Config:** `~/.morpheus/mcps.json` defines MCP servers
-- **Loader:** `src/config/mcp-loader.ts` → `MultiServerMCPClient` from `@langchain/mcp-adapters`
-- **Sanitization:** Tools are wrapped to remove Gemini-incompatible schema fields
-
-### Memory Architecture
-- **Three-Database System:**
-  - `~/.morpheus/memory/short-memory.db` - Per-session chat history (Oracle short-term memory)
-  - `~/.morpheus/memory/sati-memory.db` - Long-term facts + session embeddings (Sati + vector storage)
-- **Sati (Long-Term Memory):**
-  - **Separation:** Oracle (short-term) vs. Sati (long-term) - completely independent databases
-  - **Middleware Hooks:**
-    - `beforeAgent()`: Retrieves relevant memories, injects as AIMessage
-    - `afterAgent()`: Analyzes conversation, extracts/stores new facts
-  - **Categories:** Preference, Project, Identity, Personal Data, etc.
-  - **Deduplication:** Hash-based to prevent redundant memories
-- **Session Embeddings:**
-  - **Purpose:** Enable semantic search over historical conversations
-  - **Process:** Background scheduler embeds completed sessions every 5 minutes
-  - **Vector DB:** Uses `sqlite-vec` extension with 384-dimensional embeddings
-  - **Model:** Xenova/all-MiniLM-L6-v2 via @xenova/transformers
-
-### Channel Security
-- **Allowlist Pattern:** All adapters enforce strict user ID allowlists (Telegram: numeric IDs)
-- **Silent Fail:** Unauthorized messages are logged but not responded to (security by obscurity)
-
-### Configuration Migration
-- **Auto-Migration:** `migrateConfigFile()` runs on startup to upgrade old configs
-- **Schema Validation:** Zod ensures type safety across Backend/Frontend boundary
+## 📝 Spec-Driven Development
+For major features, create `specs/NNN-feature/` with:
+- `spec.md` — requirements, user stories, acceptance criteria
+- `plan.md` — technical design, architecture decisions
+- `tasks.md` — implementation checklist
+- `contracts/` — TypeScript interfaces before coding
