@@ -20,7 +20,7 @@ This document reflects the current runtime behavior and API contracts.
 
 | Agent | Role | Main Tool Scope | Personality |
 |---|---|---|---|
-| Oracle (`src/runtime/oracle.ts`) | Orchestrator and router | `task_query`, `neo_delegate`, `apoc_delegate`, `trinity_delegate`, `skill_delegate` | `agent.personality` (default: `helpful_dev`) |
+| Oracle (`src/runtime/oracle.ts`) | Orchestrator and router | `task_query`, `neo_delegate`, `apoc_delegate`, `trinity_delegate`, `skill_execute`, `skill_delegate` | `agent.personality` (default: `helpful_dev`) |
 | Neo (`src/runtime/neo.ts`) | MCP + internal operational execution | MCP tools + config/diagnostic/analytics tools | `neo.personality` (default: `analytical_engineer`) |
 | Apoc (`src/runtime/apoc.ts`) | DevTools and browser executor | DevKit tools | `apoc.personality` (default: `pragmatic_dev`) |
 | Trinity (`src/runtime/trinity.ts`) | Database specialist | PostgreSQL/MySQL/SQLite/MongoDB execution + schema introspection | `trinity.personality` (default: `data_specialist`) |
@@ -209,12 +209,14 @@ Dedicated agent tabs:
 - Enable/disable/delete actions with confirmation dialog
 
 ### 6.6 Skills Page
-- Skills table showing all loaded skills with enabled/disabled status
-- Skill details: name, description, trigger patterns, author
+- Skills table showing all loaded skills with enabled/disabled status and execution mode (sync/async)
+- Skill details: name, description, tags, examples, author, execution_mode
 - Enable/disable toggle per skill
 - Reload button to refresh skills from `~/.morpheus/skills/`
 - Link to skill instructions (SKILL.md content preview)
-- Skills execute via Keymaker agent with full tool access
+- Sync skills execute immediately via `skill_execute` tool
+- Async skills run as background tasks via `skill_delegate` tool
+- Both modes use Keymaker agent with full tool access (DevKit + MCP + internal tools)
 
 ## 7. Configuration
 
@@ -2071,7 +2073,11 @@ Success response `200`:
 
 ## 8.18 Skills Endpoints (Protected)
 
-User-defined skills are loaded from `~/.morpheus/skills/`. Each skill is a folder containing a `skill.yaml` manifest and `SKILL.md` instructions.
+User-defined skills are loaded from `~/.morpheus/skills/`. Each skill is a folder containing a single `SKILL.md` file with YAML frontmatter for metadata and instructions.
+
+Skills support two execution modes:
+- **`sync`** (default): Executes immediately via `skill_execute`, returns result inline
+- **`async`**: Runs as background task via `skill_delegate`, notifies when complete
 
 ### GET `/api/skills`
 Lists all loaded skills with metadata and enabled state.
@@ -2087,16 +2093,18 @@ Success response `200`:
     {
       "name": "code-reviewer",
       "description": "Performs thorough code reviews",
-      "triggerPatterns": ["review", "code review", "check my code"],
+      "execution_mode": "sync",
+      "tags": ["review", "code", "quality"],
       "author": "user",
       "enabled": true
     },
     {
-      "name": "git-helper",
-      "description": "Git workflow automation",
-      "triggerPatterns": ["git", "commit", "branch"],
+      "name": "deploy-staging",
+      "description": "Deploy to staging environment",
+      "execution_mode": "async",
+      "tags": ["deployment", "devops"],
       "author": "community",
-      "enabled": false
+      "enabled": true
     }
   ]
 }
@@ -2114,7 +2122,9 @@ Success response `200`:
 {
   "name": "code-reviewer",
   "description": "Performs thorough code reviews",
-  "triggerPatterns": ["review", "code review", "check my code"],
+  "execution_mode": "sync",
+  "tags": ["review", "code", "quality"],
+  "examples": ["review my code", "check this file"],
   "author": "user",
   "enabled": true,
   "content": "# Code Reviewer Skill\n\nYou are an expert code reviewer..."

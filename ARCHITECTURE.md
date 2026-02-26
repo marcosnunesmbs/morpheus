@@ -35,10 +35,11 @@ The runtime is a modular monolith built on Node.js + TypeScript, with SQLite as 
 
 | Agent | Responsibility | Tool Scope | Personality |
 |---|---|---|---|
-| Oracle | Conversation orchestrator and router | `task_query`, `neo_delegate`, `apoc_delegate`, `trinity_delegate` | configurable via `agent.personality` |
+| Oracle | Conversation orchestrator and router | `task_query`, `neo_delegate`, `apoc_delegate`, `trinity_delegate`, `skill_execute`, `skill_delegate` | configurable via `agent.personality` |
 | Neo | Analytical/operational execution | Runtime MCP tools + config/diagnostic/analytics tools | configurable via `neo.personality` (default: `analytical_engineer`) |
 | Apoc | DevTools and browser execution | DevKit toolchain | configurable via `apoc.personality` (default: `pragmatic_dev`) |
 | Trinity | Database specialist | PostgreSQL/MySQL/SQLite/MongoDB query execution + schema introspection | configurable via `trinity.personality` (default: `data_specialist`) |
+| Keymaker | Skill executor | DevKit + MCP + all internal tools (full access) | configurable via `keymaker.personality` (default: `versatile_specialist`) |
 | Sati | Long-term memory evaluator | No execution tools (memory-focused reasoning) | uses Oracle personality |
 
 Key design choice: Oracle no longer carries MCP tool load directly. It delegates execution asynchronously and stays responsive.
@@ -222,7 +223,41 @@ Oracle exposes four Chronos management tools:
 
 These tools are blocked (`ChronosWorker.isExecuting`) while a Chronos job is executing.
 
-## 10. Security Model
+## 10. Skills — Keymaker Subsystem
+
+### 10.1 Components
+- `src/runtime/skills/loader.ts`: `SkillLoader` — scans `~/.morpheus/skills/` directories, parses SKILL.md frontmatter, validates schema.
+- `src/runtime/skills/registry.ts`: `SkillRegistry` — singleton managing loaded skills, enable/disable state, system prompt generation.
+- `src/runtime/skills/tool.ts`: `SkillExecuteTool` (sync) and `SkillDelegateTool` (async) — Oracle tools for skill invocation.
+- `src/runtime/keymaker.ts`: Keymaker subagent (ReactAgent) with full tool access (DevKit + MCP + internal tools).
+
+### 10.2 Skill Format
+Each skill is a folder in `~/.morpheus/skills/` containing a single `SKILL.md` file with YAML frontmatter:
+
+```markdown
+---
+name: my-skill
+description: Brief description
+execution_mode: sync  # or async
+tags:
+  - automation
+examples:
+  - "trigger phrase"
+---
+
+# Skill Instructions
+
+[Instructions for Keymaker to execute]
+```
+
+### 10.3 Execution Modes
+- **`sync`** (default): Oracle calls `skill_execute`, Keymaker executes immediately, result returned inline to conversation.
+- **`async`**: Oracle calls `skill_delegate`, task queued for background execution, user notified via channel when complete.
+
+### 10.4 Skill Discovery
+Skills are loaded at startup and on demand via `/api/skills/reload` or `/skills_reload` commands. The registry generates dynamic system prompt sections listing available sync and async skills for Oracle.
+
+## 11. Security Model
 - Local-first storage by default.
 - `x-architect-pass` protects `/api/*` management routes.
 - webhook trigger uses per-webhook `x-api-key`.
@@ -232,9 +267,10 @@ These tools are blocked (`ChronosWorker.isExecuting`) while a Chronos job is exe
 - Trinity database passwords encrypted at rest with AES-256-GCM (`MORPHEUS_SECRET` env var).
 - Per-database permission flags (`allow_read`, `allow_insert`, `allow_update`, `allow_delete`, `allow_ddl`) gate Trinity query execution.
 
-## 11. Runtime Lifecycle
+## 12. Runtime Lifecycle
 At daemon boot (`start` / `restart` commands):
 - load config and initialize Oracle
+- load skills via `SkillRegistry`
 - start HTTP server (optional)
 - register channel adapters via `ChannelRegistry`:
   - `TelegramAdapter` (if enabled)
