@@ -1,7 +1,7 @@
 import fs from 'fs-extra';
 import yaml from 'js-yaml';
 import { z } from 'zod';
-import { MorpheusConfig, DEFAULT_CONFIG, SatiConfig, ApocConfig, NeoConfig, TrinityConfig, LLMProvider, ChronosConfig } from '../types/config.js';
+import { MorpheusConfig, DEFAULT_CONFIG, SatiConfig, ApocConfig, NeoConfig, TrinityConfig, LLMProvider, ChronosConfig, SubAgentExecutionMode } from '../types/config.js';
 import { PATHS } from './paths.js';
 import { setByPath } from './utils.js';
 import { ConfigSchema } from './schemas.js';
@@ -202,6 +202,7 @@ export class ConfigManager {
         working_dir: resolveString('MORPHEUS_APOC_WORKING_DIR', config.apoc.working_dir, process.cwd()),
         timeout_ms: config.apoc.timeout_ms !== undefined ? resolveNumeric('MORPHEUS_APOC_TIMEOUT_MS', config.apoc.timeout_ms, 30_000) : 30_000,
         personality: resolveString('MORPHEUS_APOC_PERSONALITY', config.apoc.personality, 'pragmatic_dev'),
+        execution_mode: resolveString('MORPHEUS_APOC_EXECUTION_MODE', config.apoc.execution_mode, 'async') as SubAgentExecutionMode,
       };
     }
 
@@ -252,6 +253,7 @@ export class ConfigManager {
         base_url: neoBaseUrl || undefined,
         context_window: resolveOptionalNumeric('MORPHEUS_NEO_CONTEXT_WINDOW', config.neo?.context_window, neoContextWindowFallback),
         personality: resolveString('MORPHEUS_NEO_PERSONALITY', config.neo?.personality, 'analytical_engineer'),
+        execution_mode: resolveString('MORPHEUS_NEO_EXECUTION_MODE', config.neo?.execution_mode, 'async') as SubAgentExecutionMode,
       };
     }
 
@@ -279,6 +281,7 @@ export class ConfigManager {
         base_url: config.trinity?.base_url || config.llm.base_url,
         context_window: resolveOptionalNumeric('MORPHEUS_TRINITY_CONTEXT_WINDOW', config.trinity?.context_window, trinityContextWindowFallback),
         personality: resolveString('MORPHEUS_TRINITY_PERSONALITY', config.trinity?.personality, 'data_specialist'),
+        execution_mode: resolveString('MORPHEUS_TRINITY_EXECUTION_MODE', config.trinity?.execution_mode, 'async') as SubAgentExecutionMode,
       };
     }
 

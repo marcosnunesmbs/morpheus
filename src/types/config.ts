@@ -60,18 +60,26 @@ export interface SatiConfig extends LLMConfig {
   enabled_archived_sessions?: boolean;
 }
 
+export type SubAgentExecutionMode = 'sync' | 'async';
+
 export interface ApocConfig extends LLMConfig {
   working_dir?: string;
   timeout_ms?: number;
   personality?: string;
+  /** When 'sync', Oracle executes Apoc inline and returns result directly. Default: 'async'. */
+  execution_mode?: SubAgentExecutionMode;
 }
 
 export interface NeoConfig extends LLMConfig {
   personality?: string;
+  /** When 'sync', Oracle executes Neo inline and returns result directly. Default: 'async'. */
+  execution_mode?: SubAgentExecutionMode;
 }
 
 export interface TrinityConfig extends LLMConfig {
   personality?: string;
+  /** When 'sync', Oracle executes Trinity inline and returns result directly. Default: 'async'. */
+  execution_mode?: SubAgentExecutionMode;
 }
 
 export interface KeymakerConfig extends LLMConfig {
@@ -179,17 +187,20 @@ export const DEFAULT_CONFIG: MorpheusConfig = {
     temperature: 0.2,
     timeout_ms: 30000,
     personality: 'pragmatic_dev',
+    execution_mode: 'async',
   },
   neo: {
     provider: 'openai',
     model: 'gpt-4',
     temperature: 0.2,
     personality: 'analytical_engineer',
+    execution_mode: 'async',
   },
   trinity: {
     provider: 'openai',
     model: 'gpt-4',
     temperature: 0.2,
     personality: 'data_specialist',
+    execution_mode: 'async',
   }
 };

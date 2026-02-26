@@ -5,6 +5,8 @@ import { TaskRequestContext } from "../tasks/context.js";
 import { compositeDelegationError, isLikelyCompositeDelegationTask } from "./delegation-guard.js";
 import { DisplayManager } from "../display.js";
 import type { DatabaseRecord } from "../memory/trinity-db.js";
+import { ConfigManager } from "../../config/manager.js";
+import { Trinity } from "../trinity.js";
 
 const TRINITY_BASE_DESCRIPTION = `Delegate a database task to Trinity, the specialized database subagent, asynchronously.
 
@@ -37,6 +39,14 @@ export function updateTrinityDelegateToolDescription(databases: DatabaseRecord[]
   (TrinityDelegateTool as any).description = full;
 }
 
+/**
+ * Returns true when Trinity is configured to execute synchronously (inline).
+ */
+function isTrinitySync(): boolean {
+  const config = ConfigManager.getInstance().get();
+  return config.trinity?.execution_mode === 'sync';
+}
+
 export const TrinityDelegateTool = tool(
   async ({ task, context }: { task: string; context?: string }) => {
     try {
@@ -50,6 +60,29 @@ export const TrinityDelegateTool = tool(
         return compositeDelegationError();
       }
 
+      // ── Sync mode: execute inline and return result directly ──
+      if (isTrinitySync()) {
+        display.log(`Trinity executing synchronously: ${task.slice(0, 80)}...`, {
+          source: 'TrinityDelegateTool',
+          level: 'info',
+        });
+
+        const ctx = TaskRequestContext.get();
+        const sessionId = ctx?.session_id ?? 'default';
+        const trinity = Trinity.getInstance();
+        const result = await trinity.execute(task, context, sessionId);
+
+        TaskRequestContext.incrementSyncDelegation();
+
+        display.log(`Trinity sync execution completed.`, {
+          source: 'TrinityDelegateTool',
+          level: 'info',
+        });
+
+        return result;
+      }
+
+      // ── Async mode (default): create background task ──
       const existingAck = TaskRequestContext.findDuplicateDelegation('trinit', task);
       if (existingAck) {
         display.log(`Trinity delegation deduplicated. Reusing task ${existingAck.task_id}.`, {

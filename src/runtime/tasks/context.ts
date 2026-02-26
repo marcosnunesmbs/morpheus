@@ -9,6 +9,7 @@ type DelegationAck = {
 
 type RequestContext = OracleTaskContext & {
   delegation_acks?: DelegationAck[];
+  sync_delegation_count?: number;
 };
 
 const storage = new AsyncLocalStorage<RequestContext>();
@@ -44,6 +45,23 @@ export class TaskRequestContext {
 
   static canEnqueueDelegation(): boolean {
     return this.getDelegationAcks().length < this.MAX_DELEGATIONS_PER_TURN;
+  }
+
+  /**
+   * Record that a delegation tool executed synchronously (inline).
+   * Oracle uses this to know that the tool call was NOT an async enqueue.
+   */
+  static incrementSyncDelegation(): void {
+    const current = storage.getStore();
+    if (!current) return;
+    current.sync_delegation_count = (current.sync_delegation_count ?? 0) + 1;
+  }
+
+  /**
+   * Returns the number of delegation tools that executed synchronously this turn.
+   */
+  static getSyncDelegationCount(): number {
+    return storage.getStore()?.sync_delegation_count ?? 0;
   }
 
   static findDuplicateDelegation(agent: string, task: string): DelegationAck | undefined {

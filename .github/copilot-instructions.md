@@ -27,6 +27,14 @@ Oracle is the root orchestrator. It delegates to specialized subagents via tools
 
 Oracle never executes DevKit/MCP tools directly — it routes through subagents.
 
+**Subagent Execution Mode** (`execution_mode: 'sync' | 'async'`):
+
+Each subagent (Apoc, Neo, Trinity) can be configured to run synchronously or asynchronously:
+- **`async`** (default): Creates a background task in the queue. TaskWorker picks it up, executes it, and TaskNotifier delivers the result via the originating channel. Oracle responds immediately with a task acknowledgement.
+- **`sync`**: Oracle executes the subagent inline during the same turn. The result is returned directly in Oracle's response, like `skill_execute` does for Keymaker. No task is created in the queue.
+
+Configurable via `zaion.yaml` (e.g., `neo.execution_mode: sync`), env var (e.g., `MORPHEUS_NEO_EXECUTION_MODE=sync`), or the Settings UI.
+
 ### Skills System (Keymaker)
 - **Location:** `src/runtime/skills/` (loader, registry, tool, types)
 - **User Skills:** `~/.morpheus/skills/` folders with `SKILL.md` (YAML frontmatter + instructions)
