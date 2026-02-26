@@ -77,17 +77,27 @@ export const TrinityDelegateTool = tool(
             .catch(() => {});
         }
 
-        const trinity = Trinity.getInstance();
-        const result = await trinity.execute(task, context, sessionId);
+        try {
+          const trinity = Trinity.getInstance();
+          const result = await trinity.execute(task, context, sessionId);
 
-        TaskRequestContext.incrementSyncDelegation();
+          TaskRequestContext.incrementSyncDelegation();
 
-        display.log(`Trinity sync execution completed.`, {
-          source: 'TrinityDelegateTool',
-          level: 'info',
-        });
+          display.log(`Trinity sync execution completed.`, {
+            source: 'TrinityDelegateTool',
+            level: 'info',
+          });
 
-        return result;
+          return result;
+        } catch (syncErr: any) {
+          // Still count as sync delegation so Oracle passes through the error message
+          TaskRequestContext.incrementSyncDelegation();
+          display.log(`Trinity sync execution failed: ${syncErr.message}`, {
+            source: 'TrinityDelegateTool',
+            level: 'error',
+          });
+          return `❌ Trinity error: ${syncErr.message}`;
+        }
       }
 
       // ── Async mode (default): create background task ──

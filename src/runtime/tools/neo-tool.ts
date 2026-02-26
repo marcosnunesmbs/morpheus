@@ -91,22 +91,32 @@ export const NeoDelegateTool = tool(
             .catch(() => {});
         }
 
-        const neo = Neo.getInstance();
-        const result = await neo.execute(task, context, sessionId, {
-          origin_channel: ctx?.origin_channel ?? "api",
-          session_id: sessionId,
-          origin_message_id: ctx?.origin_message_id,
-          origin_user_id: ctx?.origin_user_id,
-        });
+        try {
+          const neo = Neo.getInstance();
+          const result = await neo.execute(task, context, sessionId, {
+            origin_channel: ctx?.origin_channel ?? "api",
+            session_id: sessionId,
+            origin_message_id: ctx?.origin_message_id,
+            origin_user_id: ctx?.origin_user_id,
+          });
 
-        TaskRequestContext.incrementSyncDelegation();
+          TaskRequestContext.incrementSyncDelegation();
 
-        display.log(`Neo sync execution completed.`, {
-          source: "NeoDelegateTool",
-          level: "info",
-        });
+          display.log(`Neo sync execution completed.`, {
+            source: "NeoDelegateTool",
+            level: "info",
+          });
 
-        return result;
+          return result;
+        } catch (syncErr: any) {
+          // Still count as sync delegation so Oracle passes through the error message
+          TaskRequestContext.incrementSyncDelegation();
+          display.log(`Neo sync execution failed: ${syncErr.message}`, {
+            source: "NeoDelegateTool",
+            level: "error",
+          });
+          return `❌ Neo error: ${syncErr.message}`;
+        }
       }
 
       // ── Async mode (default): create background task ──

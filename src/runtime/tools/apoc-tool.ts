@@ -56,17 +56,27 @@ export const ApocDelegateTool = tool(
             .catch(() => {});
         }
 
-        const apoc = Apoc.getInstance();
-        const result = await apoc.execute(task, context, sessionId);
+        try {
+          const apoc = Apoc.getInstance();
+          const result = await apoc.execute(task, context, sessionId);
 
-        TaskRequestContext.incrementSyncDelegation();
+          TaskRequestContext.incrementSyncDelegation();
 
-        display.log(`Apoc sync execution completed.`, {
-          source: "ApocDelegateTool",
-          level: "info",
-        });
+          display.log(`Apoc sync execution completed.`, {
+            source: "ApocDelegateTool",
+            level: "info",
+          });
 
-        return result;
+          return result;
+        } catch (syncErr: any) {
+          // Still count as sync delegation so Oracle passes through the error message
+          TaskRequestContext.incrementSyncDelegation();
+          display.log(`Apoc sync execution failed: ${syncErr.message}`, {
+            source: "ApocDelegateTool",
+            level: "error",
+          });
+          return `❌ Apoc error: ${syncErr.message}`;
+        }
       }
 
       // ── Async mode (default): create background task ──

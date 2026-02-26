@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.7] - 2026-02-26
+
 ### Added
 - **MCP Tool Cache**: Optimized MCP tool loading with in-memory caching
   - Tools are loaded once at startup and cached in `MCPToolCache` singleton
@@ -51,6 +53,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Channels `api` and `ui` are excluded (they have their own loading states)
   - New "Verbose Mode" toggle in Settings UI → General tab
 - **Sync Execution Channel Notification**: When a subagent runs in sync mode, the originating channel receives `⏳ <Agent> is executing your request...` before execution begins
+
+### Fixed
+- **Sync Mode Error Propagation**: When subagents (Apoc/Neo/Trinity) fail in sync mode, error messages are now properly returned to the user instead of generic "Task enqueue could not be confirmed" message
 
 ## [0.6.8] - 2026-02-25
 
