@@ -3,6 +3,7 @@ import { DisplayManager } from '../display.js';
 import { Apoc } from '../apoc.js';
 import { Neo } from '../neo.js';
 import { Trinity } from '../trinity.js';
+import { executeKeymakerTask } from '../keymaker.js';
 import { TaskRepository } from './repository.js';
 import type { TaskRecord } from './types.js';
 
@@ -76,6 +77,26 @@ export class TaskWorker {
         case 'trinit': {
           const trinity = Trinity.getInstance();
           output = await trinity.execute(task.input, task.context ?? undefined, task.session_id);
+          break;
+        }
+        case 'keymaker': {
+          // Parse skill name from context JSON
+          let skillName = 'unknown';
+          if (task.context) {
+            try {
+              const parsed = JSON.parse(task.context);
+              skillName = parsed.skill || 'unknown';
+            } catch {
+              // context is not JSON, use as skill name directly for backwards compat
+              skillName = task.context;
+            }
+          }
+          output = await executeKeymakerTask(skillName, task.input, {
+            origin_channel: task.origin_channel,
+            session_id: task.session_id,
+            origin_message_id: task.origin_message_id ?? undefined,
+            origin_user_id: task.origin_user_id ?? undefined,
+          });
           break;
         }
         default: {

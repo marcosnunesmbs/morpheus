@@ -35,6 +35,10 @@ export const NeoConfigSchema = LLMConfigSchema;
 
 export const TrinityConfigSchema = LLMConfigSchema;
 
+export const KeymakerConfigSchema = LLMConfigSchema.extend({
+    skills_dir: z.string().optional(),
+});
+
 export const WebhookConfigSchema = z.object({
   telegram_notify_all: z.boolean().optional(),
 }).optional();
@@ -56,6 +60,7 @@ export const ConfigSchema = z.object({
   neo: NeoConfigSchema.optional(),
   apoc: ApocConfigSchema.optional(),
   trinity: TrinityConfigSchema.optional(),
+  keymaker: KeymakerConfigSchema.optional(),
   webhooks: WebhookConfigSchema,
   audio: AudioConfigSchema.default(DEFAULT_CONFIG.audio),
   memory: z.object({

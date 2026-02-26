@@ -16,4 +16,5 @@ export const PATHS = {
   browser: path.join(MORPHEUS_ROOT, 'cache', 'browser'),
   commands: path.join(MORPHEUS_ROOT, 'commands'),
   mcps: path.join(MORPHEUS_ROOT, 'mcps.json'),
+  skills: path.join(MORPHEUS_ROOT, 'skills'),
 };

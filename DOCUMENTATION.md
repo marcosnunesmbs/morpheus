@@ -20,10 +20,11 @@ This document reflects the current runtime behavior and API contracts.
 
 | Agent | Role | Main Tool Scope | Personality |
 |---|---|---|---|
-| Oracle (`src/runtime/oracle.ts`) | Orchestrator and router | `task_query`, `neo_delegate`, `apoc_delegate`, `trinity_delegate` | `agent.personality` (default: `helpful_dev`) |
+| Oracle (`src/runtime/oracle.ts`) | Orchestrator and router | `task_query`, `neo_delegate`, `apoc_delegate`, `trinity_delegate`, `skill_delegate` | `agent.personality` (default: `helpful_dev`) |
 | Neo (`src/runtime/neo.ts`) | MCP + internal operational execution | MCP tools + config/diagnostic/analytics tools | `neo.personality` (default: `analytical_engineer`) |
 | Apoc (`src/runtime/apoc.ts`) | DevTools and browser executor | DevKit tools | `apoc.personality` (default: `pragmatic_dev`) |
 | Trinity (`src/runtime/trinity.ts`) | Database specialist | PostgreSQL/MySQL/SQLite/MongoDB execution + schema introspection | `trinity.personality` (default: `data_specialist`) |
+| Keymaker (`src/runtime/keymaker.ts`) | Skill executor | DevKit + MCP + morpheusTools (full tool access) | `keymaker.personality` (default: `versatile_specialist`) |
 | Sati (`src/runtime/memory/sati/*`) | Long-term memory retrieval/evaluation | Memory-only reasoning | uses Oracle personality |
 
 ### 2.2 Delegation Rules
@@ -131,6 +132,10 @@ Task completion/failure notifications include:
 - `/chronos_enable <id>` — re-enable a disabled job (recomputes next run)
 - `/chronos_disable <id>` — pause a job without deleting it
 - `/chronos_delete <id>` — delete a job (asks for confirmation)
+- `/skills` — list all loaded skills with enabled/disabled status
+- `/skill_enable <name>` — enable a disabled skill
+- `/skill_disable <name>` — disable a skill (Oracle won't see it)
+- `/skills_reload` — reload skills from `~/.morpheus/skills/`
 
 ## 5.2 Discord Channel Behavior
 
@@ -151,6 +156,10 @@ Registered automatically on startup:
 | `/chronos_disable id:` | Disable a job |
 | `/chronos_enable id:` | Enable a job |
 | `/chronos_delete id:` | Delete a job |
+| `/skills` | List all loaded skills |
+| `/skill_enable name:` | Enable a skill |
+| `/skill_disable name:` | Disable a skill |
+| `/skills_reload` | Reload skills from disk |
 
 ### Voice Messages
 Discord voice messages and audio file attachments are transcribed and processed identically to Telegram.
@@ -198,6 +207,14 @@ Dedicated agent tabs:
 - Edit existing job (prompt and schedule)
 - Execution history drawer per job (status, triggered_at, duration)
 - Enable/disable/delete actions with confirmation dialog
+
+### 6.6 Skills Page
+- Skills table showing all loaded skills with enabled/disabled status
+- Skill details: name, description, trigger patterns, author
+- Enable/disable toggle per skill
+- Reload button to refresh skills from `~/.morpheus/skills/`
+- Link to skill instructions (SKILL.md content preview)
+- Skills execute via Keymaker agent with full tool access
 
 ## 7. Configuration
 
@@ -2049,6 +2066,125 @@ Success response `200`:
 ```json
 {
   "success": true
+}
+```
+
+## 8.18 Skills Endpoints (Protected)
+
+User-defined skills are loaded from `~/.morpheus/skills/`. Each skill is a folder containing a `skill.yaml` manifest and `SKILL.md` instructions.
+
+### GET `/api/skills`
+Lists all loaded skills with metadata and enabled state.
+
+Request payload:
+- No body
+
+Success response `200`:
+
+```json
+{
+  "skills": [
+    {
+      "name": "code-reviewer",
+      "description": "Performs thorough code reviews",
+      "triggerPatterns": ["review", "code review", "check my code"],
+      "author": "user",
+      "enabled": true
+    },
+    {
+      "name": "git-helper",
+      "description": "Git workflow automation",
+      "triggerPatterns": ["git", "commit", "branch"],
+      "author": "community",
+      "enabled": false
+    }
+  ]
+}
+```
+
+### GET `/api/skills/:name`
+Returns a specific skill's full details including SKILL.md content.
+
+Request payload:
+- No body
+
+Success response `200`:
+
+```json
+{
+  "name": "code-reviewer",
+  "description": "Performs thorough code reviews",
+  "triggerPatterns": ["review", "code review", "check my code"],
+  "author": "user",
+  "enabled": true,
+  "content": "# Code Reviewer Skill\n\nYou are an expert code reviewer..."
+}
+```
+
+Error response `404`:
+
+```json
+{
+  "error": "Skill not found"
+}
+```
+
+### POST `/api/skills/reload`
+Reloads all skills from disk.
+
+Request payload:
+- No body
+
+Success response `200`:
+
+```json
+{
+  "success": true,
+  "count": 5
+}
+```
+
+### POST `/api/skills/:name/enable`
+Enables a disabled skill.
+
+Request payload:
+- No body
+
+Success response `200`:
+
+```json
+{
+  "success": true
+}
+```
+
+Error response `404`:
+
+```json
+{
+  "error": "Skill not found"
+}
+```
+
+### POST `/api/skills/:name/disable`
+Disables a skill (Oracle won't see it in system prompt).
+
+Request payload:
+- No body
+
+Success response `200`:
+
+```json
+{
+  "success": true
+}
+```
+
+Error response `404`:
+
+```json
+{
+  "error": "Skill not found"
 }
 ```
 

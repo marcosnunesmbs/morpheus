@@ -74,6 +74,11 @@ export interface TrinityConfig extends LLMConfig {
   personality?: string;
 }
 
+export interface KeymakerConfig extends LLMConfig {
+  personality?: string;
+  skills_dir?: string;
+}
+
 export interface WebhookConfig {
   /** If true, all webhook notifications are also sent to Telegram by default */
   telegram_notify_all?: boolean;
@@ -110,6 +115,7 @@ export interface MorpheusConfig {
   neo?: NeoConfig;
   apoc?: ApocConfig;
   trinity?: TrinityConfig;
+  keymaker?: KeymakerConfig;
   webhooks?: WebhookConfig;
   channels: ChannelsConfig;
   ui: UIConfig;

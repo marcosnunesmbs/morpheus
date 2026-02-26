@@ -1,10 +1,69 @@
 import fs from 'fs-extra';
+import path from 'path';
 import { PATHS } from '../config/paths.js';
 import { ConfigManager } from '../config/manager.js';
 import { DEFAULT_MCP_TEMPLATE } from '../types/mcp.js';
 import chalk from 'chalk';
 import ora from 'ora';
 import { migrateConfigFile } from './migration.js';
+
+const SKILLS_README = `# Morpheus Skills
+
+This folder contains custom skills for Morpheus.
+
+## Creating a Skill
+
+1. Create a folder with your skill name (lowercase, hyphens allowed):
+   \`\`\`
+   mkdir my-skill
+   \`\`\`
+
+2. Create \`skill.yaml\` with metadata:
+   \`\`\`yaml
+   name: my-skill
+   version: 1.0.0
+   description: "What this skill does (max 500 chars)"
+   author: your-name
+   enabled: true
+   tags:
+     - category
+   examples:
+     - "Example request that triggers this skill"
+   \`\`\`
+
+3. Create \`SKILL.md\` with instructions:
+   \`\`\`markdown
+   # My Skill
+
+   Instructions for Keymaker to follow when executing this skill.
+
+   ## Steps
+   1. First step
+   2. Second step
+
+   ## Output Format
+   How to format the result.
+   \`\`\`
+
+## How It Works
+
+- Oracle lists available skills in its system prompt
+- When a request matches a skill, Oracle delegates to Keymaker
+- Keymaker has access to ALL tools (filesystem, shell, git, MCP, databases)
+- Keymaker follows SKILL.md instructions to complete the task
+
+## Skill Schema
+
+| Field | Required | Description |
+|-------|----------|-------------|
+| name | Yes | Unique identifier (a-z, 0-9, hyphens) |
+| description | Yes | Short description (max 500 chars) |
+| version | No | Semver (e.g., 1.0.0) |
+| author | No | Your name |
+| enabled | No | true/false (default: true) |
+| tags | No | Array of tags (max 10) |
+| examples | No | Example requests (max 5) |
+`;
 
 export async function scaffold(): Promise<void> {
   const spinner = ora('Ensuring Morpheus environment...').start();
@@ -17,6 +76,7 @@ export async function scaffold(): Promise<void> {
       fs.ensureDir(PATHS.memory),
       fs.ensureDir(PATHS.cache),
       fs.ensureDir(PATHS.commands),
+      fs.ensureDir(PATHS.skills),
     ]);
 
     // Migrate config.yaml -> zaion.yaml if needed
@@ -33,6 +93,12 @@ export async function scaffold(): Promise<void> {
     // Create mcps.json if not exists
     if (!(await fs.pathExists(PATHS.mcps))) {
       await fs.writeJson(PATHS.mcps, DEFAULT_MCP_TEMPLATE, { spaces: 2 });
+    }
+
+    // Create skills README if not exists
+    const skillsReadme = path.join(PATHS.skills, 'README.md');
+    if (!(await fs.pathExists(skillsReadme))) {
+      await fs.writeFile(skillsReadme, SKILLS_README, 'utf-8');
     }
 
     spinner.succeed('Morpheus environment ready at ' + chalk.cyan(PATHS.root));

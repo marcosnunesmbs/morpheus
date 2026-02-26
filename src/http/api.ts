@@ -22,6 +22,7 @@ import { Trinity } from '../runtime/trinity.js';
 import { ChronosRepository } from '../runtime/chronos/repository.js';
 import { ChronosWorker } from '../runtime/chronos/worker.js';
 import { createChronosJobRouter, createChronosConfigRouter } from './routers/chronos.js';
+import { createSkillsRouter } from './routers/skills.js';
 import { getActiveEnvOverrides } from '../config/precedence.js';
 
 async function readLastLines(filePath: string, n: number): Promise<string[]> {
@@ -47,6 +48,9 @@ export function createApiRouter(oracle: IOracle, chronosWorker?: ChronosWorker) 
     router.use('/chronos', createChronosJobRouter(chronosRepo, worker));
     router.use('/config/chronos', createChronosConfigRouter(worker));
   }
+
+  // Mount Skills router
+  router.use('/skills', createSkillsRouter());
 
   // --- Session Management ---
 

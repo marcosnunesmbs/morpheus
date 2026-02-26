@@ -1,0 +1,14 @@
+name: code-reviewer
+description: Reviews code files for issues, best practices, and potential improvements. Analyzes code quality and provides actionable feedback.
+version: 1.0.0
+author: morpheus
+enabled: true
+tags:
+  - code
+  - review
+  - quality
+  - analysis
+examples:
+  - "Review the code in src/auth.ts"
+  - "Check this PR for issues"
+  - "Analyze the user service for best practices"

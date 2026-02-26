@@ -93,6 +93,32 @@ const SLASH_COMMANDS = [
       opt.setName('id').setDescription('Job ID').setRequired(true)
     )
     .setDMPermission(true),
+
+  new SlashCommandBuilder()
+    .setName('skills')
+    .setDescription('List all available skills')
+    .setDMPermission(true),
+
+  new SlashCommandBuilder()
+    .setName('skill_reload')
+    .setDescription('Reload skills from filesystem')
+    .setDMPermission(true),
+
+  new SlashCommandBuilder()
+    .setName('skill_enable')
+    .setDescription('Enable a skill')
+    .addStringOption(opt =>
+      opt.setName('name').setDescription('Skill name').setRequired(true)
+    )
+    .setDMPermission(true),
+
+  new SlashCommandBuilder()
+    .setName('skill_disable')
+    .setDescription('Disable a skill')
+    .addStringOption(opt =>
+      opt.setName('name').setDescription('Skill name').setRequired(true)
+    )
+    .setDMPermission(true),
 ].map(cmd => cmd.toJSON());
 
 // ─── Adapter ──────────────────────────────────────────────────────────────────
@@ -428,6 +454,10 @@ export class DiscordAdapter {
       case 'chronos_disable': await this.cmdChronosDisable(interaction);  break;
       case 'chronos_enable':  await this.cmdChronosEnable(interaction);   break;
       case 'chronos_delete':  await this.cmdChronosDelete(interaction);   break;
+      case 'skills':          await this.cmdSkills(interaction);           break;
+      case 'skill_reload':    await this.cmdSkillReload(interaction);      break;
+      case 'skill_enable':    await this.cmdSkillEnable(interaction);      break;
+      case 'skill_disable':   await this.cmdSkillDisable(interaction);     break;
     }
   }
 
@@ -447,6 +477,12 @@ export class DiscordAdapter {
       '`/chronos_disable id:` — Disable a job',
       '`/chronos_enable id:` — Enable a job',
       '`/chronos_delete id:` — Delete a job',
+      '',
+      '**Skills**',
+      '`/skills` — List all available skills',
+      '`/skill_reload` — Reload skills from filesystem',
+      '`/skill_enable name:` — Enable a skill',
+      '`/skill_disable name:` — Disable a skill',
       '',
       'You can also send text or voice messages to chat with the Oracle.',
     ].join('\n');
@@ -640,6 +676,89 @@ export class DiscordAdapter {
       const deleted = repo.deleteJob(id);
       if (!deleted) { await interaction.reply({ content: 'Job not found.' }); return; }
       await interaction.reply({ content: `Job \`${id.slice(0, 8)}\` deleted.` });
+    } catch (err: any) {
+      await interaction.reply({ content: `Error: ${err.message}` });
+    }
+  }
+
+  // ─── Skills Commands ─────────────────────────────────────────────────────
+
+  private async cmdSkills(interaction: ChatInputCommandInteraction): Promise<void> {
+    try {
+      const { SkillRegistry } = await import('../runtime/skills/index.js');
+      const registry = SkillRegistry.getInstance();
+      const skills = registry.getAll();
+
+      if (!skills.length) {
+        await interaction.reply({ content: 'No skills found. Add skills to `~/.morpheus/skills/`' });
+        return;
+      }
+
+      const lines = skills.map(s => {
+        const status = s.enabled ? '🟢' : '🔴';
+        const tags = s.tags?.length ? ` [${s.tags.join(', ')}]` : '';
+        return `${status} **${s.name}**${tags}\n    _${s.description.slice(0, 50)}${s.description.length > 50 ? '…' : ''}_`;
+      });
+
+      const enabled = skills.filter(s => s.enabled).length;
+      await interaction.reply({
+        content: `**Skills** (${enabled}/${skills.length} enabled)\n\n${lines.join('\n')}`
+      });
+    } catch (err: any) {
+      await interaction.reply({ content: `Error: ${err.message}` });
+    }
+  }
+
+  private async cmdSkillReload(interaction: ChatInputCommandInteraction): Promise<void> {
+    try {
+      const { SkillRegistry, updateSkillDelegateDescription } = await import('../runtime/skills/index.js');
+      const registry = SkillRegistry.getInstance();
+      const result = await registry.reload();
+      updateSkillDelegateDescription();
+
+      const msg = result.errors.length > 0
+        ? `Reloaded ${result.skills.length} skills with ${result.errors.length} error(s).`
+        : `Reloaded ${result.skills.length} skill(s).`;
+
+      await interaction.reply({ content: msg });
+    } catch (err: any) {
+      await interaction.reply({ content: `Error: ${err.message}` });
+    }
+  }
+
+  private async cmdSkillEnable(interaction: ChatInputCommandInteraction): Promise<void> {
+    const name = interaction.options.getString('name', true);
+    try {
+      const { SkillRegistry, updateSkillDelegateDescription } = await import('../runtime/skills/index.js');
+      const registry = SkillRegistry.getInstance();
+      const success = registry.enable(name);
+
+      if (!success) {
+        await interaction.reply({ content: `Skill "${name}" not found.` });
+        return;
+      }
+
+      updateSkillDelegateDescription();
+      await interaction.reply({ content: `Skill \`${name}\` enabled.` });
+    } catch (err: any) {
+      await interaction.reply({ content: `Error: ${err.message}` });
+    }
+  }
+
+  private async cmdSkillDisable(interaction: ChatInputCommandInteraction): Promise<void> {
+    const name = interaction.options.getString('name', true);
+    try {
+      const { SkillRegistry, updateSkillDelegateDescription } = await import('../runtime/skills/index.js');
+      const registry = SkillRegistry.getInstance();
+      const success = registry.disable(name);
+
+      if (!success) {
+        await interaction.reply({ content: `Skill "${name}" not found.` });
+        return;
+      }
+
+      updateSkillDelegateDescription();
+      await interaction.reply({ content: `Skill \`${name}\` disabled.` });
     } catch (err: any) {
       await interaction.reply({ content: `Error: ${err.message}` });
     }

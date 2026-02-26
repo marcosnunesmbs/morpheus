@@ -22,6 +22,7 @@ import { ApocDelegateTool } from "./tools/apoc-tool.js";
 import { TrinityDelegateTool } from "./tools/trinity-tool.js";
 import { TaskQueryTool, chronosTools, timeVerifierTool } from "./tools/index.js";
 import { MCPManager } from "../config/mcp-manager.js";
+import { SkillRegistry, SkillDelegateTool, updateSkillDelegateDescription } from "./skills/index.js";
 
 type AckGenerationResult = {
   content: string;
@@ -183,7 +184,8 @@ export class Oracle implements IOracle {
       // Fail-open: Oracle can still initialize even if catalog refresh fails.
       await Neo.refreshDelegateCatalog().catch(() => {});
       await Trinity.refreshDelegateCatalog().catch(() => {});
-      this.provider = await ProviderFactory.create(this.config.llm, [TaskQueryTool, NeoDelegateTool, ApocDelegateTool, TrinityDelegateTool, timeVerifierTool, ...chronosTools]);
+      updateSkillDelegateDescription();
+      this.provider = await ProviderFactory.create(this.config.llm, [TaskQueryTool, NeoDelegateTool, ApocDelegateTool, TrinityDelegateTool, SkillDelegateTool, timeVerifierTool, ...chronosTools]);
       if (!this.provider) {
         throw new Error("Provider factory returned undefined");
       }
@@ -345,6 +347,8 @@ good:
 - Answer directly acknowledging the fact. Do NOT delegate.
 bad:
 - delegate to "neo_delegate" or "apoc_delegate" to save the fact. (Sati handles this automatically in the background)
+
+${SkillRegistry.getInstance().getSystemPromptSection()}
 `);
 
       // Load existing history from database in reverse order (most recent first)
@@ -632,7 +636,8 @@ Use it to inform your response and tool selection (if needed), but do not assume
 
     await Neo.refreshDelegateCatalog().catch(() => {});
     await Trinity.refreshDelegateCatalog().catch(() => {});
-    this.provider = await ProviderFactory.create(this.config.llm, [TaskQueryTool, NeoDelegateTool, ApocDelegateTool, TrinityDelegateTool, ...chronosTools]);
+    updateSkillDelegateDescription();
+    this.provider = await ProviderFactory.create(this.config.llm, [TaskQueryTool, NeoDelegateTool, ApocDelegateTool, TrinityDelegateTool, SkillDelegateTool, ...chronosTools]);
     await Neo.getInstance().reload();
     this.display.log(`Oracle and Neo tools reloaded`, { source: 'Oracle' });
   }

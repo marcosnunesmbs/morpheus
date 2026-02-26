@@ -22,6 +22,7 @@ import { TaskWorker } from '../../runtime/tasks/worker.js';
 import { TaskNotifier } from '../../runtime/tasks/notifier.js';
 import { ChronosWorker } from '../../runtime/chronos/worker.js';
 import { ChronosRepository } from '../../runtime/chronos/repository.js';
+import { SkillRegistry } from '../../runtime/skills/index.js';
 
 // Load .env file explicitly in start command
 const envPath = path.join(process.cwd(), '.env');
@@ -137,6 +138,17 @@ export const startCommand = new Command('start')
       display.log(chalk.gray(`PID: ${process.pid}`));
       if (options.ui) {
         display.log(chalk.blue(`Web UI enabled to port ${options.port}`), { source: 'Zaion' });
+      }
+
+      // Initialize SkillRegistry before Oracle (so skills are available in system prompt)
+      try {
+        const skillRegistry = SkillRegistry.getInstance();
+        await skillRegistry.load();
+        const loadedSkills = skillRegistry.getAll();
+        const enabledCount = skillRegistry.getEnabled().length;
+        display.log(chalk.green(`✓ Skills loaded: ${loadedSkills.length} total, ${enabledCount} enabled`), { source: 'Skills' });
+      } catch (err: any) {
+        display.log(chalk.yellow(`Skills initialization warning: ${err.message}`), { source: 'Skills' });
       }
 
       // Initialize Oracle

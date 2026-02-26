@@ -18,6 +18,7 @@ import {
   ListChecks,
   Database,
   Clock,
+  Wand2,
 } from 'lucide-react';
 import { Footer } from './Footer';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -83,6 +84,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
     { icon: MessageSquare, label: 'Chat', path: '/chat' },
     { icon: Settings, label: 'Zaion', path: '/zaion' },
     { icon: Puzzle, label: 'MCP Servers', path: '/mcp-servers' },
+    { icon: Wand2, label: 'Skills', path: '/skills' },
     { icon: BarChart3, label: 'Usage Stats', path: '/stats' },
     { icon: DollarSign, label: 'Model Pricing', path: '/model-pricing' },
     { icon: Activity, label: 'Sati Memories', path: '/sati-memories' },
@@ -98,6 +100,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
     { icon: MessageSquare, label: 'Chat', path: '/chat' },
     { icon: Settings, label: 'Zaion', path: '/zaion' },
     { icon: Puzzle, label: 'MCP Servers', path: '/mcp-servers' },
+    { icon: Wand2, label: 'Skills', path: '/skills' },
     { icon: BarChart3, label: 'Usage Stats', path: '/stats' },
     { icon: DollarSign, label: 'Model Pricing', path: '/model-pricing' },
     { icon: Activity, label: 'Sati Memories', path: '/sati-memories' },

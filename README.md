@@ -22,6 +22,7 @@ It runs as a daemon and orchestrates LLMs, MCP tools, DevKit tools, memory, and 
 - `Sati`: long-term memory retrieval/evaluation.
 - `Trinity`: database specialist. Executes queries, introspects schemas, and manages registered databases (PostgreSQL, MySQL, SQLite, MongoDB).
 - `Chronos`: temporal scheduler. Runs Oracle prompts on a recurring or one-time schedule.
+- `Keymaker`: skill executor. Runs user-defined skills with full tool access (DevKit + MCP + internal tools).
 
 ## Installation
 
@@ -440,6 +441,92 @@ Precedence order:
 2. Generic `MORPHEUS_*` variable
 3. `zaion.yaml`
 4. Defaults
+
+## Skills
+
+Skills are user-defined capabilities that extend Morpheus. Each skill is a folder in `~/.morpheus/skills/` containing:
+
+- `skill.yaml` - Metadata and configuration
+- `SKILL.md` - Instructions for Keymaker to follow
+
+### Creating a Skill
+
+```bash
+mkdir -p ~/.morpheus/skills/my-skill
+```
+
+**skill.yaml:**
+```yaml
+name: my-skill
+description: Brief description of what this skill does
+version: 1.0.0
+author: your-name
+enabled: true
+tags:
+  - automation
+  - example
+examples:
+  - "Example prompt that triggers this skill"
+```
+
+**SKILL.md:**
+```markdown
+# My Skill
+
+You are an expert at [domain]. Follow these instructions...
+
+## Your Task
+[Instructions for Keymaker to execute]
+```
+
+### Using Skills
+
+Once a skill is loaded, Oracle will automatically suggest delegating matching tasks to Keymaker:
+
+```
+User: "Review the code in src/auth.ts"
+Oracle: [delegates to Keymaker using code-reviewer skill]
+Keymaker: [analyzes code, returns detailed review]
+```
+
+### Managing Skills
+
+**CLI Commands:**
+```bash
+# View loaded skills
+morpheus skills
+
+# Reload skills from disk
+morpheus skills --reload
+```
+
+**API Endpoints:**
+```
+GET    /api/skills           - List all skills
+GET    /api/skills/:name     - Get skill details
+POST   /api/skills/reload    - Reload from filesystem
+POST   /api/skills/:name/enable   - Enable skill
+POST   /api/skills/:name/disable  - Disable skill
+```
+
+**Telegram/Discord Commands:**
+```
+/skills              - List skills
+/skill_reload        - Reload skills
+/skill_enable <name> - Enable a skill
+/skill_disable <name> - Disable a skill
+```
+
+### Sample Skills
+
+Example skills are available in `examples/skills/`:
+- `code-reviewer` - Reviews code for issues and best practices
+- `git-helper` - Assists with Git operations
+
+Copy them to your skills directory:
+```bash
+cp -r examples/skills/* ~/.morpheus/skills/
+```
 
 ## MCP Configuration
 

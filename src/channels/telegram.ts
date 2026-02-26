@@ -886,6 +886,22 @@ export class TelegramAdapter {
         await this.handleChronosDelete(ctx, id);
         break;
       }
+      case '/skills':
+        await this.handleSkillsList(ctx);
+        break;
+      case '/skill_reload':
+        await this.handleSkillsReload(ctx);
+        break;
+      case '/skill_enable': {
+        const name = args[0] ?? '';
+        await this.handleSkillEnable(ctx, name);
+        break;
+      }
+      case '/skill_disable': {
+        const name = args[0] ?? '';
+        await this.handleSkillDisable(ctx, name);
+        break;
+      }
       default:
         await this.handleDefaultCommand(ctx, user, command);
     }
@@ -1087,6 +1103,98 @@ export class TelegramAdapter {
   }
 
   // ─── End Chronos ──────────────────────────────────────────────────────────────
+
+  // ─── Skills Command Handlers ─────────────────────────────────────────────────
+
+  private async handleSkillsList(ctx: any) {
+    try {
+      const { SkillRegistry } = await import('../runtime/skills/index.js');
+      const registry = SkillRegistry.getInstance();
+      const skills = registry.getAll();
+
+      if (!skills.length) {
+        await ctx.reply('No skills found. Add skills to `~/.morpheus/skills/`', { parse_mode: 'Markdown' });
+        return;
+      }
+
+      const lines = skills.map(s => {
+        const status = s.enabled ? '🟢' : '🔴';
+        const tags = s.tags?.length ? ` [${s.tags.join(', ')}]` : '';
+        return `${status} *${s.name}*${tags}\n    _${s.description.slice(0, 50)}${s.description.length > 50 ? '…' : ''}_`;
+      });
+
+      const enabled = skills.filter(s => s.enabled).length;
+      await ctx.reply(
+        `*Skills* (${enabled}/${skills.length} enabled)\n\n${lines.join('\n')}`,
+        { parse_mode: 'Markdown' }
+      );
+    } catch (err: any) {
+      await ctx.reply(`Error: ${err.message}`);
+    }
+  }
+
+  private async handleSkillsReload(ctx: any) {
+    try {
+      const { SkillRegistry, updateSkillDelegateDescription } = await import('../runtime/skills/index.js');
+      const registry = SkillRegistry.getInstance();
+      const result = await registry.reload();
+      updateSkillDelegateDescription();
+
+      const msg = result.errors.length > 0
+        ? `Reloaded ${result.skills.length} skills with ${result.errors.length} error(s).`
+        : `Reloaded ${result.skills.length} skill(s).`;
+
+      await ctx.reply(msg);
+    } catch (err: any) {
+      await ctx.reply(`Error: ${err.message}`);
+    }
+  }
+
+  private async handleSkillEnable(ctx: any, name: string) {
+    if (!name) {
+      await ctx.reply('Usage: /skill_enable <name>');
+      return;
+    }
+    try {
+      const { SkillRegistry, updateSkillDelegateDescription } = await import('../runtime/skills/index.js');
+      const registry = SkillRegistry.getInstance();
+      const success = registry.enable(name);
+
+      if (!success) {
+        await ctx.reply(`Skill "${name}" not found.`);
+        return;
+      }
+
+      updateSkillDelegateDescription();
+      await ctx.reply(`Skill \`${name}\` enabled.`, { parse_mode: 'Markdown' });
+    } catch (err: any) {
+      await ctx.reply(`Error: ${err.message}`);
+    }
+  }
+
+  private async handleSkillDisable(ctx: any, name: string) {
+    if (!name) {
+      await ctx.reply('Usage: /skill_disable <name>');
+      return;
+    }
+    try {
+      const { SkillRegistry, updateSkillDelegateDescription } = await import('../runtime/skills/index.js');
+      const registry = SkillRegistry.getInstance();
+      const success = registry.disable(name);
+
+      if (!success) {
+        await ctx.reply(`Skill "${name}" not found.`);
+        return;
+      }
+
+      updateSkillDelegateDescription();
+      await ctx.reply(`Skill \`${name}\` disabled.`, { parse_mode: 'Markdown' });
+    } catch (err: any) {
+      await ctx.reply(`Error: ${err.message}`);
+    }
+  }
+
+  // ─── End Skills ───────────────────────────────────────────────────────────────
 
   private async handleNewSessionCommand(ctx: any, user: string) {
     try {
