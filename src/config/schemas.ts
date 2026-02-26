@@ -77,6 +77,7 @@ export const ConfigSchema = z.object({
     }).default(DEFAULT_CONFIG.runtime?.async_tasks ?? { enabled: true }),
   }).optional(),
   chronos: ChronosConfigSchema.optional(),
+  verbose_mode: z.boolean().default(true),
   channels: z.object({
     telegram: z.object({
       enabled: z.boolean().default(false),

@@ -132,6 +132,7 @@ export interface MorpheusConfig {
   memory: MemoryConfig;
   runtime?: RuntimeConfig;
   chronos?: ChronosConfig;
+  verbose_mode?: boolean;
 }
 
 export const DEFAULT_CONFIG: MorpheusConfig = {
@@ -202,5 +203,6 @@ export const DEFAULT_CONFIG: MorpheusConfig = {
     temperature: 0.2,
     personality: 'data_specialist',
     execution_mode: 'async',
-  }
+  },
+  verbose_mode: true,
 };

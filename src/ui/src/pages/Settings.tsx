@@ -455,6 +455,18 @@ export default function Settings() {
               }
               error={errors['agent.personality']}
             />
+            <SelectInput
+              label="Verbose Mode"
+              value={localConfig.verbose_mode !== false ? 'true' : 'false'}
+              onChange={(e) =>
+                handleUpdate(['verbose_mode'], e.target.value === 'true')
+              }
+              options={[
+                { value: 'true', label: 'Enabled (notify tool execution on channels)' },
+                { value: 'false', label: 'Disabled' },
+              ]}
+              helperText="When enabled, channels like Telegram/Discord show which tools are being executed in real-time."
+            />
           </Section>
         )}
 

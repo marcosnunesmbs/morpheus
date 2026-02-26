@@ -353,6 +353,7 @@ export class ConfigManager {
       logging: loggingConfig,
       memory: memoryConfig,
       chronos: chronosConfig,
+      verbose_mode: resolveBoolean('MORPHEUS_VERBOSE_MODE', config.verbose_mode, true),
     };
   }
 

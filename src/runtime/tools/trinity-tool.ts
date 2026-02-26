@@ -7,6 +7,7 @@ import { DisplayManager } from "../display.js";
 import type { DatabaseRecord } from "../memory/trinity-db.js";
 import { ConfigManager } from "../../config/manager.js";
 import { Trinity } from "../trinity.js";
+import { ChannelRegistry } from "../../channels/registry.js";
 
 const TRINITY_BASE_DESCRIPTION = `Delegate a database task to Trinity, the specialized database subagent, asynchronously.
 
@@ -69,6 +70,13 @@ export const TrinityDelegateTool = tool(
 
         const ctx = TaskRequestContext.get();
         const sessionId = ctx?.session_id ?? 'default';
+
+        // Notify originating channel that the agent is working
+        if (ctx?.origin_channel && ctx.origin_user_id && ctx.origin_channel !== 'api' && ctx.origin_channel !== 'ui') {
+          ChannelRegistry.sendToUser(ctx.origin_channel, ctx.origin_user_id, '👩‍💻 Trinity is executing your request...')
+            .catch(() => {});
+        }
+
         const trinity = Trinity.getInstance();
         const result = await trinity.execute(task, context, sessionId);
 

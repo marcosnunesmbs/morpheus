@@ -50,6 +50,7 @@ const CONFIG_TO_ENV_MAP: Record<string, string[]> = {
   'audio.model': ['MORPHEUS_AUDIO_MODEL'],
   'audio.apiKey': ['MORPHEUS_AUDIO_API_KEY'],
   'audio.maxDurationSeconds': ['MORPHEUS_AUDIO_MAX_DURATION'],
+  'verbose_mode': ['MORPHEUS_VERBOSE_MODE'],
 };
 
 /**

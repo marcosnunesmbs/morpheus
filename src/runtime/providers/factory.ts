@@ -11,6 +11,12 @@ import { z } from "zod";
 import { DisplayManager } from "../display.js";
 import { StructuredTool } from "@langchain/core/tools";
 import { getUsableApiKey } from "../trinity-crypto.js";
+import { ConfigManager } from "../../config/manager.js";
+import { TaskRequestContext } from "../tasks/context.js";
+import { ChannelRegistry } from "../../channels/registry.js";
+
+/** Channels that should NOT receive verbose tool notifications */
+const SILENT_CHANNELS = new Set(['api', 'ui']);
 
 export class ProviderFactory {
   private static buildMonitoringMiddleware() {
@@ -20,6 +26,17 @@ export class ProviderFactory {
       wrapToolCall: (request, handler) => {
         display.log(`Executing tool: ${request.toolCall.name}`, { level: "warning", source: 'ConstructLoad' });
         display.log(`Arguments: ${JSON.stringify(request.toolCall.args)}`, { level: "info", source: 'ConstructLoad' });
+
+        // Verbose mode: notify originating channel about which tool is running
+        const verboseEnabled = ConfigManager.getInstance().get().verbose_mode !== false;
+        if (verboseEnabled) {
+          const ctx = TaskRequestContext.get();
+          if (ctx?.origin_channel && ctx.origin_user_id && !SILENT_CHANNELS.has(ctx.origin_channel)) {
+            ChannelRegistry.sendToUser(ctx.origin_channel, ctx.origin_user_id, `🔧 executing: ${request.toolCall.name}`)
+              .catch(() => {});
+          }
+        }
+
         try {
           const result = handler(request);
           display.log(`Tool completed successfully. Result: ${JSON.stringify(result)}`, { level: "info", source: 'ConstructLoad' });

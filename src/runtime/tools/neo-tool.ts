@@ -7,6 +7,7 @@ import { compositeDelegationError, isLikelyCompositeDelegationTask } from "./del
 import { DisplayManager } from "../display.js";
 import { ConfigManager } from "../../config/manager.js";
 import { Neo } from "../neo.js";
+import { ChannelRegistry } from "../../channels/registry.js";
 
 const NEO_BUILTIN_CAPABILITIES = `
 Neo built-in capabilities (always available — no MCP required):
@@ -83,6 +84,13 @@ export const NeoDelegateTool = tool(
 
         const ctx = TaskRequestContext.get();
         const sessionId = ctx?.session_id ?? "default";
+
+        // Notify originating channel that the agent is working
+        if (ctx?.origin_channel && ctx.origin_user_id && ctx.origin_channel !== 'api' && ctx.origin_channel !== 'ui') {
+          ChannelRegistry.sendToUser(ctx.origin_channel, ctx.origin_user_id, '🥷 Neo is executing your request...')
+            .catch(() => {});
+        }
+
         const neo = Neo.getInstance();
         const result = await neo.execute(task, context, sessionId, {
           origin_channel: ctx?.origin_channel ?? "api",

@@ -6,6 +6,7 @@ import { compositeDelegationError, isLikelyCompositeDelegationTask } from "./del
 import { DisplayManager } from "../display.js";
 import { ConfigManager } from "../../config/manager.js";
 import { Apoc } from "../apoc.js";
+import { ChannelRegistry } from "../../channels/registry.js";
 
 /**
  * Returns true when Apoc is configured to execute synchronously (inline).
@@ -48,6 +49,13 @@ export const ApocDelegateTool = tool(
 
         const ctx = TaskRequestContext.get();
         const sessionId = ctx?.session_id ?? "default";
+
+        // Notify originating channel that the agent is working
+        if (ctx?.origin_channel && ctx.origin_user_id && ctx.origin_channel !== 'api' && ctx.origin_channel !== 'ui') {
+          ChannelRegistry.sendToUser(ctx.origin_channel, ctx.origin_user_id, '🧑‍🔬 Apoc is executing your request...')
+            .catch(() => {});
+        }
+
         const apoc = Apoc.getInstance();
         const result = await apoc.execute(task, context, sessionId);
 
