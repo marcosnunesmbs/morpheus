@@ -267,6 +267,7 @@ Rules:
 9. Avoid duplicate delegations to the same tool or agent.
 10. After enqueuing all required delegated tasks for the current message, stop calling tools and return a concise acknowledgement.
 11. If a delegation is rejected as "not atomic", immediately split into smaller delegations and retry.
+12. When the user message contains @neo, @apoc, or @trinity (case-insensitive), delegate to that specific agent. The mention is an explicit routing directive — respect it even if another agent might also handle the request.
 
 ## Chronos Channel Routing
 When calling chronos_schedule, set notify_channels based on the user's message:

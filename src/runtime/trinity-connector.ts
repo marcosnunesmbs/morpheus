@@ -510,6 +510,42 @@ async function mongoIntrospect(db: DatabaseRecord): Promise<SchemaInfo> {
   }
 }
 
+/**
+ * Recursively walks a MongoDB filter/document and converts _id values that look
+ * like 24-character hex strings into proper ObjectId instances.  Also handles
+ * the extended JSON `{ "$oid": "..." }` notation that LLMs sometimes produce.
+ *
+ * This ensures queries like `{ "_id": "69a07e6593df6001878a8446" }` match
+ * documents stored with native ObjectId _id fields.
+ */
+function coerceObjectIds(obj: any, mongoose: any): any {
+  if (obj == null || typeof obj !== 'object') return obj;
+  if (Array.isArray(obj)) return obj.map((v: any) => coerceObjectIds(v, mongoose));
+
+  const Types = mongoose.Types ?? mongoose.default?.Types;
+  const ObjectId = Types?.ObjectId;
+  if (!ObjectId) return obj;              // safety: if mongoose shape changes, fail-open
+
+  const out: Record<string, any> = {};
+  for (const [key, value] of Object.entries(obj)) {
+    if (key === '_id' || key.endsWith('._id')) {
+      // Direct string: "69a07e6593df6001878a8446"
+      if (typeof value === 'string' && /^[a-f\d]{24}$/i.test(value)) {
+        out[key] = new ObjectId(value);
+        continue;
+      }
+      // Extended JSON: { "$oid": "69a07e6593df6001878a8446" }
+      if (typeof value === 'object' && value !== null && typeof (value as any).$oid === 'string' && /^[a-f\d]{24}$/i.test((value as any).$oid)) {
+        out[key] = new ObjectId((value as any).$oid);
+        continue;
+      }
+    }
+    // Recurse into nested objects / operators ($and, $or, $in, etc.)
+    out[key] = (typeof value === 'object' && value !== null) ? coerceObjectIds(value, mongoose) : value;
+  }
+  return out;
+}
+
 async function mongoExecuteQuery(db: DatabaseRecord, query: string): Promise<QueryResult> {
   // Parse query first to know the operation before connecting
   let parsed: any;
@@ -521,7 +557,10 @@ async function mongoExecuteQuery(db: DatabaseRecord, query: string): Promise<Que
     );
   }
 
-  const { collection: colName, operation = 'find', filter = {}, pipeline, options = {}, document, documents, update, replacement, keys, indexName } = parsed;
+  const { collection: colName, operation = 'find', pipeline, options = {}, document, documents, update, replacement, keys, indexName } = parsed;
+  // Coerce _id strings → ObjectId in filter so queries match native ObjectId fields
+  const mongoose = await import('mongoose');
+  const filter = coerceObjectIds(parsed.filter ?? {}, mongoose);
 
   // Check permission before connecting
   const op = detectMongoOperation(operation);
