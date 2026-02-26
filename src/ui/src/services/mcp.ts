@@ -1,5 +1,5 @@
 import { HttpClient } from './httpClient';
-import type { MCPListResponse, MCPServerConfig, MCPStatusResponse } from '../types/mcp';
+import type { MCPCacheStats, MCPListResponse, MCPServerConfig, MCPStatusResponse } from '../types/mcp';
 
 const httpClient = HttpClient.getInstance();
 
@@ -17,4 +17,6 @@ export const mcpService = {
     httpClient.post('/mcp/reload', {}),
   fetchStatus: async (): Promise<MCPStatusResponse> =>
     httpClient.get<MCPStatusResponse>('/mcp/status'),
+  fetchStats: async (): Promise<MCPCacheStats> =>
+    httpClient.get<MCPCacheStats>('/mcp/stats'),
 };

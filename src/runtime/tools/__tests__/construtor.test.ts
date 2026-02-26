@@ -1,12 +1,26 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { Construtor } from '../factory.js';
-import { MultiServerMCPClient } from "@langchain/mcp-adapters";
+import { MCPToolCache } from '../cache.js';
 
-vi.mock("@langchain/mcp-adapters", () => {
+vi.mock("../cache.js", () => {
+  const mockCache = {
+    ensureLoaded: vi.fn().mockResolvedValue(undefined),
+    getTools: vi.fn().mockReturnValue([{ name: 'tool1' }, { name: 'tool2' }]),
+    getStats: vi.fn().mockReturnValue({
+      totalTools: 2,
+      servers: [{ name: 'server1', toolCount: 2, ok: true }],
+      lastLoadedAt: new Date(),
+      isLoading: false,
+    }),
+    reload: vi.fn().mockResolvedValue(undefined),
+  };
   return {
-    MultiServerMCPClient: vi.fn(),
+    MCPToolCache: {
+      getInstance: () => mockCache,
+    },
   };
 });
+
 vi.mock("../../display.js", () => ({
   DisplayManager: {
     getInstance: () => ({
@@ -16,35 +30,41 @@ vi.mock("../../display.js", () => ({
 }));
 
 describe('Construtor', () => {
-    beforeEach(() => {
-        vi.resetAllMocks();
-    });
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
 
-    it('should create tools successfully', async () => {
-        const mockGetTools = vi.fn().mockResolvedValue(['tool1', 'tool2']);
-        
-        // Mock the constructor and getTools method
-        (MultiServerMCPClient as unknown as any).mockImplementation(function () {
-             return {
-                 getTools: mockGetTools
-             };
-        });
+  it('should create tools from cache successfully', async () => {
+    const tools = await Construtor.create();
+    
+    const cache = MCPToolCache.getInstance();
+    expect(cache.ensureLoaded).toHaveBeenCalled();
+    expect(cache.getTools).toHaveBeenCalled();
+    expect(tools).toHaveLength(2);
+  });
 
-        const tools = await Construtor.create();
+  it('should probe servers from cache stats', async () => {
+    const results = await Construtor.probe();
+    
+    const cache = MCPToolCache.getInstance();
+    expect(cache.ensureLoaded).toHaveBeenCalled();
+    expect(results).toHaveLength(1);
+    expect(results[0].name).toBe('server1');
+    expect(results[0].toolCount).toBe(2);
+    expect(results[0].ok).toBe(true);
+  });
 
-        expect(MultiServerMCPClient).toHaveBeenCalled();
-        expect(mockGetTools).toHaveBeenCalled();
-        expect(tools).toEqual(['tool1', 'tool2']);
-    });
+  it('should reload cache when reload is called', async () => {
+    await Construtor.reload();
+    
+    const cache = MCPToolCache.getInstance();
+    expect(cache.reload).toHaveBeenCalled();
+  });
 
-    it('should return empty array on failure', async () => {
-        (MultiServerMCPClient as unknown as any).mockImplementation(function() {
-            return {
-                getTools: vi.fn().mockRejectedValue(new Error('MCP Failed'))
-            };
-        });
-
-        const tools = await Construtor.create();
-        expect(tools).toEqual([]);
-    });
+  it('should return cache stats', () => {
+    const stats = Construtor.getStats();
+    
+    expect(stats.totalTools).toBe(2);
+    expect(stats.servers).toHaveLength(1);
+  });
 });

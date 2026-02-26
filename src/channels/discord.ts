@@ -119,6 +119,32 @@ const SLASH_COMMANDS = [
       opt.setName('name').setDescription('Skill name').setRequired(true)
     )
     .setDMPermission(true),
+
+  new SlashCommandBuilder()
+    .setName('mcps')
+    .setDescription('List MCP servers and their status')
+    .setDMPermission(true),
+
+  new SlashCommandBuilder()
+    .setName('mcpreload')
+    .setDescription('Reload MCP tools from servers')
+    .setDMPermission(true),
+
+  new SlashCommandBuilder()
+    .setName('mcp_enable')
+    .setDescription('Enable an MCP server')
+    .addStringOption(opt =>
+      opt.setName('name').setDescription('MCP server name').setRequired(true)
+    )
+    .setDMPermission(true),
+
+  new SlashCommandBuilder()
+    .setName('mcp_disable')
+    .setDescription('Disable an MCP server')
+    .addStringOption(opt =>
+      opt.setName('name').setDescription('MCP server name').setRequired(true)
+    )
+    .setDMPermission(true),
 ].map(cmd => cmd.toJSON());
 
 // ─── Adapter ──────────────────────────────────────────────────────────────────
@@ -458,6 +484,10 @@ export class DiscordAdapter {
       case 'skill_reload':    await this.cmdSkillReload(interaction);      break;
       case 'skill_enable':    await this.cmdSkillEnable(interaction);      break;
       case 'skill_disable':   await this.cmdSkillDisable(interaction);     break;
+      case 'mcps':            await this.cmdMcps(interaction);              break;
+      case 'mcpreload':       await this.cmdMcpReload(interaction);         break;
+      case 'mcp_enable':      await this.cmdMcpEnable(interaction);         break;
+      case 'mcp_disable':     await this.cmdMcpDisable(interaction);        break;
     }
   }
 
@@ -484,7 +514,13 @@ export class DiscordAdapter {
       '`/skill_enable name:` — Enable a skill',
       '`/skill_disable name:` — Disable a skill',
       '',
-      'You can also send text or voice messages to chat with the Oracle.',
+      '**MCP Servers**',
+      '`/mcps` — List MCP servers and status',
+      '`/mcpreload` — Reload MCP tools from servers',
+      '`/mcp_enable name:` — Enable an MCP server',
+      '`/mcp_disable name:` — Disable an MCP server',
+      '',
+      'You can also send text or voice messages to chat with the Oracle.'
     ].join('\n');
     await interaction.reply({ content });
   }
@@ -759,6 +795,87 @@ export class DiscordAdapter {
 
       updateSkillDelegateDescription();
       await interaction.reply({ content: `Skill \`${name}\` disabled.` });
+    } catch (err: any) {
+      await interaction.reply({ content: `Error: ${err.message}` });
+    }
+  }
+
+  // ─── MCP Commands ─────────────────────────────────────────────────────────
+
+  private async cmdMcps(interaction: ChatInputCommandInteraction): Promise<void> {
+    try {
+      const { MCPManager } = await import('../config/mcp-manager.js');
+      const { Construtor } = await import('../runtime/tools/factory.js');
+
+      const [servers, stats] = await Promise.all([
+        MCPManager.listServers(),
+        Promise.resolve(Construtor.getStats()),
+      ]);
+
+      if (!servers.length) {
+        await interaction.reply({ content: 'No MCP servers configured.' });
+        return;
+      }
+
+      const statsMap = new Map(stats.servers.map(s => [s.name, s]));
+
+      const lines = servers.map(s => {
+        const status = s.enabled ? '🟢' : '🔴';
+        const serverStats = statsMap.get(s.name);
+        const toolCount = serverStats?.ok ? `(${serverStats.toolCount} tools)` : 
+                          serverStats?.error ? '(failed)' : '(not loaded)';
+        const transport = s.config.transport.toUpperCase();
+        return `${status} **${s.name}** ${toolCount}\n    _${transport}_`;
+      });
+
+      const enabled = servers.filter(s => s.enabled).length;
+      const totalTools = stats.totalTools;
+      await interaction.reply({
+        content: `**MCP Servers** (${enabled}/${servers.length} enabled, ${totalTools} tools cached)\n\n${lines.join('\n')}`
+      });
+    } catch (err: any) {
+      await interaction.reply({ content: `Error: ${err.message}` });
+    }
+  }
+
+  private async cmdMcpReload(interaction: ChatInputCommandInteraction): Promise<void> {
+    await interaction.deferReply();
+    try {
+      await this.oracle.reloadTools();
+      const { Construtor } = await import('../runtime/tools/factory.js');
+      const stats = Construtor.getStats();
+      
+      await interaction.editReply({
+        content: `✅ MCP tools reloaded: ${stats.totalTools} tools from ${stats.servers.length} servers.`
+      });
+      this.display.log(`MCP reload triggered by Discord user`, { source: 'Discord', level: 'info' });
+    } catch (err: any) {
+      await interaction.editReply({ content: `❌ Failed to reload MCP tools: ${err.message}` });
+      this.display.log(`MCP reload failed: ${err.message}`, { source: 'Discord', level: 'error' });
+    }
+  }
+
+  private async cmdMcpEnable(interaction: ChatInputCommandInteraction): Promise<void> {
+    const name = interaction.options.getString('name', true);
+    try {
+      const { MCPManager } = await import('../config/mcp-manager.js');
+      await MCPManager.setServerEnabled(name, true);
+      await interaction.reply({ 
+        content: `MCP server \`${name}\` enabled. Use \`/mcpreload\` to apply changes.` 
+      });
+    } catch (err: any) {
+      await interaction.reply({ content: `Error: ${err.message}` });
+    }
+  }
+
+  private async cmdMcpDisable(interaction: ChatInputCommandInteraction): Promise<void> {
+    const name = interaction.options.getString('name', true);
+    try {
+      const { MCPManager } = await import('../config/mcp-manager.js');
+      await MCPManager.setServerEnabled(name, false);
+      await interaction.reply({ 
+        content: `MCP server \`${name}\` disabled. Use \`/mcpreload\` to apply changes.` 
+      });
     } catch (err: any) {
       await interaction.reply({ content: `Error: ${err.message}` });
     }

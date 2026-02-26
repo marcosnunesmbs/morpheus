@@ -825,8 +825,17 @@ export function createApiRouter(oracle: IOracle, chronosWorker?: ChronosWorker) 
 
   router.post('/mcp/reload', async (_req, res) => {
     try {
+      // First reload the MCP tool cache from servers
+      await Construtor.reload();
+      // Then reinitialize agents with the new cached tools
       await oracle.reloadTools();
-      res.json({ ok: true, message: 'MCP tools reloaded successfully.' });
+      const stats = Construtor.getStats();
+      res.json({ 
+        ok: true, 
+        message: 'MCP tools reloaded successfully.',
+        totalTools: stats.totalTools,
+        servers: stats.servers,
+      });
     } catch (error) {
       res.status(500).json({ error: 'Failed to reload MCP tools.', details: String(error) });
     }
@@ -838,6 +847,16 @@ export function createApiRouter(oracle: IOracle, chronosWorker?: ChronosWorker) 
       res.json({ servers: results });
     } catch (error) {
       res.status(500).json({ error: 'Failed to probe MCP servers.', details: String(error) });
+    }
+  });
+
+  // Get MCP tool cache stats (fast, no server connection)
+  router.get('/mcp/stats', async (_req, res) => {
+    try {
+      const stats = Construtor.getStats();
+      res.json(stats);
+    } catch (error) {
+      res.status(500).json({ error: 'Failed to get MCP stats.', details: String(error) });
     }
   });
 

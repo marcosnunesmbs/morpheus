@@ -35,3 +35,17 @@ export type MCPProbeResult = {
 export type MCPStatusResponse = {
   servers: MCPProbeResult[];
 };
+
+export type MCPServerStats = {
+  name: string;
+  toolCount: number;
+  ok: boolean;
+  error?: string;
+};
+
+export type MCPCacheStats = {
+  totalTools: number;
+  servers: MCPServerStats[];
+  lastLoadedAt: string | null;
+  isLoading: boolean;
+};

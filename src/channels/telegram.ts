@@ -1736,7 +1736,8 @@ How can I assist you today?`;
     try {
       await ctx.reply('🔄 Reloading MCP servers...');
       await this.oracle.reloadTools();
-      await ctx.reply('✅ MCP servers reloaded successfully.');
+      const stats = Construtor.getStats();
+      await ctx.reply(`✅ MCP tools reloaded: ${stats.totalTools} tools from ${stats.servers.length} servers.`);
       this.display.log(`MCP reload triggered by @${user}`, { source: 'Telegram', level: 'info' });
     } catch (error: any) {
       await ctx.reply(`❌ Failed to reload MCP servers: ${error.message}`);

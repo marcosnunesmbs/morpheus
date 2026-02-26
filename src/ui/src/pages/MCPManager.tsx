@@ -1,7 +1,7 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import useSWR from 'swr';
 import { mcpService } from '../services/mcp';
-import type { MCPProbeResult, MCPServerConfig, MCPServerRecord } from '../types/mcp';
+import type { MCPCacheStats, MCPProbeResult, MCPServerConfig, MCPServerRecord } from '../types/mcp';
 import { MCPServerForm } from '../components/mcp/MCPServerForm';
 import { MCPServerCard } from '../components/mcp/MCPServerCard';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../components/Dialog';
@@ -18,8 +18,29 @@ export const MCPManager = () => {
   const [probeResults, setProbeResults] = useState<Record<string, MCPProbeResult>>({});
   const [isChecking, setIsChecking] = useState(false);
   const [isReloading, setIsReloading] = useState(false);
+  const [cacheStats, setCacheStats] = useState<MCPCacheStats | null>(null);
 
   const servers = data?.servers ?? [];
+
+  // Load cached stats on mount (fast, no server connection)
+  useEffect(() => {
+    mcpService.fetchStats()
+      .then((stats) => {
+        setCacheStats(stats);
+        // Convert stats to probe results for display
+        const map: Record<string, MCPProbeResult> = {};
+        for (const s of stats.servers) {
+          map[s.name] = {
+            name: s.name,
+            ok: s.ok,
+            toolCount: s.toolCount,
+            error: s.error,
+          };
+        }
+        setProbeResults(map);
+      })
+      .catch(() => {});
+  }, []);
 
   const filtered = useMemo(() => {
     return servers.filter((server) => {
@@ -39,6 +60,18 @@ export const MCPManager = () => {
     setIsModalOpen(true);
   };
 
+  // Helper to refresh stats after reload
+  const refreshStats = async () => {
+    const stats = await mcpService.fetchStats();
+    setCacheStats(stats);
+    const map: Record<string, MCPProbeResult> = {};
+    for (const s of stats.servers) {
+      map[s.name] = { name: s.name, ok: s.ok, toolCount: s.toolCount, error: s.error };
+    }
+    setProbeResults(map);
+    return stats;
+  };
+
   const handleSubmit = async (name: string, config: MCPServerConfig) => {
     try {
       if (editTarget) {
@@ -50,9 +83,10 @@ export const MCPManager = () => {
       setIsModalOpen(false);
       setEditTarget(null);
       await mutate();
-      // Auto-reload MCP tools after save
+      // Auto-reload MCP tools after save and refresh stats
       await mcpService.reloadTools();
-      setNotification({ type: 'success', message: 'MCP server saved and tools reloaded.' });
+      const stats = await refreshStats();
+      setNotification({ type: 'success', message: `MCP server saved. Tools reloaded: ${stats.totalTools} total.` });
     } catch (err: any) {
       setNotification({ type: 'error', message: err.message || 'Failed to save MCP server.' });
     }
@@ -70,9 +104,10 @@ export const MCPManager = () => {
         await mutate();
         setIsDeleteModalOpen(false);
         setDeleteTarget(null);
-        // Auto-reload MCP tools after delete
+        // Auto-reload MCP tools after delete and refresh stats
         await mcpService.reloadTools();
-        setNotification({ type: 'success', message: 'MCP server deleted and tools reloaded.' });
+        const stats = await refreshStats();
+        setNotification({ type: 'success', message: `MCP server deleted. Tools reloaded: ${stats.totalTools} total.` });
       } catch (err: any) {
         setNotification({ type: 'error', message: err.message || 'Failed to delete MCP server.' });
       }
@@ -82,12 +117,9 @@ export const MCPManager = () => {
   const handleCheckStatus = async () => {
     setIsChecking(true);
     try {
-      const result = await mcpService.fetchStatus();
-      const map: Record<string, MCPProbeResult> = {};
-      for (const r of result.servers) {
-        map[r.name] = r;
-      }
-      setProbeResults(map);
+      // CheckStatus now fetches from cache (fast)
+      const stats = await refreshStats();
+      setNotification({ type: 'success', message: `Status checked: ${stats.totalTools} tools from ${stats.servers.length} servers.` });
     } catch (err: any) {
       setNotification({ type: 'error', message: err.message || 'Failed to check MCP status.' });
     } finally {
@@ -99,7 +131,8 @@ export const MCPManager = () => {
     setIsReloading(true);
     try {
       await mcpService.reloadTools();
-      setNotification({ type: 'success', message: 'MCP tools reloaded successfully.' });
+      const stats = await refreshStats();
+      setNotification({ type: 'success', message: `MCP tools reloaded: ${stats.totalTools} tools from ${stats.servers.length} servers.` });
     } catch (err: any) {
       setNotification({ type: 'error', message: err.message || 'Failed to reload MCP tools.' });
     } finally {
@@ -111,9 +144,10 @@ export const MCPManager = () => {
     try {
       await mcpService.toggleServer(server.name, enabled);
       await mutate();
-      // Auto-reload MCP tools after toggle
+      // Auto-reload MCP tools after toggle and refresh stats
       await mcpService.reloadTools();
-      setNotification({ type: 'success', message: `MCP server ${enabled ? 'enabled' : 'disabled'} and tools reloaded.` });
+      const stats = await refreshStats();
+      setNotification({ type: 'success', message: `MCP server ${enabled ? 'enabled' : 'disabled'}. Tools reloaded: ${stats.totalTools} total.` });
     } catch (err: any) {
       setNotification({ type: 'error', message: err.message || 'Failed to toggle MCP server.' });
     }
@@ -123,9 +157,21 @@ export const MCPManager = () => {
     <div className="space-y-6">
       <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div>
-          <h1 className="text-2xl font-semibold text-azure-primary dark:text-matrix-highlight">MCP Servers</h1>
+          <div className="flex items-center gap-3">
+            <h1 className="text-2xl font-semibold text-azure-primary dark:text-matrix-highlight">MCP Servers</h1>
+            {cacheStats && cacheStats.totalTools > 0 && (
+              <span className="rounded-full bg-azure-primary/10 px-3 py-1 text-sm font-semibold text-azure-primary dark:bg-matrix-highlight/20 dark:text-matrix-highlight">
+                {cacheStats.totalTools} tools cached
+              </span>
+            )}
+          </div>
           <p className="text-sm text-azure-text-secondary dark:text-matrix-secondary">
-            Manage MCP servers stored in mcps.json.
+            Manage MCP servers stored in mcps.json.{' '}
+            {cacheStats?.lastLoadedAt && (
+              <span className="text-azure-text-muted dark:text-matrix-tertiary">
+                Last loaded: {new Date(cacheStats.lastLoadedAt).toLocaleTimeString()}
+              </span>
+            )}
           </p>
         </div>
         <div className="flex gap-2">

@@ -21,6 +21,7 @@ import { NeoDelegateTool } from "./tools/neo-tool.js";
 import { ApocDelegateTool } from "./tools/apoc-tool.js";
 import { TrinityDelegateTool } from "./tools/trinity-tool.js";
 import { TaskQueryTool, chronosTools, timeVerifierTool } from "./tools/index.js";
+import { Construtor } from "./tools/factory.js";
 import { MCPManager } from "../config/mcp-manager.js";
 import { SkillRegistry, SkillExecuteTool, SkillDelegateTool, updateSkillToolDescriptions } from "./skills/index.js";
 
@@ -655,10 +656,13 @@ Use it to inform your response and tool selection (if needed), but do not assume
       throw new Error("Oracle not initialized. Call initialize() first.");
     }
 
+    // Reload MCP tool cache from servers (slow path)
+    await Construtor.reload();
+
     await Neo.refreshDelegateCatalog().catch(() => {});
     await Trinity.refreshDelegateCatalog().catch(() => {});
     updateSkillToolDescriptions();
-    this.provider = await ProviderFactory.create(this.config.llm, [TaskQueryTool, NeoDelegateTool, ApocDelegateTool, TrinityDelegateTool, SkillExecuteTool, SkillDelegateTool, ...chronosTools]);
+    this.provider = await ProviderFactory.create(this.config.llm, [TaskQueryTool, NeoDelegateTool, ApocDelegateTool, TrinityDelegateTool, SkillExecuteTool, SkillDelegateTool, timeVerifierTool, ...chronosTools]);
     await Neo.getInstance().reload();
     this.display.log(`Oracle and Neo tools reloaded`, { source: 'Oracle' });
   }

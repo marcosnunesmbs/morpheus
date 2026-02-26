@@ -24,6 +24,7 @@ import { TaskNotifier } from '../../runtime/tasks/notifier.js';
 import { ChronosWorker } from '../../runtime/chronos/worker.js';
 import { ChronosRepository } from '../../runtime/chronos/repository.js';
 import { SkillRegistry } from '../../runtime/skills/index.js';
+import { MCPToolCache } from '../../runtime/tools/cache.js';
 
 // Load .env file explicitly in start command
 const envPath = path.join(process.cwd(), '.env');
@@ -150,6 +151,23 @@ export const startCommand = new Command('start')
         display.log(chalk.green(`✓ Skills loaded: ${loadedSkills.length} total, ${enabledCount} enabled`), { source: 'Skills' });
       } catch (err: any) {
         display.log(chalk.yellow(`Skills initialization warning: ${err.message}`), { source: 'Skills' });
+      }
+
+      // Initialize MCP Tool Cache before Oracle (so agents get cached tools)
+      try {
+        display.startSpinner('Loading MCP tools...');
+        const mcpCache = MCPToolCache.getInstance();
+        await mcpCache.load();
+        const stats = mcpCache.getStats();
+        display.stopSpinner();
+        if (stats.totalTools > 0) {
+          display.log(chalk.green(`✓ MCP tools cached: ${stats.totalTools} tools from ${stats.servers.length} servers`), { source: 'MCP' });
+        } else if (stats.servers.length > 0) {
+          display.log(chalk.yellow(`⚠ MCP servers configured but no tools loaded`), { source: 'MCP' });
+        }
+      } catch (err: any) {
+        display.stopSpinner();
+        display.log(chalk.yellow(`MCP cache warning: ${err.message}`), { source: 'MCP' });
       }
 
       // Initialize Oracle
