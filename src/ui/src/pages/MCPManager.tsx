@@ -50,7 +50,9 @@ export const MCPManager = () => {
       setIsModalOpen(false);
       setEditTarget(null);
       await mutate();
-      setNotification({ type: 'success', message: 'MCPs saved successfully. Restart MCPs for changes to take effect.' });
+      // Auto-reload MCP tools after save
+      await mcpService.reloadTools();
+      setNotification({ type: 'success', message: 'MCP server saved and tools reloaded.' });
     } catch (err: any) {
       setNotification({ type: 'error', message: err.message || 'Failed to save MCP server.' });
     }
@@ -68,7 +70,9 @@ export const MCPManager = () => {
         await mutate();
         setIsDeleteModalOpen(false);
         setDeleteTarget(null);
-        setNotification({ type: 'success', message: 'MCPs saved successfully. Restart MCPs for changes to take effect.' });
+        // Auto-reload MCP tools after delete
+        await mcpService.reloadTools();
+        setNotification({ type: 'success', message: 'MCP server deleted and tools reloaded.' });
       } catch (err: any) {
         setNotification({ type: 'error', message: err.message || 'Failed to delete MCP server.' });
       }
@@ -107,7 +111,9 @@ export const MCPManager = () => {
     try {
       await mcpService.toggleServer(server.name, enabled);
       await mutate();
-      setNotification({ type: 'success', message: 'MCPs saved successfully. Restart MCPs for changes to take effect.' });
+      // Auto-reload MCP tools after toggle
+      await mcpService.reloadTools();
+      setNotification({ type: 'success', message: `MCP server ${enabled ? 'enabled' : 'disabled'} and tools reloaded.` });
     } catch (err: any) {
       setNotification({ type: 'error', message: err.message || 'Failed to toggle MCP server.' });
     }

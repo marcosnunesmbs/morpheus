@@ -12,6 +12,7 @@ import { TelegramAdapter } from '../../channels/telegram.js';
 import { DiscordAdapter } from '../../channels/discord.js';
 import { ChannelRegistry } from '../../channels/registry.js';
 import { WebhookDispatcher } from '../../runtime/webhooks/dispatcher.js';
+import { registerOracleForHotReload } from '../../runtime/hot-reload.js';
 import { PATHS } from '../../config/paths.js';
 import { Oracle } from '../../runtime/oracle.js';
 import { ProviderError } from '../../runtime/errors.js';
@@ -158,6 +159,9 @@ export const startCommand = new Command('start')
         await oracle.initialize();
         display.stopSpinner();
         display.log(chalk.green('✓ Oracle initialized'), { source: 'Oracle' });
+        
+        // Register Oracle for hot-reload
+        registerOracleForHotReload(oracle);
       } catch (err: any) {
         display.stopSpinner();
         if (err instanceof ProviderError) {

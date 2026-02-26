@@ -24,6 +24,7 @@ import { ChronosWorker } from '../runtime/chronos/worker.js';
 import { createChronosJobRouter, createChronosConfigRouter } from './routers/chronos.js';
 import { createSkillsRouter } from './routers/skills.js';
 import { getActiveEnvOverrides } from '../config/precedence.js';
+import { hotReloadConfig, getRestartRequiredChanges } from '../runtime/hot-reload.js';
 
 async function readLastLines(filePath: string, n: number): Promise<string[]> {
   try {
@@ -513,7 +514,15 @@ export function createApiRouter(oracle: IOracle, chronosWorker?: ChronosWorker) 
         });
       }
 
-      res.json(newConfig);
+      // Hot-reload agents with new config
+      const hotReloadResult = await hotReloadConfig();
+      const restartRequired = getRestartRequiredChanges(oldConfig, newConfig);
+
+      res.json({
+        ...newConfig,
+        _hotReload: hotReloadResult,
+        _restartRequired: restartRequired
+      });
     } catch (error: any) {
       if (error.name === 'ZodError') {
         res.status(400).json({ error: 'Validation failed', details: error.errors });
@@ -543,6 +552,9 @@ export function createApiRouter(oracle: IOracle, chronosWorker?: ChronosWorker) 
         source: 'Zaion',
         level: 'info'
       });
+
+      // Hot-reload agents
+      await hotReloadConfig();
 
       res.json({ success: true });
     } catch (error: any) {
@@ -603,6 +615,9 @@ export function createApiRouter(oracle: IOracle, chronosWorker?: ChronosWorker) 
         level: 'info'
       });
 
+      // Hot-reload agents
+      await hotReloadConfig();
+
       res.json({ success: true });
     } catch (error: any) {
       if (error.name === 'ZodError') {
@@ -641,6 +656,9 @@ export function createApiRouter(oracle: IOracle, chronosWorker?: ChronosWorker) 
         source: 'Zaion',
         level: 'info'
       });
+
+      // Hot-reload agents
+      await hotReloadConfig();
 
       res.json({ success: true });
     } catch (error: any) {
@@ -848,6 +866,9 @@ export function createApiRouter(oracle: IOracle, chronosWorker?: ChronosWorker) 
 
       const display = DisplayManager.getInstance();
       display.log('Trinity configuration updated via UI', { source: 'Zaion', level: 'info' });
+
+      // Hot-reload agents
+      await hotReloadConfig();
 
       res.json({ success: true });
     } catch (error: any) {

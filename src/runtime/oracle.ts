@@ -215,6 +215,20 @@ export class Oracle implements IOracle {
     }
   }
 
+  /**
+   * Reinitialize Oracle with fresh configuration.
+   * Used for hot-reloading config changes without daemon restart.
+   */
+  async reinitialize(): Promise<void> {
+    // Reload config from ConfigManager
+    this.config = ConfigManager.getInstance().get();
+    
+    // Reinitialize the provider with new config
+    await this.initialize();
+    
+    this.display.log('Oracle reinitialized with updated configuration', { source: 'Oracle', level: 'info' });
+  }
+
   async chat(message: string, extraUsage?: UsageMetadata, isTelephonist?: boolean, taskContext?: OracleTaskContext): Promise<string> {
     if (!this.provider) {
       throw new Error("Oracle not initialized. Call initialize() first.");

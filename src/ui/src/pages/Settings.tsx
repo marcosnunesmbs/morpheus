@@ -339,7 +339,8 @@ export default function Settings() {
     setSaving(true);
     setNotification(null);
     try {
-      await configService.updateConfig(localConfig);
+      // Main config save returns hot-reload info
+      const result = await configService.updateConfig(localConfig);
 
       if (localSatiConfig) {
         await configService.updateSatiConfig(localSatiConfig);
@@ -362,11 +363,20 @@ export default function Settings() {
       mutate('/api/config/neo');
       mutate('/api/config/apoc');
       mutate('/api/config/trinity');
-      setNotification({
-        type: 'success',
-        message:
-          'Settings saved successfully. Restart Morpheus daemon for changes to take effect.',
-      });
+
+      // Check if restart is required for certain changes
+      const restartRequired = result._restartRequired || [];
+      if (restartRequired.length > 0) {
+        setNotification({
+          type: 'success',
+          message: `Settings saved and applied. Some changes require restart: ${restartRequired.join(', ')}`,
+        });
+      } else {
+        setNotification({
+          type: 'success',
+          message: 'Settings saved and applied successfully.',
+        });
+      }
     } catch (err: any) {
       setNotification({ type: 'error', message: err.message });
       if (err.details && Array.isArray(err.details)) {
@@ -1503,7 +1513,7 @@ export default function Settings() {
                 handleUpdate(['ui', 'port'], parseInt(e.target.value))
               }
               disabled={true}
-              helperText="Requires restart to change."
+              helperText="Port changes require daemon restart."
             />
           </Section>
         )}

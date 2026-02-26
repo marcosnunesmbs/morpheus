@@ -10,6 +10,12 @@ export interface IOracle {
   initialize(): Promise<void>;
 
   /**
+   * Reinitialize the oracle with fresh configuration.
+   * Used for hot-reloading config changes without daemon restart.
+   */
+  reinitialize(): Promise<void>;
+
+  /**
    * Process a user message and return the AI response.
    * Maintains internal session state.
    * @param message - The user's input text
