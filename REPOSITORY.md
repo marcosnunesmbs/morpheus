@@ -185,11 +185,11 @@ Each subagent falls back to Oracle config if not set.
 | Variable | Agent |
 |---|---|
 | `MORPHEUS_SATI_PROVIDER` / `_MODEL` / `_API_KEY` | Sati (memory) |
-| `MORPHEUS_NEO_PROVIDER` / `_MODEL` / `_API_KEY` | Neo (MCP + internal tools) |
-| `MORPHEUS_APOC_PROVIDER` / `_MODEL` / `_API_KEY` | Apoc (DevKit) |
+| `MORPHEUS_NEO_PROVIDER` / `_MODEL` / `_API_KEY` / `_PERSONALITY` | Neo (MCP + internal tools) |
+| `MORPHEUS_APOC_PROVIDER` / `_MODEL` / `_API_KEY` / `_PERSONALITY` | Apoc (DevKit) |
 | `MORPHEUS_APOC_WORKING_DIR` | Apoc working directory |
 | `MORPHEUS_APOC_TIMEOUT_MS` | Apoc tool timeout (ms) |
-| `MORPHEUS_TRINITY_PROVIDER` / `_MODEL` / `_API_KEY` | Trinity (databases) |
+| `MORPHEUS_TRINITY_PROVIDER` / `_MODEL` / `_API_KEY` / `_PERSONALITY` | Trinity (databases) |
 
 ### Telegram
 

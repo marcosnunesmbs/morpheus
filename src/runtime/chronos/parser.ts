@@ -101,62 +101,81 @@ function intervalToCron(expression: string): string {
 }
 
 /**
+ * Creates a Date in UTC from a local time in a specific timezone.
+ * E.g., createDateInTimezone(2026, 2, 26, 23, 0, 'America/Sao_Paulo') returns
+ * a Date representing 23:00 BRT = 02:00 UTC (next day).
+ */
+function createDateInTimezone(
+  year: number, month: number, day: number,
+  hour: number, minute: number,
+  timezone: string
+): Date {
+  // Create a candidate UTC date
+  const candidateUtc = Date.UTC(year, month - 1, day, hour, minute, 0, 0);
+  // Get the offset at that moment for the timezone
+  const offsetMs = ianaToOffsetMinutes(timezone, new Date(candidateUtc)) * 60_000;
+  // Subtract offset: if BRT is -180 min (-3h), local 23:00 = UTC 23:00 - (-3h) = UTC 02:00
+  return new Date(candidateUtc - offsetMs);
+}
+
+/**
+ * Gets the current date components (year, month, day) in a specific timezone.
+ */
+function getDatePartsInTimezone(date: Date, timezone: string): { year: number; month: number; day: number } {
+  const formatter = new Intl.DateTimeFormat('en-CA', { timeZone: timezone, year: 'numeric', month: '2-digit', day: '2-digit' });
+  const parts = formatter.formatToParts(date);
+  return {
+    year: parseInt(parts.find(p => p.type === 'year')!.value, 10),
+    month: parseInt(parts.find(p => p.type === 'month')!.value, 10),
+    day: parseInt(parts.find(p => p.type === 'day')!.value, 10),
+  };
+}
+
+/**
  * Parses Portuguese time expressions and converts to ISO 8601 format.
  * Handles patterns like "às 15h", "hoje às 15:30", "amanhã às 9h".
  */
 function parsePortugueseTimeExpression(expression: string, refDate: Date, timezone: string): Date | null {
   const lower = expression.toLowerCase().trim();
-  
+  const { year, month, day } = getDatePartsInTimezone(refDate, timezone);
+
   // Pattern: "às 15h", "as 15h", "às 15:30", "as 15:30"
   const timeOnlyMatch = lower.match(/^(?:à|a)s?\s+(\d{1,2})(?::(\d{2}))?h?$/);
   if (timeOnlyMatch) {
-    let hour = parseInt(timeOnlyMatch[1], 10);
+    const hour = parseInt(timeOnlyMatch[1], 10);
     const minute = timeOnlyMatch[2] ? parseInt(timeOnlyMatch[2], 10) : 0;
-    
-    // Create date by setting hours in the target timezone
-    // We use Intl.DateTimeFormat to properly handle timezone
-    const targetDate = new Date();
-    const tzDate = new Date(targetDate.toLocaleString('en-US', { timeZone: timezone }));
-    tzDate.setHours(hour, minute, 0, 0);
-    
+
+    let result = createDateInTimezone(year, month, day, hour, minute, timezone);
     // If time is in the past today, schedule for tomorrow
-    if (tzDate.getTime() <= refDate.getTime()) {
-      tzDate.setDate(tzDate.getDate() + 1);
+    if (result.getTime() <= refDate.getTime()) {
+      result = createDateInTimezone(year, month, day + 1, hour, minute, timezone);
     }
-    
-    return tzDate;
+    return result;
   }
-  
+
   // Pattern: "hoje às 15h", "hoje as 15:30"
   const todayMatch = lower.match(/^hoje\s+(?:à|a)s?\s+(\d{1,2})(?::(\d{2}))?h?$/);
   if (todayMatch) {
-    let hour = parseInt(todayMatch[1], 10);
+    const hour = parseInt(todayMatch[1], 10);
     const minute = todayMatch[2] ? parseInt(todayMatch[2], 10) : 0;
-    
-    const tzDate = new Date(new Date().toLocaleString('en-US', { timeZone: timezone }));
-    tzDate.setHours(hour, minute, 0, 0);
-    
+
+    const result = createDateInTimezone(year, month, day, hour, minute, timezone);
     // If already passed, return null (can't schedule in the past)
-    if (tzDate.getTime() <= refDate.getTime()) {
+    if (result.getTime() <= refDate.getTime()) {
       return null;
     }
-    
-    return tzDate;
+    return result;
   }
-  
+
   // Pattern: "amanhã às 15h", "amanha as 15:30", "amanhã às 15h da tarde"
-  const tomorrowMatch = lower.match(/^amanhã(?:ã)?\s+(?:à|a)s?\s+(\d{1,2})(?::(\d{2}))?h?(?:\s+(?:da|do)\s+(?:manhã|tarde|noite))?$/);
+  const tomorrowMatch = lower.match(/^amanh[aã]\s+(?:à|a)s?\s+(\d{1,2})(?::(\d{2}))?h?(?:\s+(?:da|do)\s+(?:manh[aã]|tarde|noite))?$/);
   if (tomorrowMatch) {
-    let hour = parseInt(tomorrowMatch[1], 10);
+    const hour = parseInt(tomorrowMatch[1], 10);
     const minute = tomorrowMatch[2] ? parseInt(tomorrowMatch[2], 10) : 0;
-    
-    const tzDate = new Date(new Date().toLocaleString('en-US', { timeZone: timezone }));
-    tzDate.setDate(tzDate.getDate() + 1);
-    tzDate.setHours(hour, minute, 0, 0);
-    
-    return tzDate;
+
+    return createDateInTimezone(year, month, day + 1, hour, minute, timezone);
   }
-  
+
   // Pattern: "daqui a X minutos/horas/dias"
   const relativeMatch = lower.match(/^daqui\s+a\s+(\d+)\s+(minutos?|horas?|dias?|semanas?)$/);
   if (relativeMatch) {

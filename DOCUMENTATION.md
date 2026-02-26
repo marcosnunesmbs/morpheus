@@ -18,13 +18,13 @@ This document reflects the current runtime behavior and API contracts.
 
 ### 2.1 Agents
 
-| Agent | Role | Main Tool Scope |
-|---|---|---|
-| Oracle (`src/runtime/oracle.ts`) | Orchestrator and router | `task_query`, `neo_delegate`, `apoc_delegate`, `trinity_delegate` |
-| Neo (`src/runtime/neo.ts`) | MCP + internal operational execution | MCP tools + config/diagnostic/analytics tools |
-| Apoc (`src/runtime/apoc.ts`) | DevTools and browser executor | DevKit tools |
-| Trinity (`src/runtime/trinity.ts`) | Database specialist | PostgreSQL/MySQL/SQLite/MongoDB execution + schema introspection |
-| Sati (`src/runtime/memory/sati/*`) | Long-term memory retrieval/evaluation | Memory-only reasoning |
+| Agent | Role | Main Tool Scope | Personality |
+|---|---|---|---|
+| Oracle (`src/runtime/oracle.ts`) | Orchestrator and router | `task_query`, `neo_delegate`, `apoc_delegate`, `trinity_delegate` | `agent.personality` (default: `helpful_dev`) |
+| Neo (`src/runtime/neo.ts`) | MCP + internal operational execution | MCP tools + config/diagnostic/analytics tools | `neo.personality` (default: `analytical_engineer`) |
+| Apoc (`src/runtime/apoc.ts`) | DevTools and browser executor | DevKit tools | `apoc.personality` (default: `pragmatic_dev`) |
+| Trinity (`src/runtime/trinity.ts`) | Database specialist | PostgreSQL/MySQL/SQLite/MongoDB execution + schema introspection | `trinity.personality` (default: `data_specialist`) |
+| Sati (`src/runtime/memory/sati/*`) | Long-term memory retrieval/evaluation | Memory-only reasoning | uses Oracle personality |
 
 ### 2.2 Delegation Rules
 Oracle behavior:
@@ -225,6 +225,7 @@ neo:
   provider: openai
   model: gpt-4o-mini
   temperature: 0.2
+  personality: analytical_engineer
 
 apoc:
   provider: openai
@@ -232,11 +233,13 @@ apoc:
   temperature: 0.2
   working_dir: /home/user/projects
   timeout_ms: 30000
+  personality: pragmatic_dev
 
 trinity:
   provider: openai
   model: gpt-4o-mini
   temperature: 0.2
+  personality: data_specialist
 
 chronos:
   check_interval_ms: 60000   # polling interval (minimum 60000)
@@ -697,14 +700,22 @@ Success response `200` (example):
   "neo": {
     "provider": "openai",
     "model": "gpt-4o-mini",
-    "temperature": 0.2
+    "temperature": 0.2,
+    "personality": "analytical_engineer"
   },
   "apoc": {
     "provider": "openai",
     "model": "gpt-4o-mini",
     "temperature": 0.2,
     "working_dir": "E:/morpheus",
-    "timeout_ms": 30000
+    "timeout_ms": 30000,
+    "personality": "pragmatic_dev"
+  },
+  "trinity": {
+    "provider": "openai",
+    "model": "gpt-4o-mini",
+    "temperature": 0.2,
+    "personality": "data_specialist"
   },
   "channels": {
     "telegram": {
@@ -852,7 +863,8 @@ Success response `200` example:
   "model": "gpt-4o-mini",
   "temperature": 0.2,
   "context_window": 100,
-  "api_key": "env:OPENAI_API_KEY"
+  "api_key": "env:OPENAI_API_KEY",
+  "personality": "analytical_engineer"
 }
 ```
 
@@ -865,7 +877,8 @@ Request payload example:
   "model": "openai/gpt-4o-mini",
   "temperature": 0.2,
   "context_window": 120,
-  "base_url": "https://openrouter.ai/api/v1"
+  "base_url": "https://openrouter.ai/api/v1",
+  "personality": "analytical_engineer"
 }
 ```
 
@@ -895,7 +908,8 @@ Success response `200` example:
   "model": "gpt-4o-mini",
   "temperature": 0.2,
   "working_dir": "E:/morpheus",
-  "timeout_ms": 30000
+  "timeout_ms": 30000,
+  "personality": "pragmatic_dev"
 }
 ```
 
@@ -908,7 +922,8 @@ Request payload example:
   "model": "gpt-4o-mini",
   "temperature": 0.2,
   "working_dir": "E:/morpheus",
-  "timeout_ms": 45000
+  "timeout_ms": 45000,
+  "personality": "pragmatic_dev"
 }
 ```
 
@@ -938,7 +953,8 @@ Success response `200` example:
 {
   "provider": "openai",
   "model": "gpt-4o-mini",
-  "temperature": 0.2
+  "temperature": 0.2,
+  "personality": "data_specialist"
 }
 ```
 
@@ -949,7 +965,8 @@ Request payload example:
 {
   "provider": "anthropic",
   "model": "claude-3-5-haiku-20241022",
-  "temperature": 0.2
+  "temperature": 0.2,
+  "personality": "data_specialist"
 }
 ```
 

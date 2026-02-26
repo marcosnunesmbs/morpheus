@@ -33,13 +33,13 @@ The runtime is a modular monolith built on Node.js + TypeScript, with SQLite as 
 
 ## 3. Multi-Agent Model
 
-| Agent | Responsibility | Tool Scope |
-|---|---|---|
-| Oracle | Conversation orchestrator and router | `task_query`, `neo_delegate`, `apoc_delegate`, `trinity_delegate` |
-| Neo | Analytical/operational execution | Runtime MCP tools + config/diagnostic/analytics tools |
-| Apoc | DevTools and browser execution | DevKit toolchain |
-| Trinity | Database specialist | PostgreSQL/MySQL/SQLite/MongoDB query execution + schema introspection |
-| Sati | Long-term memory evaluator | No execution tools (memory-focused reasoning) |
+| Agent | Responsibility | Tool Scope | Personality |
+|---|---|---|---|
+| Oracle | Conversation orchestrator and router | `task_query`, `neo_delegate`, `apoc_delegate`, `trinity_delegate` | configurable via `agent.personality` |
+| Neo | Analytical/operational execution | Runtime MCP tools + config/diagnostic/analytics tools | configurable via `neo.personality` (default: `analytical_engineer`) |
+| Apoc | DevTools and browser execution | DevKit toolchain | configurable via `apoc.personality` (default: `pragmatic_dev`) |
+| Trinity | Database specialist | PostgreSQL/MySQL/SQLite/MongoDB query execution + schema introspection | configurable via `trinity.personality` (default: `data_specialist`) |
+| Sati | Long-term memory evaluator | No execution tools (memory-focused reasoning) | uses Oracle personality |
 
 Key design choice: Oracle no longer carries MCP tool load directly. It delegates execution asynchronously and stays responsive.
 

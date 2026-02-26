@@ -18,12 +18,12 @@ Core promise:
 
 ## 3. Multi-Agent Value
 - Oracle: conversational orchestrator and decision layer.
-- Neo: MCP/internal-tools executor for analytical and operational actions.
-- Apoc: DevTools/browser executor for engineering and automation tasks.
-- Trinity: database specialist for SQL/NoSQL query execution.
+- Neo: MCP/internal-tools executor for analytical and operational actions (personality: `analytical_engineer`).
+- Apoc: DevTools/browser executor for engineering and automation tasks (personality: `pragmatic_dev`).
+- Trinity: database specialist for SQL/NoSQL query execution (personality: `data_specialist`).
 - Sati: memory evaluator that enriches context with long-term facts.
 
-This separation reduces prompt ambiguity and improves reliability for mixed workloads.
+This separation reduces prompt ambiguity and improves reliability for mixed workloads. Each subagent's personality can be customized via configuration to adapt behavior to specific workflows.
 
 ## 4. End-User Experience
 
@@ -82,6 +82,10 @@ User asks "status/consultou?" and Oracle uses direct task query (no delegation r
 
 ## 6. Product Controls
 - Dedicated agent settings in UI for Oracle, Sati, Neo, Apoc, and Trinity.
+- Per-agent personality configuration:
+  - Neo: `analytical_engineer`, `meticulous_auditor`, `systems_thinker`, or custom
+  - Apoc: `pragmatic_dev`, `cautious_admin`, `automation_specialist`, or custom
+  - Trinity: `data_specialist`, `query_optimizer`, `db_architect`, or custom
 - Channel configuration in UI for Telegram and Discord.
 - Runtime toggle for async execution (`runtime.async_tasks.enabled`).
 - Per-agent model/provider configuration for cost and performance tuning.

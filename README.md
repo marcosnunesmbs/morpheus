@@ -312,6 +312,7 @@ neo:
   model: gpt-4o-mini
   temperature: 0.2
   context_window: 100
+  personality: analytical_engineer
 
 apoc:
   provider: openai
@@ -319,11 +320,13 @@ apoc:
   temperature: 0.2
   working_dir: /home/user/projects
   timeout_ms: 30000
+  personality: pragmatic_dev
 
 trinity:
   provider: openai
   model: gpt-4o-mini
   temperature: 0.2
+  personality: data_specialist
 
 chronos:
   check_interval_ms: 60000   # polling interval in ms (minimum 60000)
@@ -400,6 +403,7 @@ Generic Morpheus overrides (selected):
 | `MORPHEUS_NEO_CONTEXT_WINDOW` | `neo.context_window` |
 | `MORPHEUS_NEO_API_KEY` | `neo.api_key` |
 | `MORPHEUS_NEO_BASE_URL` | `neo.base_url` |
+| `MORPHEUS_NEO_PERSONALITY` | `neo.personality` |
 | `MORPHEUS_APOC_PROVIDER` | `apoc.provider` |
 | `MORPHEUS_APOC_MODEL` | `apoc.model` |
 | `MORPHEUS_APOC_TEMPERATURE` | `apoc.temperature` |
@@ -408,10 +412,12 @@ Generic Morpheus overrides (selected):
 | `MORPHEUS_APOC_API_KEY` | `apoc.api_key` |
 | `MORPHEUS_APOC_WORKING_DIR` | `apoc.working_dir` |
 | `MORPHEUS_APOC_TIMEOUT_MS` | `apoc.timeout_ms` |
+| `MORPHEUS_APOC_PERSONALITY` | `apoc.personality` |
 | `MORPHEUS_TRINITY_PROVIDER` | `trinity.provider` |
 | `MORPHEUS_TRINITY_MODEL` | `trinity.model` |
 | `MORPHEUS_TRINITY_TEMPERATURE` | `trinity.temperature` |
 | `MORPHEUS_TRINITY_API_KEY` | `trinity.api_key` |
+| `MORPHEUS_TRINITY_PERSONALITY` | `trinity.personality` |
 | `MORPHEUS_AUDIO_PROVIDER` | `audio.provider` |
 | `MORPHEUS_AUDIO_MODEL` | `audio.model` |
 | `MORPHEUS_AUDIO_ENABLED` | `audio.enabled` |
