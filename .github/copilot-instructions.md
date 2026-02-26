@@ -161,6 +161,8 @@ npm start -- skills --reload # Reload skills from disk
 | DevKit config | `src/devkit/registry.ts` |
 | Trinity (databases) | `src/runtime/trinity.ts` |
 | Neo (MCP) | `src/runtime/neo.ts` |
+| MCP Tool Cache | `src/runtime/tools/cache.ts` |
+| MCP Factory | `src/runtime/tools/factory.ts` |
 | Chronos (scheduler) | `src/runtime/chronos/` |
 | Channel adapters | `src/channels/` |
 | Task queue | `src/runtime/tasks/` |

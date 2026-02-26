@@ -8,6 +8,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **MCP Tool Cache**: Optimized MCP tool loading with in-memory caching
+  - Tools are loaded once at startup and cached in `MCPToolCache` singleton
+  - `Construtor.create()` returns cached tools instantly (fast path)
+  - `Construtor.reload()` forces cache refresh from MCP servers (slow path)
+  - Cache statistics available via `Construtor.getStats()` (total tools, per-server counts)
+  - New endpoint `GET /api/mcp/stats` returns cache statistics for UI display
+  - MCPManager UI now shows tool counts per server
+  - Fixes repeated MCP reloads when multiple subagents request tools
+
+- **Discord MCP Commands**: Full MCP management support in Discord
+  - `/mcps` — List MCP servers with tool counts
+  - `/mcpreload` — Reload MCP connections and display cache stats
+  - `/mcp_enable name:` — Enable an MCP server
+  - `/mcp_disable name:` — Disable an MCP server
+  - Parity with existing Telegram MCP commands
+
+- **Telegram MCP Reload Stats**: `/mcpreload` now displays tool count after reload
+
 - **DevKit Security Sandboxing**: Shared security configuration for all DevKit consumers (Apoc & Keymaker)
   - New `devkit` config section in `zaion.yaml` with sandbox, readonly, category toggles, and shell allowlist
   - **Sandbox enforcement:** `guardPath()` confines ALL file operations (reads AND writes) to `sandbox_dir` (default: CWD)

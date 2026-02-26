@@ -198,6 +198,10 @@ Registered automatically on startup:
 | `/status` | Check Morpheus status |
 | `/stats` | Token usage statistics |
 | `/newsession` | Start a new session |
+| `/mcps` | List MCP servers with tool counts |
+| `/mcpreload` | Reload MCP connections and tools |
+| `/mcp_enable name:` | Enable an MCP server |
+| `/mcp_disable name:` | Disable an MCP server |
 | `/chronos prompt: time:` | Schedule a job |
 | `/chronos_list` | List all scheduled jobs |
 | `/chronos_view id:` | View job + executions |
@@ -1619,6 +1623,21 @@ Success response `200`:
       "toolCount": 0,
       "error": "Error: connection refused"
     }
+  ]
+}
+```
+
+### GET `/api/mcp/stats`
+Returns MCP tool cache statistics. Tools are loaded once at startup and cached in memory.
+
+Success response `200`:
+
+```json
+{
+  "totalTools": 15,
+  "servers": [
+    { "name": "coingecko", "toolCount": 1 },
+    { "name": "filesystem", "toolCount": 14 }
   ]
 }
 ```

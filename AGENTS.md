@@ -205,6 +205,8 @@ In `tasks` table, Trinity agent rows use `agent = 'trinit'` (not `'trinity'`).
 | DevKit config | `src/devkit/registry.ts` | Shared security: sandbox, readonly, category toggles |
 | Trinity subagent | `src/runtime/trinity.ts` | DB specialist, `trinity_delegate` |
 | Neo subagent | `src/runtime/neo.ts` | MCP tools, `neo_delegate` |
+| MCP Tool Cache | `src/runtime/tools/cache.ts` | Singleton cache for MCP tools |
+| MCP Factory | `src/runtime/tools/factory.ts` | `Construtor.create()` / `reload()` / `getStats()` |
 | Provider factory | `src/runtime/providers/factory.ts` | `create()` / `createBare()` |
 | HTTP API | `src/http/api.ts` | Express, mounted at `/api` |
 | Config manager | `src/config/manager.ts` | Singleton, `getInstance().get()` |
