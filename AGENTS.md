@@ -85,6 +85,10 @@ Each subagent (Apoc, Neo, Trinity) can be configured to run synchronously or asy
 
 Configurable via `zaion.yaml` (e.g., `neo.execution_mode: sync`), env var (e.g., `MORPHEUS_NEO_EXECUTION_MODE=sync`), or the Settings UI.
 
+**Verbose Mode** (`verbose_mode: true | false`, default: `true`):
+
+When enabled, every tool execution by any agent sends a real-time notification (`🔧 executing: <tool_name>`) to the originating channel (Telegram, Discord, etc.). Channels `api` and `ui` are excluded. Configurable via `zaion.yaml`, env var `MORPHEUS_VERBOSE_MODE`, or the Settings UI.
+
 ### HTTP API Structure
 ```
 src/http/

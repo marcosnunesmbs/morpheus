@@ -36,6 +36,18 @@ Neo, Apoc, and Trinity each support an `execution_mode` setting (`'sync'` or `'a
 
 Configurable via `zaion.yaml` (e.g., `neo.execution_mode: sync`), env var (e.g., `MORPHEUS_NEO_EXECUTION_MODE=sync`), or the Settings UI.
 
+### 2.2b Verbose Mode
+
+When `verbose_mode` is `true` (default), every tool execution by any agent sends a real-time notification to the originating channel:
+
+```
+🔧 executing: quantix_get_transactions
+```
+
+- Only messaging channels (Telegram, Discord, etc.) receive notifications — `api` and `ui` are excluded.
+- Configurable via `zaion.yaml` (`verbose_mode: false`), env var `MORPHEUS_VERBOSE_MODE=false`, or Settings UI → General.
+- When a subagent runs in **sync mode**, the originating channel also receives `⏳ <Agent> is executing your request...` before execution begins.
+
 ### 2.3 Delegation Rules
 Oracle behavior:
 - direct answer only for conversation-only requests
@@ -304,6 +316,8 @@ logging:
   enabled: true
   level: info
   retention: 14d
+
+verbose_mode: true              # send tool execution notifications to messaging channels (default: true)
 ```
 
 ## 8. API Reference (Complete Payloads and Response Examples)
@@ -791,7 +805,8 @@ Success response `200` (example):
     "async_tasks": {
       "enabled": true
     }
-  }
+  },
+  "verbose_mode": true
 }
 ```
 

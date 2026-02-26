@@ -14,6 +14,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - **Sync mode**: Oracle executes the subagent inline — result returned directly in the same response turn (no task created)
   - **Async mode** (default): Creates a background task in the queue, delivered via originating channel on completion
   - New "Execution Mode" dropdown in Settings UI for each subagent
+- **Verbose Mode**: Real-time tool execution notifications on messaging channels
+  - `verbose_mode: true` (default) in `zaion.yaml` — sends `🔧 executing: <tool_name>` to the originating channel (Telegram, Discord) whenever any agent runs a tool
+  - Environment variable: `MORPHEUS_VERBOSE_MODE`
+  - Channels `api` and `ui` are excluded (they have their own loading states)
+  - New "Verbose Mode" toggle in Settings UI → General tab
+- **Sync Execution Channel Notification**: When a subagent runs in sync mode, the originating channel receives `⏳ <Agent> is executing your request...` before execution begins
 
 ## [0.6.8] - 2026-02-25
 
