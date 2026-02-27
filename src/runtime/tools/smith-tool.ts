@@ -49,7 +49,7 @@ export const SmithDelegateTool = tool(
 
         // Notify originating channel
         if (ctx?.origin_channel && ctx.origin_user_id && ctx.origin_channel !== 'api' && ctx.origin_channel !== 'ui') {
-          ChannelRegistry.sendToUser(ctx.origin_channel, ctx.origin_user_id, `🤖 Smith '${smith}' is executing your request...`)
+          ChannelRegistry.sendToUser(ctx.origin_channel, ctx.origin_user_id, `🕶️ Smith '${smith}' is executing your request...`)
             .catch(() => {});
         }
 
