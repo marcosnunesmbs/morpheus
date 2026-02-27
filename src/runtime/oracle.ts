@@ -20,10 +20,12 @@ import { Trinity } from "./trinity.js";
 import { NeoDelegateTool } from "./tools/neo-tool.js";
 import { ApocDelegateTool } from "./tools/apoc-tool.js";
 import { TrinityDelegateTool } from "./tools/trinity-tool.js";
+import { SmithDelegateTool } from "./tools/smith-tool.js";
 import { TaskQueryTool, chronosTools, timeVerifierTool } from "./tools/index.js";
 import { Construtor } from "./tools/factory.js";
 import { MCPManager } from "../config/mcp-manager.js";
 import { SkillRegistry, SkillExecuteTool, SkillDelegateTool, updateSkillToolDescriptions } from "./skills/index.js";
+import { SmithRegistry } from "./smiths/registry.js";
 
 type AckGenerationResult = {
   content: string;
@@ -147,7 +149,7 @@ export class Oracle implements IOracle {
       if (!(msg instanceof AIMessage)) continue;
       const toolCalls = (msg as any).tool_calls ?? [];
       if (!Array.isArray(toolCalls)) continue;
-      if (toolCalls.some((tc: any) => tc?.name === "apoc_delegate" || tc?.name === "neo_delegate" || tc?.name === "trinity_delegate")) {
+      if (toolCalls.some((tc: any) => tc?.name === "apoc_delegate" || tc?.name === "neo_delegate" || tc?.name === "trinity_delegate" || tc?.name === "smith_delegate")) {
         return true;
       }
     }
@@ -186,7 +188,15 @@ export class Oracle implements IOracle {
       await Neo.refreshDelegateCatalog().catch(() => {});
       await Trinity.refreshDelegateCatalog().catch(() => {});
       updateSkillToolDescriptions();
-      this.provider = await ProviderFactory.create(this.config.llm, [TaskQueryTool, NeoDelegateTool, ApocDelegateTool, TrinityDelegateTool, SkillExecuteTool, SkillDelegateTool, timeVerifierTool, ...chronosTools]);
+
+      // Build tool list — conditionally include SmithDelegateTool based on config
+      const coreTools: any[] = [TaskQueryTool, NeoDelegateTool, ApocDelegateTool, TrinityDelegateTool, SkillExecuteTool, SkillDelegateTool, timeVerifierTool, ...chronosTools];
+      const smithsConfig = ConfigManager.getInstance().getSmithsConfig();
+      if (smithsConfig.enabled && smithsConfig.entries.length > 0) {
+        coreTools.push(SmithDelegateTool);
+      }
+
+      this.provider = await ProviderFactory.create(this.config.llm, coreTools);
       if (!this.provider) {
         throw new Error("Provider factory returned undefined");
       }
@@ -365,6 +375,7 @@ bad:
 - delegate to "neo_delegate" or "apoc_delegate" to save the fact. (Sati handles this automatically in the background)
 
 ${SkillRegistry.getInstance().getSystemPromptSection()}
+${SmithRegistry.getInstance().getSystemPromptSection()}
 `);
 
       // Load existing history from database in reverse order (most recent first)

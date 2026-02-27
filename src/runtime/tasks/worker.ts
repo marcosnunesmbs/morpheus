@@ -4,6 +4,7 @@ import { Apoc } from '../apoc.js';
 import { Neo } from '../neo.js';
 import { Trinity } from '../trinity.js';
 import { executeKeymakerTask } from '../keymaker.js';
+import { SmithDelegator } from '../smiths/delegator.js';
 import { TaskRepository } from './repository.js';
 import type { TaskRecord } from './types.js';
 
@@ -97,6 +98,22 @@ export class TaskWorker {
             origin_message_id: task.origin_message_id ?? undefined,
             origin_user_id: task.origin_user_id ?? undefined,
           });
+          break;
+        }
+        case 'smith': {
+          // Parse smith name from context JSON
+          let smithName = 'unknown';
+          if (task.context) {
+            try {
+              const parsed = JSON.parse(task.context);
+              smithName = parsed.smith || 'unknown';
+            } catch {
+              smithName = task.context;
+            }
+          }
+          const delegator = SmithDelegator.getInstance();
+          const result = await delegator.delegate(smithName, task.input, task.context ?? undefined);
+          output = typeof result === 'string' ? result : JSON.stringify(result);
           break;
         }
         default: {

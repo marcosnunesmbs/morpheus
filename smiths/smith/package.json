@@ -1,0 +1,25 @@
+{
+  "name": "smith",
+  "version": "1.0.0",
+  "description": "SMITH agent for connecting to Morpheus daemon",
+  "main": "bin/smith.js",
+  "scripts": {
+    "start": "node bin/smith.js",
+    "dev": "ts-node-dev --respawn --transpile-only bin/smith.js",
+    "build": "tsc",
+    "test": "vitest"
+  },
+  "dependencies": {
+    "commander": "^9.0.0",
+    "axios": "^0.21.1",
+    "zod": "^3.11.6"
+  },
+  "devDependencies": {
+    "typescript": "^4.5.4",
+    "ts-node": "^10.4.0",
+    "ts-node-dev": "^1.1.8",
+    "vitest": "^0.0.112"
+  },
+  "type": "module",
+  "license": "MIT"
+}

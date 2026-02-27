@@ -1,7 +1,7 @@
 import fs from 'fs-extra';
 import yaml from 'js-yaml';
 import { z } from 'zod';
-import { MorpheusConfig, DEFAULT_CONFIG, SatiConfig, ApocConfig, NeoConfig, TrinityConfig, LLMProvider, ChronosConfig, SubAgentExecutionMode, DevKitConfig } from '../types/config.js';
+import { MorpheusConfig, DEFAULT_CONFIG, SatiConfig, ApocConfig, NeoConfig, TrinityConfig, LLMProvider, ChronosConfig, SubAgentExecutionMode, DevKitConfig, SmithsConfig } from '../types/config.js';
 import { PATHS } from './paths.js';
 import { setByPath } from './utils.js';
 import { ConfigSchema } from './schemas.js';
@@ -371,6 +371,14 @@ export class ConfigManager {
       memory: memoryConfig,
       chronos: chronosConfig,
       devkit: devkitConfig,
+      smiths: {
+        enabled: resolveBoolean('MORPHEUS_SMITHS_ENABLED', config.smiths?.enabled, false),
+        execution_mode: resolveString('MORPHEUS_SMITHS_EXECUTION_MODE', config.smiths?.execution_mode, 'async') as SubAgentExecutionMode,
+        heartbeat_interval_ms: resolveNumeric('MORPHEUS_SMITHS_HEARTBEAT_INTERVAL_MS', config.smiths?.heartbeat_interval_ms, 30000),
+        connection_timeout_ms: resolveNumeric('MORPHEUS_SMITHS_CONNECTION_TIMEOUT_MS', config.smiths?.connection_timeout_ms, 10000),
+        task_timeout_ms: resolveNumeric('MORPHEUS_SMITHS_TASK_TIMEOUT_MS', config.smiths?.task_timeout_ms, 60000),
+        entries: config.smiths?.entries ?? [],
+      },
       verbose_mode: resolveBoolean('MORPHEUS_VERBOSE_MODE', config.verbose_mode, true),
     };
   }
@@ -472,6 +480,21 @@ export class ConfigManager {
     const defaults: ChronosConfig = { timezone: 'UTC', check_interval_ms: 60000, max_active_jobs: 100 };
     if (this.config.chronos) {
       return { ...defaults, ...this.config.chronos };
+    }
+    return defaults;
+  }
+
+  public getSmithsConfig(): SmithsConfig {
+    const defaults: SmithsConfig = {
+      enabled: false,
+      execution_mode: 'async',
+      heartbeat_interval_ms: 30000,
+      connection_timeout_ms: 10000,
+      task_timeout_ms: 60000,
+      entries: [],
+    };
+    if (this.config.smiths) {
+      return { ...defaults, ...this.config.smiths };
     }
     return defaults;
   }

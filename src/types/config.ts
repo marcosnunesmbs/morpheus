@@ -138,6 +138,32 @@ export interface ChronosConfig {
   max_active_jobs: number;
 }
 
+export interface SmithEntry {
+  /** Unique name for this Smith (lowercase alphanumeric, hyphens/underscores) */
+  name: string;
+  /** Hostname or IP address of the Smith */
+  host: string;
+  /** Port the Smith listens on (default: 7900) */
+  port: number;
+  /** Shared secret for authentication */
+  auth_token: string;
+}
+
+export interface SmithsConfig {
+  /** Master switch for the Smiths subsystem */
+  enabled: boolean;
+  /** Execution mode for smith_delegate tool: sync (inline) or async (background task) */
+  execution_mode: SubAgentExecutionMode;
+  /** Heartbeat interval in ms (default: 30000) */
+  heartbeat_interval_ms: number;
+  /** WebSocket connection timeout in ms (default: 10000) */
+  connection_timeout_ms: number;
+  /** Task execution timeout in ms (default: 60000) */
+  task_timeout_ms: number;
+  /** List of configured Smith entries */
+  entries: SmithEntry[];
+}
+
 export interface MorpheusConfig {
   agent: AgentConfig;
   llm: LLMConfig;
@@ -147,6 +173,7 @@ export interface MorpheusConfig {
   trinity?: TrinityConfig;
   keymaker?: KeymakerConfig;
   devkit?: DevKitConfig;
+  smiths?: SmithsConfig;
   webhooks?: WebhookConfig;
   channels: ChannelsConfig;
   ui: UIConfig;
@@ -236,6 +263,14 @@ export const DEFAULT_CONFIG: MorpheusConfig = {
     temperature: 0.2,
     personality: 'data_specialist',
     execution_mode: 'async',
+  },
+  smiths: {
+    enabled: false,
+    execution_mode: 'async',
+    heartbeat_interval_ms: 30000,
+    connection_timeout_ms: 10000,
+    task_timeout_ms: 60000,
+    entries: [],
   },
   verbose_mode: true,
 };

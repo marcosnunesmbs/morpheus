@@ -25,6 +25,7 @@ import { ChronosWorker } from '../../runtime/chronos/worker.js';
 import { ChronosRepository } from '../../runtime/chronos/repository.js';
 import { SkillRegistry } from '../../runtime/skills/index.js';
 import { MCPToolCache } from '../../runtime/tools/cache.js';
+import { SmithRegistry } from '../../runtime/smiths/registry.js';
 
 // Load .env file explicitly in start command
 const envPath = path.join(process.cwd(), '.env');
@@ -170,6 +171,20 @@ export const startCommand = new Command('start')
         display.log(chalk.yellow(`MCP cache warning: ${err.message}`), { source: 'MCP' });
       }
 
+      // Initialize SmithRegistry before Oracle (so Smiths are available in system prompt)
+      try {
+        const smithsConfig = config.smiths;
+        if (smithsConfig?.enabled && smithsConfig.entries.length > 0) {
+          const smithRegistry = SmithRegistry.getInstance();
+          await smithRegistry.connectAll();
+          const online = smithRegistry.getOnline().length;
+          const total = smithRegistry.list().length;
+          display.log(chalk.green(`✓ Smiths connected: ${online}/${total}`), { source: 'Smiths' });
+        }
+      } catch (err: any) {
+        display.log(chalk.yellow(`Smiths initialization warning: ${err.message}`), { source: 'Smiths' });
+      }
+
       // Initialize Oracle
       const oracle = new Oracle(config);
       try {
@@ -289,6 +304,11 @@ export const startCommand = new Command('start')
           taskWorker.stop();
           taskNotifier.stop();
         }
+
+        // Disconnect all Smiths
+        try {
+          await SmithRegistry.getInstance().disconnectAll();
+        } catch {}
 
         await clearPid();
         process.exit(0);

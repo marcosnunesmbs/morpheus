@@ -1,5 +1,5 @@
 // @ts-ignore - Importing from parent project
-import type { MorpheusConfig, SatiConfig, ApocConfig, NeoConfig, TrinityConfig } from '../../../../types/config';
+import type { MorpheusConfig, SatiConfig, ApocConfig, NeoConfig, TrinityConfig, SmithsConfig } from '../../../../types/config';
 import { httpClient } from './httpClient';
 
 export const configService = {
@@ -76,5 +76,40 @@ export const configService = {
 
   getEnvOverrides: async () => {
     return httpClient.get<Record<string, boolean>>('/config/env-overrides');
+  },
+
+  getSmithsConfig: async (): Promise<SmithsConfig> => {
+    const data = await httpClient.get<any>('/smiths/config');
+    return data as SmithsConfig;
+  },
+
+  updateSmithsConfig: async (config: Partial<SmithsConfig>): Promise<{ status: string }> => {
+    return httpClient.put<{ status: string }>('/smiths/config', config);
+  },
+
+  getSmithsList: async () => {
+    return httpClient.get<{
+      enabled: boolean;
+      total: number;
+      online: number;
+      smiths: Array<{
+        name: string;
+        host: string;
+        port: number;
+        state: string;
+        capabilities: string[];
+        stats: any;
+        lastSeen: string | null;
+        error: string | null;
+      }>;
+    }>('/smiths');
+  },
+
+  pingSmith: async (name: string) => {
+    return httpClient.post<{ name: string; latency_ms: number }>(`/smiths/${name}/ping`, {});
+  },
+
+  removeSmith: async (name: string) => {
+    return httpClient.delete<{ status: string; name: string }>(`/smiths/${name}`);
   },
 };

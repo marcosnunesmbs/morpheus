@@ -16,6 +16,8 @@ import type {
   NeoConfig,
   ApocConfig,
   TrinityConfig,
+  SmithsConfig,
+  SmithEntry,
 } from '../../../types/config';
 import { ZodError } from 'zod';
 
@@ -28,6 +30,7 @@ const TABS = [
   { id: 'ui', label: 'Interface' },
   { id: 'logging', label: 'Logging' },
   { id: 'chronos', label: 'Chronos' },
+  { id: 'smiths', label: 'Smiths' },
 ];
 
 const AGENT_TABS = [
@@ -79,6 +82,13 @@ export default function Settings() {
   const { data: chronosServerConfig } = useChronosConfig();
   const [localChronosConfig, setLocalChronosConfig] = useState<ChronosConfig | null>(null);
   const [chronosSaving, setChronosSaving] = useState(false);
+
+  const { data: smithsServerConfig } = useSWR('/api/smiths/config', configService.getSmithsConfig);
+  const { data: smithsStatus, mutate: mutateSmithsStatus } = useSWR('/api/smiths', configService.getSmithsList);
+  const [localSmithsConfig, setLocalSmithsConfig] = useState<SmithsConfig | null>(null);
+  const [smithsSaving, setSmithsSaving] = useState(false);
+  const [editingSmith, setEditingSmith] = useState<SmithEntry | null>(null);
+  const [newSmith, setNewSmith] = useState<SmithEntry>({ name: '', host: '', port: 7900, auth_token: '' });
 
   const [localConfig, setLocalConfig] = useState<MorpheusConfig | null>(null);
   const [localSatiConfig, setLocalSatiConfig] = useState<SatiConfig | null>(null);
@@ -146,6 +156,12 @@ export default function Settings() {
       setLocalChronosConfig(chronosServerConfig);
     }
   }, [chronosServerConfig]);
+
+  useEffect(() => {
+    if (smithsServerConfig && !localSmithsConfig) {
+      setLocalSmithsConfig(smithsServerConfig);
+    }
+  }, [smithsServerConfig]);
 
   const isDirty =
     JSON.stringify(serverConfig) !== JSON.stringify(localConfig) ||
@@ -1635,6 +1651,298 @@ export default function Settings() {
                 className="px-4 py-2 rounded font-medium bg-azure-primary text-white hover:bg-azure-active dark:bg-matrix-highlight dark:text-black dark:hover:bg-matrix-highlight/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
                 {chronosSaving ? 'Saving…' : 'Save Chronos Settings'}
+              </button>
+            </div>
+          </Section>
+        )}
+
+        {activeTab === 'smiths' && localSmithsConfig && (
+          <Section title="Smiths — Remote Agents">
+            <Switch
+              label="Enable Smiths"
+              checked={localSmithsConfig.enabled}
+              onChange={(checked) =>
+                setLocalSmithsConfig({ ...localSmithsConfig, enabled: checked })
+              }
+              helperText="Master switch for the Smiths subsystem."
+            />
+            <SelectInput
+              label="Execution Mode"
+              value={localSmithsConfig.execution_mode}
+              onChange={(e) =>
+                setLocalSmithsConfig({
+                  ...localSmithsConfig,
+                  execution_mode: e.target.value as 'sync' | 'async',
+                })
+              }
+              options={[
+                { label: 'Sync (inline result)', value: 'sync' },
+                { label: 'Async (background task)', value: 'async' },
+              ]}
+            />
+            <NumberInput
+              label="Heartbeat Interval (seconds)"
+              value={Math.round(localSmithsConfig.heartbeat_interval_ms / 1000)}
+              onChange={(e) =>
+                setLocalSmithsConfig({
+                  ...localSmithsConfig,
+                  heartbeat_interval_ms: Number(e.target.value) * 1000,
+                })
+              }
+              min={5}
+            />
+            <NumberInput
+              label="Connection Timeout (seconds)"
+              value={Math.round(localSmithsConfig.connection_timeout_ms / 1000)}
+              onChange={(e) =>
+                setLocalSmithsConfig({
+                  ...localSmithsConfig,
+                  connection_timeout_ms: Number(e.target.value) * 1000,
+                })
+              }
+              min={1}
+            />
+            <NumberInput
+              label="Task Timeout (seconds)"
+              value={Math.round(localSmithsConfig.task_timeout_ms / 1000)}
+              onChange={(e) =>
+                setLocalSmithsConfig({
+                  ...localSmithsConfig,
+                  task_timeout_ms: Number(e.target.value) * 1000,
+                })
+              }
+              min={5}
+            />
+
+            {/* Smith entries list */}
+            <div className="mt-6">
+              <h3 className="text-sm font-semibold text-azure-text dark:text-matrix-highlight mb-3">
+                Configured Smiths
+              </h3>
+              {localSmithsConfig.entries.length === 0 ? (
+                <p className="text-sm text-azure-text-secondary dark:text-matrix-secondary italic">
+                  No Smiths configured. Add one below.
+                </p>
+              ) : (
+                <div className="space-y-2">
+                  {localSmithsConfig.entries.map((entry, idx) => {
+                    const status = smithsStatus?.smiths?.find(s => s.name === entry.name);
+                    return (
+                      <div
+                        key={entry.name}
+                        className="flex items-center justify-between p-3 rounded border border-azure-border dark:border-matrix-primary bg-azure-surface/50 dark:bg-zinc-900"
+                      >
+                        <div className="flex items-center space-x-3">
+                          <span
+                            className={`inline-block w-2.5 h-2.5 rounded-full ${
+                              status?.state === 'online'
+                                ? 'bg-emerald-500'
+                                : status?.state === 'connecting'
+                                ? 'bg-amber-500 animate-pulse'
+                                : 'bg-red-500'
+                            }`}
+                            title={status?.state ?? 'unknown'}
+                          />
+                          <div>
+                            <span className="font-medium text-azure-text dark:text-matrix-secondary">
+                              {entry.name}
+                            </span>
+                            <span className="text-xs text-azure-text-secondary dark:text-matrix-tertiary ml-2">
+                              {entry.host}:{entry.port}
+                            </span>
+                          </div>
+                        </div>
+                        <div className="flex items-center space-x-2">
+                          {status?.lastSeen && (
+                            <span className="text-xs text-azure-text-secondary dark:text-matrix-tertiary">
+                              Last seen: {new Date(status.lastSeen).toLocaleTimeString()}
+                            </span>
+                          )}
+                          <button
+                            onClick={async () => {
+                              try {
+                                const result = await configService.pingSmith(entry.name);
+                                setNotification({
+                                  type: 'success',
+                                  message: `Ping to ${entry.name}: ${result.latency_ms}ms`,
+                                });
+                              } catch (err: any) {
+                                setNotification({
+                                  type: 'error',
+                                  message: `Ping failed: ${err.message}`,
+                                });
+                              }
+                            }}
+                            className="px-2 py-1 text-xs rounded border border-azure-border dark:border-matrix-primary text-azure-text-secondary dark:text-matrix-secondary hover:text-azure-primary dark:hover:text-matrix-highlight transition-colors"
+                            title="Ping"
+                          >
+                            📡
+                          </button>
+                          <button
+                            onClick={() => setEditingSmith({ ...entry })}
+                            className="px-2 py-1 text-xs rounded border border-azure-border dark:border-matrix-primary text-azure-text-secondary dark:text-matrix-secondary hover:text-azure-primary dark:hover:text-matrix-highlight transition-colors"
+                            title="Edit"
+                          >
+                            ✏️
+                          </button>
+                          <button
+                            onClick={() => {
+                              const updated = localSmithsConfig.entries.filter(
+                                (_, i) => i !== idx
+                              );
+                              setLocalSmithsConfig({ ...localSmithsConfig, entries: updated });
+                            }}
+                            className="px-2 py-1 text-xs rounded border border-red-300 dark:border-red-700 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30 transition-colors"
+                            title="Remove"
+                          >
+                            🗑️
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            {/* Edit Smith Modal */}
+            {editingSmith && (
+              <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center">
+                <div className="bg-white dark:bg-black border border-azure-border dark:border-matrix-primary rounded-lg shadow-xl p-6 w-full max-w-md">
+                  <h3 className="text-lg font-semibold text-azure-text dark:text-matrix-highlight mb-4">
+                    Edit Smith
+                  </h3>
+                  <div className="space-y-3">
+                    <TextInput
+                      label="Name"
+                      value={editingSmith.name}
+                      onChange={(e) =>
+                        setEditingSmith({ ...editingSmith, name: e.target.value })
+                      }
+                      disabled={true}
+                    />
+                    <TextInput
+                      label="Host"
+                      value={editingSmith.host}
+                      onChange={(e) =>
+                        setEditingSmith({ ...editingSmith, host: e.target.value })
+                      }
+                    />
+                    <NumberInput
+                      label="Port"
+                      value={editingSmith.port}
+                      onChange={(e) =>
+                        setEditingSmith({ ...editingSmith, port: Number(e.target.value) })
+                      }
+                      min={1}
+                      max={65535}
+                    />
+                    <TextInput
+                      label="Auth Token"
+                      value={editingSmith.auth_token}
+                      onChange={(e) =>
+                        setEditingSmith({ ...editingSmith, auth_token: e.target.value })
+                      }
+                    />
+                  </div>
+                  <div className="flex justify-end space-x-2 mt-4">
+                    <button
+                      onClick={() => setEditingSmith(null)}
+                      className="px-4 py-2 rounded text-sm text-azure-text-secondary dark:text-matrix-tertiary hover:text-azure-text dark:hover:text-matrix-highlight transition-colors"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      onClick={() => {
+                        const updated = localSmithsConfig.entries.map(e =>
+                          e.name === editingSmith.name ? editingSmith : e
+                        );
+                        setLocalSmithsConfig({ ...localSmithsConfig, entries: updated });
+                        setEditingSmith(null);
+                      }}
+                      className="px-4 py-2 rounded font-medium bg-azure-primary text-white hover:bg-azure-active dark:bg-matrix-highlight dark:text-black dark:hover:bg-matrix-highlight/90 transition-colors"
+                    >
+                      Save
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Add New Smith */}
+            <div className="mt-4 p-4 rounded border border-dashed border-azure-border dark:border-matrix-primary">
+              <h4 className="text-sm font-medium text-azure-text dark:text-matrix-secondary mb-3">
+                Add New Smith
+              </h4>
+              <div className="grid grid-cols-2 gap-3">
+                <TextInput
+                  label="Name"
+                  value={newSmith.name}
+                  onChange={(e) => setNewSmith({ ...newSmith, name: e.target.value })}
+                />
+                <TextInput
+                  label="Host"
+                  value={newSmith.host}
+                  onChange={(e) => setNewSmith({ ...newSmith, host: e.target.value })}
+                />
+                <NumberInput
+                  label="Port"
+                  value={newSmith.port}
+                  onChange={(e) => setNewSmith({ ...newSmith, port: Number(e.target.value) })}
+                  min={1}
+                  max={65535}
+                />
+                <TextInput
+                  label="Auth Token"
+                  value={newSmith.auth_token}
+                  onChange={(e) => setNewSmith({ ...newSmith, auth_token: e.target.value })}
+                />
+              </div>
+              <div className="flex justify-end mt-3">
+                <button
+                  onClick={() => {
+                    if (!newSmith.name || !newSmith.host || !newSmith.auth_token) {
+                      setNotification({ type: 'error', message: 'Name, host, and auth token are required.' });
+                      return;
+                    }
+                    if (localSmithsConfig.entries.some(e => e.name === newSmith.name)) {
+                      setNotification({ type: 'error', message: `Smith '${newSmith.name}' already exists.` });
+                      return;
+                    }
+                    setLocalSmithsConfig({
+                      ...localSmithsConfig,
+                      entries: [...localSmithsConfig.entries, { ...newSmith }],
+                    });
+                    setNewSmith({ name: '', host: '', port: 7900, auth_token: '' });
+                  }}
+                  className="px-4 py-2 rounded text-sm font-medium border border-azure-primary text-azure-primary hover:bg-azure-primary/10 dark:border-matrix-highlight dark:text-matrix-highlight dark:hover:bg-matrix-highlight/10 transition-colors"
+                >
+                  + Add Smith
+                </button>
+              </div>
+            </div>
+
+            {/* Save Button */}
+            <div className="flex justify-end pt-2">
+              <button
+                onClick={async () => {
+                  setSmithsSaving(true);
+                  setNotification(null);
+                  try {
+                    await configService.updateSmithsConfig(localSmithsConfig);
+                    mutate('/api/smiths/config');
+                    mutateSmithsStatus();
+                    setNotification({ type: 'success', message: 'Smiths settings saved.' });
+                  } catch (err: any) {
+                    setNotification({ type: 'error', message: err.message });
+                  } finally {
+                    setSmithsSaving(false);
+                  }
+                }}
+                disabled={smithsSaving}
+                className="px-4 py-2 rounded font-medium bg-azure-primary text-white hover:bg-azure-active dark:bg-matrix-highlight dark:text-black dark:hover:bg-matrix-highlight/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                {smithsSaving ? 'Saving…' : 'Save Smiths Settings'}
               </button>
             </div>
           </Section>

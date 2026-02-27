@@ -65,6 +65,22 @@ export const DevKitConfigSchema = z.object({
   timeout_ms: z.number().int().positive().default(30000),
 });
 
+export const SmithEntrySchema = z.object({
+  name: z.string().min(1).max(64).regex(/^[a-z0-9][a-z0-9_-]*$/, 'Smith name must be lowercase alphanumeric with hyphens/underscores'),
+  host: z.string().min(1),
+  port: z.number().int().min(1).max(65535).default(7900),
+  auth_token: z.string().min(1),
+});
+
+export const SmithsConfigSchema = z.object({
+  enabled: z.boolean().default(false),
+  execution_mode: z.enum(['sync', 'async']).default('async'),
+  heartbeat_interval_ms: z.number().int().min(5000).default(30000),
+  connection_timeout_ms: z.number().int().min(1000).default(10000),
+  task_timeout_ms: z.number().int().min(1000).default(60000),
+  entries: z.array(SmithEntrySchema).default([]),
+});
+
 // Zod Schema matching MorpheusConfig interface
 export const ConfigSchema = z.object({
   agent: z.object({
@@ -89,6 +105,7 @@ export const ConfigSchema = z.object({
   }).optional(),
   chronos: ChronosConfigSchema.optional(),
   devkit: DevKitConfigSchema.optional(),
+  smiths: SmithsConfigSchema.optional(),
   verbose_mode: z.boolean().default(true),
   channels: z.object({
     telegram: z.object({
