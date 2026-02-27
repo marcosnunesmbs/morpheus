@@ -34,7 +34,6 @@ export class SmithConnection {
   private heartbeatTimer: ReturnType<typeof setInterval> | null = null;
   private reconnectAttempt = 0;
   private maxReconnectDelay = 30000;
-  private maxReconnectAttempts = 3;
   private intentionalClose = false;
   private _connected = false;
   private _authFailed = false;
@@ -55,7 +54,8 @@ export class SmithConnection {
 
     return new Promise((resolve, reject) => {
       const config = ConfigManager.getInstance().getSmithsConfig();
-      const url = `ws://${this.entry.host}:${this.entry.port}`;
+      const scheme = this.entry.tls ? 'wss' : 'ws';
+      const url = `${scheme}://${this.entry.host}:${this.entry.port}`;
 
       try {
         this.ws = new WebSocket(url, {
@@ -293,8 +293,8 @@ export class SmithConnection {
     }
   }
 
-  private handleConfigReport(_message: SmithConfigReportMessage): void {
-    // Store config for display in UI — future enhancement
+  private handleConfigReport(message: SmithConfigReportMessage): void {
+    this.registry.updateConfig(this.entry.name, message.devkit);
   }
 
   private startHeartbeat(): void {
@@ -328,21 +328,16 @@ export class SmithConnection {
       return;
     }
 
-    if (this.reconnectAttempt >= this.maxReconnectAttempts) {
-      this.display.log(
-        `Smith '${this.entry.name}' — max reconnect attempts (${this.maxReconnectAttempts}) reached. Giving up.`,
-        { source: 'SmithConnection', level: 'error' }
-      );
-      this.registry.updateState(this.entry.name, 'offline');
-      return;
+    // Exponential backoff: 1s → 2s → 4s → … → 30s (cap), then keeps retrying every 30s indefinitely.
+    // We never give up — when the Smith comes back online, Morpheus reconnects automatically.
+    const delay = Math.min(1000 * Math.pow(2, this.reconnectAttempt), this.maxReconnectDelay);
+    // Cap the exponent so the delay stays at maxReconnectDelay once reached
+    if (delay < this.maxReconnectDelay) {
+      this.reconnectAttempt++;
     }
 
-    // Exponential backoff: 1s → 2s → 4s (capped by maxReconnectAttempts)
-    const delay = Math.min(1000 * Math.pow(2, this.reconnectAttempt), this.maxReconnectDelay);
-    this.reconnectAttempt++;
-
     this.display.log(
-      `Reconnecting to Smith '${this.entry.name}' in ${delay}ms (attempt ${this.reconnectAttempt})`,
+      `Reconnecting to Smith '${this.entry.name}' in ${Math.round(delay / 1000)}s (attempt ${this.reconnectAttempt + 1})`,
       { source: 'SmithConnection', level: 'info' }
     );
 

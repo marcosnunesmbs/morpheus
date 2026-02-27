@@ -2,7 +2,7 @@ import { EventEmitter } from 'events';
 import { DisplayManager } from '../display.js';
 import { ConfigManager } from '../../config/manager.js';
 import type { SmithEntry } from '../../types/config.js';
-import type { SmithConnectionState, SmithInfo, SmithSystemStats } from './types.js';
+import type { SmithConfigReport, SmithConnectionState, SmithInfo, SmithSystemStats } from './types.js';
 import { SmithConnection } from './connection.js';
 
 /**
@@ -134,6 +134,13 @@ export class SmithRegistry extends EventEmitter {
   /** Get a SmithConnection by name (for sending messages) */
   public getConnection(name: string): SmithConnection | undefined {
     return this.connections.get(name);
+  }
+
+  /** Store config_report received from the Smith */
+  public updateConfig(name: string, config: SmithConfigReport): void {
+    const smith = this.smiths.get(name);
+    if (!smith) return;
+    smith.config = config;
   }
 
   /** Update Smith state (called by SmithConnection) */

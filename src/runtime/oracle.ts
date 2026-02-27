@@ -333,7 +333,11 @@ Use ONLY when user provides a cron expression or very specific recurring pattern
 - "toda segunda e quarta às 3pm" → cron, "0 15 * * 1,3"
 
 **IMPORTANT**: Default to "once" for reminders unless user explicitly indicates recurrence with "a cada", "todo", "diariamente", etc.
-
+**ALWAYS** set the expression Schedule Expression "literal" when user say the specif day and/or hour, dont parse the timezone or full datetime.
+  Ex: - "me lembre de algo às 17h" → schedule_type: "once", expression: "today at 17:00"
+      - "me lembre de algo hoje às 9h" → schedule_type: "once", expression: "today at 9:00"
+      - "me lembre de algo amanhã às 14h" → schedule_type: "once", expression: "tomorrow at 14:00"
+      - "me lembre de algo na próxima segunda às 8h" → schedule_type: "once", expression: "next Monday at 8:00"
 ## Chronos Scheduled Execution
 When the current user message starts with [CHRONOS EXECUTION], it means a Chronos scheduled job has just fired. The content after the prefix is the **job's saved prompt**, not a new live request from the user.
 

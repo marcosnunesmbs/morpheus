@@ -70,6 +70,7 @@ export const SmithEntrySchema = z.object({
   host: z.string().min(1),
   port: z.number().int().min(1).max(65535).default(7900),
   auth_token: z.string().min(1),
+  tls: z.boolean().default(false),
 });
 
 export const SmithsConfigSchema = z.object({

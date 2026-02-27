@@ -82,7 +82,8 @@ export function createSmithsRouter(): Router {
       if (Array.isArray(incomingEntries)) {
         const existingEntries = currentConfig.smiths?.entries ?? [];
         req.body.entries = incomingEntries.map((entry: any) => {
-          if (entry.auth_token === '***') {
+          // Preserve existing token when UI sends sentinel '***' or leaves field blank
+          if (entry.auth_token === '***' || entry.auth_token === '') {
             const existing = existingEntries.find((e: any) => e.name === entry.name);
             return { ...entry, auth_token: existing?.auth_token ?? '' };
           }

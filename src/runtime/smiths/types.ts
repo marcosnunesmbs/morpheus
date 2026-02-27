@@ -58,7 +58,6 @@ export interface SmithPongMessage {
 export interface SmithRegisterMessage {
   type: 'register';
   name: string;
-  auth_token: string;
   capabilities: string[];
   protocol_version: number;
 }
@@ -92,6 +91,12 @@ export interface SmithSystemStats {
 
 export type SmithConnectionState = 'online' | 'offline' | 'connecting' | 'error';
 
+export interface SmithConfigReport {
+  sandbox_dir: string;
+  readonly_mode: boolean;
+  enabled_categories: string[];
+}
+
 export interface SmithInfo {
   name: string;
   host: string;
@@ -99,6 +104,7 @@ export interface SmithInfo {
   state: SmithConnectionState;
   capabilities: string[];
   stats?: SmithSystemStats;
+  config?: SmithConfigReport;
   lastSeen?: Date;
   error?: string;
 }

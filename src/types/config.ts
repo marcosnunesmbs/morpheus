@@ -147,6 +147,8 @@ export interface SmithEntry {
   port: number;
   /** Shared secret for authentication */
   auth_token: string;
+  /** When true, connect via wss:// (TLS). Default: false (ws://) */
+  tls?: boolean;
 }
 
 export interface SmithsConfig {

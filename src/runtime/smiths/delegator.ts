@@ -8,7 +8,7 @@ import { ConfigManager } from '../../config/manager.js';
 import { ProviderFactory } from '../providers/factory.js';
 import { buildDevKit } from '../../devkit/index.js';
 import { SQLiteChatMessageHistory } from '../memory/sqlite.js';
-import type { SmithTaskResultMessage } from './types.js';
+import type { SmithTaskResultMessage, SmithToMorpheusMessage } from './types.js';
 import type { StructuredTool } from '@langchain/core/tools';
 
 /**
@@ -70,6 +70,17 @@ export class SmithDelegator {
               source: 'SmithDelegator',
               level: 'info',
             });
+
+            const progressHandler = (msg: SmithToMorpheusMessage) => {
+              if (msg.type === 'task_progress' && msg.id === taskId) {
+                this.display.log(`Smith '${smithName}' → ${msg.progress.message}`, {
+                  source: 'SmithDelegator',
+                  level: 'info',
+                });
+              }
+            };
+            connection.onMessage(progressHandler);
+
             try {
               const result: SmithTaskResultMessage['result'] = await connection.sendTask(
                 taskId,
@@ -85,6 +96,8 @@ export class SmithDelegator {
               }
             } catch (err: any) {
               return `Error executing ${localTool.name} on Smith '${smithName}': ${err.message}`;
+            } finally {
+              connection.offMessage(progressHandler);
             }
           },
           {

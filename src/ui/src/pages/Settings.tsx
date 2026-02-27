@@ -1779,7 +1779,7 @@ export default function Settings() {
                             📡
                           </button>
                           <button
-                            onClick={() => setEditingSmith({ ...entry })}
+                            onClick={() => setEditingSmith({ ...entry, auth_token: '' })}
                             className="px-2 py-1 text-xs rounded border border-azure-border dark:border-matrix-primary text-azure-text-secondary dark:text-matrix-secondary hover:text-azure-primary dark:hover:text-matrix-highlight transition-colors"
                             title="Edit"
                           >
@@ -1840,10 +1840,25 @@ export default function Settings() {
                     <TextInput
                       label="Auth Token"
                       value={editingSmith.auth_token}
+                      placeholder="Leave blank to keep existing token"
                       onChange={(e) =>
                         setEditingSmith({ ...editingSmith, auth_token: e.target.value })
                       }
                     />
+                    <div className="flex items-center gap-2 pt-1">
+                      <input
+                        type="checkbox"
+                        id="edit-smith-tls"
+                        checked={editingSmith.tls ?? false}
+                        onChange={(e) =>
+                          setEditingSmith({ ...editingSmith, tls: e.target.checked })
+                        }
+                        className="w-4 h-4 accent-azure-primary dark:accent-matrix-highlight"
+                      />
+                      <label htmlFor="edit-smith-tls" className="text-sm text-azure-text-secondary dark:text-matrix-secondary">
+                        Use TLS (<code className="text-xs">wss://</code>)
+                      </label>
+                    </div>
                   </div>
                   <div className="flex justify-end space-x-2 mt-4">
                     <button
@@ -1897,6 +1912,18 @@ export default function Settings() {
                   value={newSmith.auth_token}
                   onChange={(e) => setNewSmith({ ...newSmith, auth_token: e.target.value })}
                 />
+              </div>
+              <div className="flex items-center gap-2 mt-3">
+                <input
+                  type="checkbox"
+                  id="new-smith-tls"
+                  checked={newSmith.tls ?? false}
+                  onChange={(e) => setNewSmith({ ...newSmith, tls: e.target.checked })}
+                  className="w-4 h-4 accent-azure-primary dark:accent-matrix-highlight"
+                />
+                <label htmlFor="new-smith-tls" className="text-sm text-azure-text-secondary dark:text-matrix-secondary">
+                  Use TLS (<code className="text-xs">wss://</code>)
+                </label>
               </div>
               <div className="flex justify-end mt-3">
                 <button
