@@ -106,7 +106,7 @@ export class TaskWorker {
           if (task.context) {
             try {
               const parsed = JSON.parse(task.context);
-              smithName = parsed.smith || 'unknown';
+              smithName = parsed.smith_name || parsed.smith || 'unknown';
             } catch {
               smithName = task.context;
             }

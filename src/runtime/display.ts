@@ -117,6 +117,10 @@ export class DisplayManager implements IDisplayManager {
       else if (options.source === 'Chronos') {
         color = chalk.hex('#a855f7');
       }
+      else if (options.source === 'SmithDelegateTool' || options.source === 'SmithRegistry' || options.source === 'Smiths' || options.source === 'SmithConnection' || options.source === 'SmithDelegator') {
+        color = chalk.hex('#ff007f');
+      }
+
       prefix = color(`[${options.source}] `);
     }
 

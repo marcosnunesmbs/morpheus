@@ -1,17 +1,23 @@
 import { v4 as uuidv4 } from 'uuid';
+import { tool } from '@langchain/core/tools';
+import { HumanMessage, SystemMessage, AIMessage } from '@langchain/core/messages';
+import type { BaseMessage } from '@langchain/core/messages';
 import { DisplayManager } from '../display.js';
 import { SmithRegistry } from './registry.js';
+import { ConfigManager } from '../../config/manager.js';
+import { ProviderFactory } from '../providers/factory.js';
+import { buildDevKit } from '../../devkit/index.js';
+import { SQLiteChatMessageHistory } from '../memory/sqlite.js';
 import type { SmithTaskResultMessage } from './types.js';
+import type { StructuredTool } from '@langchain/core/tools';
 
 /**
  * SmithDelegator — delegates natural-language tasks to a specific Smith.
  *
- * Unlike Apoc/Neo/Trinity, Smith delegation does NOT create a sub-LLM agent.
- * The Smith is a pure tool executor: Morpheus sends a tool + args payload,
- * and the Smith executes it locally and returns the result.
- *
- * For v1, the delegator sends a generic `shell_exec` or `task_execute` command.
- * Future versions may support multi-tool orchestration via a Smith-side agent.
+ * Works like Apoc: creates a LangChain ReactAgent with proxy tools
+ * that forward execution to the remote Smith via WebSocket.
+ * The LLM plans which DevKit tools to call, and each tool invocation
+ * is sent to the Smith for actual execution.
  */
 export class SmithDelegator {
   private static instance: SmithDelegator;
@@ -28,8 +34,71 @@ export class SmithDelegator {
   }
 
   /**
+   * Build proxy tools that forward calls to a Smith via WebSocket.
+   * Uses local DevKit schemas for tool definitions, filtered by Smith capabilities.
+   */
+  private buildProxyTools(smithName: string): StructuredTool[] {
+    const smith = this.registry.get(smithName);
+    if (!smith) return [];
+
+    const connection = this.registry.getConnection(smithName);
+    if (!connection) return [];
+
+    const capabilities = new Set(smith.capabilities);
+
+    // Build local DevKit tools for schema extraction only
+    const localTools = buildDevKit({
+      working_dir: process.cwd(),
+      allowed_commands: [],
+      timeout_ms: 30000,
+      sandbox_dir: process.cwd(),
+      readonly_mode: false,
+      enable_filesystem: true,
+      enable_shell: true,
+      enable_git: true,
+      enable_network: true,
+    });
+
+    // Create proxy tools — same schema, but execution forwards to Smith
+    return localTools
+      .filter(t => capabilities.has(t.name))
+      .map(localTool =>
+        tool(
+          async (args: Record<string, unknown>) => {
+            const taskId = uuidv4();
+            this.display.log(`Smith '${smithName}' → ${localTool.name}`, {
+              source: 'SmithDelegator',
+              level: 'info',
+            });
+            try {
+              const result: SmithTaskResultMessage['result'] = await connection.sendTask(
+                taskId,
+                localTool.name,
+                args
+              );
+              if (result.success) {
+                return typeof result.data === 'string'
+                  ? result.data
+                  : JSON.stringify(result.data, null, 2);
+              } else {
+                return `Error: ${result.error}`;
+              }
+            } catch (err: any) {
+              return `Error executing ${localTool.name} on Smith '${smithName}': ${err.message}`;
+            }
+          },
+          {
+            name: localTool.name,
+            description: localTool.description,
+            schema: (localTool as any).schema,
+          }
+        )
+      );
+  }
+
+  /**
    * Delegate a task to a specific Smith by name.
-   * Returns the execution result as a string.
+   * Creates an LLM agent with proxy tools, plans tool calls, and executes on the Smith.
    */
   public async delegate(smithName: string, task: string, context?: string): Promise<string> {
     const smith = this.registry.get(smithName);
@@ -46,40 +115,77 @@ export class SmithDelegator {
       return `❌ No active connection to Smith '${smithName}'.`;
     }
 
-    const taskId = uuidv4();
-
     this.display.log(`Delegating to Smith '${smithName}': ${task.slice(0, 100)}...`, {
       source: 'SmithDelegator',
       level: 'info',
-      meta: { taskId, smith: smithName },
+      meta: { smith: smithName },
     });
 
     try {
-      // For v1, we send the task as a generic "execute" tool.
-      // The Smith-side executor will interpret the task and run appropriate DevKit tools.
-      const result: SmithTaskResultMessage['result'] = await connection.sendTask(
-        taskId,
-        'execute',
-        {
-          task,
-          context: context ?? undefined,
-        }
+      // Build proxy tools for this Smith's capabilities
+      const proxyTools = this.buildProxyTools(smithName);
+      if (proxyTools.length === 0) {
+        return `❌ Smith '${smithName}' has no available tools.`;
+      }
+
+      // Create a fresh ReactAgent with proxy tools
+      const config = ConfigManager.getInstance().get();
+      const llmConfig = config.apoc || config.llm;
+      const agent = await ProviderFactory.createBare(llmConfig, proxyTools);
+
+      const osInfo = smith.stats?.os ? ` running ${smith.stats.os}` : '';
+      const hostname = smith.stats?.hostname ? ` (hostname: ${smith.stats.hostname})` : '';
+
+      const systemMessage = new SystemMessage(
+        `You are a remote task executor for Smith '${smithName}'.
+Your tools execute on a remote machine at ${smith.host}:${smith.port}${osInfo}${hostname}.
+
+Execute the requested task using the available tools. Be direct and efficient.
+If a task fails, report the error clearly.
+Respond in the same language as the task.`
       );
 
-      if (result.success) {
-        const data = typeof result.data === 'string' ? result.data : JSON.stringify(result.data, null, 2);
-        this.display.log(`Smith '${smithName}' task completed (${result.duration_ms}ms)`, {
-          source: 'SmithDelegator',
-          level: 'info',
-        });
-        return data;
-      } else {
-        this.display.log(`Smith '${smithName}' task failed: ${result.error}`, {
-          source: 'SmithDelegator',
-          level: 'error',
-        });
-        return `❌ Smith '${smithName}' error: ${result.error}`;
+      const userContent = context
+        ? `Context: ${context}\n\nTask: ${task}`
+        : task;
+
+      const messages: BaseMessage[] = [systemMessage, new HumanMessage(userContent)];
+      const response = await agent.invoke({ messages });
+
+      // Extract final response
+      const lastMessage = response.messages[response.messages.length - 1];
+      const content =
+        typeof lastMessage.content === 'string'
+          ? lastMessage.content
+          : JSON.stringify(lastMessage.content);
+
+      // Persist token usage to session history
+      try {
+        const history = new SQLiteChatMessageHistory({ sessionId: 'smith' });
+        try {
+          const persisted = new AIMessage(content);
+          (persisted as any).usage_metadata = (lastMessage as any).usage_metadata
+            ?? (lastMessage as any).response_metadata?.usage
+            ?? (lastMessage as any).response_metadata?.tokenUsage
+            ?? (lastMessage as any).usage;
+          (persisted as any).provider_metadata = {
+            provider: llmConfig.provider,
+            model: llmConfig.model,
+          };
+          await history.addMessage(persisted);
+        } finally {
+          history.close();
+        }
+      } catch {
+        // Non-critical — don't fail the delegation over token tracking
       }
+
+      this.display.log(`Smith '${smithName}' delegation completed.`, {
+        source: 'SmithDelegator',
+        level: 'info',
+      });
+
+      return content;
     } catch (err: any) {
       this.display.log(`Smith delegation error: ${err.message}`, {
         source: 'SmithDelegator',

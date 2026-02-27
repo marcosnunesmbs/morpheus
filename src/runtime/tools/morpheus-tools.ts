@@ -905,6 +905,142 @@ export const TrinityDbManageTool = tool(
   }
 );
 
+// ─── Smith Management ─────────────────────────────────────────────────────────
+
+export const SmithListTool = tool(
+  async () => {
+    try {
+      const { SmithRegistry } = await import("../smiths/registry.js");
+      const smiths = SmithRegistry.getInstance().list();
+      const result = smiths.map((s) => ({
+        name: s.name,
+        host: s.host,
+        port: s.port,
+        state: s.state,
+        capabilities: s.capabilities,
+        lastSeen: s.lastSeen?.toISOString() ?? null,
+        error: s.error ?? null,
+      }));
+      return JSON.stringify(result);
+    } catch (error) {
+      return JSON.stringify({ error: `Failed to list Smiths: ${(error as Error).message}` });
+    }
+  },
+  {
+    name: "smith_list",
+    description:
+      "Lists all registered Smith remote agents with their name, host, port, connection state (online/connecting/offline), capabilities, and last seen time.",
+    schema: z.object({}),
+  }
+);
+
+export const SmithManageTool = tool(
+  async ({ action, name, host, port, auth_token }) => {
+    try {
+      const { SmithRegistry } = await import("../smiths/registry.js");
+      const { SmithDelegator } = await import("../smiths/delegator.js");
+      const configManager = ConfigManager.getInstance();
+
+      const requireName = (): string => {
+        if (!name) throw new Error(`"name" is required for action "${action}"`);
+        return name;
+      };
+
+      switch (action) {
+        case "add": {
+          const smithName = requireName();
+          if (!host) return JSON.stringify({ error: "host is required for add action" });
+          if (!auth_token) return JSON.stringify({ error: "auth_token is required for add action" });
+
+          const entry = { name: smithName, host, port: port ?? 7900, auth_token };
+          const currentConfig = configManager.get();
+          const smithsConfig = configManager.getSmithsConfig();
+
+          if (smithsConfig.entries.some((e) => e.name === smithName)) {
+            return JSON.stringify({ error: `Smith "${smithName}" already exists` });
+          }
+
+          await configManager.save({
+            ...currentConfig,
+            smiths: {
+              ...smithsConfig,
+              entries: [...smithsConfig.entries, entry],
+            },
+          });
+
+          SmithRegistry.getInstance().register(entry);
+          return JSON.stringify({ success: true, message: `Smith "${smithName}" added` });
+        }
+
+        case "remove": {
+          const smithName = requireName();
+          const currentConfig = configManager.get();
+          const smithsConfig = configManager.getSmithsConfig();
+          const filtered = smithsConfig.entries.filter((e) => e.name !== smithName);
+
+          if (filtered.length === smithsConfig.entries.length) {
+            return JSON.stringify({ error: `Smith "${smithName}" not found in config` });
+          }
+
+          await configManager.save({
+            ...currentConfig,
+            smiths: {
+              ...smithsConfig,
+              entries: filtered,
+            },
+          });
+
+          SmithRegistry.getInstance().unregister(smithName);
+          return JSON.stringify({ success: true, message: `Smith "${smithName}" removed` });
+        }
+
+        case "ping": {
+          const smithName = requireName();
+          const result = await SmithDelegator.getInstance().ping(smithName);
+          return JSON.stringify(result);
+        }
+
+        case "enable": {
+          const currentConfig = configManager.get();
+          const smithsConfig = configManager.getSmithsConfig();
+          await configManager.save({
+            ...currentConfig,
+            smiths: { ...smithsConfig, enabled: true },
+          });
+          return JSON.stringify({ success: true, message: "Smiths enabled" });
+        }
+
+        case "disable": {
+          const currentConfig = configManager.get();
+          const smithsConfig = configManager.getSmithsConfig();
+          await configManager.save({
+            ...currentConfig,
+            smiths: { ...smithsConfig, enabled: false },
+          });
+          return JSON.stringify({ success: true, message: "Smiths disabled" });
+        }
+
+        default:
+          return JSON.stringify({ error: `Unknown action: ${action}` });
+      }
+    } catch (error) {
+      return JSON.stringify({ error: `Smith manage failed: ${(error as Error).message}` });
+    }
+  },
+  {
+    name: "smith_manage",
+    description:
+      "Manage Smith remote agents: add a new Smith entry, remove an existing one, ping to test connectivity, or enable/disable the Smiths subsystem.",
+    schema: z.object({
+      action: z.enum(["add", "remove", "ping", "enable", "disable"]),
+      name: z.string().optional().describe("Smith name (required for add, remove, ping)"),
+      host: z.string().optional().describe("Smith host address (required for add)"),
+      port: z.number().int().optional().describe("Smith port (default 7900)"),
+      auth_token: z.string().optional().describe("Authentication token (required for add)"),
+    }),
+  }
+);
+
 // ─── Unified export ───────────────────────────────────────────────────────────
 
 export const morpheusTools = [
@@ -921,4 +1057,6 @@ export const morpheusTools = [
   WebhookManageTool,
   TrinityDbListTool,
   TrinityDbManageTool,
+  SmithListTool,
+  SmithManageTool,
 ];

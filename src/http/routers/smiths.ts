@@ -44,6 +44,56 @@ export function createSmithsRouter(): Router {
   });
 
   /**
+   * GET /api/smiths/config — Get Smiths configuration
+   * NOTE: Must be defined BEFORE /:name to avoid "config" matching as a name param.
+   */
+  router.get('/config', (_req, res) => {
+    try {
+      const config = ConfigManager.getInstance().getSmithsConfig();
+      // Omit auth_tokens from response for security
+      const safeEntries = config.entries.map(({ auth_token, ...rest }) => ({
+        ...rest,
+        auth_token: '***',
+      }));
+
+      res.json({
+        enabled: config.enabled,
+        execution_mode: config.execution_mode,
+        heartbeat_interval_ms: config.heartbeat_interval_ms,
+        connection_timeout_ms: config.connection_timeout_ms,
+        task_timeout_ms: config.task_timeout_ms,
+        entries: safeEntries,
+      });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  /**
+   * PUT /api/smiths/config — Update Smiths configuration
+   */
+  router.put('/config', async (req, res) => {
+    try {
+      const configManager = ConfigManager.getInstance();
+      const currentConfig = configManager.get();
+
+      const updated = {
+        ...currentConfig,
+        smiths: {
+          ...currentConfig.smiths,
+          ...req.body,
+        },
+      };
+
+      await configManager.save(updated);
+
+      res.json({ status: 'updated' });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  /**
    * GET /api/smiths/:name — Get a specific Smith's details
    */
   router.get('/:name', (req, res) => {
@@ -126,55 +176,6 @@ export function createSmithsRouter(): Router {
         return res.status(404).json({ error: `Smith '${req.params.name}' not found` });
       }
       res.json({ status: 'removed', name: req.params.name });
-    } catch (err: any) {
-      res.status(500).json({ error: err.message });
-    }
-  });
-
-  /**
-   * GET /api/smiths/config — Get Smiths configuration
-   */
-  router.get('/config', (_req, res) => {
-    try {
-      const config = ConfigManager.getInstance().getSmithsConfig();
-      // Omit auth_tokens from response for security
-      const safeEntries = config.entries.map(({ auth_token, ...rest }) => ({
-        ...rest,
-        auth_token: '***',
-      }));
-
-      res.json({
-        enabled: config.enabled,
-        execution_mode: config.execution_mode,
-        heartbeat_interval_ms: config.heartbeat_interval_ms,
-        connection_timeout_ms: config.connection_timeout_ms,
-        task_timeout_ms: config.task_timeout_ms,
-        entries: safeEntries,
-      });
-    } catch (err: any) {
-      res.status(500).json({ error: err.message });
-    }
-  });
-
-  /**
-   * PUT /api/smiths/config — Update Smiths configuration
-   */
-  router.put('/config', async (req, res) => {
-    try {
-      const configManager = ConfigManager.getInstance();
-      const currentConfig = configManager.get();
-
-      const updated = {
-        ...currentConfig,
-        smiths: {
-          ...currentConfig.smiths,
-          ...req.body,
-        },
-      };
-
-      await configManager.save(updated);
-
-      res.json({ status: 'updated' });
     } catch (err: any) {
       res.status(500).json({ error: err.message });
     }
