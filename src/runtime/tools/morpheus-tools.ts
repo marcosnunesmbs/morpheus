@@ -969,6 +969,10 @@ export const SmithManageTool = tool(
           });
 
           SmithRegistry.getInstance().register(entry);
+
+          // Hot-reload: connect the new Smith in background
+          SmithRegistry.getInstance().reload().catch(() => {});
+
           return JSON.stringify({ success: true, message: `Smith "${smithName}" added` });
         }
 
@@ -991,6 +995,10 @@ export const SmithManageTool = tool(
           });
 
           SmithRegistry.getInstance().unregister(smithName);
+
+          // Hot-reload: disconnect removed Smith
+          SmithRegistry.getInstance().reload().catch(() => {});
+
           return JSON.stringify({ success: true, message: `Smith "${smithName}" removed` });
         }
 

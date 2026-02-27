@@ -87,7 +87,10 @@ export function createSmithsRouter(): Router {
 
       await configManager.save(updated);
 
-      res.json({ status: 'updated' });
+      // Hot-reload: connect new Smiths, disconnect removed ones
+      const { added, removed } = await registry.reload();
+
+      res.json({ status: 'updated', added, removed });
     } catch (err: any) {
       res.status(500).json({ error: err.message });
     }
@@ -160,7 +163,11 @@ export function createSmithsRouter(): Router {
   router.post('/:name/ping', async (req, res) => {
     try {
       const result = await delegator.ping(req.params.name);
-      res.json(result);
+      res.json({
+        online: result.online,
+        latency_ms: result.latencyMs ?? null,
+        error: result.error ?? null,
+      });
     } catch (err: any) {
       res.status(500).json({ error: err.message });
     }

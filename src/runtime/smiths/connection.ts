@@ -34,8 +34,10 @@ export class SmithConnection {
   private heartbeatTimer: ReturnType<typeof setInterval> | null = null;
   private reconnectAttempt = 0;
   private maxReconnectDelay = 30000;
+  private maxReconnectAttempts = 3;
   private intentionalClose = false;
   private _connected = false;
+  private _authFailed = false;
 
   constructor(entry: SmithEntry, registry: SmithRegistry) {
     this.entry = entry;
@@ -127,6 +129,10 @@ export class SmithConnection {
 
       this.ws.on('error', (err: Error) => {
         clearTimeout(connectionTimeout);
+        // Detect 401 auth failures — no point retrying
+        if (err.message?.includes('401')) {
+          this._authFailed = true;
+        }
         this.display.log(`WebSocket error with Smith '${this.entry.name}': ${err.message}`, {
           source: 'SmithConnection',
           level: 'error',
@@ -306,7 +312,26 @@ export class SmithConnection {
   private scheduleReconnect(): void {
     if (this.intentionalClose) return;
 
-    // Exponential backoff: 1s → 2s → 4s → 8s → 16s → 30s (cap)
+    // Auth failures won't self-resolve — don't retry
+    if (this._authFailed) {
+      this.display.log(
+        `Smith '${this.entry.name}' — authentication failed (401). Check auth_token in config. Not retrying.`,
+        { source: 'SmithConnection', level: 'error' }
+      );
+      this.registry.updateState(this.entry.name, 'offline');
+      return;
+    }
+
+    if (this.reconnectAttempt >= this.maxReconnectAttempts) {
+      this.display.log(
+        `Smith '${this.entry.name}' — max reconnect attempts (${this.maxReconnectAttempts}) reached. Giving up.`,
+        { source: 'SmithConnection', level: 'error' }
+      );
+      this.registry.updateState(this.entry.name, 'offline');
+      return;
+    }
+
+    // Exponential backoff: 1s → 2s → 4s (capped by maxReconnectAttempts)
     const delay = Math.min(1000 * Math.pow(2, this.reconnectAttempt), this.maxReconnectDelay);
     this.reconnectAttempt++;
 

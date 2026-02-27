@@ -168,26 +168,20 @@ export class SmithRegistry extends EventEmitter {
       this.register(entry);
     }
 
-    // Initiate connections
-    const connectPromises: Promise<void>[] = [];
+    // Initiate connections in the background — don't block startup
     for (const entry of config.entries) {
       const connection = new SmithConnection(entry, this);
       this.connections.set(entry.name, connection);
-      connectPromises.push(
-        connection.connect().catch(err => {
-          this.display.log(`Failed to connect to Smith '${entry.name}': ${err.message}`, {
-            source: 'SmithRegistry',
-            level: 'error',
-          });
-        })
-      );
+      connection.connect().catch(err => {
+        this.display.log(`Failed to connect to Smith '${entry.name}': ${err.message}`, {
+          source: 'SmithRegistry',
+          level: 'warning',
+        });
+      });
     }
 
-    await Promise.allSettled(connectPromises);
-
-    const online = this.getOnline().length;
     const total = this.smiths.size;
-    this.display.log(`Smiths connected: ${online}/${total}`, {
+    this.display.log(`Smiths registered: ${total} (connecting in background)`, {
       source: 'SmithRegistry',
       level: 'info',
     });
@@ -213,6 +207,65 @@ export class SmithRegistry extends EventEmitter {
     for (const smith of this.smiths.values()) {
       smith.state = 'offline';
     }
+  }
+
+  /**
+   * Hot-reload Smiths from current config.
+   * - Connects new entries that aren't yet registered
+   * - Disconnects entries that were removed from config
+   * - Leaves existing connections untouched
+   */
+  public async reload(): Promise<{ added: string[]; removed: string[] }> {
+    const config = ConfigManager.getInstance().getSmithsConfig();
+    const added: string[] = [];
+    const removed: string[] = [];
+
+    if (!config.enabled) {
+      // Disabled — disconnect everything
+      const allNames = [...this.smiths.keys()];
+      await this.disconnectAll();
+      this.smiths.clear();
+      return { added: [], removed: allNames };
+    }
+
+    const configNames = new Set(config.entries.map(e => e.name));
+    const currentNames = new Set(this.smiths.keys());
+
+    // Remove Smiths no longer in config
+    for (const name of currentNames) {
+      if (!configNames.has(name)) {
+        const conn = this.connections.get(name);
+        if (conn) {
+          await conn.disconnect().catch(() => {});
+          this.connections.delete(name);
+        }
+        this.smiths.delete(name);
+        removed.push(name);
+        this.display.log(`Smith '${name}' removed (hot-reload)`, {
+          source: 'SmithRegistry', level: 'info',
+        });
+      }
+    }
+
+    // Add new Smiths from config
+    for (const entry of config.entries) {
+      if (!currentNames.has(entry.name)) {
+        this.register(entry);
+        const connection = new SmithConnection(entry, this);
+        this.connections.set(entry.name, connection);
+        connection.connect().catch(err => {
+          this.display.log(`Failed to connect to Smith '${entry.name}': ${err.message}`, {
+            source: 'SmithRegistry', level: 'warning',
+          });
+        });
+        added.push(entry.name);
+        this.display.log(`Smith '${entry.name}' added and connecting (hot-reload)`, {
+          source: 'SmithRegistry', level: 'info',
+        });
+      }
+    }
+
+    return { added, removed };
   }
 
   /**
