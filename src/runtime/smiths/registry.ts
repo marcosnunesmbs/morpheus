@@ -220,7 +220,7 @@ export class SmithRegistry extends EventEmitter {
    * Hot-reload Smiths from current config.
    * - Connects new entries that aren't yet registered
    * - Disconnects entries that were removed from config
-   * - Leaves existing connections untouched
+   * - Reconnects existing entries whose connection details changed (host/port/tls/auth_token)
    */
   public async reload(): Promise<{ added: string[]; removed: string[] }> {
     const config = ConfigManager.getInstance().getSmithsConfig();
@@ -254,9 +254,21 @@ export class SmithRegistry extends EventEmitter {
       }
     }
 
-    // Add new Smiths from config
+    // Add new Smiths or reconnect existing ones whose connection details changed
     for (const entry of config.entries) {
-      if (!currentNames.has(entry.name)) {
+      const isNew = !currentNames.has(entry.name);
+      const existingConn = this.connections.get(entry.name);
+      const changed = !isNew && existingConn && existingConn.hasEntryChanged(entry);
+
+      if (isNew || changed) {
+        if (changed && existingConn) {
+          await existingConn.disconnect().catch(() => {});
+          this.connections.delete(entry.name);
+          this.smiths.delete(entry.name);
+          this.display.log(`Smith '${entry.name}' reconnecting with updated config (hot-reload)`, {
+            source: 'SmithRegistry', level: 'info',
+          });
+        }
         this.register(entry);
         const connection = new SmithConnection(entry, this);
         this.connections.set(entry.name, connection);
@@ -266,7 +278,7 @@ export class SmithRegistry extends EventEmitter {
           });
         });
         added.push(entry.name);
-        this.display.log(`Smith '${entry.name}' added and connecting (hot-reload)`, {
+        this.display.log(`Smith '${entry.name}' ${isNew ? 'added and connecting' : 'reconnecting'} (hot-reload)`, {
           source: 'SmithRegistry', level: 'info',
         });
       }

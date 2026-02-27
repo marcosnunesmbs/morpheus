@@ -180,6 +180,16 @@ export class SmithConnection {
     });
   }
 
+  /** Returns true if the given entry differs from what this connection was created with */
+  public hasEntryChanged(entry: SmithEntry): boolean {
+    return (
+      entry.host !== this.entry.host ||
+      entry.port !== this.entry.port ||
+      entry.auth_token !== this.entry.auth_token ||
+      (entry.tls ?? false) !== (this.entry.tls ?? false)
+    );
+  }
+
   /** Register a handler for incoming messages */
   public onMessage(handler: MessageHandler): void {
     this.messageHandlers.push(handler);
