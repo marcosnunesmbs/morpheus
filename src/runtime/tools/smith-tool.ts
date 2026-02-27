@@ -131,15 +131,29 @@ export const SmithDelegateTool = tool(
     name: "smith_delegate",
     description: `Delegate a task to a remote Smith agent running on an external machine.
 
-Smiths are lightweight DevKit executors deployed on remote servers.
-Each Smith can execute filesystem, shell, git, and system commands on its host machine.
+Smiths are remote DevKit executors deployed on external servers, VMs, or containers.
+Each Smith can execute filesystem, shell, git, network, and system commands on its host machine.
 
-Use this tool when the user explicitly asks to run something on a remote machine or mentions a specific Smith by name.
+## When to use
+- User asks to run something on a remote machine or mentions a Smith by name
+- A mission requires operations on a remote environment (deploy, build, test, inspect)
+- You need to coordinate work across multiple remote machines
 
-Provide:
-- smith: The name of the target Smith (must match a registered Smith)
-- task: Clear natural-language description of what to execute on the remote machine
-- context: Optional context from the conversation
+## How to handle complex missions
+For multi-step missions (e.g. "deploy the project", "run the test suite and fix failures"):
+1. **Decompose** the mission into sequential subtasks
+2. **Delegate one subtask at a time** — call this tool once per logical step
+3. **Read the result** before proceeding — verify success before the next step
+4. **Use the context field** to carry forward relevant state (e.g. "previous step: git pull succeeded, branch=main")
+5. **Iterate** until the mission is complete or an unrecoverable error occurs
+6. **Report** a clear summary of all steps taken and their outcomes
+
+Do NOT batch an entire multi-step mission into a single task description — break it down so you can react to each result.
+
+## Parameters
+- smith: Name of the target Smith (must match a registered Smith)
+- task: Clear natural-language description of the single step to execute
+- context: State from previous steps relevant to this step
 
 Available Smiths are listed in the system prompt under "Available Smiths".`,
     schema: z.object({
