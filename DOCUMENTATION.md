@@ -7,7 +7,7 @@
 ## 1. Overview
 Morpheus is a local-first AI operator that runs as a daemon and coordinates:
 - conversation orchestration (Oracle)
-- asynchronous delegated execution (Neo/Apoc)
+- asynchronous delegated execution (Neo/Apoc/Smith)
 - long-term memory (Sati)
 - local persistence (SQLite)
 - multi-channel delivery (UI, Telegram, API, webhooks)
@@ -20,16 +20,17 @@ This document reflects the current runtime behavior and API contracts.
 
 | Agent | Role | Main Tool Scope | Personality |
 |---|---|---|---|
-| Oracle (`src/runtime/oracle.ts`) | Orchestrator and router | `task_query`, `neo_delegate`, `apoc_delegate`, `trinity_delegate`, `skill_execute`, `skill_delegate` | `agent.personality` (default: `helpful_dev`) |
+| Oracle (`src/runtime/oracle.ts`) | Orchestrator and router | `task_query`, `neo_delegate`, `apoc_delegate`, `trinity_delegate`, `smith_delegate`, `skill_execute`, `skill_delegate` | `agent.personality` (default: `helpful_dev`) |
 | Neo (`src/runtime/neo.ts`) | MCP + internal operational execution | MCP tools + config/diagnostic/analytics tools | `neo.personality` (default: `analytical_engineer`) |
 | Apoc (`src/runtime/apoc.ts`) | DevTools and browser executor | DevKit tools | `apoc.personality` (default: `pragmatic_dev`) |
 | Trinity (`src/runtime/trinity.ts`) | Database specialist | PostgreSQL/MySQL/SQLite/MongoDB execution + schema introspection | `trinity.personality` (default: `data_specialist`) |
 | Keymaker (`src/runtime/keymaker.ts`) | Skill executor | DevKit + MCP + morpheusTools (full tool access) | `keymaker.personality` (default: `versatile_specialist`) |
+| Smith (`src/runtime/smiths/delegator.ts`) | Remote DevKit executor | Proxy DevKit tools forwarded via WebSocket | N/A (uses Oracle's LLM) |
 | Sati (`src/runtime/memory/sati/*`) | Long-term memory retrieval/evaluation | Memory-only reasoning | uses Oracle personality |
 
 ### 2.2 Subagent Execution Mode
 
-Neo, Apoc, and Trinity each support an `execution_mode` setting (`'sync'` or `'async'`):
+Neo, Apoc, Trinity, and Smith each support an `execution_mode` setting (`'sync'` or `'async'`):
 
 - **`async`** (default): Oracle creates a background task in the queue. `TaskWorker` picks it up, executes it, and `TaskNotifier` delivers the result via the originating channel. Oracle responds immediately with a task acknowledgement.
 - **`sync`**: Oracle executes the subagent inline during the same turn. The result is returned directly in Oracle's response — no task is created in the queue.
@@ -75,11 +76,43 @@ Environment variables: `MORPHEUS_DEVKIT_SANDBOX_DIR`, `MORPHEUS_DEVKIT_READONLY_
 
 UI: Settings → DevKit tab (3 sections: Security, Tool Categories, Shell Allowlist).
 
+### 2.2d Smith — Remote Agent System
+
+Smith enables remote DevKit execution on isolated machines (Docker, VMs, cloud) via WebSocket.
+
+**Components:**
+- `SmithRegistry` (`src/runtime/smiths/registry.ts`): Singleton managing all Smith connections. Initialized at startup, non-blocking.
+- `SmithConnection` (`src/runtime/smiths/connection.ts`): WebSocket client per Smith instance. Auth via token handshake. Max 3 reconnect attempts; 401 errors skip retry.
+- `SmithDelegator` (`src/runtime/smiths/delegator.ts`): Creates a LangChain ReactAgent with **proxy tools** — local DevKit tools built for schema extraction, filtered by Smith capabilities, wrapped in proxies that forward execution to the remote Smith via WebSocket.
+
+**Config (`zaion.yaml`):**
+```yaml
+smiths:
+  enabled: true
+  execution_mode: sync    # or async
+  heartbeat_interval_ms: 30000
+  connection_timeout_ms: 10000
+  task_timeout_ms: 300000
+  entries:
+    - name: smith1
+      host: localhost
+      port: 7778
+      auth_token: secret-token
+```
+
+**Key behaviors:**
+- **Hot-reload:** `SmithRegistry.reload()` diffs config vs runtime — connects new entries, disconnects removed ones. Triggered by `PUT /api/smiths/config` and `smith_manage` tool.
+- **Reconnection:** Max 3 attempts. 401 auth failures stop retries immediately (`_authFailed` flag).
+- **Non-blocking startup:** `connectAll()` fires and forgets — Smith connection failures don't block daemon boot.
+- **LLM management tools:** `smith_list` (list all Smiths with state/capabilities), `smith_manage` (add/remove/ping/enable/disable).
+- **Task queue:** Async Smith tasks use `agent = 'smith'` in the `tasks` table.
+
 ### 2.3 Delegation Rules
 Oracle behavior:
 - direct answer only for conversation-only requests
 - execution requests are delegated (sync or async depending on `execution_mode`)
 - multi-action requests are split into multiple atomic tasks
+- Smith delegation is used for tasks targeting remote/isolated environments
 - each delegated task has a single objective
 - task status inquiries are handled through `task_query`
 
@@ -245,6 +278,7 @@ Dedicated agent tabs:
 - Neo
 - Apoc
 - Trinity
+- Smiths
 
 ### 6.4 Trinity Databases Page
 - Register databases (PostgreSQL, MySQL, SQLite, MongoDB)
@@ -269,6 +303,12 @@ Dedicated agent tabs:
 - Sync skills execute immediately via `skill_execute` tool
 - Async skills run as background tasks via `skill_delegate` tool
 - Both modes use Keymaker agent with full tool access (DevKit + MCP + internal tools)
+
+### 6.7 Smiths Page
+- Smiths table showing all registered Smith instances with connection state (online/offline/connecting)
+- Configuration form: enabled toggle, execution mode, entries (name, host, port, auth_token)
+- Ping action to test connectivity
+- Hot-reload on config save (connects new Smiths, disconnects removed ones)
 
 ## 7. Configuration
 
@@ -328,6 +368,14 @@ devkit:
 chronos:
   check_interval_ms: 60000   # polling interval (minimum 60000)
   default_timezone: UTC      # IANA timezone used when none is specified
+
+smiths:
+  enabled: false
+  execution_mode: async        # 'sync' = inline response, 'async' = background task
+  heartbeat_interval_ms: 30000
+  connection_timeout_ms: 10000
+  task_timeout_ms: 300000
+  entries: []                  # list of { name, host, port, auth_token }
 
 runtime:
   async_tasks:
@@ -2284,6 +2332,135 @@ Error response `404`:
 ```json
 {
   "error": "Skill not found"
+}
+```
+
+## 8.19 Smiths Endpoints (Protected)
+
+### GET `/api/smiths`
+Returns all registered Smiths with connection state.
+
+Success response `200`:
+
+```json
+{
+  "enabled": true,
+  "total": 2,
+  "online": 1,
+  "smiths": [
+    {
+      "name": "smith1",
+      "host": "localhost",
+      "port": 7778,
+      "state": "online",
+      "capabilities": ["filesystem", "shell", "git"],
+      "stats": null,
+      "lastSeen": "2026-02-27T12:00:00.000Z",
+      "error": null
+    }
+  ]
+}
+```
+
+### GET `/api/smiths/config`
+Returns Smiths configuration (auth tokens masked).
+
+Success response `200`:
+
+```json
+{
+  "enabled": true,
+  "execution_mode": "sync",
+  "heartbeat_interval_ms": 30000,
+  "connection_timeout_ms": 10000,
+  "task_timeout_ms": 300000,
+  "entries": [
+    { "name": "smith1", "host": "localhost", "port": 7778, "auth_token": "***" }
+  ]
+}
+```
+
+### PUT `/api/smiths/config`
+Updates Smiths configuration and hot-reloads connections.
+
+Request payload example:
+
+```json
+{
+  "enabled": true,
+  "execution_mode": "sync",
+  "entries": [
+    { "name": "smith1", "host": "localhost", "port": 7778, "auth_token": "secret-token" }
+  ]
+}
+```
+
+Success response `200`:
+
+```json
+{
+  "status": "updated",
+  "added": ["smith2"],
+  "removed": []
+}
+```
+
+### GET `/api/smiths/:name`
+Returns a specific Smith's details.
+
+Success response `200`:
+
+```json
+{
+  "name": "smith1",
+  "host": "localhost",
+  "port": 7778,
+  "state": "online",
+  "capabilities": ["filesystem", "shell", "git"],
+  "stats": null,
+  "lastSeen": "2026-02-27T12:00:00.000Z",
+  "error": null
+}
+```
+
+Error response `404`:
+
+```json
+{
+  "error": "Smith 'unknown' not found"
+}
+```
+
+### POST `/api/smiths/:name/ping`
+Pings a Smith to test connectivity.
+
+Success response `200`:
+
+```json
+{
+  "online": true,
+  "latency_ms": 12,
+  "error": null
+}
+```
+
+### DELETE `/api/smiths/:name`
+Removes a Smith from the registry.
+
+Success response `200`:
+
+```json
+{
+  "status": "removed",
+  "name": "smith1"
+}
+```
+
+Error response `404`:
+
+```json
+{
+  "error": "Smith 'smith1' not found"
 }
 ```
 

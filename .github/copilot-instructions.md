@@ -23,13 +23,14 @@ Oracle is the root orchestrator. It delegates to specialized subagents via tools
 | `apoc_delegate` | Apoc | `src/runtime/apoc.ts` | Filesystem, shell, git, browser via DevKit |
 | `trinity_delegate` | Trinity | `src/runtime/trinity.ts` | PostgreSQL/MySQL/SQLite/MongoDB queries |
 | `neo_delegate` | Neo | `src/runtime/neo.ts` | MCP tool orchestration |
+| `smith_delegate` | Smith (remote) | `src/runtime/smiths/delegator.ts` | Remote DevKit execution via WebSocket |
 | `chronos_schedule` | Chronos | `src/runtime/chronos/` | Scheduled job management |
 
 Oracle never executes DevKit/MCP tools directly — it routes through subagents.
 
 **Subagent Execution Mode** (`execution_mode: 'sync' | 'async'`):
 
-Each subagent (Apoc, Neo, Trinity) can be configured to run synchronously or asynchronously:
+Each subagent (Apoc, Neo, Trinity, Smith) can be configured to run synchronously or asynchronously:
 - **`async`** (default): Creates a background task in the queue. TaskWorker picks it up, executes it, and TaskNotifier delivers the result via the originating channel. Oracle responds immediately with a task acknowledgement.
 - **`sync`**: Oracle executes the subagent inline during the same turn. The result is returned directly in Oracle's response, like `skill_execute` does for Keymaker. No task is created in the queue.
 
@@ -66,6 +67,15 @@ When enabled, every tool execution by any agent sends a real-time notification (
 - **UI:** Settings → DevKit tab (Security, Tool Categories, Shell Allowlist)
 - **Env vars:** `MORPHEUS_DEVKIT_SANDBOX_DIR`, `MORPHEUS_DEVKIT_READONLY_MODE`, etc.
 
+### Smith — Remote Agent System
+- **Architecture:** `SmithRegistry` (singleton) manages WebSocket connections to remote Smith instances
+- **Proxy Tools:** `SmithDelegator` creates LangChain ReactAgent with proxy StructuredTools forwarding execution to Smith via WebSocket
+- **Config:** `smiths` section in `zaion.yaml` — `enabled`, `execution_mode`, `entries[]` (name, host, port, auth_token)
+- **Hot-reload:** `SmithRegistry.reload()` diffs config vs runtime — triggered by API or `smith_manage` tool
+- **Resilience:** Max 3 reconnect attempts, 401 auth errors stop immediately, non-blocking startup
+- **LLM tools:** `smith_list` (list Smiths + state), `smith_manage` (add/remove/ping/enable/disable)
+- **API router:** `src/http/routers/smiths.ts` — management, config, ping, delegation
+
 ### Memory System (Three-Database Architecture)
 - **Short-term:** `~/.morpheus/memory/short-memory.db` - per-session chat history
 - **Long-term (Sati):** `~/.morpheus/memory/sati-memory.db` - persistent facts + session embeddings
@@ -87,7 +97,7 @@ All use singleton + `start()`/`stop()` pattern:
 - **TaskNotifier** — sends completion notifications via `ChannelRegistry`
 - **ChronosWorker** — executes due scheduled jobs
 
-**Note:** Trinity tasks use `agent = 'trinit'` (not `'trinity'`).
+**Note:** Trinity tasks use `agent = 'trinit'` (not `'trinity'`). Smith tasks use `agent = 'smith'`.
 
 ### HTTP Server & Web UI
 - **Server:** `src/http/server.ts` (Express.js) → API routes in `src/http/api.ts`
@@ -161,6 +171,7 @@ npm start -- skills --reload # Reload skills from disk
 | DevKit config | `src/devkit/registry.ts` |
 | Trinity (databases) | `src/runtime/trinity.ts` |
 | Neo (MCP) | `src/runtime/neo.ts` |
+| Smith (remote DevKit) | `src/runtime/smiths/` |
 | MCP Tool Cache | `src/runtime/tools/cache.ts` |
 | MCP Factory | `src/runtime/tools/factory.ts` |
 | Chronos (scheduler) | `src/runtime/chronos/` |

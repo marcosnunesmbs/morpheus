@@ -21,6 +21,7 @@ Core promise:
 - Neo: MCP/internal-tools executor for analytical and operational actions (personality: `analytical_engineer`).
 - Apoc: DevTools/browser executor for engineering and automation tasks (personality: `pragmatic_dev`).
 - Trinity: database specialist for SQL/NoSQL query execution (personality: `data_specialist`).
+- Smith: remote DevKit executor for isolated machines via WebSocket (uses Oracle's LLM with proxy tools).
 - Sati: memory evaluator that enriches context with long-term facts.
 
 This separation reduces prompt ambiguity and improves reliability for mixed workloads. Each subagent's personality can be customized via configuration to adapt behavior to specific workflows.
@@ -62,7 +63,7 @@ Users can inspect:
 
 ### 5.1 Single Action
 1. User asks for an execution task.
-2. Oracle chooses Neo, Apoc, or Trinity and enqueues one task.
+2. Oracle chooses Neo, Apoc, Trinity, or Smith and enqueues one task.
 3. User receives immediate acknowledgement.
 4. Worker executes and notifier pushes result to origin channel or configured `notify_channels`.
 
@@ -81,7 +82,7 @@ User asks "status/consultou?" and Oracle uses direct task query (no delegation r
 4. Result delivered to configured `notify_channels` (default: broadcast to all active channels).
 
 ## 6. Product Controls
-- Dedicated agent settings in UI for Oracle, Sati, Neo, Apoc, and Trinity.
+- Dedicated agent settings in UI for Oracle, Sati, Neo, Apoc, Trinity, and Smiths.
 - Per-agent personality configuration:
   - Neo: `analytical_engineer`, `meticulous_auditor`, `systems_thinker`, or custom
   - Apoc: `pragmatic_dev`, `cautious_admin`, `automation_specialist`, or custom
@@ -91,6 +92,7 @@ User asks "status/consultou?" and Oracle uses direct task query (no delegation r
 - Per-agent model/provider configuration for cost and performance tuning.
 - Chronos configuration: polling interval and default timezone.
 - Per-job notification channel routing (`notify_channels`).
+- Smith remote agent management: config hot-reload, ping, add/remove via API or LLM tools.
 
 ## 7. Non-Functional Requirements
 - Privacy: local-first by default; external API calls are explicit by chosen providers/tools.
@@ -98,6 +100,7 @@ User asks "status/consultou?" and Oracle uses direct task query (no delegation r
 - Reliability: persisted queue with retry and stale-recovery logic.
 - Cost tracking: token usage persisted per message/provider/model for analytics.
 - Extensibility: new channels implement `IChannelAdapter` and register with `ChannelRegistry`.
+- Remote execution: Smith agents extend DevKit reach to isolated machines via WebSocket.
 
 ## 8. Product Direction
 Morpheus is evolving from chat assistant to an asynchronous local operator:
@@ -107,3 +110,4 @@ Morpheus is evolving from chat assistant to an asynchronous local operator:
 - better operational visibility in UI and external channels
 - multi-channel presence (Terminal, Web UI, Telegram, Discord)
 - temporal scheduling with Chronos for recurring and one-time automations
+- remote execution delegation via Smith agents on isolated machines

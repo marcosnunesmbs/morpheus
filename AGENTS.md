@@ -63,7 +63,8 @@ bin/morpheus.js             # Shebang entry: loads .env, dynamic import
   → src/runtime/scaffold.ts # Ensures ~/.morpheus/ dirs + zaion.yaml exist
   → src/cli/commands/start.ts  # Instantiates all services:
       Oracle, HttpServer, ChronosRepository, ChronosWorker,
-      TaskRepository, TaskWorker, TaskNotifier, TelegramAdapter
+      TaskRepository, TaskWorker, TaskNotifier, TelegramAdapter,
+      SmithRegistry (connects to remote Smiths)
 ```
 
 ### Agent Delegation Pattern
@@ -74,12 +75,13 @@ Oracle is the root orchestrator. It delegates to specialized subagents via tools
 | `apoc_delegate` | Apoc | `src/runtime/apoc.ts` | Filesystem, shell, git, browser via DevKit |
 | `trinity_delegate` | Trinity | `src/runtime/trinity.ts` | PostgreSQL, MySQL, SQLite, MongoDB |
 | `neo_delegate` | Neo | `src/runtime/neo.ts` | MCP tool orchestration |
+| `smith_delegate` | Smith (remote) | `src/runtime/smiths/delegator.ts` | Remote DevKit execution via WebSocket |
 
 Oracle never executes DevKit/MCP tools directly — it routes through subagents.
 
 **Subagent Execution Mode** (`execution_mode: 'sync' | 'async'`):
 
-Each subagent (Apoc, Neo, Trinity) can be configured to run synchronously or asynchronously:
+Each subagent (Apoc, Neo, Trinity, Smith) can be configured to run synchronously or asynchronously:
 - **`async`** (default): Creates a background task in the queue. TaskWorker picks it up, executes it, and TaskNotifier delivers the result via the originating channel. Oracle responds immediately with a task acknowledgement.
 - **`sync`**: Oracle executes the subagent inline during the same turn. The result is returned directly in Oracle's response, like `skill_execute` does for Keymaker. No task is created in the queue.
 
@@ -95,7 +97,8 @@ src/http/
   ├─ server.ts         # Express wrapper: middleware, routes, start/stop
   ├─ api.ts            # createApiRouter(oracle, chronosWorker) — all endpoints
   ├─ routers/
-  │   └─ chronos.ts    # createChronosJobRouter() + createChronosConfigRouter()
+  │   ├─ chronos.ts    # createChronosJobRouter() + createChronosConfigRouter()
+  │   └─ smiths.ts     # Smith management, config, ping, delegation
   ├─ webhooks-router.ts
   └─ middleware/
       └─ auth.ts       # API key validation
@@ -145,6 +148,38 @@ Environment variables: `MORPHEUS_DEVKIT_SANDBOX_DIR`, `MORPHEUS_DEVKIT_READONLY_
 
 UI: Settings → DevKit tab (3 sections: Security, Tool Categories, Shell Allowlist).
 
+### Smith — Remote Agent System
+
+Smith enables remote DevKit execution on isolated machines (Docker, VMs, cloud) via WebSocket.
+
+**Architecture:**
+- `SmithRegistry` (singleton) manages all connections. Initialized at startup, non-blocking.
+- `SmithConnection` wraps a WebSocket client per Smith instance. Auth via token handshake.
+- `SmithDelegator` creates a LangChain ReactAgent with **proxy tools** — local DevKit tools built for schema extraction, filtered by Smith's declared capabilities, wrapped in proxies that forward execution to the remote Smith via WebSocket.
+- Oracle delegates via `smith_delegate` tool (sync or async, like other subagents).
+
+**Config (`zaion.yaml`):**
+```yaml
+smiths:
+  enabled: true
+  execution_mode: sync    # or async
+  heartbeat_interval_ms: 30000
+  connection_timeout_ms: 10000
+  task_timeout_ms: 300000
+  entries:
+    - name: smith1
+      host: localhost
+      port: 7778
+      auth_token: secret-token
+```
+
+**Key behaviors:**
+- **Hot-reload:** `SmithRegistry.reload()` diffs config vs runtime — connects new entries, disconnects removed ones. Triggered by `PUT /api/smiths/config` and `smith_manage` tool.
+- **Reconnection:** Max 3 attempts. 401 auth failures stop retries immediately (`_authFailed` flag).
+- **Non-blocking startup:** `connectAll()` fires and forgets — Smith connection failures don't block daemon boot.
+- **LLM management tools:** `smith_list` (list all Smiths with state/capabilities), `smith_manage` (add/remove/ping/enable/disable).
+- **Task queue:** Async Smith tasks use `agent = 'smith'` in the `tasks` table.
+
 ### Channel Adapter Pattern
 
 `src/channels/registry.ts` — `ChannelRegistry` singleton + `IChannelAdapter` interface.
@@ -188,7 +223,7 @@ All workers use a singleton + `start()`/`stop()` pattern:
 - **TaskNotifier** — sends completion notifications via `ChannelRegistry`
 - **Session embedding scheduler** — populates Sati embeddings asynchronously
 
-In `tasks` table, Trinity agent rows use `agent = 'trinit'` (not `'trinity'`).
+In `tasks` table, Trinity agent rows use `agent = 'trinit'` (not `'trinity'`). Smith tasks use `agent = 'smith'`.
 
 ### Architecture Quick Reference
 
@@ -205,6 +240,11 @@ In `tasks` table, Trinity agent rows use `agent = 'trinit'` (not `'trinity'`).
 | DevKit config | `src/devkit/registry.ts` | Shared security: sandbox, readonly, category toggles |
 | Trinity subagent | `src/runtime/trinity.ts` | DB specialist, `trinity_delegate` |
 | Neo subagent | `src/runtime/neo.ts` | MCP tools, `neo_delegate` |
+| Smith delegator | `src/runtime/smiths/delegator.ts` | Remote DevKit via WebSocket, `smith_delegate` |
+| Smith registry | `src/runtime/smiths/registry.ts` | Singleton managing Smith connections |
+| Smith connection | `src/runtime/smiths/connection.ts` | WebSocket client per Smith instance |
+| Smith tool | `src/runtime/tools/smith-tool.ts` | Oracle tool for `smith_delegate` |
+| Smiths API router | `src/http/routers/smiths.ts` | Smith management + config + ping |
 | MCP Tool Cache | `src/runtime/tools/cache.ts` | Singleton cache for MCP tools |
 | MCP Factory | `src/runtime/tools/factory.ts` | `Construtor.create()` / `reload()` / `getStats()` |
 | Provider factory | `src/runtime/providers/factory.ts` | `create()` / `createBare()` |

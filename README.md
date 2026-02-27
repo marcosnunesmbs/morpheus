@@ -9,9 +9,10 @@ It runs as a daemon and orchestrates LLMs, MCP tools, DevKit tools, memory, and 
 
 ## Why Morpheus
 - Local-first persistence (sessions, messages, usage, tasks).
-- Multi-agent architecture (Oracle, Neo, Apoc, Sati, Trinity).
+- Multi-agent architecture (Oracle, Neo, Apoc, Sati, Trinity, Smith).
 - Async task execution with queue + worker + notifier.
 - Chronos temporal scheduler for recurring and one-time Oracle executions.
+- Smith remote agent system for DevKit execution on isolated machines via WebSocket.
 - Multi-channel output via ChannelRegistry (Telegram, Discord) with per-job routing.
 - Rich operational visibility in UI (chat traces, tasks, usage, logs).
 
@@ -23,6 +24,7 @@ It runs as a daemon and orchestrates LLMs, MCP tools, DevKit tools, memory, and 
 - `Trinity`: database specialist. Executes queries, introspects schemas, and manages registered databases (PostgreSQL, MySQL, SQLite, MongoDB).
 - `Chronos`: temporal scheduler. Runs Oracle prompts on a recurring or one-time schedule.
 - `Keymaker`: skill executor. Runs user-defined skills with full tool access (DevKit + MCP + internal tools).
+- `Smith`: remote DevKit executor. Runs DevKit operations on isolated machines (Docker, VMs, cloud) via WebSocket.
 
 ## Installation
 
@@ -169,10 +171,10 @@ docker run -d \
 Morpheus uses asynchronous delegation by default:
 
 1. Oracle receives user request.
-2. If execution is needed, Oracle calls `neo_delegate`, `apoc_delegate`, or `trinity_delegate`.
+2. If execution is needed, Oracle calls `neo_delegate`, `apoc_delegate`, `trinity_delegate`, or `smith_delegate`.
 3. Delegate tool creates a row in `tasks` table with origin metadata (`channel`, `session`, `message`, `user`).
 4. Oracle immediately acknowledges task creation.
-5. `TaskWorker` executes pending tasks (routes `trinit` tasks to Trinity agent).
+5. `TaskWorker` executes pending tasks (routes `trinit` tasks to Trinity agent, `smith` tasks to Smith delegator).
 6. `TaskNotifier` sends completion/failure through `TaskDispatcher`.
 
 Important behavior:
@@ -216,6 +218,44 @@ Chronos lets you schedule any Oracle prompt to run at a fixed time or on a recur
 - `GET /api/chronos/:id/executions`
 - `POST /api/chronos/preview` — preview next N run timestamps
 - `GET/POST/DELETE /api/config/chronos`
+
+## Smith — Remote Agent System
+
+Smith enables remote DevKit execution on isolated machines (Docker, VMs, cloud) via WebSocket.
+
+**Architecture:**
+- `SmithRegistry` manages WebSocket connections to remote Smith instances (singleton, non-blocking startup).
+- `SmithDelegator` creates a LangChain ReactAgent with **proxy tools** — local DevKit tools built for schema extraction, filtered by Smith's declared capabilities, wrapped in proxies that forward execution to the remote Smith via WebSocket.
+- Oracle delegates via `smith_delegate` tool (sync or async, like other subagents).
+
+**Config (`zaion.yaml`):**
+```yaml
+smiths:
+  enabled: true
+  execution_mode: sync    # or async
+  entries:
+    - name: smith1
+      host: localhost
+      port: 7778
+      auth_token: secret-token
+```
+
+**Key behaviors:**
+- **Hot-reload:** Config changes connect/disconnect Smiths without restart (via `PUT /api/smiths/config` or `smith_manage` tool).
+- **Reconnection:** Max 3 attempts. 401 auth failures stop retries immediately.
+- **Non-blocking startup:** Smith connection failures don't block daemon boot.
+
+**Oracle tools:** `smith_list` (list Smiths + state), `smith_manage` (add/remove/ping/enable/disable)
+
+**API endpoints (protected):**
+- `GET /api/smiths` — list all Smiths with status
+- `GET /api/smiths/config` — get Smiths configuration
+- `PUT /api/smiths/config` — update config (hot-reload)
+- `GET /api/smiths/:name` — get specific Smith details
+- `POST /api/smiths/:name/ping` — ping a Smith
+- `DELETE /api/smiths/:name` — remove a Smith
+
+> **Learn more:** The Smith standalone agent has its own repository with setup instructions, Docker support, and protocol documentation at [github.com/marcosnunesmbs/smith](https://github.com/marcosnunesmbs/smith).
 
 ## Telegram Experience
 
@@ -276,7 +316,7 @@ Adding a new channel requires only implementing `IChannelAdapter` (`channel`, `s
 The dashboard includes:
 - Chat with session management
 - Tasks page (stats, filters, details, retry)
-- Agent settings (Oracle/Sati/Neo/Apoc/Trinity)
+- Agent settings (Oracle/Sati/Neo/Apoc/Trinity/Smiths)
 - MCP manager (add/edit/delete/toggle/reload)
 - Sati memories (search, bulk delete)
 - Usage stats and model pricing
@@ -336,6 +376,14 @@ trinity:
 chronos:
   check_interval_ms: 60000   # polling interval in ms (minimum 60000)
   default_timezone: UTC      # IANA timezone used when none is specified
+
+smiths:
+  enabled: false
+  execution_mode: async      # 'sync' = inline response, 'async' = background task
+  heartbeat_interval_ms: 30000
+  connection_timeout_ms: 10000
+  task_timeout_ms: 300000
+  entries: []                # list of { name, host, port, auth_token }
 
 runtime:
   async_tasks:
@@ -593,11 +641,12 @@ Authenticated endpoints (`x-architect-pass`):
 - Sessions: `/api/sessions*`
 - Chat: `POST /api/chat`
 - Tasks: `GET /api/tasks`, `GET /api/tasks/stats`, `GET /api/tasks/:id`, `POST /api/tasks/:id/retry`
-- Config: `/api/config`, `/api/config/sati`, `/api/config/neo`, `/api/config/apoc`, `/api/config/trinity`, `/api/config/chronos`
+- Config: `/api/config`, `/api/config/sati`, `/api/config/neo`, `/api/config/apoc`, `/api/config/trinity`, `/api/config/chronos`, `/api/config/smiths`
 - MCP: `/api/mcp/*` (servers CRUD + reload + status)
 - Sati memories: `/api/sati/memories*`
 - Trinity databases: `GET/POST/PUT/DELETE /api/trinity/databases`, `POST /api/trinity/databases/:id/test`, `POST /api/trinity/databases/:id/refresh-schema`
 - Chronos: `GET/POST /api/chronos`, `GET/PUT/DELETE /api/chronos/:id`, `PATCH /api/chronos/:id/enable`, `PATCH /api/chronos/:id/disable`, `GET /api/chronos/:id/executions`, `POST /api/chronos/preview`
+- Smiths: `GET /api/smiths`, `GET/PUT /api/smiths/config`, `GET/DELETE /api/smiths/:name`, `POST /api/smiths/:name/ping`
 - Usage/model pricing/logs/restart
 - Webhook management and webhook notifications
 
@@ -711,6 +760,10 @@ src/
       worker.ts           # polling timer and job execution
       repository.ts       # SQLite-backed job and execution store
       parser.ts           # natural-language schedule parser
+    smiths/
+      registry.ts         # SmithRegistry — manages all connections
+      connection.ts       # WebSocket client per Smith instance
+      delegator.ts        # LLM agent with proxy tools for remote execution
     memory/
     tasks/
     tools/

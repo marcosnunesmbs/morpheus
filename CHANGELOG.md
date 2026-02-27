@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **Smith — Remote Agent System**: Remote DevKit execution on isolated machines (Docker, VMs, cloud) via WebSocket
+  - `SmithRegistry` singleton manages all Smith connections with non-blocking startup
+  - `SmithConnection` WebSocket client per Smith instance with token-based auth handshake
+  - `SmithDelegator` creates LangChain ReactAgent with **proxy tools** — local DevKit tools built for schema extraction, filtered by Smith capabilities, wrapped in proxies that forward execution to remote Smith via WebSocket
+  - Oracle delegates via `smith_delegate` tool (sync or async, like other subagents)
+  - New `smiths` config section in `zaion.yaml`: `enabled`, `execution_mode`, `heartbeat_interval_ms`, `connection_timeout_ms`, `task_timeout_ms`, `entries[]` (name, host, port, auth_token)
+  - **Hot-reload:** `SmithRegistry.reload()` diffs config vs runtime — connects new entries, disconnects removed ones. Triggered by `PUT /api/smiths/config` and `smith_manage` tool
+  - **Resilience:** Max 3 reconnect attempts, 401 auth failures stop retries immediately (`_authFailed` flag), non-blocking startup (connection failures don't block daemon boot)
+  - LLM management tools: `smith_list` (list all Smiths with state/capabilities), `smith_manage` (add/remove/ping/enable/disable)
+  - REST API router (`src/http/routers/smiths.ts`): `GET /api/smiths`, `GET/PUT /api/smiths/config`, `GET/DELETE /api/smiths/:name`, `POST /api/smiths/:name/ping`, `POST /api/smiths/register`
+  - `TaskWorker` routes `agent = 'smith'` tasks to SmithDelegator
+  - Smiths tab in Settings UI for configuration management
+  - Environment variables: `MORPHEUS_SMITHS_ENABLED`, `MORPHEUS_SMITHS_EXECUTION_MODE`
+
 ## [0.7.7] - 2026-02-26
 
 ### Added
@@ -102,8 +117,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `src/channels/telegram.ts` — uses `getUsableApiKey()` for audio transcription
 - `src/channels/discord.ts` — uses `getUsableApiKey()` for audio transcription
 - `src/runtime/tools/time-verify-tools.ts` — added `formatDateWithTimezone()` helper
-
-## [Unreleased]
 
 ## [0.5.6] - 2026-02-22
 

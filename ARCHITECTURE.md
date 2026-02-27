@@ -16,6 +16,7 @@ The runtime is a modular monolith built on Node.js + TypeScript, with SQLite as 
 - `neo.ts`: execution subagent for MCP + Morpheus internal tools (config, diagnostics, analytics).
 - `apoc.ts`: execution subagent for DevKit operations (filesystem, shell, git, network, processes, packages, system).
 - `trinity.ts`: database specialist subagent for SQL/NoSQL query execution.
+- `smiths/*`: remote DevKit execution via WebSocket — registry, connection, delegator.
 - `memory/sati/*`: long-term memory pipeline (retrieval + post-response memory evaluation).
 - `tasks/*`: async task queue repository, worker, notifier, dispatcher, and request context.
 - `chronos/*`: temporal scheduler — job store, polling worker, natural-language schedule parser.
@@ -35,11 +36,12 @@ The runtime is a modular monolith built on Node.js + TypeScript, with SQLite as 
 
 | Agent | Responsibility | Tool Scope | Personality |
 |---|---|---|---|
-| Oracle | Conversation orchestrator and router | `task_query`, `neo_delegate`, `apoc_delegate`, `trinity_delegate`, `skill_execute`, `skill_delegate` | configurable via `agent.personality` |
+| Oracle | Conversation orchestrator and router | `task_query`, `neo_delegate`, `apoc_delegate`, `trinity_delegate`, `smith_delegate`, `skill_execute`, `skill_delegate` | configurable via `agent.personality` |
 | Neo | Analytical/operational execution | Runtime MCP tools + config/diagnostic/analytics tools | configurable via `neo.personality` (default: `analytical_engineer`) |
 | Apoc | DevTools and browser execution | DevKit toolchain | configurable via `apoc.personality` (default: `pragmatic_dev`) |
 | Trinity | Database specialist | PostgreSQL/MySQL/SQLite/MongoDB query execution + schema introspection | configurable via `trinity.personality` (default: `data_specialist`) |
 | Keymaker | Skill executor | DevKit + MCP + all internal tools (full access) | configurable via `keymaker.personality` (default: `versatile_specialist`) |
+| Smith | Remote DevKit executor | Proxy DevKit tools forwarded via WebSocket | N/A (uses Oracle's LLM) |
 | Sati | Long-term memory evaluator | No execution tools (memory-focused reasoning) | uses Oracle personality |
 
 Key design choice: Oracle no longer carries MCP tool load directly. It delegates execution asynchronously and stays responsive.
@@ -50,13 +52,13 @@ Key design choice: Oracle no longer carries MCP tool load directly. It delegates
 1. User request arrives at Oracle.
 2. Oracle decides:
    - direct response (conversation only), or
-   - delegated execution via `neo_delegate` / `apoc_delegate` / `trinity_delegate`.
+   - delegated execution via `neo_delegate` / `apoc_delegate` / `trinity_delegate` / `smith_delegate`.
 3. Delegate tool writes a task into `tasks` table (`status = pending`) with full origin context:
    - `origin_channel`
    - `session_id`
    - `origin_message_id`
    - `origin_user_id`
-   - `agent` column: `neo`, `apoc`, or `trinit` (Trinity tasks are stored as `trinit`)
+   - `agent` column: `neo`, `apoc`, `trinit` (Trinity), or `smith`
 4. Oracle returns an acknowledgement (no execution output) and remains available.
 5. `TaskWorker` claims pending tasks and executes subagent work.
 6. Worker marks task `completed` or `failed`.
@@ -105,7 +107,7 @@ Sati retrieval enriches Oracle context before execution. Sati post-processing ex
 Main API router (`src/http/api.ts`) provides:
 - sessions and chat
 - tasks listing/stats/detail/retry
-- config management (`/config`, `/config/sati`, `/config/neo`, `/config/apoc`, `/config/trinity`, `/config/chronos`)
+- config management (`/config`, `/config/sati`, `/config/neo`, `/config/apoc`, `/config/trinity`, `/config/chronos`, `/config/smiths`)
 - usage statistics and model pricing
 - MCP management and reload (`/mcp/servers`, `/mcp/reload`, `/mcp/status`)
 - Trinity database registry (`/trinity/databases` CRUD + test + refresh-schema)
@@ -257,17 +259,51 @@ examples:
 ### 10.4 Skill Discovery
 Skills are loaded at startup and on demand via `/api/skills/reload` or `/skills_reload` commands. The registry generates dynamic system prompt sections listing available sync and async skills for Oracle.
 
-## 11. Security Model
+## 11. Smith — Remote Agent System
+
+### 11.1 Components
+- `src/runtime/smiths/registry.ts`: `SmithRegistry` — singleton managing all Smith connections. Initialized at startup, non-blocking.
+- `src/runtime/smiths/connection.ts`: `SmithConnection` — WebSocket client per Smith instance. Auth via token handshake. Max 3 reconnect attempts; 401 errors skip retry.
+- `src/runtime/smiths/delegator.ts`: `SmithDelegator` — creates a LangChain ReactAgent with **proxy tools** (local DevKit tools built for schema extraction, filtered by Smith capabilities, wrapped in proxies that forward execution to the remote Smith via WebSocket).
+- `src/runtime/tools/smith-tool.ts`: Oracle tool for `smith_delegate` (sync or async, like other subagents).
+- `src/http/routers/smiths.ts`: REST API for Smith management, config CRUD, ping, delegation.
+
+### 11.2 Config
+```yaml
+smiths:
+  enabled: true
+  execution_mode: sync    # or async
+  heartbeat_interval_ms: 30000
+  connection_timeout_ms: 10000
+  task_timeout_ms: 300000
+  entries:
+    - name: smith1
+      host: localhost
+      port: 7778
+      auth_token: secret-token
+```
+
+### 11.3 Key Behaviors
+- **Hot-reload:** `SmithRegistry.reload()` diffs config vs runtime — connects new entries, disconnects removed ones. Triggered by `PUT /api/smiths/config` and `smith_manage` tool.
+- **Reconnection:** Max 3 attempts. 401 auth failures stop retries immediately (`_authFailed` flag).
+- **Non-blocking startup:** `connectAll()` fires and forgets — Smith connection failures don't block daemon boot.
+- **LLM management tools:** `smith_list` (list all Smiths with state/capabilities), `smith_manage` (add/remove/ping/enable/disable).
+
+### 11.4 Task Agent Name
+Smith tasks are stored in the `tasks` table with `agent = 'smith'`.
+
+## 12. Security Model
 - Local-first storage by default.
 - `x-architect-pass` protects `/api/*` management routes.
 - webhook trigger uses per-webhook `x-api-key`.
 - Telegram allowlist enforces authorized user IDs.
 - Discord DM-only responses with authorized user IDs and Message Content Intent requirement.
 - Apoc execution constrained by configurable `working_dir` and `timeout_ms`.
+- Smith remote connections use token-based auth, max 3 reconnect attempts, 401 auth failures stop immediately.
 - Trinity database passwords encrypted at rest with AES-256-GCM (`MORPHEUS_SECRET` env var).
 - Per-database permission flags (`allow_read`, `allow_insert`, `allow_update`, `allow_delete`, `allow_ddl`) gate Trinity query execution.
 
-## 12. Runtime Lifecycle
+## 13. Runtime Lifecycle
 At daemon boot (`start` / `restart` commands):
 - load config and initialize Oracle
 - load skills via `SkillRegistry`
@@ -275,6 +311,7 @@ At daemon boot (`start` / `restart` commands):
 - register channel adapters via `ChannelRegistry`:
   - `TelegramAdapter` (if enabled)
   - `DiscordAdapter` (if enabled)
+- connect `SmithRegistry` to remote Smith instances (non-blocking, fire-and-forget)
 - start background workers when `runtime.async_tasks.enabled != false`:
   - `TaskWorker`
   - `TaskNotifier`
