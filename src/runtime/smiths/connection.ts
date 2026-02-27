@@ -185,6 +185,12 @@ export class SmithConnection {
     this.messageHandlers.push(handler);
   }
 
+  /** Remove a previously registered message handler */
+  public offMessage(handler: MessageHandler): void {
+    const idx = this.messageHandlers.indexOf(handler);
+    if (idx !== -1) this.messageHandlers.splice(idx, 1);
+  }
+
   /** Disconnect gracefully */
   public async disconnect(): Promise<void> {
     this.intentionalClose = true;

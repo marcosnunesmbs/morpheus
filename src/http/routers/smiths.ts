@@ -77,6 +77,19 @@ export function createSmithsRouter(): Router {
       const configManager = ConfigManager.getInstance();
       const currentConfig = configManager.get();
 
+      // Preserve masked auth_tokens: if UI sends '***', keep the existing token
+      const incomingEntries = req.body.entries;
+      if (Array.isArray(incomingEntries)) {
+        const existingEntries = currentConfig.smiths?.entries ?? [];
+        req.body.entries = incomingEntries.map((entry: any) => {
+          if (entry.auth_token === '***') {
+            const existing = existingEntries.find((e: any) => e.name === entry.name);
+            return { ...entry, auth_token: existing?.auth_token ?? '' };
+          }
+          return entry;
+        });
+      }
+
       const updated = {
         ...currentConfig,
         smiths: {

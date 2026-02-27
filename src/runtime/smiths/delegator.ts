@@ -215,16 +215,18 @@ Respond in the same language as the task.`
 
       // Wait for pong (up to 5s)
       return new Promise((resolve) => {
-        const timeout = setTimeout(() => {
-          resolve({ online: false, error: 'Ping timeout (5s)' });
-        }, 5000);
-
         const handler = (msg: any) => {
           if (msg.type === 'pong') {
             clearTimeout(timeout);
+            connection.offMessage(handler);
             resolve({ online: true, latencyMs: Date.now() - start });
           }
         };
+
+        const timeout = setTimeout(() => {
+          connection.offMessage(handler);
+          resolve({ online: false, error: 'Ping timeout (5s)' });
+        }, 5000);
 
         connection.onMessage(handler);
       });
