@@ -197,15 +197,6 @@ function SmithCard({ status, entry, onPing, onEdit, onDelete }: SmithCardProps) 
           </div>
         </div>
 
-        {/* Capabilities */}
-        {status.capabilities.length > 0 && (
-          <div className="flex flex-wrap gap-1.5 mt-3">
-            {status.capabilities.map((cap) => (
-              <CapabilityBadge key={cap} cap={cap} />
-            ))}
-          </div>
-        )}
-
         {/* Error message */}
         {status.error && (
           <div className="mt-3 flex items-start gap-2 text-xs text-red-500 bg-red-500/10 border border-red-500/20 rounded p-2">
@@ -216,98 +207,74 @@ function SmithCard({ status, entry, onPing, onEdit, onDelete }: SmithCardProps) 
 
         {/* System Stats (when online) */}
         {isOnline && status.stats && (
-          <div className="mt-3 grid grid-cols-2 sm:grid-cols-4 gap-2">
-            <div className="flex items-center gap-1.5 text-xs text-azure-text-secondary dark:text-matrix-secondary">
-              <Cpu className="w-3 h-3 text-azure-text-secondary dark:text-matrix-tertiary shrink-0" />
-              <span className="font-medium text-azure-text dark:text-matrix-secondary">{status.stats.cpu_percent.toFixed(1)}%</span>
-              <span className="text-azure-text-secondary dark:text-matrix-tertiary">CPU</span>
+          <div className="mt-3 space-y-2">
+            <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
+              <div className="flex justify-between">
+                <span className="text-azure-text-secondary dark:text-matrix-tertiary">OS</span>
+                <span className="text-azure-text dark:text-matrix-secondary font-mono">{status.stats.os}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-azure-text-secondary dark:text-matrix-tertiary">Hostname</span>
+                <span className="text-azure-text dark:text-matrix-secondary font-mono truncate max-w-[120px]">{status.stats.hostname}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-azure-text-secondary dark:text-matrix-tertiary flex items-center gap-1"><Cpu className="w-3 h-3" /> CPU</span>
+                <span className="text-azure-text dark:text-matrix-secondary font-mono">{status.stats.cpu_percent.toFixed(1)}%</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-azure-text-secondary dark:text-matrix-tertiary flex items-center gap-1"><HardDrive className="w-3 h-3" /> RAM</span>
+                <span className="text-azure-text dark:text-matrix-secondary font-mono">{formatMemory(status.stats.memory_used_mb, status.stats.memory_total_mb)}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-azure-text-secondary dark:text-matrix-tertiary flex items-center gap-1"><Clock className="w-3 h-3" /> Uptime</span>
+                <span className="text-azure-text dark:text-matrix-secondary font-mono">{formatUptime(status.stats.uptime_seconds)}</span>
+              </div>
+              {status.config?.sandbox_dir && (
+                <div className="flex justify-between col-span-2">
+                  <span className="text-azure-text-secondary dark:text-matrix-tertiary shrink-0">Sandbox</span>
+                  <span className="text-azure-text dark:text-matrix-secondary font-mono truncate text-right ml-2">{status.config.sandbox_dir}</span>
+                </div>
+              )}
+              {status.config && (
+                <div className="flex justify-between">
+                  <span className="text-azure-text-secondary dark:text-matrix-tertiary">Read-only</span>
+                  <span className={`font-medium ${status.config.readonly_mode ? 'text-amber-500' : 'text-emerald-500'}`}>
+                    {status.config.readonly_mode ? 'yes' : 'no'}
+                  </span>
+                </div>
+              )}
             </div>
-            <div className="flex items-center gap-1.5 text-xs text-azure-text-secondary dark:text-matrix-secondary">
-              <HardDrive className="w-3 h-3 text-azure-text-secondary dark:text-matrix-tertiary shrink-0" />
-              <span className="font-medium text-azure-text dark:text-matrix-secondary truncate">{formatMemory(status.stats.memory_used_mb, status.stats.memory_total_mb)}</span>
-            </div>
-            <div className="flex items-center gap-1.5 text-xs">
-              <Clock className="w-3 h-3 text-azure-text-secondary dark:text-matrix-tertiary shrink-0" />
-              <span className="font-medium text-azure-text dark:text-matrix-secondary">{formatUptime(status.stats.uptime_seconds)}</span>
-              <span className="text-azure-text-secondary dark:text-matrix-tertiary">up</span>
-            </div>
-            <div className="flex items-center gap-1.5 text-xs">
-              <Server className="w-3 h-3 text-azure-text-secondary dark:text-matrix-tertiary shrink-0" />
-              <span className="font-medium text-azure-text dark:text-matrix-secondary truncate">{status.stats.hostname}</span>
-            </div>
+          </div>
+        )}
+
+        {/* Last seen (offline) */}
+        {!isOnline && status.lastSeen && (
+          <div className="mt-2 text-xs text-azure-text-secondary dark:text-matrix-tertiary">
+            Last seen: {new Date(status.lastSeen).toLocaleString()}
           </div>
         )}
       </div>
 
-      {/* Expandable details */}
-      {(status.config || status.lastSeen || (isOnline && status.stats)) && (
+      {/* Expandable — Capabilities */}
+      {status.capabilities.length > 0 && (
         <>
           <button
             onClick={() => setExpanded(!expanded)}
             className="w-full flex items-center justify-between px-4 py-2 border-t border-azure-border dark:border-matrix-primary/30 text-xs text-azure-text-secondary dark:text-matrix-tertiary hover:text-azure-text dark:hover:text-matrix-secondary hover:bg-azure-surface/50 dark:hover:bg-zinc-900/50 transition-colors"
           >
-            <span>Details</span>
+            <span>Capabilities ({status.capabilities.length})</span>
             {expanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
           </button>
 
           {expanded && (
-            <div className="px-4 pb-4 pt-2 space-y-2 border-t border-azure-border dark:border-matrix-primary/30 bg-azure-surface/30 dark:bg-zinc-900/30">
-              {isOnline && status.stats && (
-                <div className="space-y-1">
-                  <div className="text-[10px] font-semibold uppercase tracking-wider text-azure-text-secondary dark:text-matrix-tertiary mb-1">System</div>
-                  <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
-                    <div className="flex justify-between">
-                      <span className="text-azure-text-secondary dark:text-matrix-tertiary">OS</span>
-                      <span className="text-azure-text dark:text-matrix-secondary font-mono">{status.stats.os}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-azure-text-secondary dark:text-matrix-tertiary">Hostname</span>
-                      <span className="text-azure-text dark:text-matrix-secondary font-mono truncate max-w-[120px]">{status.stats.hostname}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-azure-text-secondary dark:text-matrix-tertiary">RAM total</span>
-                      <span className="text-azure-text dark:text-matrix-secondary font-mono">
-                        {status.stats.memory_total_mb >= 1024
-                          ? `${(status.stats.memory_total_mb / 1024).toFixed(1)} GB`
-                          : `${Math.round(status.stats.memory_total_mb)} MB`}
-                      </span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-azure-text-secondary dark:text-matrix-tertiary">Uptime</span>
-                      <span className="text-azure-text dark:text-matrix-secondary font-mono">{formatUptime(status.stats.uptime_seconds)}</span>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {status.config && (
-                <div className="space-y-1 mt-2">
-                  <div className="text-[10px] font-semibold uppercase tracking-wider text-azure-text-secondary dark:text-matrix-tertiary mb-1">Remote Config</div>
-                  <div className="grid grid-cols-1 gap-y-1 text-xs">
-                    {status.config.sandbox_dir && (
-                      <div className="flex justify-between gap-2">
-                        <span className="text-azure-text-secondary dark:text-matrix-tertiary shrink-0">Sandbox dir</span>
-                        <span className="text-azure-text dark:text-matrix-secondary font-mono truncate text-right">{status.config.sandbox_dir}</span>
-                      </div>
-                    )}
-                    <div className="flex justify-between gap-2">
-                      <span className="text-azure-text-secondary dark:text-matrix-tertiary shrink-0">Read-only</span>
-                      <span className={`font-medium ${status.config.readonly_mode ? 'text-amber-500' : 'text-emerald-500'}`}>
-                        {status.config.readonly_mode ? 'yes' : 'no'}
-                      </span>
-                    </div>
-                    {status.config.enabled_categories && status.config.enabled_categories.length > 0 && (
-                      <div className="flex justify-between gap-2">
-                        <span className="text-azure-text-secondary dark:text-matrix-tertiary shrink-0">Categories</span>
-                        <span className="text-azure-text dark:text-matrix-secondary font-mono text-right">{status.config.enabled_categories.join(', ')}</span>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              )}
-
+            <div className="px-4 pb-4 pt-3 border-t border-azure-border dark:border-matrix-primary/30 bg-azure-surface/30 dark:bg-zinc-900/30">
+              <div className="flex flex-wrap gap-1.5">
+                {status.capabilities.map((cap) => (
+                  <CapabilityBadge key={cap} cap={cap} />
+                ))}
+              </div>
               {status.lastSeen && (
-                <div className="text-xs text-azure-text-secondary dark:text-matrix-tertiary mt-1">
+                <div className="text-xs text-azure-text-secondary dark:text-matrix-tertiary mt-3">
                   Last seen: {new Date(status.lastSeen).toLocaleString()}
                 </div>
               )}
