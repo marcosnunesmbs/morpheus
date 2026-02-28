@@ -96,7 +96,7 @@ export const SessionAudit: React.FC = () => {
             Desktop: in-flow right column, always visible */}
         <div
           className={`
-            fixed inset-y-0 right-0 z-10 w-72
+            fixed top-16 bottom-0 right-0 z-40 w-72
             md:relative md:inset-auto md:z-auto md:w-auto md:flex-[4] md:translate-x-0
             transition-transform duration-300 ease-out
             overflow-y-auto p-6 border-l border-gray-200 dark:border-matrix-primary

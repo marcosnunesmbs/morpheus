@@ -172,7 +172,7 @@ export const ChatPage: React.FC = () => {
           Desktop: relative in-flow panel, always visible (expanded or icon strip) */}
       <div
         className={`
-          fixed inset-y-0 left-0 z-30 flex
+          fixed top-16 bottom-0 left-0 z-40 flex
           md:relative md:inset-auto md:z-auto md:translate-x-0
           transition-transform duration-300 ease-out
           ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}
