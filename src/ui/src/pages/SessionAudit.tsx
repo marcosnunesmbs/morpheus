@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Loader2, AlertCircle } from 'lucide-react';
+import { ArrowLeft, Loader2, AlertCircle, PanelRight } from 'lucide-react';
 import { useSessionAudit } from '../services/audit';
 import { EventTimeline } from '../components/audit/EventTimeline';
 import { CostSummaryPanel } from '../components/audit/CostSummaryPanel';
@@ -15,6 +15,11 @@ export const SessionAudit: React.FC = () => {
 
   const { data, error, isLoading } = useSessionAudit(id ?? null, page, PAGE_SIZE);
   const timelineRef = useRef<HTMLDivElement>(null);
+
+  // Sidebar starts open on desktop, closed on mobile
+  const [isSidebarOpen, setIsSidebarOpen] = useState(
+    () => typeof window !== 'undefined' ? window.innerWidth >= 768 : true
+  );
 
   useEffect(() => {
     if (timelineRef.current) {
@@ -38,13 +43,31 @@ export const SessionAudit: React.FC = () => {
             <p className="text-xs text-gray-400 dark:text-matrix-secondary/60 font-mono">{id}</p>
           </div>
         </div>
-        <ExportButton sessionId={id ?? ''} data={data} />
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setIsSidebarOpen(v => !v)}
+            className="p-1.5 rounded-lg text-gray-400 dark:text-matrix-secondary hover:text-gray-700 dark:hover:text-matrix-highlight hover:bg-gray-100 dark:hover:bg-zinc-900 transition-colors md:hidden"
+            title="Toggle summary panel"
+          >
+            <PanelRight size={18} />
+          </button>
+          <ExportButton sessionId={id ?? ''} data={data} />
+        </div>
       </div>
 
       {/* Body */}
-      <div className="flex-1 flex gap-0 overflow-hidden">
-        {/* Timeline — 70% */}
-        <div ref={timelineRef} className="flex-[7] overflow-y-auto p-6 custom-scrollbar">
+      <div className="flex-1 flex overflow-hidden relative">
+
+        {/* Mobile backdrop */}
+        {isSidebarOpen && (
+          <div
+            className="fixed inset-0 bg-black/40 z-20 md:hidden"
+            onClick={() => setIsSidebarOpen(false)}
+          />
+        )}
+
+        {/* Timeline */}
+        <div ref={timelineRef} className="flex-[6] overflow-y-auto p-6 custom-scrollbar">
           {isLoading && (
             <div className="flex items-center justify-center h-40 gap-2 text-gray-400 dark:text-matrix-secondary">
               <Loader2 size={18} className="animate-spin" />
@@ -68,8 +91,19 @@ export const SessionAudit: React.FC = () => {
           )}
         </div>
 
-        {/* Summary panel — 30% */}
-        <div className="flex-[3] overflow-y-auto p-6 border-l border-gray-200 dark:border-matrix-primary bg-white dark:bg-black custom-scrollbar">
+        {/* Summary panel
+            Mobile: fixed overlay sliding in from the right
+            Desktop: in-flow right column, always visible */}
+        <div
+          className={`
+            fixed inset-y-0 right-0 z-10 w-72
+            md:relative md:inset-auto md:z-auto md:w-auto md:flex-[4] md:translate-x-0
+            transition-transform duration-300 ease-out
+            overflow-y-auto p-6 border-l border-gray-200 dark:border-matrix-primary
+            bg-white dark:bg-black custom-scrollbar
+            ${isSidebarOpen ? 'translate-x-0' : 'translate-x-full'}
+          `}
+        >
           {data ? (
             <CostSummaryPanel summary={data.summary} />
           ) : (
