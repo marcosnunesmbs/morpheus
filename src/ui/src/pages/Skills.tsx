@@ -1,9 +1,9 @@
 import { useState, useRef } from 'react';
 import useSWR from 'swr';
 import { motion } from 'framer-motion';
-import { Wand2, RefreshCw, Eye, ToggleLeft, ToggleRight, Tag, User, FolderOpen, Upload, AlertCircle, CheckCircle } from 'lucide-react';
+import { Wand2, RefreshCw, Eye, ToggleLeft, ToggleRight, Tag, User, FolderOpen, Upload, AlertCircle, CheckCircle, X } from 'lucide-react';
 import { skillsService, type Skill, type SkillDetailResponse } from '../services/skills';
-import { Dialog, DialogHeader, DialogTitle } from '../components/Dialog';
+import { Dialog, DialogHeader, DialogTitle } from '../components/Dialog'; // used by Upload modal
 
 const container = {
   hidden: { opacity: 0 },
@@ -141,81 +141,117 @@ function SkillDetailModal({
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }) {
-  if (!skill) return null;
+  if (!open || !skill) return null;
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogHeader>
-        <DialogTitle>
-          <div className="flex items-center gap-2">
-            <Wand2 className="w-5 h-5" />
-            {skill.name}
-            {skill.version && (
-              <span className="text-sm font-normal text-azure-text-secondary dark:text-matrix-dim">
-                v{skill.version}
-              </span>
-            )}
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div
+        className="fixed inset-0 bg-black/50 backdrop-blur-sm"
+        onClick={() => onOpenChange(false)}
+      />
+      <div className="relative bg-white dark:bg-black border border-azure-border dark:border-matrix-primary rounded-lg shadow-xl w-full max-w-2xl max-h-[90vh] flex flex-col">
+
+        {/* Header */}
+        <div className="flex items-center justify-between gap-3 px-5 py-4 border-b border-azure-border dark:border-matrix-primary shrink-0">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="w-9 h-9 rounded-lg bg-azure-primary/10 dark:bg-matrix-highlight/10 flex items-center justify-center shrink-0">
+              <Wand2 className="w-4 h-4 text-azure-primary dark:text-matrix-highlight" />
+            </div>
+            <div className="min-w-0">
+              <div className="flex items-center gap-2 flex-wrap">
+                <h2 className="text-base font-semibold text-azure-text dark:text-matrix-highlight truncate">
+                  {skill.name}
+                </h2>
+                {skill.version && (
+                  <span className="text-[10px] font-mono text-azure-text-secondary dark:text-matrix-tertiary bg-azure-surface dark:bg-zinc-900 border border-azure-border dark:border-matrix-primary/40 rounded px-1.5 py-0.5 shrink-0">
+                    v{skill.version}
+                  </span>
+                )}
+              </div>
+              {skill.author && (
+                <div className="flex items-center gap-1 mt-0.5 text-xs text-azure-text-secondary dark:text-matrix-tertiary">
+                  <User className="w-3 h-3 shrink-0" />
+                  {skill.author}
+                </div>
+              )}
+            </div>
           </div>
-        </DialogTitle>
-      </DialogHeader>
-      <div className="space-y-4">
-        <div>
-          <p className="text-azure-text-secondary dark:text-matrix-secondary">
-            {skill.description}
-          </p>
+          <button
+            onClick={() => onOpenChange(false)}
+            className="p-1.5 rounded text-azure-text-secondary dark:text-matrix-tertiary hover:text-azure-text dark:hover:text-matrix-highlight hover:bg-azure-surface dark:hover:bg-zinc-900 transition-colors shrink-0"
+          >
+            <X className="w-4 h-4" />
+          </button>
         </div>
 
-        {skill.author && (
-          <div className="flex items-center gap-2 text-sm text-azure-text-tertiary dark:text-matrix-dim">
-            <User className="w-4 h-4" />
-            Author: {skill.author}
-          </div>
-        )}
+        {/* Scrollable body */}
+        <div className="overflow-y-auto flex-1 p-5 space-y-5">
 
-        <div className="flex items-center gap-2 text-sm text-azure-text-tertiary dark:text-matrix-dim">
-          <FolderOpen className="w-4 h-4" />
-          Path: <code className="bg-azure-hover dark:bg-zinc-800 px-1 rounded">{skill.path}</code>
-        </div>
+          {/* Description */}
+          {skill.description && (
+            <p className="text-sm text-azure-text-secondary dark:text-matrix-secondary leading-relaxed">
+              {skill.description}
+            </p>
+          )}
 
-        {skill.tags && skill.tags.length > 0 && (
-          <div className="flex flex-wrap gap-1">
-            {skill.tags.map((tag) => (
-              <span
-                key={tag}
-                className="inline-flex items-center gap-1 px-2 py-1 text-xs rounded-full bg-azure-primary/10 dark:bg-matrix-primary/20 text-azure-primary dark:text-matrix-primary"
-              >
-                <Tag className="w-3 h-3" />
-                {tag}
+          {/* Meta row */}
+          <div className="flex flex-col gap-2">
+            <div className="flex items-start gap-2 text-xs text-azure-text-secondary dark:text-matrix-tertiary">
+              <FolderOpen className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+              <span className="break-all font-mono text-azure-text dark:text-matrix-secondary bg-azure-surface dark:bg-zinc-900 border border-azure-border dark:border-matrix-primary/40 rounded px-2 py-0.5">
+                {skill.path}
               </span>
-            ))}
+            </div>
           </div>
-        )}
 
-        {skill.examples && skill.examples.length > 0 && (
-          <div>
-            <h4 className="text-sm font-medium text-azure-text-primary dark:text-matrix-highlight mb-2">
-              Examples
-            </h4>
-            <ul className="list-disc list-inside text-sm text-azure-text-secondary dark:text-matrix-secondary space-y-1">
-              {skill.examples.map((example, i) => (
-                <li key={i}>{example}</li>
-              ))}
-            </ul>
-          </div>
-        )}
+          {/* Tags */}
+          {skill.tags && skill.tags.length > 0 && (
+            <div>
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-azure-text-secondary dark:text-matrix-tertiary mb-2">Tags</p>
+              <div className="flex flex-wrap gap-1.5">
+                {skill.tags.map((tag) => (
+                  <span
+                    key={tag}
+                    className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-medium rounded border border-azure-primary/20 dark:border-matrix-primary/40 bg-azure-primary/5 dark:bg-matrix-primary/10 text-azure-primary dark:text-matrix-secondary"
+                  >
+                    <Tag className="w-2.5 h-2.5" />
+                    {tag}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
 
-        {skill.content && (
-          <div>
-            <h4 className="text-sm font-medium text-azure-text-primary dark:text-matrix-highlight mb-2">
-              SKILL.md Content
-            </h4>
-            <pre className="p-3 rounded-lg bg-azure-hover dark:bg-zinc-900 text-xs overflow-auto max-h-64 text-azure-text-secondary dark:text-matrix-secondary whitespace-pre-wrap">
-              {skill.content}
-            </pre>
-          </div>
-        )}
+          {/* Examples */}
+          {skill.examples && skill.examples.length > 0 && (
+            <div>
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-azure-text-secondary dark:text-matrix-tertiary mb-2">Examples</p>
+              <ul className="space-y-1.5">
+                {skill.examples.map((example, i) => (
+                  <li
+                    key={i}
+                    className="flex items-start gap-2 text-sm text-azure-text-secondary dark:text-matrix-secondary bg-azure-surface dark:bg-zinc-900 border border-azure-border dark:border-matrix-primary/30 rounded px-3 py-2"
+                  >
+                    <span className="text-azure-text-secondary dark:text-matrix-tertiary font-mono text-xs mt-0.5 shrink-0">{i + 1}.</span>
+                    {example}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {/* SKILL.md content */}
+          {skill.content && (
+            <div>
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-azure-text-secondary dark:text-matrix-tertiary mb-2">SKILL.md</p>
+              <pre className="rounded-lg bg-azure-surface dark:bg-zinc-900 border border-azure-border dark:border-matrix-primary/40 p-4 text-xs text-azure-text-secondary dark:text-matrix-secondary overflow-auto max-h-72 whitespace-pre-wrap leading-relaxed font-mono">
+                {skill.content}
+              </pre>
+            </div>
+          )}
+        </div>
       </div>
-    </Dialog>
+    </div>
   );
 }
 
