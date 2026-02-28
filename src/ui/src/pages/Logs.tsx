@@ -30,9 +30,14 @@ export function Logs() {
       animate={{ opacity: 1, scale: 1 }}
       transition={{ duration: 0.3 }}
     >
-      <div className="shrink-0">
-        <h2 className="text-2xl font-bold text-azure-primary dark:text-matrix-highlight">SYSTEM LOGS</h2>
-        <p className="text-azure-text-secondary dark:text-matrix-secondary opacity-80">View runtime logs.</p>
+      <div className="flex items-center gap-3 shrink-0">
+        <div className="w-10 h-10 rounded-lg bg-azure-primary/10 dark:bg-matrix-highlight/10 border border-azure-primary/20 dark:border-matrix-highlight/30 flex items-center justify-center">
+          <FileText className="w-5 h-5 text-azure-primary dark:text-matrix-highlight" />
+        </div>
+        <div>
+          <h1 className="text-xl font-bold text-azure-text dark:text-matrix-highlight">Logs</h1>
+          <p className="text-sm text-azure-text-secondary dark:text-matrix-tertiary">View runtime logs.</p>
+        </div>
       </div>
 
       <div className="flex-1 flex gap-4 min-h-0 border border-azure-border dark:border-matrix-primary rounded bg-azure-surface dark:bg-zinc-950 p-4">

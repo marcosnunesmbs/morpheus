@@ -18,6 +18,7 @@ import type {
   TrinityConfig,
 } from '../../../types/config';
 import { ZodError } from 'zod';
+import { Settings as SettingsIcon } from 'lucide-react';
 
 const TABS = [
   { id: 'general', label: 'General' },
@@ -403,10 +404,16 @@ export default function Settings() {
 
   return (
     <div className="max-w-4xl mx-auto p-0 md:p-6 space-y-6">
-      <div className="flex justify-between items-center">
-        <h1 className="text-2xl font-bold text-azure-primary dark:text-matrix-highlight">
-          Zaion Settings
-        </h1>
+      <div className="flex justify-between items-center flex-wrap gap-3">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-lg bg-azure-primary/10 dark:bg-matrix-highlight/10 border border-azure-primary/20 dark:border-matrix-highlight/30 flex items-center justify-center">
+            <SettingsIcon className="w-5 h-5 text-azure-primary dark:text-matrix-highlight" />
+          </div>
+          <div>
+            <h1 className="text-xl font-bold text-azure-text dark:text-matrix-highlight">Zaion Settings</h1>
+            <p className="text-sm text-azure-text-secondary dark:text-matrix-tertiary">Configure agents, models, channels, and runtime behavior.</p>
+          </div>
+        </div>
         <button
           onClick={handleSave}
           disabled={!isDirty || Object.keys(errors).length > 0 || saving}

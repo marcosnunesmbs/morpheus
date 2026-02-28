@@ -19,7 +19,7 @@ import {
 import { Alert, AlertDescription } from '../components/dashboard/Alert';
 import { MemoryDetailModal } from '../components/dashboard/MemoryDetailModal';
 import { DeleteConfirmationModal } from '../components/dashboard/DeleteConfirmationModal';
-import { Trash2, Search, Calendar, Eye } from 'lucide-react';
+import { Trash2, Search, Calendar, Eye, Activity } from 'lucide-react';
 import { useApi } from '../hooks/useApi';
 
 interface Memory {
@@ -164,13 +164,16 @@ export const SatiMemories: React.FC = () => {
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-azure-primary dark:text-matrix-highlight">
-            Sati Memories
-          </h1>
-          <p className="text-azure-text-muted dark:text-matrix-secondary mt-1">
-            View and manage your long-term memories stored by Sati
-          </p>
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-lg bg-azure-primary/10 dark:bg-matrix-highlight/10 border border-azure-primary/20 dark:border-matrix-highlight/30 flex items-center justify-center">
+            <Activity className="w-5 h-5 text-azure-primary dark:text-matrix-highlight" />
+          </div>
+          <div>
+            <h1 className="text-xl font-bold text-azure-text dark:text-matrix-highlight">Sati Memories</h1>
+            <p className="text-sm text-azure-text-secondary dark:text-matrix-tertiary">
+              View and manage long-term memories stored by Sati.
+            </p>
+          </div>
         </div>
 
         {selectedMemories.length > 0 && (

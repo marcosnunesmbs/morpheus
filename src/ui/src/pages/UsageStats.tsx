@@ -67,17 +67,15 @@ export function UsageStats() {
       animate="show"
       className="space-y-6"
     >
-      <div className="flex items-center justify-between border-b border-azure-border dark:border-matrix-primary pb-4">
-        <div>
-          <h2 className="text-2xl font-bold text-azure-primary dark:text-matrix-highlight font-mono flex items-center gap-2">
-            <BarChart3 className="w-6 h-6" />
-            USAGE_ANALYTICS
-          </h2>
-          <p className="text-azure-text-muted dark:text-matrix-secondary mt-1 font-mono text-sm">
-            Resource consumption tracking and metrics
-          </p>
+      <motion.div variants={item} className="flex items-center gap-3">
+        <div className="w-10 h-10 rounded-lg bg-azure-primary/10 dark:bg-matrix-highlight/10 border border-azure-primary/20 dark:border-matrix-highlight/30 flex items-center justify-center">
+          <BarChart3 className="w-5 h-5 text-azure-primary dark:text-matrix-highlight" />
         </div>
-      </div>
+        <div>
+          <h1 className="text-xl font-bold text-azure-text dark:text-matrix-highlight">Usage Stats</h1>
+          <p className="text-sm text-azure-text-secondary dark:text-matrix-tertiary">Resource consumption tracking and cost metrics.</p>
+        </div>
+      </motion.div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <motion.div variants={item} className="p-6 bg-azure-surface dark:bg-black/40 border border-azure-border dark:border-matrix-primary rounded-lg shadow-sm backdrop-blur-sm">

@@ -329,14 +329,14 @@ export function SkillsPage() {
 
   return (
     <motion.div variants={container} initial="hidden" animate="show" className="space-y-6">
-      <motion.div variants={item} className="flex items-center justify-between">
+      <motion.div variants={item} className="flex items-center justify-between flex-wrap gap-3">
         <div className="flex items-center gap-3">
-          <Wand2 className="w-6 h-6 text-azure-primary dark:text-matrix-highlight" />
+          <div className="w-10 h-10 rounded-lg bg-azure-primary/10 dark:bg-matrix-highlight/10 border border-azure-primary/20 dark:border-matrix-highlight/30 flex items-center justify-center">
+            <Wand2 className="w-5 h-5 text-azure-primary dark:text-matrix-highlight" />
+          </div>
           <div>
-            <h1 className="text-2xl font-bold text-azure-text-primary dark:text-matrix-highlight">
-              Skills
-            </h1>
-            <p className="text-sm text-azure-text-secondary dark:text-matrix-dim">
+            <h1 className="text-xl font-bold text-azure-text dark:text-matrix-highlight">Skills</h1>
+            <p className="text-sm text-azure-text-secondary dark:text-matrix-tertiary">
               {skills.length} skill{skills.length !== 1 ? 's' : ''}, {enabledCount} enabled
             </p>
           </div>

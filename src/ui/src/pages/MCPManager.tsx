@@ -5,6 +5,7 @@ import type { MCPCacheStats, MCPProbeResult, MCPServerConfig, MCPServerRecord } 
 import { MCPServerForm } from '../components/mcp/MCPServerForm';
 import { MCPServerCard } from '../components/mcp/MCPServerCard';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../components/Dialog';
+import { Puzzle } from 'lucide-react';
 
 export const MCPManager = () => {
   const { data, error, mutate, isLoading } = useSWR('/api/mcp/servers', () => mcpService.fetchServers());
@@ -155,24 +156,29 @@ export const MCPManager = () => {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-        <div>
-          <div className="flex items-center gap-3">
-            <h1 className="text-2xl font-semibold text-azure-primary dark:text-matrix-highlight">MCP Servers</h1>
-            {cacheStats && cacheStats.totalTools > 0 && (
-              <span className="rounded-full bg-azure-primary/10 px-3 py-1 text-sm font-semibold text-azure-primary dark:bg-matrix-highlight/20 dark:text-matrix-highlight">
-                {cacheStats.totalTools} tools cached
-              </span>
-            )}
+      <div className="flex items-center justify-between flex-wrap gap-3">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-lg bg-azure-primary/10 dark:bg-matrix-highlight/10 border border-azure-primary/20 dark:border-matrix-highlight/30 flex items-center justify-center">
+            <Puzzle className="w-5 h-5 text-azure-primary dark:text-matrix-highlight" />
           </div>
-          <p className="text-sm text-azure-text-secondary dark:text-matrix-secondary">
-            Manage MCP servers stored in mcps.json.{' '}
-            {cacheStats?.lastLoadedAt && (
-              <span className="text-azure-text-muted dark:text-matrix-tertiary">
-                Last loaded: {new Date(cacheStats.lastLoadedAt).toLocaleTimeString()}
-              </span>
-            )}
-          </p>
+          <div>
+            <div className="flex items-center gap-2 flex-wrap">
+              <h1 className="text-xl font-bold text-azure-text dark:text-matrix-highlight">MCP Servers</h1>
+              {cacheStats && cacheStats.totalTools > 0 && (
+                <span className="rounded-full bg-azure-primary/10 px-2.5 py-0.5 text-xs font-semibold text-azure-primary dark:bg-matrix-highlight/20 dark:text-matrix-highlight">
+                  {cacheStats.totalTools} tools cached
+                </span>
+              )}
+            </div>
+            <p className="text-sm text-azure-text-secondary dark:text-matrix-tertiary">
+              Manage MCP servers stored in mcps.json.{' '}
+              {cacheStats?.lastLoadedAt && (
+                <span className="dark:text-matrix-tertiary">
+                  Last loaded: {new Date(cacheStats.lastLoadedAt).toLocaleTimeString()}
+                </span>
+              )}
+            </p>
+          </div>
         </div>
         <div className="flex gap-2">
           <button

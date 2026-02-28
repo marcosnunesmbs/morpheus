@@ -76,10 +76,12 @@ export const ModelPricing = () => {
       {/* Header */}
       <motion.div variants={item} className="flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <DollarSign className="w-6 h-6 text-azure-primary dark:text-matrix-highlight" />
+          <div className="w-10 h-10 rounded-lg bg-azure-primary/10 dark:bg-matrix-highlight/10 border border-azure-primary/20 dark:border-matrix-highlight/30 flex items-center justify-center">
+            <DollarSign className="w-5 h-5 text-azure-primary dark:text-matrix-highlight" />
+          </div>
           <div>
-            <h1 className="text-2xl font-bold text-azure-text-primary dark:text-matrix-highlight">Model Pricing</h1>
-            <p className="text-sm text-azure-text-secondary dark:text-matrix-secondary mt-0.5">
+            <h1 className="text-xl font-bold text-azure-text dark:text-matrix-highlight">Model Pricing</h1>
+            <p className="text-sm text-azure-text-secondary dark:text-matrix-tertiary mt-0.5">
               Manage per-model pricing to estimate LLM costs in Usage Stats.
             </p>
           </div>

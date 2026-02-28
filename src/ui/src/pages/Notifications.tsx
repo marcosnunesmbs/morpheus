@@ -97,8 +97,8 @@ export const Notifications = () => {
       {/* Header */}
       <motion.div variants={item} className="flex items-center justify-between flex-wrap gap-3">
         <div className="flex items-center gap-3">
-          <div className="relative">
-            <Bell className="w-6 h-6 text-azure-primary dark:text-matrix-highlight" />
+          <div className="relative w-10 h-10 rounded-lg bg-azure-primary/10 dark:bg-matrix-highlight/10 border border-azure-primary/20 dark:border-matrix-highlight/30 flex items-center justify-center">
+            <Bell className="w-5 h-5 text-azure-primary dark:text-matrix-highlight" />
             {unreadCount > 0 && (
               <span className="absolute -top-1.5 -right-1.5 bg-red-500 text-white text-[10px] font-bold rounded-full w-4 h-4 flex items-center justify-center leading-none">
                 {unreadCount > 9 ? '9+' : unreadCount}
@@ -106,10 +106,8 @@ export const Notifications = () => {
             )}
           </div>
           <div>
-            <h1 className="text-2xl font-bold text-azure-text-primary dark:text-matrix-highlight">
-              Notifications
-            </h1>
-            <p className="text-sm text-azure-text-secondary dark:text-matrix-dim mt-0.5">
+            <h1 className="text-xl font-bold text-azure-text dark:text-matrix-highlight">Notifications</h1>
+            <p className="text-sm text-azure-text-secondary dark:text-matrix-tertiary mt-0.5">
               Webhook execution results from the Oracle agent.
             </p>
           </div>
