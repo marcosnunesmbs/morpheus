@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Loader2, AlertCircle } from 'lucide-react';
 import { useSessionAudit } from '../services/audit';
@@ -14,9 +14,16 @@ export const SessionAudit: React.FC = () => {
   const [page, setPage] = useState(0);
 
   const { data, error, isLoading } = useSessionAudit(id ?? null, page, PAGE_SIZE);
+  const timelineRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (timelineRef.current) {
+      timelineRef.current.scrollTop = timelineRef.current.scrollHeight;
+    }
+  }, [data]);
 
   return (
-    <div className="flex flex-col h-full bg-gray-50 dark:bg-black min-h-screen">
+    <div className="flex flex-col h-full bg-gray-50 dark:bg-black">
       {/* Header */}
       <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-matrix-primary bg-white dark:bg-black flex-shrink-0">
         <div className="flex items-center gap-3">
@@ -37,7 +44,7 @@ export const SessionAudit: React.FC = () => {
       {/* Body */}
       <div className="flex-1 flex gap-0 overflow-hidden">
         {/* Timeline — 70% */}
-        <div className="flex-[7] overflow-y-auto p-6 custom-scrollbar">
+        <div ref={timelineRef} className="flex-[7] overflow-y-auto p-6 custom-scrollbar">
           {isLoading && (
             <div className="flex items-center justify-center h-40 gap-2 text-gray-400 dark:text-matrix-secondary">
               <Loader2 size={18} className="animate-spin" />
