@@ -58,8 +58,8 @@ export const EventTimeline: React.FC<EventTimelineProps> = ({
 
   return (
     <div className="flex flex-col gap-2">
-      {/* Header row */}
-      <div className="flex items-center gap-3 px-3 py-1 text-xs text-gray-400 dark:text-matrix-secondary/60 border-b border-gray-200 dark:border-matrix-primary/30 font-mono">
+      {/* Header row — desktop only */}
+      <div className="hidden md:flex items-center gap-3 px-3 py-1 text-xs text-gray-400 dark:text-matrix-secondary/60 border-b border-gray-200 dark:border-matrix-primary/30 font-mono">
         <span className="w-4" />
         <span className="w-14 flex-shrink-0">agent</span>
         <span className="flex-1">event / tool / model</span>

@@ -63,46 +63,65 @@ export const EventRow: React.FC<EventRowProps> = ({ event }) => {
   const label = event.tool_name ?? event.model ?? event.event_type;
   const tokens = fmtTokens(event.input_tokens, event.output_tokens);
 
+  const cost = fmtCost(event.estimated_cost_usd);
+  const duration = fmtMs(event.duration_ms);
+  const statusIcon = event.status === 'error'
+    ? <XCircle size={14} className="text-red-500 flex-shrink-0" />
+    : event.status === 'success'
+      ? <CheckCircle size={14} className="text-green-500 dark:text-matrix-highlight flex-shrink-0" />
+      : null;
+
   return (
-    <div className="flex items-center gap-3 py-2 px-3 rounded-lg hover:bg-gray-50 dark:hover:bg-zinc-900/60 transition-colors border-b border-gray-100 dark:border-matrix-primary/20 last:border-0">
-      {/* Icon */}
-      <span className={`flex-shrink-0 ${colorClass}`}>{icon}</span>
+    <div className="py-2 px-3 rounded-lg hover:bg-gray-50 dark:hover:bg-zinc-900/60 transition-colors border-b border-gray-100 dark:border-matrix-primary/20 last:border-0">
 
-      {/* Agent badge */}
-      {agentBadge && (
-        <span className={`flex-shrink-0 text-xs font-semibold px-1.5 py-0.5 rounded ${agentBadge}`}>
-          {event.agent}
+      {/* Mobile layout — 2 lines */}
+      <div className="flex flex-col gap-0.5 md:hidden">
+        {/* Line 1: icon + badge + label + status */}
+        <div className="flex items-center gap-2 min-w-0">
+          <span className={`flex-shrink-0 ${colorClass}`}>{icon}</span>
+          {agentBadge && (
+            <span className={`flex-shrink-0 text-xs font-semibold px-1.5 py-0.5 rounded ${agentBadge}`}>
+              {event.agent}
+            </span>
+          )}
+          <span className="flex-1 text-sm text-gray-700 dark:text-matrix-secondary font-mono break-all leading-snug">
+            {label}
+          </span>
+          {statusIcon}
+        </div>
+        {/* Line 2: tokens · duration · cost */}
+        <div className="flex flex-wrap gap-x-3 gap-y-0 pl-5 text-[11px] text-gray-400 dark:text-matrix-secondary/60 font-mono">
+          {tokens && <span>{tokens}</span>}
+          <span>{duration}</span>
+          {cost !== '—' && <span className="text-gray-600 dark:text-matrix-secondary">{cost}</span>}
+        </div>
+      </div>
+
+      {/* Desktop layout — single line */}
+      <div className="hidden md:flex items-center gap-3">
+        <span className={`flex-shrink-0 ${colorClass}`}>{icon}</span>
+        {agentBadge && (
+          <span className={`flex-shrink-0 text-xs font-semibold px-1.5 py-0.5 rounded ${agentBadge}`}>
+            {event.agent}
+          </span>
+        )}
+        <span className="flex-1 text-sm truncate text-gray-700 dark:text-matrix-secondary font-mono">
+          {label}
         </span>
-      )}
-
-      {/* Label */}
-      <span className="flex-1 text-sm truncate text-gray-700 dark:text-matrix-secondary font-mono">
-        {label}
-      </span>
-
-      {/* Token counts */}
-      {tokens && (
-        <span className="text-xs text-gray-400 dark:text-matrix-secondary/60 font-mono whitespace-nowrap">
-          {tokens}
+        {tokens && (
+          <span className="text-xs text-gray-400 dark:text-matrix-secondary/60 font-mono whitespace-nowrap">
+            {tokens}
+          </span>
+        )}
+        <span className="text-xs text-gray-400 dark:text-matrix-secondary/60 font-mono w-16 text-right whitespace-nowrap">
+          {duration}
         </span>
-      )}
+        {statusIcon}
+        <span className="text-xs text-gray-400 dark:text-matrix-secondary/60 font-mono w-20 text-right whitespace-nowrap">
+          {cost}
+        </span>
+      </div>
 
-      {/* Duration */}
-      <span className="text-xs text-gray-400 dark:text-matrix-secondary/60 font-mono w-16 text-right whitespace-nowrap">
-        {fmtMs(event.duration_ms)}
-      </span>
-
-      {/* Status */}
-      {event.status === 'error' ? (
-        <XCircle size={14} className="text-red-500 flex-shrink-0" />
-      ) : event.status === 'success' ? (
-        <CheckCircle size={14} className="text-green-500 dark:text-matrix-highlight flex-shrink-0" />
-      ) : null}
-
-      {/* Cost */}
-      <span className="text-xs text-gray-400 dark:text-matrix-secondary/60 font-mono w-20 text-right whitespace-nowrap">
-        {fmtCost(event.estimated_cost_usd)}
-      </span>
     </div>
   );
 };
