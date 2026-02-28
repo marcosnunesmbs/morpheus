@@ -84,33 +84,36 @@ export function Layout({ children }: { children: React.ReactNode }) {
     { icon: LayoutDashboard, label: 'Dashboard', path: '/' },
     { icon: MessageSquare, label: 'Chat', path: '/chat' },
     { icon: Settings, label: 'Zaion', path: '/zaion' },
+    { icon: HatGlasses, label: 'Smiths', path: '/smiths' },
     { icon: Puzzle, label: 'MCP Servers', path: '/mcp-servers' },
     { icon: Wand2, label: 'Skills', path: '/skills' },
     { icon: BarChart3, label: 'Usage Stats', path: '/stats' },
-    { icon: DollarSign, label: 'Model Pricing', path: '/model-pricing' },
     { icon: Activity, label: 'Sati Memories', path: '/sati-memories' },
     { icon: Webhook, label: 'Webhooks', path: '/webhooks' },
+    { icon: Bell, label: 'Notifications', path: '/notifications' },
     { icon: ListChecks, label: 'Tasks', path: '/tasks' },
     { icon: Database, label: 'Trinity DBs', path: '/trinity-databases' },
     { icon: Clock, label: 'Chronos', path: '/chronos' },
-    { icon: HatGlasses, label: 'Smiths', path: '/smiths' },
     { icon: Terminal, label: 'Logs', path: '/logs' },
+    { icon: DollarSign, label: 'Model Pricing', path: '/model-pricing' },
   ];
 
   const mobileNavItems = [
     { icon: LayoutDashboard, label: 'Dashboard', path: '/' },
     { icon: MessageSquare, label: 'Chat', path: '/chat' },
     { icon: Settings, label: 'Zaion', path: '/zaion' },
+    { icon: HatGlasses, label: 'Smiths', path: '/smiths' },
     { icon: Puzzle, label: 'MCP Servers', path: '/mcp-servers' },
     { icon: Wand2, label: 'Skills', path: '/skills' },
     { icon: BarChart3, label: 'Usage Stats', path: '/stats' },
-    { icon: DollarSign, label: 'Model Pricing', path: '/model-pricing' },
     { icon: Activity, label: 'Sati Memories', path: '/sati-memories' },
     { icon: Webhook, label: 'Webhooks', path: '/webhooks' },
+    { icon: Bell, label: 'Notifications', path: '/notifications' },
     { icon: ListChecks, label: 'Tasks', path: '/tasks' },
     { icon: Database, label: 'Trinity DBs', path: '/trinity-databases' },
     { icon: Clock, label: 'Chronos', path: '/chronos' },
-    { icon: HatGlasses, label: 'Smiths', path: '/smiths' },
+    { icon: Terminal, label: 'Logs', path: '/logs' },
+    { icon: DollarSign, label: 'Model Pricing', path: '/model-pricing' },
     { icon: Terminal, label: 'Logs', path: '/logs' },
   ];
 
@@ -158,40 +161,32 @@ export function Layout({ children }: { children: React.ReactNode }) {
                       : 'hover:bg-azure-hover dark:hover:bg-matrix-primary/50 text-azure-text-secondary dark:text-matrix-secondary'
                   }`}
                 >
-                  <item.icon className="w-4 h-4 shrink-0" />
+                  {item.path === '/notifications' ? (
+                    <div className="relative shrink-0">
+                      <item.icon className="w-4 h-4" />
+                      {unreadCount > 0 && (
+                        <span className="absolute -top-1.5 -right-1.5 bg-red-500 text-white text-[9px] font-bold rounded-full w-3.5 h-3.5 flex items-center justify-center leading-none">
+                          {unreadCount > 9 ? '9+' : unreadCount}
+                        </span>
+                      )}
+                    </div>
+                  ) : (
+                    <item.icon className="w-4 h-4 shrink-0" />
+                  )}
                   <span>{item.label}</span>
                   {item.path === '/tasks' && activeTasks > 0 && (
                     <span className="ml-auto bg-yellow-500 text-black text-[10px] font-bold rounded-full px-1.5 py-0.5 leading-none">
                       {activeTasks > 99 ? '99+' : activeTasks}
                     </span>
                   )}
+                  {item.path === '/notifications' && unreadCount > 0 && (
+                    <span className="ml-auto bg-red-500 text-white text-[10px] font-bold rounded-full px-1.5 py-0.5 leading-none">
+                      {unreadCount > 99 ? '99+' : unreadCount}
+                    </span>
+                  )}
                 </Link>
               );
             })}
-            <Link
-              key="/notifications"
-              to="/notifications"
-              className={`flex items-center gap-2 px-3 py-1.5 rounded text-sm transition-colors ${
-                location.pathname === '/notifications'
-                  ? 'bg-azure-active text-azure-primary dark:bg-matrix-primary dark:text-matrix-highlight'
-                  : 'hover:bg-azure-hover dark:hover:bg-matrix-primary/50 text-azure-text-secondary dark:text-matrix-secondary'
-              }`}
-            >
-              <div className="relative shrink-0">
-                <Bell className="w-4 h-4" />
-                {unreadCount > 0 && (
-                  <span className="absolute -top-1.5 -right-1.5 bg-red-500 text-white text-[9px] font-bold rounded-full w-3.5 h-3.5 flex items-center justify-center leading-none">
-                    {unreadCount > 9 ? '9+' : unreadCount}
-                  </span>
-                )}
-              </div>
-              <span>Notifications</span>
-              {unreadCount > 0 && (
-                <span className="ml-auto bg-red-500 text-white text-[10px] font-bold rounded-full px-1.5 py-0.5 leading-none">
-                  {unreadCount > 99 ? '99+' : unreadCount}
-                </span>
-              )}
-            </Link>
           </nav>
 
           {/* Restart Button */}
@@ -277,40 +272,32 @@ export function Layout({ children }: { children: React.ReactNode }) {
                         }`}
                         onClick={() => setIsSidebarOpen(false)}
                       >
-                        <item.icon className="w-5 h-5" />
+                        {item.path === '/notifications' ? (
+                          <div className="relative">
+                            <item.icon className="w-5 h-5" />
+                            {unreadCount > 0 && (
+                              <span className="absolute -top-1.5 -right-1.5 bg-red-500 text-white text-[9px] font-bold rounded-full w-3.5 h-3.5 flex items-center justify-center leading-none">
+                                {unreadCount > 9 ? '9+' : unreadCount}
+                              </span>
+                            )}
+                          </div>
+                        ) : (
+                          <item.icon className="w-5 h-5" />
+                        )}
                         <span>{item.label}</span>
                         {item.path === '/tasks' && activeTasks > 0 && (
                           <span className="ml-auto bg-yellow-500 text-black text-[10px] font-bold rounded-full px-1.5 py-0.5 leading-none">
                             {activeTasks > 99 ? '99+' : activeTasks}
                           </span>
                         )}
+                        {item.path === '/notifications' && unreadCount > 0 && (
+                          <span className="ml-auto bg-red-500 text-white text-[10px] font-bold rounded-full px-1.5 py-0.5 leading-none">
+                            {unreadCount > 99 ? '99+' : unreadCount}
+                          </span>
+                        )}
                       </Link>
                     );
                   })}
-                  <Link
-                    to="/notifications"
-                    className={`flex items-center gap-3 px-4 py-3 rounded transition-colors ${
-                      location.pathname === '/notifications'
-                        ? 'bg-azure-active text-azure-primary dark:bg-matrix-primary dark:text-matrix-highlight'
-                        : 'hover:bg-azure-hover dark:hover:bg-matrix-primary/50 text-azure-text-secondary dark:text-matrix-secondary'
-                    }`}
-                    onClick={() => setIsSidebarOpen(false)}
-                  >
-                    <div className="relative">
-                      <Bell className="w-5 h-5" />
-                      {unreadCount > 0 && (
-                        <span className="absolute -top-1.5 -right-1.5 bg-red-500 text-white text-[9px] font-bold rounded-full w-3.5 h-3.5 flex items-center justify-center leading-none">
-                          {unreadCount > 9 ? '9+' : unreadCount}
-                        </span>
-                      )}
-                    </div>
-                    <span>Notifications</span>
-                    {unreadCount > 0 && (
-                      <span className="ml-auto bg-red-500 text-white text-[10px] font-bold rounded-full px-1.5 py-0.5 leading-none">
-                        {unreadCount > 99 ? '99+' : unreadCount}
-                      </span>
-                    )}
-                  </Link>
                 </nav>
 
                 {/* Restart Button */}

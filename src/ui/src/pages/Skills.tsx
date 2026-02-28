@@ -27,72 +27,107 @@ function SkillCard({
   return (
     <motion.div
       variants={item}
-      className={`rounded-lg border p-4 transition-all ${
+      className={`rounded-lg border flex flex-col transition-all ${
         skill.enabled
-          ? 'border-azure-primary dark:border-matrix-primary bg-azure-surface dark:bg-zinc-950'
-          : 'border-azure-border dark:border-zinc-700 bg-azure-surface/50 dark:bg-zinc-900/50 opacity-60'
+          ? 'border-azure-primary/50 dark:border-matrix-primary bg-white dark:bg-black'
+          : 'border-azure-border dark:border-matrix-primary/30 bg-azure-surface/50 dark:bg-black'
       }`}
     >
-      <div className="flex items-start justify-between gap-2">
+      {/* Body */}
+      <div className="p-4 flex items-start gap-3 flex-1">
+        {/* Icon */}
+        <div className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 ${
+          skill.enabled
+            ? 'bg-azure-primary/10 dark:bg-matrix-highlight/10'
+            : 'bg-azure-surface dark:bg-zinc-900'
+        }`}>
+          <Wand2 className={`w-4 h-4 ${
+            skill.enabled
+              ? 'text-azure-primary dark:text-matrix-highlight'
+              : 'text-azure-text-secondary dark:text-matrix-tertiary'
+          }`} />
+        </div>
+
         <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2">
-            <h3 className="font-semibold text-azure-text-primary dark:text-matrix-highlight truncate">
+          <div className="flex items-center gap-2 flex-wrap">
+            <h3 className={`font-semibold truncate ${
+              skill.enabled
+                ? 'text-azure-text dark:text-matrix-highlight'
+                : 'text-azure-text-secondary dark:text-matrix-secondary'
+            }`}>
               {skill.name}
             </h3>
             {skill.version && (
-              <span className="text-xs text-azure-text-secondary dark:text-matrix-dim">
+              <span className="text-[10px] font-mono text-azure-text-secondary dark:text-matrix-tertiary bg-azure-surface dark:bg-zinc-900 border border-azure-border dark:border-matrix-primary/40 rounded px-1.5 py-0.5 shrink-0">
                 v{skill.version}
               </span>
             )}
+            {!skill.enabled && (
+              <span className="text-[10px] font-medium text-zinc-400 dark:text-zinc-500 bg-zinc-100 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded px-1.5 py-0.5 shrink-0">
+                disabled
+              </span>
+            )}
           </div>
-          <p className="text-sm text-azure-text-secondary dark:text-matrix-secondary mt-1 line-clamp-2">
+          <p className={`text-sm mt-1.5 line-clamp-2 leading-relaxed ${
+            skill.enabled
+              ? 'text-azure-text-secondary dark:text-matrix-secondary'
+              : 'text-azure-text-secondary/70 dark:text-matrix-tertiary'
+          }`}>
             {skill.description}
           </p>
+
           {skill.tags && skill.tags.length > 0 && (
-            <div className="flex flex-wrap gap-1 mt-2">
+            <div className="flex flex-wrap gap-1.5 mt-3">
               {skill.tags.map((tag) => (
                 <span
                   key={tag}
-                  className="inline-flex items-center gap-1 px-2 py-0.5 text-xs rounded-full bg-azure-primary/10 dark:bg-matrix-primary/20 text-azure-primary dark:text-matrix-primary"
+                  className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-medium rounded border border-azure-primary/20 dark:border-matrix-primary/40 bg-azure-primary/5 dark:bg-matrix-primary/10 text-azure-primary dark:text-matrix-secondary"
                 >
-                  <Tag className="w-3 h-3" />
+                  <Tag className="w-2.5 h-2.5" />
                   {tag}
                 </span>
               ))}
             </div>
           )}
         </div>
-        <div className="flex items-center gap-2">
+      </div>
+
+      {/* Footer */}
+      <div className="px-4 py-3 border-t border-azure-border dark:border-matrix-primary/30 flex items-center justify-between gap-2">
+        {skill.author ? (
+          <div className="flex items-center gap-1.5 text-xs text-azure-text-secondary dark:text-matrix-tertiary min-w-0">
+            <User className="w-3 h-3 shrink-0" />
+            <span className="truncate">{skill.author}</span>
+          </div>
+        ) : (
+          <div />
+        )}
+
+        <div className="flex items-center gap-1 shrink-0">
           <button
             onClick={onView}
-            className="p-2 rounded-lg hover:bg-azure-hover dark:hover:bg-zinc-800 text-azure-text-secondary dark:text-matrix-tertiary"
+            className="p-1.5 rounded border border-azure-border dark:border-matrix-primary/50 text-azure-text-secondary dark:text-matrix-tertiary hover:text-azure-primary dark:hover:text-matrix-highlight hover:border-azure-primary dark:hover:border-matrix-highlight transition-colors"
             title="View details"
           >
-            <Eye className="w-4 h-4" />
+            <Eye className="w-3.5 h-3.5" />
           </button>
           <button
             onClick={onToggle}
-            className={`p-2 rounded-lg transition-colors ${
+            className={`p-1.5 rounded border transition-colors ${
               skill.enabled
-                ? 'text-green-600 dark:text-green-400 hover:bg-green-100 dark:hover:bg-green-900/20'
-                : 'text-zinc-400 dark:text-zinc-600 hover:bg-zinc-100 dark:hover:bg-zinc-800'
+                ? 'border-emerald-300 dark:border-emerald-700/60 text-emerald-500 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-900/20'
+                : 'border-azure-border dark:border-matrix-primary/40 text-zinc-400 dark:text-zinc-600 hover:text-azure-text dark:hover:text-matrix-secondary hover:border-azure-border dark:hover:border-matrix-primary'
             }`}
             title={skill.enabled ? 'Disable skill' : 'Enable skill'}
           >
             {skill.enabled ? (
-              <ToggleRight className="w-5 h-5" />
+              <ToggleRight className="w-4 h-4" />
             ) : (
-              <ToggleLeft className="w-5 h-5" />
+              <ToggleLeft className="w-4 h-4" />
             )}
           </button>
         </div>
       </div>
-      {skill.author && (
-        <div className="flex items-center gap-1 mt-2 text-xs text-azure-text-tertiary dark:text-matrix-dim">
-          <User className="w-3 h-3" />
-          {skill.author}
-        </div>
-      )}
     </motion.div>
   );
 }
