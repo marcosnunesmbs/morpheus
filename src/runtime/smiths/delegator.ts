@@ -8,6 +8,7 @@ import { ConfigManager } from '../../config/manager.js';
 import { ProviderFactory } from '../providers/factory.js';
 import { buildDevKit } from '../../devkit/index.js';
 import { SQLiteChatMessageHistory } from '../memory/sqlite.js';
+import type { AgentResult } from '../tasks/types.js';
 import type { SmithTaskResultMessage, SmithToMorpheusMessage } from './types.js';
 import type { StructuredTool } from '@langchain/core/tools';
 
@@ -113,19 +114,19 @@ export class SmithDelegator {
    * Delegate a task to a specific Smith by name.
    * Creates an LLM agent with proxy tools, plans tool calls, and executes on the Smith.
    */
-  public async delegate(smithName: string, task: string, context?: string): Promise<string> {
+  public async delegate(smithName: string, task: string, context?: string): Promise<AgentResult> {
     const smith = this.registry.get(smithName);
     if (!smith) {
-      return `❌ Smith '${smithName}' not found. Available: ${this.registry.list().map(s => s.name).join(', ') || 'none'}`;
+      return { output: `❌ Smith '${smithName}' not found. Available: ${this.registry.list().map(s => s.name).join(', ') || 'none'}` };
     }
 
     if (smith.state !== 'online') {
-      return `❌ Smith '${smithName}' is ${smith.state}. Cannot delegate.`;
+      return { output: `❌ Smith '${smithName}' is ${smith.state}. Cannot delegate.` };
     }
 
     const connection = this.registry.getConnection(smithName);
     if (!connection || !connection.connected) {
-      return `❌ No active connection to Smith '${smithName}'.`;
+      return { output: `❌ No active connection to Smith '${smithName}'.` };
     }
 
     this.display.log(`Delegating to Smith '${smithName}': ${task.slice(0, 100)}...`, {
@@ -138,7 +139,7 @@ export class SmithDelegator {
       // Build proxy tools for this Smith's capabilities
       const proxyTools = this.buildProxyTools(smithName);
       if (proxyTools.length === 0) {
-        return `❌ Smith '${smithName}' has no available tools.`;
+        return { output: `❌ Smith '${smithName}' has no available tools.` };
       }
 
       // Create a fresh ReactAgent with proxy tools
@@ -163,7 +164,9 @@ Respond in the same language as the task.`
         : task;
 
       const messages: BaseMessage[] = [systemMessage, new HumanMessage(userContent)];
+      const startMs = Date.now();
       const response = await agent.invoke({ messages });
+      const durationMs = Date.now() - startMs;
 
       // Extract final response
       const lastMessage = response.messages[response.messages.length - 1];
@@ -172,19 +175,24 @@ Respond in the same language as the task.`
           ? lastMessage.content
           : JSON.stringify(lastMessage.content);
 
+      const rawUsage = (lastMessage as any).usage_metadata
+        ?? (lastMessage as any).response_metadata?.usage
+        ?? (lastMessage as any).response_metadata?.tokenUsage
+        ?? (lastMessage as any).usage;
+
+      const inputTokens = rawUsage?.input_tokens ?? 0;
+      const outputTokens = rawUsage?.output_tokens ?? 0;
+      const stepCount = response.messages.filter((m: BaseMessage) => m instanceof AIMessage).length;
+
       // Persist token usage to session history
       try {
         const history = new SQLiteChatMessageHistory({ sessionId: 'smith' });
         try {
           const persisted = new AIMessage(content);
-          (persisted as any).usage_metadata = (lastMessage as any).usage_metadata
-            ?? (lastMessage as any).response_metadata?.usage
-            ?? (lastMessage as any).response_metadata?.tokenUsage
-            ?? (lastMessage as any).usage;
-          (persisted as any).provider_metadata = {
-            provider: llmConfig.provider,
-            model: llmConfig.model,
-          };
+          if (rawUsage) (persisted as any).usage_metadata = rawUsage;
+          (persisted as any).provider_metadata = { provider: llmConfig.provider, model: llmConfig.model };
+          (persisted as any).agent_metadata = { agent: 'smith' };
+          (persisted as any).duration_ms = durationMs;
           await history.addMessage(persisted);
         } finally {
           history.close();
@@ -198,13 +206,23 @@ Respond in the same language as the task.`
         level: 'info',
       });
 
-      return content;
+      return {
+        output: content,
+        usage: {
+          provider: llmConfig.provider,
+          model: llmConfig.model,
+          inputTokens,
+          outputTokens,
+          durationMs,
+          stepCount,
+        },
+      };
     } catch (err: any) {
       this.display.log(`Smith delegation error: ${err.message}`, {
         source: 'SmithDelegator',
         level: 'error',
       });
-      return `❌ Smith '${smithName}' delegation failed: ${err.message}`;
+      return { output: `❌ Smith '${smithName}' delegation failed: ${err.message}` };
     }
   }
 

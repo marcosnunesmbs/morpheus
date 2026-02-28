@@ -16,6 +16,58 @@ export interface Message {
     tool_name?: string;
     tool_call_id?: string;
     usage_metadata?: any;
+    agent?: string;
+    duration_ms?: number | null;
+    provider?: string | null;
+    model?: string | null;
+}
+
+export interface ToolGroupItem {
+    call: { id: string; name: string; args: any };
+    result: Message | null;
+}
+
+export interface GroupedMessage {
+    index: number;
+    message: Message;
+    toolGroups?: ToolGroupItem[];
+}
+
+const DELEGATION_TOOLS = new Set([
+    'apoc_delegate', 'neo_delegate', 'trinity_delegate', 'smith_delegate',
+]);
+
+export function isDelegationCall(toolName: string): boolean {
+    return DELEGATION_TOOLS.has(toolName);
+}
+
+export function groupMessages(messages: Message[]): GroupedMessage[] {
+    const result: GroupedMessage[] = [];
+    const absorbedIndices = new Set<number>();
+
+    for (let i = 0; i < messages.length; i++) {
+        if (absorbedIndices.has(i)) continue;
+
+        const msg = messages[i];
+
+        if (msg.type === 'ai' && Array.isArray(msg.tool_calls) && msg.tool_calls.length > 0) {
+            const toolGroups: ToolGroupItem[] = msg.tool_calls.map((tc: any) => {
+                const resultIdx = messages.findIndex(
+                    (m, mi) => mi > i && m.type === 'tool' && m.tool_call_id === tc.id
+                );
+                if (resultIdx !== -1) absorbedIndices.add(resultIdx);
+                return {
+                    call: { id: tc.id ?? '', name: tc.name ?? '', args: tc.args ?? {} },
+                    result: resultIdx !== -1 ? messages[resultIdx] : null,
+                };
+            });
+            result.push({ index: i, message: msg, toolGroups });
+        } else {
+            result.push({ index: i, message: msg });
+        }
+    }
+
+    return result;
 }
 
 export const chatService = {

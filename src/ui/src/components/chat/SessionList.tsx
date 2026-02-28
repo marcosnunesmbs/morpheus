@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import type { Session } from '../../services/chat';
-import { MessageSquarePlus, Archive, Trash2, MessageSquare, Pencil, Check, X } from 'lucide-react';
+import { MessageSquarePlus, Archive, Trash2, MessageSquare, Pencil, Check, X, BarChart2 } from 'lucide-react';
 
 interface SessionListProps {
   sessions: Session[];
@@ -26,6 +27,7 @@ export const SessionList: React.FC<SessionListProps> = ({
   isOpen,
   toggleSidebar
 }) => {
+  const navigate = useNavigate();
   const [editingSessionId, setEditingSessionId] = useState<string | null>(null);
   const [editTitle, setEditTitle] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
@@ -172,6 +174,13 @@ export const SessionList: React.FC<SessionListProps> = ({
                         title="Rename"
                     >
                         <Pencil size={14} />
+                    </button>
+                    <button
+                        onClick={(e) => { e.stopPropagation(); navigate(`/sessions/${session.id}/audit`); }}
+                        className="p-1.5 text-gray-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 dark:text-matrix-secondary/50 dark:hover:text-blue-400 rounded"
+                        title="Audit"
+                    >
+                        <BarChart2 size={14} />
                     </button>
                     <button
                         onClick={(e) => { e.stopPropagation(); onArchiveSession(session.id); }}

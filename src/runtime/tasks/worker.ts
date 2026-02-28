@@ -6,7 +6,8 @@ import { Trinity } from '../trinity.js';
 import { executeKeymakerTask } from '../keymaker.js';
 import { SmithDelegator } from '../smiths/delegator.js';
 import { TaskRepository } from './repository.js';
-import type { TaskRecord } from './types.js';
+import { AuditRepository } from '../audit/repository.js';
+import type { TaskRecord, AgentResult } from './types.js';
 
 export class TaskWorker {
   private readonly workerId: string;
@@ -57,17 +58,27 @@ export class TaskWorker {
   }
 
   private async executeTask(task: TaskRecord): Promise<void> {
+    const audit = AuditRepository.getInstance();
+    audit.insert({
+      session_id: task.session_id,
+      task_id: task.id,
+      event_type: 'task_created',
+      agent: task.agent === 'trinit' ? 'trinity' : task.agent as any,
+      status: 'success',
+      metadata: { agent: task.agent, input_preview: task.input.slice(0, 200) },
+    });
+
     try {
-      let output: string;
+      let result: AgentResult;
       switch (task.agent) {
         case 'apoc': {
           const apoc = Apoc.getInstance();
-          output = await apoc.execute(task.input, task.context ?? undefined, task.session_id);
+          result = await apoc.execute(task.input, task.context ?? undefined, task.session_id);
           break;
         }
         case 'neo': {
           const neo = Neo.getInstance();
-          output = await neo.execute(task.input, task.context ?? undefined, task.session_id, {
+          result = await neo.execute(task.input, task.context ?? undefined, task.session_id, {
             origin_channel: task.origin_channel,
             session_id: task.session_id,
             origin_message_id: task.origin_message_id ?? undefined,
@@ -77,7 +88,7 @@ export class TaskWorker {
         }
         case 'trinit': {
           const trinity = Trinity.getInstance();
-          output = await trinity.execute(task.input, task.context ?? undefined, task.session_id);
+          result = await trinity.execute(task.input, task.context ?? undefined, task.session_id);
           break;
         }
         case 'keymaker': {
@@ -92,7 +103,7 @@ export class TaskWorker {
               skillName = task.context;
             }
           }
-          output = await executeKeymakerTask(skillName, task.input, {
+          result = await executeKeymakerTask(skillName, task.input, {
             origin_channel: task.origin_channel,
             session_id: task.session_id,
             origin_message_id: task.origin_message_id ?? undefined,
@@ -112,8 +123,7 @@ export class TaskWorker {
             }
           }
           const delegator = SmithDelegator.getInstance();
-          const result = await delegator.delegate(smithName, task.input, task.context ?? undefined);
-          output = typeof result === 'string' ? result : JSON.stringify(result);
+          result = await delegator.delegate(smithName, task.input, task.context ?? undefined);
           break;
         }
         default: {
@@ -121,7 +131,61 @@ export class TaskWorker {
         }
       }
 
-      this.repository.markCompleted(task.id, output);
+      this.repository.markCompleted(task.id, result.output, result.usage ? {
+        provider: result.usage.provider,
+        model: result.usage.model,
+        inputTokens: result.usage.inputTokens,
+        outputTokens: result.usage.outputTokens,
+        durationMs: result.usage.durationMs,
+        stepCount: result.usage.stepCount,
+      } : undefined);
+
+      const agentName = (task.agent === 'trinit' ? 'trinity' : task.agent) as any;
+
+      // Emit task_completed audit event
+      audit.insert({
+        session_id: task.session_id,
+        task_id: task.id,
+        event_type: 'task_completed',
+        agent: agentName,
+        duration_ms: result.usage?.durationMs,
+        status: 'success',
+      });
+
+      // Emit llm_call audit event if usage data is present (not keymaker skills)
+      if (result.usage && (result.usage.inputTokens > 0 || result.usage.outputTokens > 0)) {
+        audit.insert({
+          session_id: task.session_id,
+          task_id: task.id,
+          event_type: 'llm_call',
+          agent: agentName,
+          provider: result.usage.provider,
+          model: result.usage.model,
+          input_tokens: result.usage.inputTokens,
+          output_tokens: result.usage.outputTokens,
+          duration_ms: result.usage.durationMs,
+          status: 'success',
+          metadata: { step_count: result.usage.stepCount },
+        });
+      }
+
+      // Emit skill_executed for keymaker
+      if (task.agent === 'keymaker') {
+        let skillName = 'unknown';
+        if (task.context) {
+          try { skillName = JSON.parse(task.context).skill || task.context; } catch { skillName = task.context; }
+        }
+        audit.insert({
+          session_id: task.session_id,
+          task_id: task.id,
+          event_type: 'skill_executed',
+          agent: 'keymaker',
+          tool_name: skillName,
+          duration_ms: result.usage?.durationMs,
+          status: 'success',
+        });
+      }
+
       this.display.log(`Task completed: ${task.id}`, { source: 'TaskWorker', level: 'success' });
     } catch (err: any) {
       const latest = this.repository.getTaskById(task.id);
@@ -137,6 +201,14 @@ export class TaskWorker {
       }
 
       this.repository.markFailed(task.id, errorMessage);
+      audit.insert({
+        session_id: task.session_id,
+        task_id: task.id,
+        event_type: 'task_completed',
+        agent: (task.agent === 'trinit' ? 'trinity' : task.agent) as any,
+        status: 'error',
+        metadata: { error: errorMessage },
+      });
       this.display.log(`Task failed: ${task.id} (${errorMessage})`, { source: 'TaskWorker', level: 'error' });
     }
   }

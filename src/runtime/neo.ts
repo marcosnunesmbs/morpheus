@@ -9,7 +9,7 @@ import { Construtor } from "./tools/factory.js";
 import { morpheusTools } from "./tools/index.js";
 import { SQLiteChatMessageHistory } from "./memory/sqlite.js";
 import { TaskRequestContext } from "./tasks/context.js";
-import type { OracleTaskContext } from "./tasks/types.js";
+import type { OracleTaskContext, AgentResult } from "./tasks/types.js";
 import { updateNeoDelegateToolDescription } from "./tools/neo-tool.js";
 
 export class Neo {
@@ -40,14 +40,14 @@ export class Neo {
   }
 
   public static async refreshDelegateCatalog(): Promise<void> {
-    const mcpTools = await Construtor.create();
+    const mcpTools = await Construtor.create(() => Neo.currentSessionId);
     updateNeoDelegateToolDescription(mcpTools);
   }
 
   async initialize(): Promise<void> {
     const neoConfig = this.config.neo || this.config.llm;
     const personality = this.config.neo?.personality || 'analytical_engineer';
-    const mcpTools = await Construtor.create();
+    const mcpTools = await Construtor.create(() => Neo.currentSessionId);
     const tools = [...mcpTools, ...morpheusTools];
     updateNeoDelegateToolDescription(mcpTools);
 
@@ -69,7 +69,7 @@ export class Neo {
     context?: string,
     sessionId?: string,
     taskContext?: OracleTaskContext,
-  ): Promise<string> {
+  ): Promise<AgentResult> {
     const neoConfig = this.config.neo || this.config.llm;
     if (!this.agent) {
       await this.initialize();
@@ -114,7 +114,9 @@ ${context ? `Context:\n${context}` : ""}
         origin_message_id: taskContext?.origin_message_id,
         origin_user_id: taskContext?.origin_user_id,
       };
+      const startMs = Date.now();
       const response = await TaskRequestContext.run(invokeContext, () => this.agent!.invoke({ messages }));
+      const durationMs = Date.now() - startMs;
 
       const lastMessage = response.messages[response.messages.length - 1];
       const content =
@@ -122,25 +124,40 @@ ${context ? `Context:\n${context}` : ""}
           ? lastMessage.content
           : JSON.stringify(lastMessage.content);
 
+      const rawUsage = (lastMessage as any).usage_metadata
+        ?? (lastMessage as any).response_metadata?.usage
+        ?? (lastMessage as any).response_metadata?.tokenUsage
+        ?? (lastMessage as any).usage;
+
+      const inputTokens = rawUsage?.input_tokens ?? 0;
+      const outputTokens = rawUsage?.output_tokens ?? 0;
+      const stepCount = response.messages.filter((m: BaseMessage) => m instanceof AIMessage).length;
+
       const targetSession = sessionId ?? Neo.currentSessionId ?? "neo";
       const history = new SQLiteChatMessageHistory({ sessionId: targetSession });
       try {
         const persisted = new AIMessage(content);
-        (persisted as any).usage_metadata = (lastMessage as any).usage_metadata
-          ?? (lastMessage as any).response_metadata?.usage
-          ?? (lastMessage as any).response_metadata?.tokenUsage
-          ?? (lastMessage as any).usage;
-        (persisted as any).provider_metadata = {
-          provider: neoConfig.provider,
-          model: neoConfig.model,
-        };
+        if (rawUsage) (persisted as any).usage_metadata = rawUsage;
+        (persisted as any).provider_metadata = { provider: neoConfig.provider, model: neoConfig.model };
+        (persisted as any).agent_metadata = { agent: 'neo' };
+        (persisted as any).duration_ms = durationMs;
         await history.addMessage(persisted);
       } finally {
         history.close();
       }
 
       this.display.log("Neo task completed.", { source: "Neo" });
-      return content;
+      return {
+        output: content,
+        usage: {
+          provider: neoConfig.provider,
+          model: neoConfig.model,
+          inputTokens,
+          outputTokens,
+          durationMs,
+          stepCount,
+        },
+      };
     } catch (err) {
       throw new ProviderError(
         neoConfig.provider,

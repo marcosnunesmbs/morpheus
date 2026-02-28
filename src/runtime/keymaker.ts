@@ -10,7 +10,7 @@ import { Construtor } from "./tools/factory.js";
 import { morpheusTools } from "./tools/index.js";
 import { SkillRegistry } from "./skills/registry.js";
 import { TaskRequestContext } from "./tasks/context.js";
-import type { OracleTaskContext } from "./tasks/types.js";
+import type { OracleTaskContext, AgentResult } from "./tasks/types.js";
 import { SQLiteChatMessageHistory } from "./memory/sqlite.js";
 
 /**
@@ -86,7 +86,7 @@ export class Keymaker {
   async execute(
     objective: string,
     taskContext?: OracleTaskContext
-  ): Promise<string> {
+  ): Promise<AgentResult> {
     if (!this.agent) {
       await this.initialize();
     }
@@ -145,9 +145,11 @@ CRITICAL — NEVER FABRICATE DATA:
         origin_user_id: taskContext?.origin_user_id,
       };
 
+      const startMs = Date.now();
       const response = await TaskRequestContext.run(invokeContext, () =>
         this.agent!.invoke({ messages })
       );
+      const durationMs = Date.now() - startMs;
 
       const lastMessage = response.messages[response.messages.length - 1];
       const content =
@@ -158,18 +160,17 @@ CRITICAL — NEVER FABRICATE DATA:
       // Persist message with token usage metadata (like Trinity/Neo/Apoc)
       const keymakerConfig = this.config.keymaker || this.config.llm;
       const targetSession = taskContext?.session_id ?? "keymaker";
+      const rawUsage = (lastMessage as any).usage_metadata
+        ?? (lastMessage as any).response_metadata?.usage
+        ?? (lastMessage as any).response_metadata?.tokenUsage
+        ?? (lastMessage as any).usage;
       const history = new SQLiteChatMessageHistory({ sessionId: targetSession });
       try {
         const persisted = new AIMessage(content);
-        (persisted as any).usage_metadata =
-          (lastMessage as any).usage_metadata ??
-          (lastMessage as any).response_metadata?.usage ??
-          (lastMessage as any).response_metadata?.tokenUsage ??
-          (lastMessage as any).usage;
-        (persisted as any).provider_metadata = {
-          provider: keymakerConfig.provider,
-          model: keymakerConfig.model,
-        };
+        if (rawUsage) (persisted as any).usage_metadata = rawUsage;
+        (persisted as any).provider_metadata = { provider: keymakerConfig.provider, model: keymakerConfig.model };
+        (persisted as any).agent_metadata = { agent: 'keymaker' };
+        (persisted as any).duration_ms = durationMs;
         await history.addMessage(persisted);
       } finally {
         history.close();
@@ -180,7 +181,17 @@ CRITICAL — NEVER FABRICATE DATA:
         { source: "Keymaker" }
       );
 
-      return content;
+      return {
+        output: content,
+        usage: {
+          provider: keymakerConfig.provider,
+          model: keymakerConfig.model,
+          inputTokens: rawUsage?.input_tokens ?? 0,
+          outputTokens: rawUsage?.output_tokens ?? 0,
+          durationMs,
+          stepCount: response.messages.filter((m: BaseMessage) => m instanceof AIMessage).length,
+        },
+      };
     } catch (err: any) {
       this.display.log(
         `Keymaker execution error: ${err.message}`,
@@ -203,7 +214,7 @@ export async function executeKeymakerTask(
   skillName: string,
   objective: string,
   taskContext?: OracleTaskContext
-): Promise<string> {
+): Promise<AgentResult> {
   const registry = SkillRegistry.getInstance();
   const skillContent = registry.getContent(skillName);
 

@@ -11,6 +11,7 @@ import { SQLiteChatMessageHistory } from "./memory/sqlite.js";
 import { DatabaseRegistry } from "./memory/trinity-db.js";
 import { testConnection, introspectSchema, executeQuery } from "./trinity-connector.js";
 import { updateTrinityDelegateToolDescription } from "./tools/trinity-tool.js";
+import type { AgentResult } from "./tasks/types.js";
 
 /**
  * Trinity is a subagent of Oracle specialized in database operations.
@@ -206,7 +207,7 @@ export class Trinity {
     }
   }
 
-  async execute(task: string, context?: string, sessionId?: string): Promise<string> {
+  async execute(task: string, context?: string, sessionId?: string): Promise<AgentResult> {
     if (!this.agent) {
       await this.initialize();
     }
@@ -252,7 +253,9 @@ ${context ? `CONTEXT FROM ORACLE:\n${context}` : ''}
     const messages: BaseMessage[] = [systemMessage, userMessage];
 
     try {
+      const startMs = Date.now();
       const response = await this.agent!.invoke({ messages });
+      const durationMs = Date.now() - startMs;
 
       const lastMessage = response.messages[response.messages.length - 1];
       const content =
@@ -260,26 +263,40 @@ ${context ? `CONTEXT FROM ORACLE:\n${context}` : ''}
           ? lastMessage.content
           : JSON.stringify(lastMessage.content);
 
+      const rawUsage = (lastMessage as any).usage_metadata
+        ?? (lastMessage as any).response_metadata?.usage
+        ?? (lastMessage as any).response_metadata?.tokenUsage
+        ?? (lastMessage as any).usage;
+
+      const inputTokens = rawUsage?.input_tokens ?? 0;
+      const outputTokens = rawUsage?.output_tokens ?? 0;
+      const stepCount = response.messages.filter((m: BaseMessage) => m instanceof AIMessage).length;
+
       const targetSession = sessionId ?? Trinity.currentSessionId ?? 'trinity';
       const history = new SQLiteChatMessageHistory({ sessionId: targetSession });
       try {
         const persisted = new AIMessage(content);
-        (persisted as any).usage_metadata =
-          (lastMessage as any).usage_metadata ??
-          (lastMessage as any).response_metadata?.usage ??
-          (lastMessage as any).response_metadata?.tokenUsage ??
-          (lastMessage as any).usage;
-        (persisted as any).provider_metadata = {
-          provider: trinityConfig.provider,
-          model: trinityConfig.model,
-        };
+        if (rawUsage) (persisted as any).usage_metadata = rawUsage;
+        (persisted as any).provider_metadata = { provider: trinityConfig.provider, model: trinityConfig.model };
+        (persisted as any).agent_metadata = { agent: 'trinity' };
+        (persisted as any).duration_ms = durationMs;
         await history.addMessage(persisted);
       } finally {
         history.close();
       }
 
       this.display.log('Trinity task completed.', { source: 'Trinity' });
-      return content;
+      return {
+        output: content,
+        usage: {
+          provider: trinityConfig.provider,
+          model: trinityConfig.model,
+          inputTokens,
+          outputTokens,
+          durationMs,
+          stepCount,
+        },
+      };
     } catch (err) {
       throw new ProviderError(
         trinityConfig.provider,

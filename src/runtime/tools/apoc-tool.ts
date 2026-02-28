@@ -7,6 +7,7 @@ import { DisplayManager } from "../display.js";
 import { ConfigManager } from "../../config/manager.js";
 import { Apoc } from "../apoc.js";
 import { ChannelRegistry } from "../../channels/registry.js";
+import { AuditRepository } from "../audit/repository.js";
 
 /**
  * Returns true when Apoc is configured to execute synchronously (inline).
@@ -67,7 +68,22 @@ export const ApocDelegateTool = tool(
             level: "info",
           });
 
-          return result;
+          if (result.usage) {
+            AuditRepository.getInstance().insert({
+              session_id: sessionId,
+              event_type: 'llm_call',
+              agent: 'apoc',
+              provider: result.usage.provider,
+              model: result.usage.model,
+              input_tokens: result.usage.inputTokens,
+              output_tokens: result.usage.outputTokens,
+              duration_ms: result.usage.durationMs,
+              status: 'success',
+              metadata: { step_count: result.usage.stepCount, mode: 'sync' },
+            });
+          }
+
+          return result.output;
         } catch (syncErr: any) {
           // Still count as sync delegation so Oracle passes through the error message
           TaskRequestContext.incrementSyncDelegation();

@@ -7,6 +7,7 @@ import { ConfigManager } from "../../config/manager.js";
 import { SmithDelegator } from "../smiths/delegator.js";
 import { SmithRegistry } from "../smiths/registry.js";
 import { ChannelRegistry } from "../../channels/registry.js";
+import { AuditRepository } from "../audit/repository.js";
 
 /**
  * Returns true when Smiths are configured in sync mode (inline execution).
@@ -46,6 +47,7 @@ export const SmithDelegateTool = tool(
         });
 
         const ctx = TaskRequestContext.get();
+        const sessionId = ctx?.session_id ?? 'default';
 
         // Notify originating channel
         if (ctx?.origin_channel && ctx.origin_user_id && ctx.origin_channel !== 'api' && ctx.origin_channel !== 'ui') {
@@ -64,7 +66,22 @@ export const SmithDelegateTool = tool(
             level: "info",
           });
 
-          return result;
+          if (result.usage) {
+            AuditRepository.getInstance().insert({
+              session_id: sessionId,
+              event_type: 'llm_call',
+              agent: 'smith',
+              provider: result.usage.provider,
+              model: result.usage.model,
+              input_tokens: result.usage.inputTokens,
+              output_tokens: result.usage.outputTokens,
+              duration_ms: result.usage.durationMs,
+              status: 'success',
+              metadata: { smith_name: smith, step_count: result.usage.stepCount, mode: 'sync' },
+            });
+          }
+
+          return result.output;
         } catch (syncErr: any) {
           TaskRequestContext.incrementSyncDelegation();
           display.log(`Smith '${smith}' sync execution failed: ${syncErr.message}`, {

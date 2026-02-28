@@ -26,6 +26,7 @@ import { createSkillsRouter } from './routers/skills.js';
 import { createSmithsRouter } from './routers/smiths.js';
 import { getActiveEnvOverrides } from '../config/precedence.js';
 import { hotReloadConfig, getRestartRequiredChanges } from '../runtime/hot-reload.js';
+import { AuditRepository } from '../runtime/audit/repository.js';
 
 async function readLastLines(filePath: string, n: number): Promise<string[]> {
   try {
@@ -186,6 +187,10 @@ export function createApiRouter(oracle: IOracle, chronosWorker?: ChronosWorker) 
           tool_name,
           tool_call_id,
           usage_metadata,
+          agent: row.agent ?? 'oracle',
+          duration_ms: row.duration_ms ?? null,
+          provider: row.provider ?? null,
+          model: row.model ?? null,
         };
       });
 
@@ -195,6 +200,22 @@ export function createApiRouter(oracle: IOracle, chronosWorker?: ChronosWorker) 
       res.status(500).json({ error: err.message });
     } finally {
       sessionHistory.close();
+    }
+  });
+
+  // --- Session Audit ---
+
+  router.get('/sessions/:id/audit', (req, res) => {
+    try {
+      const { id } = req.params;
+      const limit = Math.min(parseInt(req.query.limit as string) || 100, 500);
+      const offset = parseInt(req.query.offset as string) || 0;
+      const audit = AuditRepository.getInstance();
+      const events = audit.getBySession(id, { limit, offset });
+      const summary = audit.getSessionSummary(id);
+      res.json({ events, summary });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
     }
   });
 
@@ -387,6 +408,17 @@ export function createApiRouter(oracle: IOracle, chronosWorker?: ChronosWorker) 
       const history = new SQLiteChatMessageHistory({ sessionId: 'api-reader' });
       const stats = await history.getUsageStatsByProviderAndModel();
       history.close();
+      res.json(stats);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  router.get('/stats/usage/by-agent', (req, res) => {
+    try {
+      const h = new SQLiteChatMessageHistory({ sessionId: 'api-reader' });
+      const stats = h.getUsageStatsByAgent();
+      h.close();
       res.json(stats);
     } catch (error: any) {
       res.status(500).json({ error: error.message });

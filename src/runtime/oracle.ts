@@ -26,6 +26,7 @@ import { Construtor } from "./tools/factory.js";
 import { MCPManager } from "../config/mcp-manager.js";
 import { SkillRegistry, SkillExecuteTool, SkillDelegateTool, updateSkillToolDescriptions } from "./skills/index.js";
 import { SmithRegistry } from "./smiths/registry.js";
+import { AuditRepository } from "./audit/repository.js";
 
 type AckGenerationResult = {
   content: string;
@@ -434,12 +435,34 @@ Use it to inform your response and tool selection (if needed), but do not assume
       };
       let contextDelegationAcks: Array<{ task_id: string; agent: string; task: string }> = [];
       let syncDelegationCount = 0;
+      const oracleStartMs = Date.now();
       const response = await TaskRequestContext.run(invokeContext, async () => {
         const agentResponse = await this.provider!.invoke({ messages });
         contextDelegationAcks = TaskRequestContext.getDelegationAcks();
         syncDelegationCount = TaskRequestContext.getSyncDelegationCount();
         return agentResponse;
       });
+      const oracleDurationMs = Date.now() - oracleStartMs;
+
+      // Emit llm_call audit event for Oracle's own invocation
+      try {
+        const lastMsg = response.messages[response.messages.length - 1];
+        const rawUsage = (lastMsg as any).usage_metadata
+          ?? (lastMsg as any).response_metadata?.usage
+          ?? (lastMsg as any).response_metadata?.tokenUsage
+          ?? (lastMsg as any).usage;
+        AuditRepository.getInstance().insert({
+          session_id: currentSessionId ?? 'default',
+          event_type: 'llm_call',
+          agent: 'oracle',
+          provider: this.config.llm.provider,
+          model: this.config.llm.model,
+          input_tokens: rawUsage?.input_tokens ?? rawUsage?.prompt_tokens ?? 0,
+          output_tokens: rawUsage?.output_tokens ?? rawUsage?.completion_tokens ?? 0,
+          duration_ms: oracleDurationMs,
+          status: 'success',
+        });
+      } catch { /* non-critical */ }
 
       // Identify new messages generated during the interaction
       // The `messages` array passed to invoke had length `messages.length`
@@ -449,12 +472,16 @@ Use it to inform your response and tool selection (if needed), but do not assume
       const newGeneratedMessages = response.messages.slice(startNewMessagesIndex);
       // console.log('New generated messages', newGeneratedMessages);
 
-      // Inject provider/model metadata into all new messages
+      // Inject provider/model metadata and duration into all new AI messages
       for (const msg of newGeneratedMessages) {
         (msg as any).provider_metadata = {
           provider: this.config.llm.provider,
           model: this.config.llm.model
         };
+        (msg as any).agent_metadata = { agent: 'oracle' };
+        if (msg instanceof AIMessage) {
+          (msg as any).duration_ms = oracleDurationMs;
+        }
       }
 
       let responseContent: string;

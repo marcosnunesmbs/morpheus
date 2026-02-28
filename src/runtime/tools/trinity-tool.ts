@@ -8,6 +8,7 @@ import type { DatabaseRecord } from "../memory/trinity-db.js";
 import { ConfigManager } from "../../config/manager.js";
 import { Trinity } from "../trinity.js";
 import { ChannelRegistry } from "../../channels/registry.js";
+import { AuditRepository } from "../audit/repository.js";
 
 const TRINITY_BASE_DESCRIPTION = `Delegate a database task to Trinity, the specialized database subagent, asynchronously.
 
@@ -88,7 +89,22 @@ export const TrinityDelegateTool = tool(
             level: 'info',
           });
 
-          return result;
+          if (result.usage) {
+            AuditRepository.getInstance().insert({
+              session_id: sessionId,
+              event_type: 'llm_call',
+              agent: 'trinity',
+              provider: result.usage.provider,
+              model: result.usage.model,
+              input_tokens: result.usage.inputTokens,
+              output_tokens: result.usage.outputTokens,
+              duration_ms: result.usage.durationMs,
+              status: 'success',
+              metadata: { step_count: result.usage.stepCount, mode: 'sync' },
+            });
+          }
+
+          return result.output;
         } catch (syncErr: any) {
           // Still count as sync delegation so Oracle passes through the error message
           TaskRequestContext.incrementSyncDelegation();

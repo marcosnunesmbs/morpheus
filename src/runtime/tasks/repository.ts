@@ -69,6 +69,12 @@ export class TaskRepository {
     addColumn(`ALTER TABLE tasks ADD COLUMN notified_at INTEGER`, 'notified_at');
     addColumn(`ALTER TABLE tasks ADD COLUMN notify_after_at INTEGER`, 'notify_after_at');
     addColumn(`ALTER TABLE tasks ADD COLUMN ack_sent INTEGER NOT NULL DEFAULT 0`, 'ack_sent');
+    addColumn(`ALTER TABLE tasks ADD COLUMN provider TEXT`, 'provider');
+    addColumn(`ALTER TABLE tasks ADD COLUMN model TEXT`, 'model');
+    addColumn(`ALTER TABLE tasks ADD COLUMN input_tokens INTEGER NOT NULL DEFAULT 0`, 'input_tokens');
+    addColumn(`ALTER TABLE tasks ADD COLUMN output_tokens INTEGER NOT NULL DEFAULT 0`, 'output_tokens');
+    addColumn(`ALTER TABLE tasks ADD COLUMN duration_ms INTEGER`, 'duration_ms');
+    addColumn(`ALTER TABLE tasks ADD COLUMN step_count INTEGER NOT NULL DEFAULT 0`, 'step_count');
 
     this.db.exec(`
       UPDATE tasks
@@ -294,7 +300,14 @@ export class TaskRepository {
     return tx();
   }
 
-  markCompleted(id: string, output: string): void {
+  markCompleted(id: string, output: string, usage?: {
+    provider?: string;
+    model?: string;
+    inputTokens?: number;
+    outputTokens?: number;
+    durationMs?: number;
+    stepCount?: number;
+  }): void {
     const now = Date.now();
     const normalizedOutput = (output ?? '').trim();
     this.db.prepare(`
@@ -306,9 +319,25 @@ export class TaskRepository {
           updated_at = ?,
           notify_status = 'pending',
           notify_last_error = NULL,
-          notified_at = NULL
+          notified_at = NULL,
+          provider = COALESCE(?, provider),
+          model = COALESCE(?, model),
+          input_tokens = COALESCE(?, input_tokens),
+          output_tokens = COALESCE(?, output_tokens),
+          duration_ms = COALESCE(?, duration_ms),
+          step_count = COALESCE(?, step_count)
       WHERE id = ? AND status != 'cancelled'
-    `).run(normalizedOutput.length > 0 ? normalizedOutput : 'Task completed without output.', now, now, id);
+    `).run(
+      normalizedOutput.length > 0 ? normalizedOutput : 'Task completed without output.',
+      now, now,
+      usage?.provider ?? null,
+      usage?.model ?? null,
+      usage?.inputTokens ?? null,
+      usage?.outputTokens ?? null,
+      usage?.durationMs ?? null,
+      usage?.stepCount ?? null,
+      id,
+    );
   }
 
   markFailed(id: string, error: string): void {

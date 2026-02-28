@@ -7,6 +7,7 @@ import { ProviderError } from "./errors.js";
 import { DisplayManager } from "./display.js";
 import { buildDevKit } from "../devkit/index.js";
 import { SQLiteChatMessageHistory } from "./memory/sqlite.js";
+import type { AgentResult } from "./tasks/types.js";
 
 /**
  * Apoc is a subagent of Oracle specialized in devtools operations.
@@ -68,6 +69,8 @@ export class Apoc {
       enable_shell: devkit.enable_shell,
       enable_git: devkit.enable_git,
       enable_network: devkit.enable_network,
+      getSessionId: () => Apoc.currentSessionId,
+      getAgent: () => 'apoc',
     });
 
     this.display.log(
@@ -92,7 +95,7 @@ export class Apoc {
    * @param context Optional additional context from the ongoing conversation
    * @param sessionId Session to attribute token usage to (defaults to 'apoc')
    */
-  async execute(task: string, context?: string, sessionId?: string): Promise<string> {
+  async execute(task: string, context?: string, sessionId?: string): Promise<AgentResult> {
     if (!this.agent) {
       await this.initialize();
     }
@@ -276,10 +279,10 @@ ${context ? `CONTEXT FROM ORACLE:\n${context}` : ""}
     const messages: BaseMessage[] = [systemMessage, userMessage];
 
     try {
+      const startMs = Date.now();
       const response = await this.agent!.invoke({ messages });
+      const durationMs = Date.now() - startMs;
 
-      // Persist one AI message per delegated task so usage can be parameterized later.
-      // Use task session id when provided.
       const apocConfig = this.config.apoc || this.config.llm;
       const lastMessage = response.messages[response.messages.length - 1];
       const content =
@@ -287,25 +290,41 @@ ${context ? `CONTEXT FROM ORACLE:\n${context}` : ""}
           ? lastMessage.content
           : JSON.stringify(lastMessage.content);
 
+      // Aggregate token usage across all AI messages in this invocation
+      const rawUsage = (lastMessage as any).usage_metadata
+        ?? (lastMessage as any).response_metadata?.usage
+        ?? (lastMessage as any).response_metadata?.tokenUsage
+        ?? (lastMessage as any).usage;
+
+      const inputTokens = rawUsage?.input_tokens ?? 0;
+      const outputTokens = rawUsage?.output_tokens ?? 0;
+      const stepCount = response.messages.filter((m: BaseMessage) => m instanceof AIMessage).length;
+
       const targetSession = sessionId ?? Apoc.currentSessionId ?? "apoc";
       const history = new SQLiteChatMessageHistory({ sessionId: targetSession });
       try {
         const persisted = new AIMessage(content);
-        (persisted as any).usage_metadata = (lastMessage as any).usage_metadata
-          ?? (lastMessage as any).response_metadata?.usage
-          ?? (lastMessage as any).response_metadata?.tokenUsage
-          ?? (lastMessage as any).usage;
-        (persisted as any).provider_metadata = {
-          provider: apocConfig.provider,
-          model: apocConfig.model,
-        };
+        if (rawUsage) (persisted as any).usage_metadata = rawUsage;
+        (persisted as any).provider_metadata = { provider: apocConfig.provider, model: apocConfig.model };
+        (persisted as any).agent_metadata = { agent: 'apoc' };
+        (persisted as any).duration_ms = durationMs;
         await history.addMessage(persisted);
       } finally {
         history.close();
       }
 
       this.display.log("Apoc task completed.", { source: "Apoc" });
-      return content;
+      return {
+        output: content,
+        usage: {
+          provider: apocConfig.provider,
+          model: apocConfig.model,
+          inputTokens,
+          outputTokens,
+          durationMs,
+          stepCount,
+        },
+      };
     } catch (err) {
       throw new ProviderError(
         this.config.apoc?.provider || this.config.llm.provider,

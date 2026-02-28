@@ -6,6 +6,7 @@ import type { OracleTaskContext } from '../tasks/types.js';
 import { ChronosRepository, type ChronosJob } from './repository.js';
 import { parseNextRun } from './parser.js';
 import { ChannelRegistry } from '../../channels/registry.js';
+import { AuditRepository } from '../audit/repository.js';
 
 export class ChronosWorker {
   private static instance: ChronosWorker | null = null;
@@ -114,10 +115,22 @@ export class ChronosWorker {
 
       // Hard-block Chronos management tools during execution.
       ChronosWorker.isExecuting = true;
+      const chronosStartMs = Date.now();
       const response = await this.oracle.chat(promptWithContext, undefined, false, taskContext);
+      const chronosDurationMs = Date.now() - chronosStartMs;
 
       this.repo.completeExecution(execId, 'success');
       display.log(`Job ${job.id} completed — status: success`, { source: 'Chronos' });
+
+      AuditRepository.getInstance().insert({
+        session_id: activeSessionId,
+        event_type: 'chronos_job',
+        agent: 'chronos',
+        tool_name: job.id,
+        duration_ms: chronosDurationMs,
+        status: 'success',
+        metadata: { job_id: job.id, exec_id: execId },
+      });
 
       // Deliver Oracle response to notification channels.
       await this.notify(job, response);
@@ -125,6 +138,15 @@ export class ChronosWorker {
       const errMsg = err?.message ?? String(err);
       this.repo.completeExecution(execId, 'failed', errMsg);
       display.log(`Job ${job.id} failed — ${errMsg}`, { source: 'Chronos', level: 'error' });
+
+      AuditRepository.getInstance().insert({
+        session_id: activeSessionId,
+        event_type: 'chronos_job',
+        agent: 'chronos',
+        tool_name: job.id,
+        status: 'error',
+        metadata: { job_id: job.id, exec_id: execId, error: errMsg },
+      });
     } finally {
       ChronosWorker.isExecuting = false;
 

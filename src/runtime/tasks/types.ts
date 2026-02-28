@@ -81,3 +81,19 @@ export interface OracleTaskContext {
   origin_user_id?: string;
 }
 
+/** Token and timing usage returned by subagent execute() calls. */
+export interface AgentUsage {
+  provider: string;
+  model: string;
+  inputTokens: number;
+  outputTokens: number;
+  durationMs: number;
+  stepCount: number;
+}
+
+/** Structured result returned by all subagent execute() methods. */
+export interface AgentResult {
+  output: string;
+  usage?: AgentUsage;
+}
+

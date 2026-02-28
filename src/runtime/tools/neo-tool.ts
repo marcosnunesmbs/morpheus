@@ -8,6 +8,7 @@ import { DisplayManager } from "../display.js";
 import { ConfigManager } from "../../config/manager.js";
 import { Neo } from "../neo.js";
 import { ChannelRegistry } from "../../channels/registry.js";
+import { AuditRepository } from "../audit/repository.js";
 
 const NEO_BUILTIN_CAPABILITIES = `
 Neo built-in capabilities (always available — no MCP required):
@@ -107,7 +108,22 @@ export const NeoDelegateTool = tool(
             level: "info",
           });
 
-          return result;
+          if (result.usage) {
+            AuditRepository.getInstance().insert({
+              session_id: sessionId,
+              event_type: 'llm_call',
+              agent: 'neo',
+              provider: result.usage.provider,
+              model: result.usage.model,
+              input_tokens: result.usage.inputTokens,
+              output_tokens: result.usage.outputTokens,
+              duration_ms: result.usage.durationMs,
+              status: 'success',
+              metadata: { step_count: result.usage.stepCount, mode: 'sync' },
+            });
+          }
+
+          return result.output;
         } catch (syncErr: any) {
           // Still count as sync delegation so Oracle passes through the error message
           TaskRequestContext.incrementSyncDelegation();

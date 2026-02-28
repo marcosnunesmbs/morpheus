@@ -17,6 +17,7 @@ import { TrinityDatabases } from './pages/TrinityDatabases';
 import { ChronosPage } from './pages/Chronos';
 import { SkillsPage } from './pages/Skills';
 import { SmithsPage } from './pages/Smiths';
+import { SessionAudit } from './pages/SessionAudit';
 
 function App() {
   return (
@@ -44,6 +45,7 @@ function App() {
                   <Route path="/chronos" element={<ChronosPage />} />
                   <Route path="/skills" element={<SkillsPage />} />
                   <Route path="/smiths" element={<SmithsPage />} />
+                  <Route path="/sessions/:id/audit" element={<SessionAudit />} />
                   <Route path="*" element={<Navigate to="/" replace />} />
                 </Routes>
               </Layout>

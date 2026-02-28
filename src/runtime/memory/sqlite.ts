@@ -217,10 +217,12 @@ export class SQLiteChatMessageHistory extends BaseListChatMessageHistory {
         'cache_read_tokens',
         'provider',
         'model',
-        'audio_duration_seconds'
+        'audio_duration_seconds',
+        'agent',
+        'duration_ms',
       ];
 
-      const integerColumns = new Set(['input_tokens', 'output_tokens', 'total_tokens', 'cache_read_tokens']);
+      const integerColumns = new Set(['input_tokens', 'output_tokens', 'total_tokens', 'cache_read_tokens', 'duration_ms']);
       const realColumns = new Set(['audio_duration_seconds']);
 
       for (const col of newColumns) {
@@ -361,6 +363,8 @@ export class SQLiteChatMessageHistory extends BaseListChatMessageHistory {
     cache_read_tokens?: number;
     provider?: string;
     model?: string;
+    agent?: string;
+    duration_ms?: number | null;
   }>> {
     if (sessionIds.length === 0) {
       return [];
@@ -369,7 +373,7 @@ export class SQLiteChatMessageHistory extends BaseListChatMessageHistory {
     try {
       const placeholders = sessionIds.map(() => '?').join(', ');
       const stmt = this.db.prepare(
-        `SELECT id, session_id, type, content, created_at, input_tokens, output_tokens, total_tokens, cache_read_tokens, provider, model
+        `SELECT id, session_id, type, content, created_at, input_tokens, output_tokens, total_tokens, cache_read_tokens, provider, model, agent, duration_ms
          FROM messages
          WHERE session_id IN (${placeholders})
          ORDER BY id DESC
@@ -388,6 +392,8 @@ export class SQLiteChatMessageHistory extends BaseListChatMessageHistory {
         cache_read_tokens?: number;
         provider?: string;
         model?: string;
+        agent?: string;
+        duration_ms?: number;
       }>;
     } catch (error) {
       if (error instanceof Error && error.message.includes('SQLITE_BUSY')) {
@@ -438,6 +444,8 @@ export class SQLiteChatMessageHistory extends BaseListChatMessageHistory {
       const provider = anyMsg.provider_metadata?.provider ?? null;
       const model = anyMsg.provider_metadata?.model ?? null;
       const audioDurationSeconds = usage?.audio_duration_seconds ?? null;
+      const agent = anyMsg.agent_metadata?.agent ?? 'oracle';
+      const durationMs = anyMsg.duration_ms ?? null;
 
       // Handle special content serialization for Tools
       let finalContent = "";
@@ -462,9 +470,9 @@ export class SQLiteChatMessageHistory extends BaseListChatMessageHistory {
       }
 
       const stmt = this.db.prepare(
-        "INSERT INTO messages (session_id, type, content, created_at, input_tokens, output_tokens, total_tokens, cache_read_tokens, provider, model, audio_duration_seconds) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+        "INSERT INTO messages (session_id, type, content, created_at, input_tokens, output_tokens, total_tokens, cache_read_tokens, provider, model, audio_duration_seconds, agent, duration_ms) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
       );
-      stmt.run(this.sessionId, type, finalContent, Date.now(), inputTokens, outputTokens, totalTokens, cacheReadTokens, provider, model, audioDurationSeconds);
+      stmt.run(this.sessionId, type, finalContent, Date.now(), inputTokens, outputTokens, totalTokens, cacheReadTokens, provider, model, audioDurationSeconds, agent, durationMs);
 
       // Verificar se a sessão tem título e definir automaticamente se necessário
       await this.setSessionTitleIfNeeded();
@@ -493,7 +501,7 @@ export class SQLiteChatMessageHistory extends BaseListChatMessageHistory {
     if (messages.length === 0) return;
 
     const stmt = this.db.prepare(
-      "INSERT INTO messages (session_id, type, content, created_at, input_tokens, output_tokens, total_tokens, cache_read_tokens, provider, model, audio_duration_seconds) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+      "INSERT INTO messages (session_id, type, content, created_at, input_tokens, output_tokens, total_tokens, cache_read_tokens, provider, model, audio_duration_seconds, agent, duration_ms) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
     );
 
     const insertAll = this.db.transaction((msgs: BaseMessage[]) => {
@@ -529,7 +537,9 @@ export class SQLiteChatMessageHistory extends BaseListChatMessageHistory {
           usage?.input_token_details?.cache_read ?? usage?.cache_read_tokens ?? null,
           anyMsg.provider_metadata?.provider ?? null,
           anyMsg.provider_metadata?.model ?? null,
-          usage?.audio_duration_seconds ?? null
+          usage?.audio_duration_seconds ?? null,
+          anyMsg.agent_metadata?.agent ?? 'oracle',
+          anyMsg.duration_ms ?? null,
         );
       }
     });
@@ -708,6 +718,76 @@ export class SQLiteChatMessageHistory extends BaseListChatMessageHistory {
       });
     } catch (error) {
       throw new Error(`Failed to get grouped usage stats: ${error}`);
+    }
+  }
+
+  /**
+   * Retrieves aggregated usage statistics grouped by agent.
+   * Merges data from `messages` (Oracle's direct messages) with `audit_events` (subagent LLM calls).
+   */
+  getUsageStatsByAgent(): Array<{
+    agent: string;
+    totalInputTokens: number;
+    totalOutputTokens: number;
+    messageCount: number;
+    estimatedCostUsd: number;
+  }> {
+    try {
+      // From messages table (Oracle and any subagent messages stored there)
+      const rows = this.db.prepare(`
+        SELECT
+          COALESCE(m.agent, 'oracle') AS agent,
+          SUM(COALESCE(m.input_tokens, 0)) AS totalInputTokens,
+          SUM(COALESCE(m.output_tokens, 0)) AS totalOutputTokens,
+          COUNT(*) AS messageCount,
+          SUM(
+            COALESCE(m.input_tokens, 0) / 1000000.0 * COALESCE(mp.input_price_per_1m, 0) +
+            COALESCE(m.output_tokens, 0) / 1000000.0 * COALESCE(mp.output_price_per_1m, 0)
+          ) AS estimatedCostUsd
+        FROM messages m
+        LEFT JOIN model_pricing mp ON mp.provider = m.provider AND mp.model = m.model
+        WHERE m.type = 'ai' AND (m.input_tokens IS NOT NULL OR m.output_tokens IS NOT NULL)
+        GROUP BY COALESCE(m.agent, 'oracle')
+      `).all() as any[];
+
+      // Also pull from audit_events if the table exists
+      let auditRows: any[] = [];
+      try {
+        auditRows = this.db.prepare(`
+          SELECT
+            ae.agent,
+            SUM(COALESCE(ae.input_tokens, 0)) AS totalInputTokens,
+            SUM(COALESCE(ae.output_tokens, 0)) AS totalOutputTokens,
+            COUNT(*) AS messageCount,
+            SUM(
+              COALESCE(ae.input_tokens, 0) / 1000000.0 * COALESCE(mp.input_price_per_1m, 0) +
+              COALESCE(ae.output_tokens, 0) / 1000000.0 * COALESCE(mp.output_price_per_1m, 0)
+            ) AS estimatedCostUsd
+          FROM audit_events ae
+          LEFT JOIN model_pricing mp ON mp.provider = ae.provider AND mp.model = ae.model
+          WHERE ae.event_type = 'llm_call' AND ae.agent IS NOT NULL
+          GROUP BY ae.agent
+        `).all() as any[];
+      } catch {
+        // audit_events table may not exist yet
+      }
+
+      // Merge: group by agent, sum values
+      const merged = new Map<string, { totalInputTokens: number; totalOutputTokens: number; messageCount: number; estimatedCostUsd: number }>();
+      for (const r of [...rows, ...auditRows]) {
+        const key = r.agent as string;
+        const existing = merged.get(key) ?? { totalInputTokens: 0, totalOutputTokens: 0, messageCount: 0, estimatedCostUsd: 0 };
+        merged.set(key, {
+          totalInputTokens: existing.totalInputTokens + (r.totalInputTokens || 0),
+          totalOutputTokens: existing.totalOutputTokens + (r.totalOutputTokens || 0),
+          messageCount: existing.messageCount + (r.messageCount || 0),
+          estimatedCostUsd: existing.estimatedCostUsd + (r.estimatedCostUsd || 0),
+        });
+      }
+
+      return Array.from(merged.entries()).map(([agent, stats]) => ({ agent, ...stats }));
+    } catch (error) {
+      throw new Error(`Failed to get agent usage stats: ${error}`);
     }
   }
 
