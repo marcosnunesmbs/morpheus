@@ -19,6 +19,7 @@ import {
   Database,
   Clock,
   Wand2,
+  HatGlasses,
 } from 'lucide-react';
 import { Footer } from './Footer';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -92,6 +93,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
     { icon: ListChecks, label: 'Tasks', path: '/tasks' },
     { icon: Database, label: 'Trinity DBs', path: '/trinity-databases' },
     { icon: Clock, label: 'Chronos', path: '/chronos' },
+    { icon: HatGlasses, label: 'Smiths', path: '/smiths' },
     { icon: Terminal, label: 'Logs', path: '/logs' },
   ];
 
@@ -108,6 +110,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
     { icon: ListChecks, label: 'Tasks', path: '/tasks' },
     { icon: Database, label: 'Trinity DBs', path: '/trinity-databases' },
     { icon: Clock, label: 'Chronos', path: '/chronos' },
+    { icon: HatGlasses, label: 'Smiths', path: '/smiths' },
     { icon: Terminal, label: 'Logs', path: '/logs' },
   ];
 
