@@ -8,6 +8,7 @@ import { createHash } from 'crypto';
 import { DisplayManager } from '../../display.js';
 import { SQLiteChatMessageHistory } from '../sqlite.js';
 import { EmbeddingService } from '../embedding.service.js';
+import { AuditRepository } from '../../audit/repository.js';
 
 
 
@@ -131,10 +132,30 @@ export class SatiService implements ISatiService {
         console.warn('[SatiService] Failed to persist input log:', e);
       }
 
+      const satiStartMs = Date.now();
       const response = await agent.invoke({ messages });
+      const satiDurationMs = Date.now() - satiStartMs;
 
       const lastMessage = response.messages[response.messages.length - 1];
       let content = lastMessage.content.toString();
+
+      // Emit audit event for Sati's LLM call
+      try {
+        const rawUsage = (lastMessage as any).usage_metadata
+          ?? (lastMessage as any).response_metadata?.usage
+          ?? (lastMessage as any).usage;
+        AuditRepository.getInstance().insert({
+          session_id: userSessionId ?? 'sati-evaluation',
+          event_type: 'llm_call',
+          agent: 'sati',
+          provider: satiConfig.provider,
+          model: satiConfig.model,
+          input_tokens: rawUsage?.input_tokens ?? rawUsage?.prompt_tokens ?? 0,
+          output_tokens: rawUsage?.output_tokens ?? rawUsage?.completion_tokens ?? 0,
+          duration_ms: satiDurationMs,
+          status: 'success',
+        });
+      } catch { /* non-critical */ }
 
       try {
         const outputToolMsg = new ToolMessage({

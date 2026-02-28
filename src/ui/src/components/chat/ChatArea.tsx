@@ -75,6 +75,10 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
                         <p className="text-sm leading-relaxed whitespace-pre-wrap">{msg.content}</p>
                     )}
 
+                    {msg.type === 'tool' && (
+                        <StandaloneToolBlock message={msg} />
+                    )}
+
                     {msg.type === 'ai' && (
                         <>
                             {/* Tool call blocks */}
@@ -145,6 +149,38 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
         </form>
       </div>
     </div>
+  );
+};
+
+function formatToolContent(content: string): string {
+  try { return JSON.stringify(JSON.parse(content), null, 2); } catch { return content; }
+}
+
+function isSatiTool(msg: Message): boolean {
+  return (
+    msg.session_id?.startsWith('sati-evaluation-') === true ||
+    msg.tool_name?.toLowerCase().includes('sati') === true
+  );
+}
+
+const StandaloneToolBlock: React.FC<{ message: Message }> = ({ message }) => {
+  const [open, setOpen] = React.useState(false);
+  const isSati = isSatiTool(message);
+  const label = isSati
+    ? (message.tool_name === 'sati_evaluation_output' ? 'Sati — memory analysis' : 'Sati — input')
+    : (message.tool_name ?? 'Tool result');
+
+  return (
+    <details open={open} onToggle={(e) => setOpen((e.target as HTMLDetailsElement).open)}
+      className="rounded-lg border border-gray-200 dark:border-matrix-primary/40 bg-gray-50 dark:bg-zinc-900 overflow-hidden">
+      <summary className="cursor-pointer px-3 py-2 text-xs font-medium text-gray-600 dark:text-matrix-secondary select-none list-none flex items-center gap-2">
+        <span className="text-base">{isSati ? '🧠' : '🔧'}</span>
+        {label}
+      </summary>
+      <pre className="px-3 pb-3 pt-1 whitespace-pre-wrap break-all text-xs font-mono text-gray-600 dark:text-matrix-secondary border-t border-gray-200 dark:border-matrix-primary/30 max-h-64 overflow-y-auto">
+        {formatToolContent(message.content)}
+      </pre>
+    </details>
   );
 };
 

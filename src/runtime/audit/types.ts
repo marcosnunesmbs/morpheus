@@ -14,7 +14,8 @@ export type AuditAgent =
   | 'trinity'
   | 'smith'
   | 'keymaker'
-  | 'chronos';
+  | 'chronos'
+  | 'sati';
 
 export type AuditStatus = 'success' | 'error';
 
