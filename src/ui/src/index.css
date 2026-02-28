@@ -2,24 +2,72 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ─── Theme: Matrix (default dark) ─────────────────────────────────────────── */
+:root {
+  --matrix-bg: 0 0 0;
+  --matrix-base: 13 2 8;
+  --matrix-primary: 0 59 0;
+  --matrix-secondary: 0 143 17;
+  --matrix-highlight: 0 255 65;
+  --matrix-text: 0 143 17;
+}
+
+/* ─── Theme: Dark Soft ──────────────────────────────────────────────────────── */
+[data-theme="dark-soft"] {
+  --matrix-bg: 30 30 46;
+  --matrix-base: 42 42 62;
+  --matrix-primary: 45 74 62;
+  --matrix-secondary: 134 239 172;
+  --matrix-highlight: 187 247 208;
+  --matrix-text: 134 239 172;
+}
+
+/* ─── Theme: Azure Dark ─────────────────────────────────────────────────────── */
+[data-theme="azure-dark"] {
+  --matrix-bg: 10 22 40;
+  --matrix-base: 15 29 50;
+  --matrix-primary: 30 58 95;
+  --matrix-secondary: 74 144 226;
+  --matrix-highlight: 124 185 245;
+  --matrix-text: 74 144 226;
+}
+
 @layer base {
   body {
-    @apply bg-azure-bg text-azure-text-primary font-mono dark:bg-black dark:text-matrix-secondary transition-colors duration-300;
+    @apply bg-azure-bg text-azure-text-primary font-mono dark:text-matrix-secondary transition-colors duration-300;
   }
-  
+
+  .dark body {
+    background-color: rgb(var(--matrix-bg));
+  }
+
   /* Custom Scrollbar */
   ::-webkit-scrollbar {
     width: 8px;
     height: 8px;
   }
   ::-webkit-scrollbar-track {
-    @apply bg-azure-bg dark:bg-black; 
+    @apply bg-azure-bg;
+  }
+  .dark ::-webkit-scrollbar-track {
+    background-color: rgb(var(--matrix-bg));
   }
   ::-webkit-scrollbar-thumb {
-    @apply bg-azure-border dark:bg-matrix-primary; 
+    @apply bg-azure-border dark:bg-matrix-primary;
   }
   ::-webkit-scrollbar-thumb:hover {
-    @apply bg-azure-secondary dark:bg-matrix-secondary; 
+    @apply bg-azure-secondary dark:bg-matrix-secondary;
   }
 }
 
+/* ─── Override dark:bg-black for non-matrix dark themes ────────────────────── */
+.dark[data-theme="dark-soft"] .dark\:bg-black,
+.dark[data-theme="azure-dark"] .dark\:bg-black {
+  background-color: rgb(var(--matrix-bg));
+}
+
+/* ─── Override dark:bg-zinc-900 for non-matrix dark themes ─────────────────── */
+.dark[data-theme="dark-soft"] .dark\:bg-zinc-900,
+.dark[data-theme="azure-dark"] .dark\:bg-zinc-900 {
+  background-color: rgb(var(--matrix-base));
+}

@@ -6,7 +6,9 @@ import {
   Activity,
   LayoutDashboard,
   Sun,
-  Moon,
+  MoonStar,
+  CloudMoon,
+  Monitor,
   LogOut,
   BarChart3,
   RotateCcw,
@@ -31,15 +33,43 @@ import { RestartConfirmationModal } from './RestartConfirmationModal';
 import { httpClient } from '../services/httpClient';
 import { taskService } from '../services/tasks';
 
+type Theme = 'matrix' | 'dark-soft' | 'azure' | 'azure-dark';
+const THEME_ORDER: Theme[] = ['matrix', 'dark-soft', 'azure', 'azure-dark'];
+const DARK_THEMES: Set<Theme> = new Set(['matrix', 'dark-soft', 'azure-dark']);
+
+const THEME_ICONS: Record<Theme, React.ComponentType<{ className?: string }>> = {
+  matrix: Monitor,
+  'dark-soft': CloudMoon,
+  azure: Sun,
+  'azure-dark': MoonStar,
+};
+
+const THEME_LABELS: Record<Theme, string> = {
+  matrix: 'Matrix',
+  'dark-soft': 'Dark Soft',
+  azure: 'Azure',
+  'azure-dark': 'Azure Dark',
+};
+
+function resolveInitialTheme(): Theme {
+  const saved = localStorage.getItem('theme');
+  if (saved === 'dark') return 'matrix';
+  if (saved === 'light') return 'azure';
+  if (saved && THEME_ORDER.includes(saved as Theme)) return saved as Theme;
+  return 'matrix';
+}
+
 export function Layout({ children }: { children: React.ReactNode }) {
   const location = useLocation();
-  const [isDark, setIsDark] = useState(() => {
-    const saved = localStorage.getItem('theme');
-    return saved ? saved === 'dark' : true; // Default to Matrix / Dark
-  });
+  const [theme, setTheme] = useState<Theme>(resolveInitialTheme);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isRestartModalOpen, setIsRestartModalOpen] = useState(false);
   const { logout } = useAuth();
+
+  const cycleTheme = () =>
+    setTheme(prev => THEME_ORDER[(THEME_ORDER.indexOf(prev) + 1) % THEME_ORDER.length]);
+
+  const ThemeIcon = THEME_ICONS[theme];
 
   const { data: unreadData } = useSWR(
     '/webhooks/notifications/unread-count',
@@ -66,14 +96,11 @@ export function Layout({ children }: { children: React.ReactNode }) {
   };
 
   useEffect(() => {
-    if (isDark) {
-      document.documentElement.classList.add('dark');
-      localStorage.setItem('theme', 'dark');
-    } else {
-      document.documentElement.classList.remove('dark');
-      localStorage.setItem('theme', 'light');
-    }
-  }, [isDark]);
+    const isDark = DARK_THEMES.has(theme);
+    document.documentElement.classList.toggle('dark', isDark);
+    document.documentElement.setAttribute('data-theme', theme);
+    localStorage.setItem('theme', theme);
+  }, [theme]);
 
   // Fecha o sidebar quando a rota muda em dispositivos móveis
   useEffect(() => {
@@ -122,8 +149,9 @@ export function Layout({ children }: { children: React.ReactNode }) {
       {/* Mobile Header */}
       <MobileHeader
         onMenuClick={() => setIsSidebarOpen(true)}
-        isDark={isDark}
-        toggleTheme={() => setIsDark(!isDark)}
+        themeIcon={ThemeIcon}
+        themeLabel={THEME_LABELS[theme]}
+        onThemeToggle={cycleTheme}
       />
 
       <div className="flex flex-1 overflow-hidden pt-16 lg:pt-0">
@@ -138,14 +166,11 @@ export function Layout({ children }: { children: React.ReactNode }) {
               MORPHEUS
             </h1>
             <button
-              onClick={() => setIsDark(!isDark)}
+              onClick={cycleTheme}
               className="p-1 rounded hover:bg-azure-hover dark:hover:bg-matrix-primary/50 text-azure-text-muted dark:text-matrix-secondary transition-colors"
+              title={THEME_LABELS[theme]}
             >
-              {isDark ? (
-                <Sun className="w-4 h-4" />
-              ) : (
-                <Moon className="w-4 h-4" />
-              )}
+              <ThemeIcon className="w-4 h-4" />
             </button>
           </div>
           <nav className="flex-1 p-2 space-y-0.5">
@@ -335,8 +360,10 @@ export function Layout({ children }: { children: React.ReactNode }) {
         <main className={`flex-1 p-4 md:p-8 relative flex flex-col ${location.pathname === '/chat' ? 'overflow-hidden' : 'overflow-auto'}`}>
           <div className={`w-full mx-auto flex-1 ${location.pathname === '/chat' ? 'h-full' : 'max-w-6xl'}`}>{children}</div>
 
-          {/* Scanline effect overlay (only in dark mode) */}
-          <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(rgba(18,16,16,0)_50%,rgba(0,0,0,0.1)_50%),linear-gradient(90deg,rgba(0,255,0,0.03),rgba(0,255,0,0.01))] bg-[length:100%_2px,3px_100%] opacity-0 dark:opacity-20 transition-opacity duration-300" />
+          {/* Scanline effect overlay (only in matrix theme) */}
+          {theme === 'matrix' && (
+            <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(rgba(18,16,16,0)_50%,rgba(0,0,0,0.1)_50%),linear-gradient(90deg,rgba(0,255,0,0.03),rgba(0,255,0,0.01))] bg-[length:100%_2px,3px_100%] opacity-20" />
+          )}
         </main>
       </div>
 

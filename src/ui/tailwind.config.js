@@ -24,12 +24,12 @@ export default {
           },
         },
         matrix: {
-          bg: '#000000',
-          base: '#0D0208',
-          primary: '#003B00',
-          secondary: '#008F11', // Darker Green
-          highlight: '#00FF41', // Bright Green
-          text: '#008F11',
+          bg: 'rgb(var(--matrix-bg) / <alpha-value>)',
+          base: 'rgb(var(--matrix-base) / <alpha-value>)',
+          primary: 'rgb(var(--matrix-primary) / <alpha-value>)',
+          secondary: 'rgb(var(--matrix-secondary) / <alpha-value>)',
+          highlight: 'rgb(var(--matrix-highlight) / <alpha-value>)',
+          text: 'rgb(var(--matrix-text) / <alpha-value>)',
         },
         zinc: {
            950: '#0c0c0c', 
