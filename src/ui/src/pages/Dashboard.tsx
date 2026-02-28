@@ -1,7 +1,7 @@
 import { useStatus } from '@/lib/api';
 import {
   Activity, Cpu, Clock, Brain, Box, LayoutDashboard,
-  ListChecks, Puzzle, HatGlasses, DollarSign,
+  ListChecks, Puzzle, HatGlasses, DollarSign, Wand2,
   ChevronRight, CheckCircle2, XCircle, LoaderCircle,
 } from 'lucide-react';
 import { motion } from 'framer-motion';
@@ -12,6 +12,7 @@ import useSWR from 'swr';
 import { taskService } from '../services/tasks';
 import { statsService } from '../services/stats';
 import { mcpService } from '../services/mcp';
+import { skillsService } from '../services/skills';
 import { httpClient } from '../services/httpClient';
 
 const container = { hidden: { opacity: 0 }, show: { opacity: 1, transition: { staggerChildren: 0.07 } } };
@@ -108,6 +109,11 @@ export function Dashboard() {
     () => httpClient.get('/api/chronos'),
     { refreshInterval: 30_000 },
   );
+  const { data: skillsData } = useSWR(
+    '/api/skills',
+    () => skillsService.fetchSkills(),
+    { refreshInterval: 60_000 },
+  );
   const { data: recentTasks = [] } = useSWR(
     ['/tasks', { limit: 5 }],
     () => taskService.list({ limit: 5 }),
@@ -141,6 +147,7 @@ export function Dashboard() {
   const mcpStatus      = (mcpStats?.totalTools ?? 0) > 0 ? 'ok' : 'neutral';
   const smithStatus    = (smithsData?.online ?? 0) > 0 ? 'ok' : (smithsData?.total ?? 0) > 0 ? 'warn' : 'neutral';
   const chronosStatus  = enabledJobs.length > 0 ? 'ok' : 'neutral';
+  const skillsStatus   = (skillsData?.enabled ?? 0) > 0 ? 'ok' : 'neutral';
 
   return (
     <motion.div className="space-y-6" variants={container} initial="hidden" animate="show">
@@ -231,16 +238,17 @@ export function Dashboard() {
       {/* ── Platform ────────────────────────────────────── */}
       <motion.div variants={item}>
         <p className="text-[10px] font-semibold uppercase tracking-wider text-azure-text-secondary dark:text-matrix-tertiary mb-3">Platform</p>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
 
-          <ModuleCard icon={ListChecks} title="Tasks" to="/tasks" status={taskStatus}>
-            <ModuleStat label="Running"   value={taskStats?.running   ?? '—'} highlight={!!taskStats?.running} />
-            <ModuleStat label="Pending"   value={taskStats?.pending   ?? '—'} />
-            <ModuleStat label="Completed" value={taskStats?.completed ?? '—'} />
-            {(taskStats?.failed ?? 0) > 0 && (
-              <ModuleStat label="Failed" value={taskStats!.failed} />
-            )}
+          <ModuleCard icon={Wand2} title="Skills" to="/skills" status={skillsStatus}>
+            <ModuleStat
+              label="Enabled"
+              value={skillsData ? `${skillsData.enabled} / ${skillsData.total}` : '—'}
+              highlight={(skillsData?.enabled ?? 0) > 0}
+            />
+            <ModuleStat label="Total" value={skillsData?.total ?? '—'} />
           </ModuleCard>
+
 
           <ModuleCard icon={Puzzle} title="MCP Servers" to="/mcp-servers" status={mcpStatus}>
             <ModuleStat label="Tools loaded" value={mcpStats?.totalTools ?? '—'} highlight={!!mcpStats?.totalTools} />
@@ -252,7 +260,7 @@ export function Dashboard() {
               />
             )}
           </ModuleCard>
-
+          
           <ModuleCard icon={HatGlasses} title="Smiths" to="/smiths" status={smithStatus}>
             <ModuleStat
               label="Online"
@@ -262,11 +270,22 @@ export function Dashboard() {
             <ModuleStat label="System" value={smithsData?.enabled ? 'enabled' : 'disabled'} />
           </ModuleCard>
 
+          <ModuleCard icon={ListChecks} title="Tasks" to="/tasks" status={taskStatus}>
+            <ModuleStat label="Running"   value={taskStats?.running   ?? '—'} highlight={!!taskStats?.running} />
+            <ModuleStat label="Pending"   value={taskStats?.pending   ?? '—'} />
+            <ModuleStat label="Completed" value={taskStats?.completed ?? '—'} />
+            {(taskStats?.failed ?? 0) > 0 && (
+              <ModuleStat label="Failed" value={taskStats!.failed} />
+            )}
+          </ModuleCard>
+
           <ModuleCard icon={Clock} title="Chronos" to="/chronos" status={chronosStatus}>
             <ModuleStat label="Active jobs" value={enabledJobs.length} highlight={enabledJobs.length > 0} />
             <ModuleStat label="Total jobs"  value={chronosJobs.length} />
             {nextRunIn && <ModuleStat label="Next run" value={`in ${nextRunIn}`} />}
           </ModuleCard>
+
+          
 
         </div>
       </motion.div>
