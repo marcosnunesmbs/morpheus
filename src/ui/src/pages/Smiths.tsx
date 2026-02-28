@@ -21,7 +21,6 @@ import {
   AlertCircle,
   RefreshCw,
   Lock,
-  Unlock,
 } from 'lucide-react';
 import { configService } from '../services/config';
 import { TextInput } from '../components/forms/TextInput';
@@ -513,14 +512,14 @@ export function SmithsPage() {
     }
   };
 
-  const smiths: SmithStatus[] = smithsList?.smiths ?? [];
+  const smiths: SmithStatus[] = (smithsList?.smiths ?? []) as SmithStatus[];
   const onlineCount = smiths.filter((s) => s.state === 'online').length;
   const offlineCount = smiths.filter((s) => s.state === 'offline' || s.state === 'error').length;
   const connectingCount = smiths.filter((s) => s.state === 'connecting').length;
 
   // Build a lookup for config entries (for TLS info etc.)
   const entryMap: Record<string, SmithEntry> = {};
-  (localConfig ?? smithsConfig)?.entries?.forEach((e) => { entryMap[e.name] = e; });
+  (localConfig ?? smithsConfig)?.entries?.forEach((e: SmithEntry) => { entryMap[e.name] = e; });
 
   return (
     <div className="space-y-6">

@@ -168,8 +168,8 @@ export default function Settings() {
     devkit: JSON.stringify(serverConfig?.devkit) !== JSON.stringify(localConfig?.devkit),
     audio: JSON.stringify(serverConfig?.audio) !== JSON.stringify(localConfig?.audio),
     channels:
-      JSON.stringify(serverConfig?.telegram) !== JSON.stringify(localConfig?.telegram) ||
-      JSON.stringify(serverConfig?.discord) !== JSON.stringify(localConfig?.discord) ||
+      JSON.stringify(serverConfig?.channels?.telegram) !== JSON.stringify(localConfig?.channels?.telegram) ||
+      JSON.stringify(serverConfig?.channels?.discord) !== JSON.stringify(localConfig?.channels?.discord) ||
       JSON.stringify((serverConfig as any)?.webhooks) !== JSON.stringify((localConfig as any)?.webhooks),
     ui: JSON.stringify(serverConfig?.ui) !== JSON.stringify(localConfig?.ui),
     logging: JSON.stringify(serverConfig?.logging) !== JSON.stringify(localConfig?.logging),
