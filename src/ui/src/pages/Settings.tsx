@@ -18,7 +18,7 @@ import type {
   TrinityConfig,
 } from '../../../types/config';
 import { ZodError } from 'zod';
-import { Settings as SettingsIcon } from 'lucide-react';
+import { Settings as SettingsIcon, X } from 'lucide-react';
 
 const TABS = [
   { id: 'general', label: 'General' },
@@ -26,8 +26,8 @@ const TABS = [
   { id: 'devkit', label: 'DevKit' },
   { id: 'audio', label: 'Audio' },
   { id: 'channels', label: 'Channels' },
-  { id: 'ui', label: 'Interface' },
-  { id: 'logging', label: 'Logging' },
+  // { id: 'ui', label: 'Interface' },
+  // { id: 'logging', label: 'Logging' },
   { id: 'chronos', label: 'Chronos' },
 ];
 
@@ -79,7 +79,6 @@ export default function Settings() {
 
   const { data: chronosServerConfig } = useChronosConfig();
   const [localChronosConfig, setLocalChronosConfig] = useState<ChronosConfig | null>(null);
-  const [chronosSaving, setChronosSaving] = useState(false);
 
   const [localConfig, setLocalConfig] = useState<MorpheusConfig | null>(null);
   const [localSatiConfig, setLocalSatiConfig] = useState<SatiConfig | null>(null);
@@ -153,7 +152,29 @@ export default function Settings() {
     JSON.stringify(satiServerConfig) !== JSON.stringify(localSatiConfig) ||
     JSON.stringify(neoServerConfig) !== JSON.stringify(localNeoConfig) ||
     JSON.stringify(apocServerConfig) !== JSON.stringify(localApocConfig) ||
-    JSON.stringify(trinityServerConfig) !== JSON.stringify(localTrinityConfig);
+    JSON.stringify(trinityServerConfig) !== JSON.stringify(localTrinityConfig) ||
+    JSON.stringify(chronosServerConfig) !== JSON.stringify(localChronosConfig);
+
+  const tabDirty: Record<string, boolean> = {
+    general:
+      JSON.stringify(serverConfig?.agent) !== JSON.stringify(localConfig?.agent) ||
+      serverConfig?.verbose_mode !== localConfig?.verbose_mode,
+    agents:
+      JSON.stringify(serverConfig?.llm) !== JSON.stringify(localConfig?.llm) ||
+      JSON.stringify(satiServerConfig) !== JSON.stringify(localSatiConfig) ||
+      JSON.stringify(neoServerConfig) !== JSON.stringify(localNeoConfig) ||
+      JSON.stringify(apocServerConfig) !== JSON.stringify(localApocConfig) ||
+      JSON.stringify(trinityServerConfig) !== JSON.stringify(localTrinityConfig),
+    devkit: JSON.stringify(serverConfig?.devkit) !== JSON.stringify(localConfig?.devkit),
+    audio: JSON.stringify(serverConfig?.audio) !== JSON.stringify(localConfig?.audio),
+    channels:
+      JSON.stringify(serverConfig?.telegram) !== JSON.stringify(localConfig?.telegram) ||
+      JSON.stringify(serverConfig?.discord) !== JSON.stringify(localConfig?.discord) ||
+      JSON.stringify((serverConfig as any)?.webhooks) !== JSON.stringify((localConfig as any)?.webhooks),
+    ui: JSON.stringify(serverConfig?.ui) !== JSON.stringify(localConfig?.ui),
+    logging: JSON.stringify(serverConfig?.logging) !== JSON.stringify(localConfig?.logging),
+    chronos: JSON.stringify(chronosServerConfig) !== JSON.stringify(localChronosConfig),
+  };
 
   /**
    * Renders encryption status badge for an agent's API key.
@@ -359,25 +380,26 @@ export default function Settings() {
         await configService.updateTrinityConfig(localTrinityConfig);
       }
 
+      if (localChronosConfig) {
+        await chronosService.updateConfig(localChronosConfig);
+      }
+
       mutate('/api/config');
       mutate('/api/config/sati');
       mutate('/api/config/neo');
       mutate('/api/config/apoc');
       mutate('/api/config/trinity');
+      mutate('/api/config/chronos');
+
+      setErrors({});
 
       // Check if restart is required for certain changes
       const restartRequired = result._restartRequired || [];
-      if (restartRequired.length > 0) {
-        setNotification({
-          type: 'success',
-          message: `Settings saved and applied. Some changes require restart: ${restartRequired.join(', ')}`,
-        });
-      } else {
-        setNotification({
-          type: 'success',
-          message: 'Settings saved and applied successfully.',
-        });
-      }
+      const msg = restartRequired.length > 0
+        ? `Settings saved and applied. Some changes require restart: ${restartRequired.join(', ')}`
+        : 'Settings saved and applied successfully.';
+      setNotification({ type: 'success', message: msg });
+      setTimeout(() => setNotification(null), 5000);
     } catch (err: any) {
       setNotification({ type: 'error', message: err.message });
       if (err.details && Array.isArray(err.details)) {
@@ -429,13 +451,21 @@ export default function Settings() {
 
       {notification && (
         <div
-          className={`p-4 rounded border ${
+          className={`flex items-start justify-between gap-3 p-4 rounded border ${
             notification.type === 'success'
               ? 'border-azure-primary text-azure-primary bg-azure-primary/10 dark:border-matrix-highlight dark:text-matrix-highlight dark:bg-matrix-highlight/10'
               : 'border-red-500 text-red-500 bg-red-900/10'
           }`}
         >
-          {notification.message}
+          <span className="text-sm">{notification.message}</span>
+          <button
+            type="button"
+            onClick={() => setNotification(null)}
+            className="shrink-0 opacity-60 hover:opacity-100 transition-opacity"
+            aria-label="Dismiss"
+          >
+            <X className="w-4 h-4" />
+          </button>
         </div>
       )}
 
@@ -446,13 +476,16 @@ export default function Settings() {
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
-              className={`px-4 py-2 text-sm font-medium rounded-t-md transition-colors flex-shrink-0 ${
+              className={`px-4 py-2 text-sm font-medium rounded-t-md transition-colors flex-shrink-0 flex items-center gap-1.5 ${
                 activeTab === tab.id
                   ? 'bg-azure-surface/50 text-azure-primary border-t border-x border-azure-border dark:bg-matrix-primary/20 dark:text-matrix-highlight dark:border-t dark:border-x dark:border-matrix-primary'
                   : 'text-azure-text-secondary hover:text-azure-primary dark:text-matrix-secondary dark:hover:text-matrix-highlight'
               }`}
             >
               {tab.label}
+              {tabDirty[tab.id] && (
+                <span className="w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0" />
+              )}
             </button>
           ))}
         </div>
@@ -1168,16 +1201,6 @@ export default function Settings() {
                         helperText="Base URL for OpenRouter API"
                       />
                     )}
-                    <TextInput
-                      label="Working Directory"
-                      value={(localApocConfig as any).working_dir || ''}
-                      onChange={(e) =>
-                        handleApocUpdate('working_dir' as any, e.target.value)
-                      }
-                      placeholder="(deprecated — use DevKit tab)"
-                      helperText="Deprecated: Use the DevKit tab's Sandbox Directory instead."
-                      disabled={true}
-                    />
                     <NumberInput
                       label="Timeout (ms)"
                       value={(localApocConfig as any).timeout_ms ?? 30000}
@@ -1623,27 +1646,6 @@ export default function Settings() {
               min={1}
               max={1000}
             />
-            <div className="flex justify-end pt-2">
-              <button
-                onClick={async () => {
-                  setChronosSaving(true);
-                  setNotification(null);
-                  try {
-                    await chronosService.updateConfig(localChronosConfig);
-                    mutate('/api/config/chronos');
-                    setNotification({ type: 'success', message: 'Chronos settings saved.' });
-                  } catch (err: any) {
-                    setNotification({ type: 'error', message: err.message });
-                  } finally {
-                    setChronosSaving(false);
-                  }
-                }}
-                disabled={chronosSaving}
-                className="px-4 py-2 rounded font-medium bg-azure-primary text-white hover:bg-azure-active dark:bg-matrix-highlight dark:text-black dark:hover:bg-matrix-highlight/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-              >
-                {chronosSaving ? 'Saving…' : 'Save Chronos Settings'}
-              </button>
-            </div>
           </Section>
         )}
 
