@@ -78,30 +78,25 @@ export const CostSummaryPanel: React.FC<CostSummaryPanelProps> = ({ summary }) =
       {summary.byModel.length > 0 && (
         <div className="rounded-lg border border-gray-200 dark:border-matrix-primary p-4 bg-white dark:bg-black">
           <h3 className="text-sm font-semibold text-gray-700 dark:text-matrix-highlight mb-3">By Model</h3>
-          <table className="w-full text-xs">
-            <thead>
-              <tr className="text-gray-400 dark:text-matrix-secondary/60 border-b border-gray-100 dark:border-matrix-primary/30">
-                <th className="text-left pb-1.5">Model</th>
-                <th className="text-right pb-1.5">Calls</th>
-                <th className="text-right pb-1.5">In</th>
-                <th className="text-right pb-1.5">Out</th>
-                <th className="text-right pb-1.5">Cost</th>
-              </tr>
-            </thead>
-            <tbody>
-              {summary.byModel.map((row) => (
-                <tr key={`${row.provider}/${row.model}`} className="border-b border-gray-50 dark:border-matrix-primary/10 last:border-0">
-                  <td className="py-1.5 font-mono text-gray-700 dark:text-matrix-secondary truncate max-w-[100px]" title={row.model}>
+          <div className="flex flex-col gap-2">
+            {summary.byModel.map((row) => (
+              <div key={`${row.provider}/${row.model}`} className="border-b border-gray-50 dark:border-matrix-primary/10 last:border-0 pb-2 last:pb-0">
+                <div className="flex items-start justify-between gap-2 mb-0.5">
+                  <span className="text-xs font-mono text-gray-700 dark:text-matrix-secondary break-all leading-snug">
                     {row.model}
-                  </td>
-                  <td className="py-1.5 text-right text-gray-500 dark:text-matrix-secondary/70 font-mono">{row.calls}</td>
-                  <td className="py-1.5 text-right text-gray-500 dark:text-matrix-secondary/70 font-mono">{row.inputTokens.toLocaleString()}</td>
-                  <td className="py-1.5 text-right text-gray-500 dark:text-matrix-secondary/70 font-mono">{row.outputTokens.toLocaleString()}</td>
-                  <td className="py-1.5 text-right text-gray-700 dark:text-matrix-highlight font-mono">{fmtCost(row.estimatedCostUsd)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+                  </span>
+                  <span className="text-xs font-mono text-gray-700 dark:text-matrix-highlight whitespace-nowrap shrink-0">
+                    {fmtCost(row.estimatedCostUsd)}
+                  </span>
+                </div>
+                <div className="text-[11px] text-gray-400 dark:text-matrix-secondary/60 font-mono flex flex-wrap gap-x-3">
+                  <span>{row.calls} calls</span>
+                  <span>in {row.inputTokens.toLocaleString()}</span>
+                  <span>out {row.outputTokens.toLocaleString()}</span>
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       )}
     </div>
