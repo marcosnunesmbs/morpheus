@@ -23,7 +23,7 @@ export const ToolCallBlock: React.FC<ToolCallBlockProps> = ({ group }) => {
   const isError = resultContent.startsWith('Error') || resultContent.startsWith('❌');
 
   return (
-    <div className="rounded-lg border border-gray-200 dark:border-matrix-primary/40 bg-white dark:bg-black overflow-hidden text-sm mb-1">
+    <div className="rounded-lg border border-gray-300 dark:border-matrix-primary/70 bg-white dark:bg-black overflow-hidden text-sm mb-1">
       <button
         onClick={() => setOpen(!open)}
         className="w-full flex items-center gap-2 px-3 py-1.5 text-left hover:bg-gray-50 dark:hover:bg-zinc-900/60 transition-colors"

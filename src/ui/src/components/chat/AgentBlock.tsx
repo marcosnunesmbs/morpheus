@@ -34,7 +34,7 @@ export const AgentBlock: React.FC<AgentBlockProps> = ({ group }) => {
   const smithName: string | null = group.call.args?.smith ?? null;
 
   return (
-    <div className={`rounded-lg border border-gray-200 dark:border-matrix-primary/40 overflow-hidden text-sm mb-1 ${meta.bgClass}`}>
+    <div className={`rounded-lg border border-gray-300 dark:border-matrix-primary/70 overflow-hidden text-sm mb-1 ${meta.bgClass}`}>
       <button
         onClick={() => setOpen(!open)}
         className="w-full flex items-center gap-2.5 px-3 py-2 text-left hover:brightness-95 dark:hover:brightness-110 transition-all"

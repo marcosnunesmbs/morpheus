@@ -57,7 +57,7 @@ const StandaloneToolBlock: React.FC<{ message: Message }> = ({ message }) => {
         <div className="flex-1 h-px bg-gray-200 dark:bg-matrix-primary/20" />
       </summary>
       {open && (
-        <pre className="mt-2 px-3 py-2.5 whitespace-pre-wrap break-all text-xs font-mono text-gray-600 dark:text-matrix-secondary/80 border border-gray-200 dark:border-matrix-primary/30 rounded-lg bg-gray-50 dark:bg-zinc-900 max-h-48 overflow-y-auto">
+        <pre className="mt-2 px-3 py-2.5 whitespace-pre-wrap break-all text-xs font-mono text-gray-600 dark:text-matrix-secondary/80 border border-gray-300 dark:border-matrix-primary/60 rounded-lg bg-gray-50 dark:bg-zinc-900 max-h-48 overflow-y-auto">
           {formatToolContent(message.content)}
         </pre>
       )}
@@ -110,7 +110,7 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
 
       {/* ── Mobile-only top bar ──────────────────────────────────── */}
       {onToggleSidebar && (
-        <div className="md:hidden flex items-center gap-3 px-4 py-3 shrink-0 bg-white dark:bg-black border-b border-gray-200 dark:border-matrix-primary/30">
+        <div className="md:hidden flex items-center gap-3 px-4 py-3 shrink-0 bg-white dark:bg-black border-b border-gray-300 dark:border-matrix-primary">
           <button
             onClick={onToggleSidebar}
             className="p-2 -ml-1 rounded-lg hover:bg-gray-100 dark:hover:bg-matrix-primary/20 text-gray-500 dark:text-matrix-secondary transition-colors"
@@ -175,7 +175,7 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
                       max-w-[85%] md:max-w-[72%] min-w-0
                       ${isHuman
                         ? 'bg-azure-primary text-white dark:bg-matrix-primary dark:text-black rounded-2xl rounded-br-sm px-4 py-2.5'
-                        : 'bg-gray-50 dark:bg-zinc-900 border border-gray-200 dark:border-matrix-primary/40 text-gray-800 dark:text-matrix-secondary rounded-2xl rounded-bl-sm px-4 py-3'
+                        : 'bg-gray-50 dark:bg-zinc-900 border border-gray-300 dark:border-matrix-primary/60 text-gray-800 dark:text-matrix-secondary rounded-2xl rounded-bl-sm px-4 py-3'
                       }
                     `}
                   >
@@ -244,7 +244,7 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
                 <div className="w-7 h-7 rounded-full flex-shrink-0 flex items-center justify-center bg-azure-primary/10 text-azure-primary dark:bg-matrix-primary/20 dark:text-matrix-highlight mb-0.5">
                   <Bot size={14} />
                 </div>
-                <div className="bg-gray-50 dark:bg-zinc-900 border border-gray-200 dark:border-matrix-primary/40 rounded-2xl rounded-bl-sm px-4 py-3 flex items-center gap-1.5">
+                <div className="bg-gray-50 dark:bg-zinc-900 border border-gray-300 dark:border-matrix-primary/60 rounded-2xl rounded-bl-sm px-4 py-3 flex items-center gap-1.5">
                   <span className="w-1.5 h-1.5 rounded-full bg-azure-primary dark:bg-matrix-highlight animate-bounce" style={{ animationDelay: '0ms' }} />
                   <span className="w-1.5 h-1.5 rounded-full bg-azure-primary dark:bg-matrix-highlight animate-bounce" style={{ animationDelay: '160ms' }} />
                   <span className="w-1.5 h-1.5 rounded-full bg-azure-primary dark:bg-matrix-highlight animate-bounce" style={{ animationDelay: '320ms' }} />
@@ -256,7 +256,7 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
           </div>
 
           {/* ── Input area ──────────────────────────────────────── */}
-          <div className="shrink-0 px-4 pt-3 pb-4 bg-white dark:bg-black border-t border-gray-200 dark:border-matrix-primary/30">
+          <div className="shrink-0 px-4 pt-3 pb-4 bg-white dark:bg-black border-t border-gray-300 dark:border-matrix-primary">
             <form
               onSubmit={(e) => { e.preventDefault(); handleSend(); }}
               className="max-w-3xl mx-auto flex items-end gap-2"
@@ -272,7 +272,7 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
                 className="
                   flex-1 resize-none max-h-40 overflow-y-auto
                   bg-gray-100 dark:bg-zinc-900
-                  border border-gray-200 dark:border-matrix-primary/40
+                  border border-gray-300 dark:border-matrix-primary/60
                   rounded-xl px-4 py-3
                   text-sm leading-relaxed
                   text-gray-800 dark:text-matrix-secondary

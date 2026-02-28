@@ -71,7 +71,7 @@ export const SessionList: React.FC<SessionListProps> = ({
   /* ── Collapsed (icon strip) ─────────────────────────────────── */
   if (!isOpen) {
     return (
-      <div className="w-14 bg-white dark:bg-black border-r border-gray-200 dark:border-matrix-primary/30 flex flex-col items-center py-3 gap-3 shrink-0 transition-colors duration-300">
+      <div className="w-14 bg-white dark:bg-black border-r border-gray-300 dark:border-matrix-primary flex flex-col items-center py-3 gap-3 shrink-0 transition-colors duration-300">
         <button
           onClick={toggleSidebar}
           className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-matrix-primary/20 text-gray-400 dark:text-matrix-secondary/60 transition-colors"
@@ -93,10 +93,10 @@ export const SessionList: React.FC<SessionListProps> = ({
 
   /* ── Expanded ────────────────────────────────────────────────── */
   return (
-    <div className="w-72 bg-white dark:bg-black border-r border-gray-200 dark:border-matrix-primary/30 flex flex-col h-full shrink-0 transition-colors duration-300">
+    <div className="w-72 bg-white dark:bg-black border-r border-gray-300 dark:border-matrix-primary flex flex-col h-full shrink-0 transition-colors duration-300">
 
       {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 dark:border-matrix-primary/30 shrink-0">
+      <div className="flex items-center justify-between px-4 py-3 border-b border-gray-300 dark:border-matrix-primary shrink-0">
         <span className="text-sm font-semibold text-gray-800 dark:text-matrix-highlight">Sessions</span>
         <button
           onClick={toggleSidebar}
