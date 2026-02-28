@@ -418,6 +418,7 @@ export function SmithsPage() {
   const [modalError, setModalError] = useState<string | null>(null);
 
   const [notification, setNotification] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
 
   // Sync config to local state when loaded
   if (smithsConfig && !localConfig) {
@@ -549,11 +550,19 @@ export function SmithsPage() {
 
         <div className="flex items-center gap-2">
           <button
-            onClick={() => { mutateList(); mutateConfig(); }}
+            onClick={async () => {
+              setRefreshing(true);
+              await Promise.all([
+                mutateList(),
+                mutateConfig(),
+                new Promise((r) => setTimeout(r, 500)),
+              ]);
+              setRefreshing(false);
+            }}
             className="p-2 rounded border border-azure-border dark:border-matrix-primary text-azure-text-secondary dark:text-matrix-secondary hover:text-azure-primary dark:hover:text-matrix-highlight transition-colors"
             title="Refresh"
           >
-            <RefreshCw className="w-4 h-4" />
+            <RefreshCw className={`w-4 h-4 transition-transform ${refreshing ? 'animate-spin' : ''}`} />
           </button>
           <button
             onClick={() => { setConfigOpen(!configOpen); if (!localConfig && smithsConfig) setLocalConfig(smithsConfig); }}
