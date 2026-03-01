@@ -9,6 +9,7 @@ import { TaskRequestContext } from "../tasks/context.js";
 import { DisplayManager } from "../display.js";
 import { SkillRegistry } from "./registry.js";
 import { executeKeymakerTask } from "../keymaker.js";
+import { AuditRepository } from "../audit/repository.js";
 
 // ============================================================================
 // skill_execute - Synchronous execution
@@ -80,6 +81,31 @@ export const SkillExecuteTool = tool(
       display.log(`Skill "${skillName}" completed successfully.`, {
         source: "SkillExecuteTool",
         level: "info",
+      });
+
+      // Emit audit events for sync execution (async path is handled by TaskWorker)
+      const audit = AuditRepository.getInstance();
+      if (result.usage && (result.usage.inputTokens > 0 || result.usage.outputTokens > 0)) {
+        audit.insert({
+          session_id: sessionId,
+          event_type: 'llm_call',
+          agent: 'keymaker',
+          provider: result.usage.provider,
+          model: result.usage.model,
+          input_tokens: result.usage.inputTokens,
+          output_tokens: result.usage.outputTokens,
+          duration_ms: result.usage.durationMs,
+          status: 'success',
+          metadata: { step_count: result.usage.stepCount },
+        });
+      }
+      audit.insert({
+        session_id: sessionId,
+        event_type: 'skill_executed',
+        agent: 'keymaker',
+        tool_name: skillName,
+        duration_ms: result.usage?.durationMs,
+        status: 'success',
       });
 
       return result;
