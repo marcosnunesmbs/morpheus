@@ -68,6 +68,17 @@ export default defineConfig({
   build: {
     outDir: '../../dist/ui',
     emptyOutDir: true,
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          'vendor-react': ['react', 'react-dom', 'react-router-dom'],
+          'vendor-motion': ['framer-motion'],
+          'vendor-markdown': ['react-markdown', 'remark-gfm'],
+          'vendor-icons': ['lucide-react'],
+          'vendor-utils': ['swr', 'zod', 'clsx', 'tailwind-merge'],
+        },
+      },
+    },
   },
   server: {
     proxy: {

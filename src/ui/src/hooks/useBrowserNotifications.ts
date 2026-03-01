@@ -82,6 +82,7 @@ export function useBrowserNotifications() {
         const body = latest.content.replace(/[#*`[\]]/g, '').trim().slice(0, 120);
         const notif = new Notification('Morpheus', {
           body: body || 'Nova resposta do agente',
+          icon: '/pwa-192x192.png',
           tag: 'morpheus-chat',
           requireInteraction: true,
         });
@@ -129,6 +130,7 @@ export function useBrowserNotifications() {
           : `Webhook: ${latest.webhook_name}`;
         const notif = new Notification(`Morpheus — Webhook ✓`, {
           body,
+          icon: '/pwa-192x192.png',
           tag: 'morpheus-webhook',
           requireInteraction: true,
         });
@@ -176,6 +178,7 @@ export function useBrowserNotifications() {
         const promptPreview = latest.job_prompt.slice(0, 80);
         const notif = new Notification(`Morpheus — Chronos ${statusEmoji}`, {
           body: promptPreview || 'Job executado',
+          icon: '/pwa-192x192.png',
           tag: 'morpheus-chronos',
           requireInteraction: true,
         });
