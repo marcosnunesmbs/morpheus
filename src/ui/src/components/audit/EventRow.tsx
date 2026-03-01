@@ -1,5 +1,5 @@
-import React from 'react';
-import { Zap, Wrench, Globe, CheckCircle, XCircle, Clock, Bot, Play, Brain, Mic } from 'lucide-react';
+import React, { useState } from 'react';
+import { Zap, Wrench, Globe, CheckCircle, XCircle, Clock, Bot, Play, Brain, Mic, ChevronRight, ChevronDown } from 'lucide-react';
 import type { AuditEvent } from '../../services/audit';
 
 interface EventRowProps {
@@ -28,6 +28,19 @@ const EVENT_COLORS: Record<string, string> = {
   chronos_job: 'text-orange-500 dark:text-orange-400',
   memory_recovery: 'text-emerald-600 dark:text-emerald-400',
   telephonist: 'text-rose-500 dark:text-rose-400',
+};
+
+// Left-border accent colour for the expanded metadata panel
+const META_BORDER_COLORS: Record<string, string> = {
+  llm_call: 'border-blue-300 dark:border-blue-500/40',
+  tool_call: 'border-amber-300 dark:border-amber-500/40',
+  mcp_tool: 'border-purple-300 dark:border-purple-500/40',
+  task_created: 'border-gray-300 dark:border-matrix-primary/40',
+  task_completed: 'border-green-300 dark:border-matrix-highlight/40',
+  skill_executed: 'border-teal-300 dark:border-teal-500/40',
+  chronos_job: 'border-orange-300 dark:border-orange-500/40',
+  memory_recovery: 'border-emerald-300 dark:border-emerald-500/40',
+  telephonist: 'border-rose-300 dark:border-rose-500/40',
 };
 
 const AGENT_EMOJIS: Record<string, string> = {
@@ -73,14 +86,70 @@ function fmtTokens(input: number | null, output: number | null): string {
   return `↑${i.toLocaleString()} ↓${o.toLocaleString()}`;
 }
 
+function prettyValue(v: unknown): string {
+  if (typeof v === 'string') return v;
+  return JSON.stringify(v, null, 2);
+}
+
+function MetaPanel({ parsedMeta, eventType }: { parsedMeta: Record<string, unknown>; eventType: string }) {
+  const isToolEvent = eventType === 'tool_call' || eventType === 'mcp_tool';
+  const { args, result, ...rest } = parsedMeta as { args?: unknown; result?: unknown; [k: string]: unknown };
+
+  if (isToolEvent && (args !== undefined || result !== undefined)) {
+    return (
+      <div className="space-y-2">
+        {args !== undefined && (
+          <div>
+            <p className="text-[10px] font-semibold uppercase tracking-widest text-gray-400 dark:text-matrix-secondary/50 mb-1">
+              args
+            </p>
+            <pre className="text-[11px] font-mono text-gray-600 dark:text-matrix-secondary bg-gray-50 dark:bg-zinc-900 rounded p-2 overflow-x-auto whitespace-pre-wrap break-words max-h-40 overflow-y-auto">
+              {prettyValue(args)}
+            </pre>
+          </div>
+        )}
+        {result !== undefined && (
+          <div>
+            <p className="text-[10px] font-semibold uppercase tracking-widest text-gray-400 dark:text-matrix-secondary/50 mb-1">
+              result
+            </p>
+            <pre className="text-[11px] font-mono text-gray-600 dark:text-matrix-secondary bg-gray-50 dark:bg-zinc-900 rounded p-2 overflow-x-auto whitespace-pre-wrap break-words max-h-48 overflow-y-auto">
+              {prettyValue(result)}
+            </pre>
+          </div>
+        )}
+        {Object.keys(rest).length > 0 && (
+          <pre className="text-[11px] font-mono text-gray-600 dark:text-matrix-secondary bg-gray-50 dark:bg-zinc-900 rounded p-2 overflow-x-auto whitespace-pre-wrap break-words">
+            {JSON.stringify(rest, null, 2)}
+          </pre>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <pre className="text-[11px] font-mono text-gray-600 dark:text-matrix-secondary bg-gray-50 dark:bg-zinc-900 rounded p-2 overflow-x-auto whitespace-pre-wrap break-words max-h-48 overflow-y-auto">
+      {JSON.stringify(parsedMeta, null, 2)}
+    </pre>
+  );
+}
+
 export const EventRow: React.FC<EventRowProps> = ({ event }) => {
+  const [open, setOpen] = useState(false);
+
   const icon = EVENT_ICONS[event.event_type] ?? <Wrench size={14} />;
   const colorClass = EVENT_COLORS[event.event_type] ?? 'text-gray-500';
+  const metaBorderClass = META_BORDER_COLORS[event.event_type] ?? 'border-gray-300 dark:border-matrix-primary/40';
   const agentBadge = event.agent ? (AGENT_BADGES[event.agent] ?? 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300') : null;
   const agentEmoji = event.agent ? AGENT_EMOJIS[event.agent] : undefined;
   const agentLabel = agentEmoji ? `${event.agent?.toUpperCase()} ${agentEmoji}` : event.agent?.toUpperCase() || null;
 
-  const parsedMeta = event.metadata ? JSON.parse(event.metadata) : null;
+  const parsedMeta: Record<string, unknown> | null = (() => {
+    try { return event.metadata ? JSON.parse(event.metadata) : null; } catch { return null; }
+  })();
+
+  const hasExpandableMeta = parsedMeta !== null && Object.keys(parsedMeta).length > 0;
+
   const label = event.event_type === 'memory_recovery'
     ? `${parsedMeta?.memories_count ?? 0} memories retrieved`
     : event.event_type === 'telephonist'
@@ -88,10 +157,13 @@ export const EventRow: React.FC<EventRowProps> = ({ event }) => {
           const secs = parsedMeta?.audio_duration_seconds;
           const preview = parsedMeta?.text_preview;
           const dur = secs != null ? `${secs}s` : '';
-          const txt = preview ? `"${preview.length > 60 ? preview.slice(0, 60) + '…' : preview}"` : '';
+          const txt = typeof preview === 'string' && preview
+            ? `"${preview.length > 60 ? preview.slice(0, 60) + '…' : preview}"`
+            : '';
           return [dur, txt].filter(Boolean).join(' · ') || 'audio transcription';
         })()
       : (event.tool_name ?? event.model ?? event.event_type);
+
   const isTelephonist = event.event_type === 'telephonist';
   const audioDurationSecs = parsedMeta?.audio_duration_seconds;
   const tokens = isTelephonist
@@ -106,13 +178,30 @@ export const EventRow: React.FC<EventRowProps> = ({ event }) => {
       ? <CheckCircle size={14} className="text-green-500 dark:text-matrix-highlight flex-shrink-0" />
       : null;
 
+  // Chevron toggle slot — always 14px wide so layout doesn't shift
+  const chevron = (
+    <span className={`flex-shrink-0 w-3.5 flex items-center justify-center transition-colors ${
+      hasExpandableMeta
+        ? 'text-gray-300 dark:text-matrix-secondary/30 hover:text-gray-500 dark:hover:text-matrix-secondary cursor-pointer'
+        : 'text-transparent pointer-events-none'
+    }`}>
+      {open ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
+    </span>
+  );
+
+  const handleToggle = () => { if (hasExpandableMeta) setOpen(o => !o); };
+
   return (
     <div className="py-2 px-3 rounded-lg hover:bg-gray-50 dark:hover:bg-zinc-900/60 transition-colors border-b border-gray-100 dark:border-matrix-primary/20 last:border-0">
 
       {/* Mobile layout — 2 lines */}
       <div className="flex flex-col gap-0.5 md:hidden">
-        {/* Line 1: icon + badge + label + status */}
-        <div className="flex items-center gap-2 min-w-0">
+        {/* Line 1: chevron + icon + badge + label + status */}
+        <div
+          className={`flex items-center gap-2 min-w-0 ${hasExpandableMeta ? 'cursor-pointer' : ''}`}
+          onClick={handleToggle}
+        >
+          {chevron}
           <span className={`flex-shrink-0 ${colorClass}`}>{icon}</span>
           {agentBadge && (
             <span className={`flex-shrink-0 text-xs font-semibold px-1.5 py-0.5 rounded ${agentBadge}`}>
@@ -133,7 +222,11 @@ export const EventRow: React.FC<EventRowProps> = ({ event }) => {
       </div>
 
       {/* Desktop layout — single line */}
-      <div className="hidden md:flex items-center gap-3">
+      <div
+        className={`hidden md:flex items-center gap-3 ${hasExpandableMeta ? 'cursor-pointer' : ''}`}
+        onClick={handleToggle}
+      >
+        {chevron}
         <span className={`flex-shrink-0 ${colorClass}`}>{icon}</span>
         {agentBadge && (
           <span className={`flex-shrink-0 text-xs font-semibold px-1.5 py-0.5 rounded ${agentBadge}`}>
@@ -156,6 +249,13 @@ export const EventRow: React.FC<EventRowProps> = ({ event }) => {
           {cost}
         </span>
       </div>
+
+      {/* Metadata panel — shown when expanded */}
+      {open && hasExpandableMeta && parsedMeta && (
+        <div className={`mt-1.5 ml-5 pl-3 border-l-2 ${metaBorderClass}`}>
+          <MetaPanel parsedMeta={parsedMeta} eventType={event.event_type} />
+        </div>
+      )}
 
     </div>
   );
