@@ -185,6 +185,7 @@ export class ConfigManager {
         memory_limit: config.sati.memory_limit !== undefined ? resolveNumeric('MORPHEUS_SATI_MEMORY_LIMIT', config.sati.memory_limit, config.sati.memory_limit!) : undefined,
         enabled_archived_sessions: resolveBoolean('MORPHEUS_SATI_ENABLED_ARCHIVED_SESSIONS', config.sati.enabled_archived_sessions, true),
         similarity_threshold: resolveNumeric('MORPHEUS_SATI_SIMILARITY_THRESHOLD', config.sati.similarity_threshold, 0.9),
+        evaluation_interval: resolveNumeric('MORPHEUS_SATI_EVALUATION_INTERVAL', config.sati.evaluation_interval, 1),
       };
     }
 

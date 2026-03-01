@@ -59,6 +59,8 @@ export interface SatiConfig extends LLMConfig {
   memory_limit?: number;
   enabled_archived_sessions?: boolean;
   similarity_threshold?: number;
+  /** Number of Oracle turns between Sati memory evaluations. Default: 1 (every turn). */
+  evaluation_interval?: number;
 }
 
 export type SubAgentExecutionMode = 'sync' | 'async';
@@ -235,6 +237,7 @@ export const DEFAULT_CONFIG: MorpheusConfig = {
     memory_limit: 100,
     enabled_archived_sessions: true,
     similarity_threshold: 0.9,
+    evaluation_interval: 1,
   },
   devkit: {
     sandbox_dir: '',

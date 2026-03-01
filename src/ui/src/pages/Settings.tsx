@@ -771,6 +771,19 @@ export default function Settings() {
                       step={1}
                       helperText="Number of memory items to retrieve from long-term storage."
                     />
+                    <NumberInput
+                      label="Evaluation Interval"
+                      value={(localSatiConfig as any).evaluation_interval ?? 1}
+                      onChange={(e: any) =>
+                        handleSatiUpdate(
+                          'evaluation_interval' as any,
+                          parseInt(e.target.value)
+                        )
+                      }
+                      min={1}
+                      step={1}
+                      helperText="Oracle turns between memory evaluations. Default: 1 (every turn). Evaluation also runs automatically when context window is full."
+                    />
                     <Switch
                       label="Enable Archived Sessions in Memory Retrieval"
                       checked={localSatiConfig.enabled_archived_sessions ?? true}
@@ -801,7 +814,8 @@ export default function Settings() {
                           accent-azure-primary dark:accent-matrix-highlight"
                       />
                       <p className="mt-1.5 text-xs text-gray-400 dark:text-matrix-secondary/50">
-                        Minimum cosine similarity to consider a memory relevant (0–1). Valores menores recuperam mais memórias, mas podem aumentar o consumo de tokens.
+                        Minimum cosine similarity to consider a memory relevant (0–1).
+                      Lower values retrieve more memories, but may increase token consumption.
                       </p>
                     </div>
                   </>

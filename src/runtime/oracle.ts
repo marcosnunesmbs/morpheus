@@ -41,6 +41,8 @@ export class Oracle implements IOracle {
   private taskRepository = TaskRepository.getInstance();
   private databasePath?: string;
   private satiMiddleware = SatiMemoryMiddleware.getInstance();
+  /** Turn counter per session — tracks how many chat() calls have occurred per session ID. */
+  private satiTurnCounters: Map<string, number> = new Map();
 
   constructor(config?: MorpheusConfig, overrides?: { databasePath?: string }) {
     this.config = config || ConfigManager.getInstance().get();
@@ -577,8 +579,23 @@ Use it to inform your response and tool selection (if needed), but do not assume
 
       // Sati Middleware: skip memory evaluation for delegation-only acknowledgements.
       if (!delegatedThisTurn && !blockedSyntheticDelegationAck) {
-        this.satiMiddleware.afterAgent(responseContent, [...previousMessages, userMessage], currentSessionId)
-          .catch((e: any) => this.display.log(`Sati memory evaluation failed: ${e.message}`, { source: 'Sati' }));
+        const sessionKey = currentSessionId ?? 'default';
+        const turnCount = (this.satiTurnCounters.get(sessionKey) ?? 0) + 1;
+        this.satiTurnCounters.set(sessionKey, turnCount);
+
+        const satiCfg = ConfigManager.getInstance().getSatiConfig();
+        const evalInterval = satiCfg.evaluation_interval ?? 1;
+        const contextWindow = this.config.llm?.context_window ?? this.config.memory?.limit ?? 100;
+        const shouldEval = (turnCount % evalInterval === 0) || (previousMessages.length >= contextWindow);
+
+        if (shouldEval) {
+          this.display.log(
+            `Sati eval triggered (turn ${turnCount}, interval ${evalInterval}, history ${previousMessages.length}/${contextWindow})`,
+            { source: 'Sati', level: 'debug' }
+          );
+          this.satiMiddleware.afterAgent(responseContent, [...previousMessages, userMessage], currentSessionId)
+            .catch((e: any) => this.display.log(`Sati memory evaluation failed: ${e.message}`, { source: 'Sati' }));
+        }
       }
 
       return responseContent;
