@@ -116,7 +116,7 @@ export function Dashboard() {
   );
   const { data: recentTasks = [] } = useSWR(
     ['/tasks', { limit: 5 }],
-    () => taskService.list({ limit: 5 }),
+    () => taskService.list({ limit: 5 }) as Promise<import('../services/tasks').TaskRecord[]>,
     { refreshInterval: 5_000 },
   );
 

@@ -96,11 +96,21 @@ export function createWebhooksRouter(): Router {
 
   router.get('/notifications', authMiddleware, (req, res) => {
     try {
-      const { webhookId, unreadOnly } = req.query;
-      const notifications = repo.listNotifications({
+      const { webhookId, unreadOnly, status, page: pageRaw, per_page: perPageRaw } = req.query;
+      const filters = {
         webhookId: typeof webhookId === 'string' ? webhookId : undefined,
         unreadOnly: unreadOnly === 'true',
-      });
+        status: typeof status === 'string' && status !== 'all' ? (status as any) : undefined,
+      };
+
+      if (pageRaw !== undefined || perPageRaw !== undefined) {
+        const page = Math.max(1, parseInt(String(pageRaw ?? '1'), 10) || 1);
+        const per_page = Math.min(100, Math.max(1, parseInt(String(perPageRaw ?? '20'), 10) || 20));
+        const result = repo.listNotificationsPaginated({ ...filters, page, per_page });
+        return res.json(result);
+      }
+
+      const notifications = repo.listNotifications(filters);
       res.json(notifications);
     } catch (err: any) {
       res.status(500).json({ error: err.message });

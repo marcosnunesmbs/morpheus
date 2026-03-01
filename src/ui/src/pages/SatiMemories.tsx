@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   Table,
   TableBody,
@@ -21,6 +21,7 @@ import { MemoryDetailModal } from '../components/dashboard/MemoryDetailModal';
 import { DeleteConfirmationModal } from '../components/dashboard/DeleteConfirmationModal';
 import { Trash2, Search, Calendar, Eye, Activity } from 'lucide-react';
 import { useApi } from '../hooks/useApi';
+import { Pagination } from '../components/Pagination';
 
 interface Memory {
   id: string;
@@ -45,6 +46,10 @@ export const SatiMemories: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterCategory, setFilterCategory] = useState('all');
   const [filterImportance, setFilterImportance] = useState('all');
+  const [page, setPage] = useState(1);
+  const [perPage, setPerPage] = useState(20);
+  const [total, setTotal] = useState(0);
+  const [totalPages, setTotalPages] = useState(1);
   const [error, setError] = useState<string | null>(null);
   const [showDeleteConfirmation, setShowDeleteConfirmation] = useState(false);
   const [selectedMemory, setSelectedMemory] = useState<Memory | null>(null);
@@ -55,15 +60,17 @@ export const SatiMemories: React.FC = () => {
 
   const { get, del, post } = useApi();
 
-  useEffect(() => {
-    fetchMemories();
-  }, []);
-
-  const fetchMemories = async () => {
+  const fetchMemories = useCallback(async (pageNum = page, perPageNum = perPage) => {
     try {
       setLoading(true);
-      const data = await get('/sati/memories');
-      setMemories(data);
+      const qs = new URLSearchParams({ page: String(pageNum), per_page: String(perPageNum) });
+      if (filterCategory !== 'all') qs.set('category', filterCategory);
+      if (filterImportance !== 'all') qs.set('importance', filterImportance);
+      if (searchTerm.trim()) qs.set('search', searchTerm.trim());
+      const data = await get(`/sati/memories?${qs}`);
+      setMemories(data.data ?? data);
+      setTotal(data.total ?? 0);
+      setTotalPages(data.total_pages ?? 1);
       setError(null);
     } catch (err) {
       setError('Failed to load memories. Please try again.');
@@ -71,13 +78,17 @@ export const SatiMemories: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [page, perPage, filterCategory, filterImportance, searchTerm]);
+
+  useEffect(() => {
+    fetchMemories(page, perPage);
+  }, [page, perPage, filterCategory, filterImportance, searchTerm]);
 
   const handleSelectAll = () => {
-    if (selectedMemories.length === filteredMemories.length) {
+    if (selectedMemories.length === memories.length) {
       setSelectedMemories([]);
     } else {
-      setSelectedMemories(filteredMemories.map((mem) => mem.id));
+      setSelectedMemories(memories.map((mem) => mem.id));
     }
   };
 
@@ -94,8 +105,8 @@ export const SatiMemories: React.FC = () => {
 
     try {
       await post('/sati/memories/bulk-delete', { ids: selectedMemories });
-      await fetchMemories(); // Refresh the list
-      setSelectedMemories([]); // Clear selections
+      await fetchMemories(page, perPage);
+      setSelectedMemories([]);
       setShowDeleteConfirmation(false);
     } catch (err) {
       setError('Failed to delete memories. Please try again.');
@@ -113,7 +124,7 @@ export const SatiMemories: React.FC = () => {
 
     try {
       await del(`/sati/memories/${memoryToDelete}`);
-      await fetchMemories(); // Refresh the list
+      await fetchMemories(page, perPage);
     } catch (err) {
       setError('Failed to delete memory. Please try again.');
       console.error('Error deleting memory:', err);
@@ -128,30 +139,15 @@ export const SatiMemories: React.FC = () => {
     setShowDetailModal(true);
   };
 
-  // Filter memories based on search term and filters
-  const filteredMemories = memories.filter((memory) => {
-    const matchesSearch =
-      memory.summary.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      memory.details?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      memory.category.toLowerCase().includes(searchTerm.toLowerCase());
 
-    const matchesCategory =
-      filterCategory === 'all' || memory.category === filterCategory;
-    const matchesImportance =
-      filterImportance === 'all' || memory.importance === filterImportance;
+  const categoryOptions = [
+    'preference', 'project', 'identity', 'constraint', 'context',
+    'personal_data', 'languages', 'favorite_things', 'relationships',
+    'pets', 'naming', 'professional_profile',
+  ];
+  const importanceOptions = ['low', 'medium', 'high'];
 
-    return (
-      matchesSearch && matchesCategory && matchesImportance && !memory.archived
-    );
-  });
-
-  // Get unique categories and importance levels for filters
-  const categories = Array.from(new Set(memories.map((mem) => mem.category)));
-  const importanceLevels = Array.from(
-    new Set(memories.map((mem) => mem.importance))
-  );
-
-  if (loading) {
+  if (loading && memories.length === 0) {
     return (
       <Card className="w-full">
         <CardContent className="flex justify-center items-center h-64">
@@ -181,6 +177,7 @@ export const SatiMemories: React.FC = () => {
             <span className="text-sm text-azure-text-muted dark:text-matrix-secondary">
               {selectedMemories.length} selected
             </span>
+
             <Button
               variant="destructive"
               size="sm"
@@ -209,7 +206,7 @@ export const SatiMemories: React.FC = () => {
                 type="text"
                 placeholder="Search memories..."
                 value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
+                onChange={(e) => { setSearchTerm(e.target.value); setPage(1); }}
                 className="w-full pl-10 pr-4 py-2 bg-azure-surface dark:bg-black border border-azure-border dark:border-matrix-primary rounded-md text-azure-text-primary dark:text-matrix-secondary focus:outline-none focus:ring-2 focus:ring-azure-primary dark:focus:ring-matrix-highlight"
               />
             </div>
@@ -217,27 +214,23 @@ export const SatiMemories: React.FC = () => {
             <div className="flex flex-col sm:flex-row gap-2 w-full">
               <select
                 value={filterCategory}
-                onChange={(e) => setFilterCategory(e.target.value)}
+                onChange={(e) => { setFilterCategory(e.target.value); setPage(1); }}
                 className="px-3 py-2 bg-azure-surface dark:bg-black border border-azure-border dark:border-matrix-primary rounded-md text-azure-text-primary dark:text-matrix-secondary focus:outline-none focus:ring-2 focus:ring-azure-primary dark:focus:ring-matrix-highlight flex-grow"
               >
                 <option value="all">All Categories</option>
-                {categories.map((cat) => (
-                  <option key={cat} value={cat}>
-                    {cat}
-                  </option>
+                {categoryOptions.map((cat) => (
+                  <option key={cat} value={cat}>{cat}</option>
                 ))}
               </select>
 
               <select
                 value={filterImportance}
-                onChange={(e) => setFilterImportance(e.target.value)}
+                onChange={(e) => { setFilterImportance(e.target.value); setPage(1); }}
                 className="px-3 py-2 bg-azure-surface dark:bg-black border border-azure-border dark:border-matrix-primary rounded-md text-azure-text-primary dark:text-matrix-secondary focus:outline-none focus:ring-2 focus:ring-azure-primary dark:focus:ring-matrix-highlight flex-grow"
               >
                 <option value="all">All Importance</option>
-                {importanceLevels.map((level) => (
-                  <option key={level} value={level}>
-                    {level}
-                  </option>
+                {importanceOptions.map((level) => (
+                  <option key={level} value={level}>{level}</option>
                 ))}
               </select>
             </div>
@@ -251,8 +244,8 @@ export const SatiMemories: React.FC = () => {
                 <TableHead className="w-12">
                   <Checkbox
                     checked={
-                      filteredMemories.length > 0 &&
-                      selectedMemories.length === filteredMemories.length
+                      memories.length > 0 &&
+                      selectedMemories.length === memories.length
                     }
                     onCheckedChange={handleSelectAll}
                   />
@@ -265,7 +258,7 @@ export const SatiMemories: React.FC = () => {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filteredMemories.length === 0 ? (
+              {memories.length === 0 ? (
                 <TableRow>
                   <TableCell
                     colSpan={6}
@@ -275,7 +268,7 @@ export const SatiMemories: React.FC = () => {
                   </TableCell>
                 </TableRow>
               ) : (
-                filteredMemories.map((memory) => (
+                memories.map((memory) => (
                   <TableRow key={memory.id}>
                     <TableCell>
                       <Checkbox
@@ -336,6 +329,16 @@ export const SatiMemories: React.FC = () => {
             </TableBody>
           </Table>
         </CardContent>
+        {totalPages > 1 && (
+          <Pagination
+            page={page}
+            totalPages={totalPages}
+            perPage={perPage}
+            total={total}
+            onPageChange={setPage}
+            onPerPageChange={(p) => { setPerPage(p); setPage(1); }}
+          />
+        )}
       </Card>
 
       {showDeleteConfirmation && (

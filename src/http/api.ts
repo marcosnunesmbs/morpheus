@@ -279,16 +279,29 @@ export function createApiRouter(oracle: IOracle, chronosWorker?: ChronosWorker) 
       const originChannel = req.query.origin_channel;
       const sessionId = req.query.session_id;
       const limit = req.query.limit;
+      const pageRaw = req.query.page;
+      const perPageRaw = req.query.per_page;
 
       const parsedStatus = typeof status === 'string' ? TaskStatusSchema.safeParse(status) : null;
       const parsedAgent = typeof agent === 'string' ? TaskAgentSchema.safeParse(agent) : null;
       const parsedOrigin = typeof originChannel === 'string' ? OriginChannelSchema.safeParse(originChannel) : null;
 
-      const tasks = taskRepository.listTasks({
+      const filters = {
         status: parsedStatus?.success ? (parsedStatus.data as TaskStatus) : undefined,
         agent: parsedAgent?.success ? (parsedAgent.data as TaskAgent) : undefined,
         origin_channel: parsedOrigin?.success ? (parsedOrigin.data as OriginChannel) : undefined,
         session_id: typeof sessionId === 'string' ? sessionId : undefined,
+      };
+
+      if (pageRaw !== undefined || perPageRaw !== undefined) {
+        const page = Math.max(1, parseInt(String(pageRaw ?? '1'), 10) || 1);
+        const per_page = Math.min(100, Math.max(1, parseInt(String(perPageRaw ?? '20'), 10) || 20));
+        const result = taskRepository.listTasksPaginated({ ...filters, page, per_page });
+        return res.json(result);
+      }
+
+      const tasks = taskRepository.listTasks({
+        ...filters,
         limit: typeof limit === 'string' ? Math.max(1, Math.min(500, Number(limit) || 200)) : 200,
       });
 
@@ -756,17 +769,28 @@ export function createApiRouter(oracle: IOracle, chronosWorker?: ChronosWorker) 
   router.get('/sati/memories', async (req, res) => {
     try {
       const repository = SatiRepository.getInstance();
-      const memories = repository.getAllMemories();
+      const pageRaw = req.query.page;
+      const perPageRaw = req.query.per_page;
+      const category = typeof req.query.category === 'string' && req.query.category !== 'all' ? req.query.category : undefined;
+      const importance = typeof req.query.importance === 'string' && req.query.importance !== 'all' ? req.query.importance : undefined;
+      const search = typeof req.query.search === 'string' && req.query.search.trim() ? req.query.search.trim() : undefined;
 
-      // Convert dates to ISO strings for JSON serialization
-      const serializedMemories = memories.map(memory => ({
+      const serializeMemory = (memory: any) => ({
         ...memory,
-        created_at: memory.created_at.toISOString(),
-        updated_at: memory.updated_at.toISOString(),
-        last_accessed_at: memory.last_accessed_at ? memory.last_accessed_at.toISOString() : null
-      }));
+        created_at: memory.created_at instanceof Date ? memory.created_at.toISOString() : memory.created_at,
+        updated_at: memory.updated_at instanceof Date ? memory.updated_at.toISOString() : memory.updated_at,
+        last_accessed_at: memory.last_accessed_at instanceof Date ? memory.last_accessed_at.toISOString() : (memory.last_accessed_at ?? null),
+      });
 
-      res.json(serializedMemories);
+      if (pageRaw !== undefined || perPageRaw !== undefined) {
+        const page = Math.max(1, parseInt(String(pageRaw ?? '1'), 10) || 1);
+        const per_page = Math.min(100, Math.max(1, parseInt(String(perPageRaw ?? '20'), 10) || 20));
+        const result = repository.getMemoriesPaginated({ category, importance, search, page, per_page });
+        return res.json({ ...result, data: result.data.map(serializeMemory) });
+      }
+
+      const memories = repository.getAllMemories();
+      res.json(memories.map(serializeMemory));
     } catch (error: any) {
       res.status(500).json({ error: error.message });
     }

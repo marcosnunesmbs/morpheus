@@ -1,4 +1,5 @@
 ﻿import { httpClient } from './httpClient';
+import type { PaginatedResponse } from '../components/Pagination';
 
 export type TaskStatus = 'pending' | 'running' | 'completed' | 'failed' | 'cancelled';
 export type TaskAgent = 'apoc' | 'neo' | 'trinit';
@@ -46,14 +47,21 @@ export const taskService = {
     origin_channel?: OriginChannel;
     session_id?: string;
     limit?: number;
-  }): Promise<TaskRecord[]> => {
+    page?: number;
+    per_page?: number;
+  }): Promise<PaginatedResponse<TaskRecord> | TaskRecord[]> => {
     const qs = new URLSearchParams();
     if (params?.status) qs.set('status', params.status);
     if (params?.agent) qs.set('agent', params.agent);
     if (params?.origin_channel) qs.set('origin_channel', params.origin_channel);
     if (params?.session_id) qs.set('session_id', params.session_id);
     if (params?.limit) qs.set('limit', String(params.limit));
+    if (params?.page !== undefined) qs.set('page', String(params.page));
+    if (params?.per_page !== undefined) qs.set('per_page', String(params.per_page));
     const suffix = qs.toString() ? `?${qs}` : '';
+    if (params?.page !== undefined || params?.per_page !== undefined) {
+      return httpClient.get<PaginatedResponse<TaskRecord>>(`/tasks${suffix}`);
+    }
     return httpClient.get<TaskRecord[]>(`/tasks${suffix}`);
   },
 

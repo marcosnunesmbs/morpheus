@@ -91,11 +91,24 @@ export function createChronosJobRouter(repo: ChronosRepository, _worker: Chronos
     }
   });
 
-  // GET /api/chronos — list jobs
+  // GET /api/chronos — list jobs (paginated)
   router.get('/', (req, res) => {
     try {
       const enabled = req.query.enabled;
       const created_by = req.query.created_by as CreatedBy | undefined;
+      const page = req.query.page ? Math.max(1, parseInt(String(req.query.page), 10) || 1) : undefined;
+      const per_page = req.query.per_page ? Math.min(100, Math.max(1, parseInt(String(req.query.per_page), 10) || 20)) : undefined;
+
+      if (page !== undefined || per_page !== undefined) {
+        const result = repo.listJobsPaginated({
+          enabled: enabled === 'true' ? true : enabled === 'false' ? false : undefined,
+          created_by,
+          page,
+          per_page,
+        });
+        return res.json(result);
+      }
+
       const jobs = repo.listJobs({
         enabled: enabled === 'true' ? true : enabled === 'false' ? false : undefined,
         created_by,

@@ -7,6 +7,15 @@ import { IMemoryRecord, MemoryCategory, MemoryImportance } from './types.js';
 import loadVecExtension from '../sqlite-vec.js';
 import { DisplayManager } from '../../display.js';
 import { ConfigManager } from '../../../config/manager.js';
+import type { PaginatedResponse } from '../../../types/pagination.js';
+
+export interface SatiMemoryFilters {
+  category?: string;
+  importance?: string;
+  search?: string;
+  page?: number;
+  per_page?: number;
+}
 
 const EMBEDDING_DIM = 384;
 
@@ -527,6 +536,43 @@ export class SatiRepository {
     if (!this.db) this.initialize();
     const rows = this.db!.prepare('SELECT * FROM long_term_memory WHERE archived = 0 ORDER BY created_at DESC').all() as any[];
     return rows.map(this.mapRowToRecord);
+  }
+
+  private buildMemoryFilterQuery(filters?: SatiMemoryFilters): { where: string; params: any[] } {
+    const params: any[] = [];
+    let where = 'WHERE archived = 0';
+    if (filters?.category) { where += ' AND category = ?'; params.push(filters.category); }
+    if (filters?.importance) { where += ' AND importance = ?'; params.push(filters.importance); }
+    if (filters?.search) {
+      where += ' AND (summary LIKE ? OR details LIKE ? OR category LIKE ?)';
+      const pattern = `%${filters.search}%`;
+      params.push(pattern, pattern, pattern);
+    }
+    return { where, params };
+  }
+
+  public countMemories(filters?: SatiMemoryFilters): number {
+    if (!this.db) this.initialize();
+    const { where, params } = this.buildMemoryFilterQuery(filters);
+    const row = this.db!.prepare(`SELECT COUNT(*) as cnt FROM long_term_memory ${where}`).get(...params) as { cnt: number };
+    return row.cnt;
+  }
+
+  public getMemoriesPaginated(filters?: SatiMemoryFilters): PaginatedResponse<IMemoryRecord> {
+    if (!this.db) this.initialize();
+    const page = Math.max(1, filters?.page ?? 1);
+    const per_page = Math.min(100, Math.max(1, filters?.per_page ?? 20));
+    const offset = (page - 1) * per_page;
+
+    const total = this.countMemories(filters);
+    const total_pages = Math.ceil(total / per_page);
+
+    const { where, params } = this.buildMemoryFilterQuery(filters);
+    const rows = this.db!.prepare(
+      `SELECT * FROM long_term_memory ${where} ORDER BY created_at DESC LIMIT ? OFFSET ?`
+    ).all(...params, per_page, offset) as any[];
+
+    return { data: rows.map(this.mapRowToRecord), total, page, per_page, total_pages };
   }
 
   private mapRowToRecord(row: any): IMemoryRecord {

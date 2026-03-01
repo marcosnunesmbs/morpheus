@@ -1,4 +1,5 @@
 import { httpClient } from './httpClient';
+import type { PaginatedResponse } from '../components/Pagination';
 
 export type NotificationChannel = 'ui' | 'telegram' | 'discord';
 export type NotificationStatus = 'pending' | 'completed' | 'failed';
@@ -60,11 +61,20 @@ export const webhookService = {
   listNotifications: (params?: {
     webhookId?: string;
     unreadOnly?: boolean;
-  }): Promise<WebhookNotification[]> => {
+    status?: NotificationStatus | 'all';
+    page?: number;
+    per_page?: number;
+  }): Promise<PaginatedResponse<WebhookNotification> | WebhookNotification[]> => {
     const qs = new URLSearchParams();
     if (params?.webhookId) qs.set('webhookId', params.webhookId);
     if (params?.unreadOnly) qs.set('unreadOnly', 'true');
+    if (params?.status && params.status !== 'all') qs.set('status', params.status);
+    if (params?.page !== undefined) qs.set('page', String(params.page));
+    if (params?.per_page !== undefined) qs.set('per_page', String(params.per_page));
     const suffix = qs.toString() ? `?${qs}` : '';
+    if (params?.page !== undefined || params?.per_page !== undefined) {
+      return httpClient.get<PaginatedResponse<WebhookNotification>>(`/webhooks/notifications${suffix}`);
+    }
     return httpClient.get<WebhookNotification[]>(`/webhooks/notifications${suffix}`);
   },
 

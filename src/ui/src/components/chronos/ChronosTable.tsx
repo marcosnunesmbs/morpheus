@@ -4,6 +4,7 @@ import { Play, Pause, Trash2, Edit2, History, ChevronUp } from 'lucide-react';
 import { useChronosJobs, chronosService, type ChronosJob } from '../../services/chronos';
 import { ExecutionHistory } from './ExecutionHistory';
 import { DeleteConfirmationModal } from '../dashboard/DeleteConfirmationModal';
+import { Pagination } from '../Pagination';
 
 function StatusBadge({ enabled }: { enabled: boolean }) {
   return (
@@ -36,10 +37,18 @@ interface ChronosTableProps {
 }
 
 export function ChronosTable({ onEdit }: ChronosTableProps) {
-  const { data: jobs, isLoading } = useChronosJobs();
+  const [page, setPage] = useState(1);
+  const [perPage, setPerPage] = useState(20);
+  const { data: result, isLoading } = useChronosJobs({ page, per_page: perPage });
+  const jobs = result?.data ?? [];
   const [expandedJobId, setExpandedJobId] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [jobToDelete, setJobToDelete] = useState<ChronosJob | null>(null);
+
+  const handlePerPageChange = (newPerPage: number) => {
+    setPerPage(newPerPage);
+    setPage(1);
+  };
 
   const handleToggle = async (job: ChronosJob) => {
     setBusy(job.id);
@@ -75,7 +84,7 @@ export function ChronosTable({ onEdit }: ChronosTableProps) {
     );
   }
 
-  if (!jobs || jobs.length === 0) {
+  if (!isLoading && jobs.length === 0 && page === 1) {
     return (
       <div className="rounded border border-azure-border dark:border-matrix-primary p-8 text-center dark:text-matrix-secondary">
         No Chronos jobs yet. Click <strong className="dark:text-matrix-highlight">New Job</strong> to get started.
@@ -169,6 +178,17 @@ export function ChronosTable({ onEdit }: ChronosTableProps) {
           ))}
         </tbody>
       </table>
+
+      {result && result.total_pages > 1 && (
+        <Pagination
+          page={page}
+          totalPages={result.total_pages}
+          perPage={perPage}
+          total={result.total}
+          onPageChange={setPage}
+          onPerPageChange={handlePerPageChange}
+        />
+      )}
 
       <DeleteConfirmationModal
         isOpen={!!jobToDelete}

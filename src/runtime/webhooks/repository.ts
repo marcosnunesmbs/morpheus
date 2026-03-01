@@ -10,6 +10,15 @@ import type {
   CreateWebhookInput,
   UpdateWebhookInput,
 } from './types.js';
+import type { PaginatedResponse } from '../../types/pagination.js';
+
+export interface NotificationFilters {
+  webhookId?: string;
+  unreadOnly?: boolean;
+  status?: NotificationStatus;
+  page?: number;
+  per_page?: number;
+}
 
 export class WebhookRepository {
   private static instance: WebhookRepository | null = null;
@@ -206,6 +215,37 @@ export class WebhookRepository {
 
     const rows = this.db.prepare(query).all(...params) as any[];
     return rows.map(this.deserializeNotification);
+  }
+
+  private buildNotificationWhere(filters?: Omit<NotificationFilters, 'page' | 'per_page'>): { where: string; params: any[] } {
+    const params: any[] = [];
+    let where = 'WHERE 1=1';
+    if (filters?.webhookId) { where += ' AND webhook_id = ?'; params.push(filters.webhookId); }
+    if (filters?.unreadOnly) { where += ' AND read = 0'; }
+    if (filters?.status) { where += ' AND status = ?'; params.push(filters.status); }
+    return { where, params };
+  }
+
+  countNotifications(filters?: Omit<NotificationFilters, 'page' | 'per_page'>): number {
+    const { where, params } = this.buildNotificationWhere(filters);
+    const row = this.db.prepare(`SELECT COUNT(*) as cnt FROM webhook_notifications ${where}`).get(...params) as { cnt: number };
+    return row.cnt;
+  }
+
+  listNotificationsPaginated(filters?: NotificationFilters): PaginatedResponse<WebhookNotification> {
+    const page = Math.max(1, filters?.page ?? 1);
+    const per_page = Math.min(100, Math.max(1, filters?.per_page ?? 20));
+    const offset = (page - 1) * per_page;
+
+    const total = this.countNotifications(filters);
+    const total_pages = Math.ceil(total / per_page);
+
+    const { where, params } = this.buildNotificationWhere(filters);
+    const rows = this.db.prepare(
+      `SELECT * FROM webhook_notifications ${where} ORDER BY created_at DESC LIMIT ? OFFSET ?`
+    ).all(...params, per_page, offset) as any[];
+
+    return { data: rows.map(this.deserializeNotification), total, page, per_page, total_pages };
   }
 
   getNotificationById(id: string): WebhookNotification | null {

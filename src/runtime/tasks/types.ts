@@ -56,6 +56,8 @@ export interface TaskFilters {
   origin_channel?: OriginChannel;
   session_id?: string;
   limit?: number;
+  page?: number;
+  per_page?: number;
 }
 
 export interface TaskStats {

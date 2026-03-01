@@ -4,6 +4,7 @@ import path from 'path';
 import { homedir } from 'os';
 import { randomUUID } from 'crypto';
 import { ConfigManager } from '../../config/manager.js';
+import type { PaginatedResponse } from '../../types/pagination.js';
 
 export type ScheduleType = 'once' | 'cron' | 'interval';
 export type ExecutionStatus = 'running' | 'success' | 'failed' | 'timeout';
@@ -51,6 +52,8 @@ export interface CreateJobInput {
 export interface JobFilters {
   enabled?: boolean;
   created_by?: CreatedBy;
+  page?: number;
+  per_page?: number;
 }
 
 export interface JobPatch {
@@ -240,6 +243,46 @@ export class ChronosRepository {
     query += ' ORDER BY created_at DESC';
     const rows = this.db.prepare(query).all(...params) as any[];
     return rows.map((r) => this.deserializeJob(r));
+  }
+
+  countJobs(filters?: Pick<JobFilters, 'enabled' | 'created_by'>): number {
+    const params: any[] = [];
+    let query = 'SELECT COUNT(*) as cnt FROM chronos_jobs WHERE 1=1';
+    if (filters?.enabled !== undefined) {
+      query += ' AND enabled = ?';
+      params.push(filters.enabled ? 1 : 0);
+    }
+    if (filters?.created_by) {
+      query += ' AND created_by = ?';
+      params.push(filters.created_by);
+    }
+    const row = this.db.prepare(query).get(...params) as { cnt: number };
+    return row.cnt;
+  }
+
+  listJobsPaginated(filters?: JobFilters): PaginatedResponse<ChronosJob> {
+    const page = Math.max(1, filters?.page ?? 1);
+    const per_page = Math.min(100, Math.max(1, filters?.per_page ?? 20));
+    const offset = (page - 1) * per_page;
+
+    const total = this.countJobs(filters);
+    const total_pages = Math.ceil(total / per_page);
+
+    const params: any[] = [];
+    let query = 'SELECT * FROM chronos_jobs WHERE 1=1';
+    if (filters?.enabled !== undefined) {
+      query += ' AND enabled = ?';
+      params.push(filters.enabled ? 1 : 0);
+    }
+    if (filters?.created_by) {
+      query += ' AND created_by = ?';
+      params.push(filters.created_by);
+    }
+    query += ' ORDER BY created_at DESC LIMIT ? OFFSET ?';
+    params.push(per_page, offset);
+
+    const rows = this.db.prepare(query).all(...params) as any[];
+    return { data: rows.map((r) => this.deserializeJob(r)), total, page, per_page, total_pages };
   }
 
   updateJob(id: string, patch: JobPatch): ChronosJob | null {

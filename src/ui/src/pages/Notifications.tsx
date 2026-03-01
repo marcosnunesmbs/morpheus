@@ -12,8 +12,9 @@ import {
   ArrowLeft,
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import { webhookService, type WebhookNotification } from '../services/webhooks';
+import { webhookService, type WebhookNotification, type NotificationStatus } from '../services/webhooks';
 import { Dialog, DialogHeader, DialogTitle } from '../components/Dialog';
+import { Pagination, type PaginatedResponse } from '../components/Pagination';
 
 const container = {
   hidden: { opacity: 0 },
@@ -64,13 +65,17 @@ const prettyJson = (str: string) => {
 
 export const Notifications = () => {
   const [unreadOnly, setUnreadOnly] = useState(false);
+  const [statusFilter, setStatusFilter] = useState<NotificationStatus | 'all'>('all');
+  const [page, setPage] = useState(1);
+  const [perPage, setPerPage] = useState(20);
   const [detail, setDetail] = useState<WebhookNotification | null>(null);
 
-  const { data: notifications = [], mutate } = useSWR(
-    ['/webhooks/notifications', unreadOnly],
-    () => webhookService.listNotifications({ unreadOnly }),
+  const { data: result, mutate } = useSWR(
+    ['/webhooks/notifications', unreadOnly, statusFilter, page, perPage],
+    () => webhookService.listNotifications({ unreadOnly, status: statusFilter, page, per_page: perPage }) as Promise<PaginatedResponse<WebhookNotification>>,
     { refreshInterval: 5_000 },
   );
+  const notifications = result?.data ?? [];
 
   const unreadCount = notifications.filter((n) => !n.read).length;
 
@@ -122,8 +127,19 @@ export const Notifications = () => {
             Back to Webhooks
           </Link>
 
+          <select
+            value={statusFilter}
+            onChange={(e) => { setStatusFilter(e.target.value as NotificationStatus | 'all'); setPage(1); }}
+            className="px-3 py-2 rounded-lg border border-azure-border dark:border-matrix-primary bg-white dark:bg-black text-azure-text-secondary dark:text-matrix-dim text-sm focus:outline-none focus:border-azure-primary dark:focus:border-matrix-highlight"
+          >
+            <option value="all">All statuses</option>
+            <option value="completed">Completed</option>
+            <option value="failed">Failed</option>
+            <option value="pending">Pending</option>
+          </select>
+
           <button
-            onClick={() => setUnreadOnly(!unreadOnly)}
+            onClick={() => { setUnreadOnly(!unreadOnly); setPage(1); }}
             className={`flex items-center gap-2 px-3 py-2 rounded-lg border text-sm transition-colors ${
               unreadOnly
                 ? 'border-azure-primary dark:border-matrix-highlight bg-azure-active dark:bg-matrix-primary/20 text-azure-primary dark:text-matrix-highlight'
@@ -224,6 +240,22 @@ export const Notifications = () => {
           </table>
         </div>
       </motion.div>
+
+      {/* Pagination */}
+      {result && result.total_pages > 1 && (
+        <motion.div variants={item}>
+          <div className="rounded-lg border border-azure-border dark:border-matrix-primary bg-white dark:bg-black">
+            <Pagination
+              page={page}
+              totalPages={result.total_pages}
+              perPage={perPage}
+              total={result.total}
+              onPageChange={setPage}
+              onPerPageChange={(p) => { setPerPage(p); setPage(1); }}
+            />
+          </div>
+        </motion.div>
+      )}
 
       {/* Detail Modal */}
       <Dialog open={!!detail} onOpenChange={(open) => !open && setDetail(null)}>

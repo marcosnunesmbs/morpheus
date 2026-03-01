@@ -108,7 +108,8 @@ export function useBrowserNotifications() {
     const checkWebhooks = async () => {
       if (Notification.permission !== 'granted') return;
       try {
-        const notifications = await webhookService.listNotifications({ unreadOnly: true });
+        const rawNotifications = await webhookService.listNotifications({ unreadOnly: true });
+        const notifications = (Array.isArray(rawNotifications) ? rawNotifications : rawNotifications.data) as import('../services/webhooks').WebhookNotification[];
         // Only care about completed ones with a result
         const completed = notifications.filter(n => n.status === 'completed');
         if (!completed.length) return;

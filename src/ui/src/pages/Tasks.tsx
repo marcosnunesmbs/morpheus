@@ -6,6 +6,7 @@ import {
   X, RefreshCw, AlertCircle,
 } from 'lucide-react';
 import { taskService, type OriginChannel, type TaskAgent, type TaskRecord, type TaskStatus } from '../services/tasks';
+import { Pagination, type PaginatedResponse } from '../components/Pagination';
 
 const container = { hidden: { opacity: 0 }, show: { opacity: 1, transition: { staggerChildren: 0.05 } } };
 const item = { hidden: { opacity: 0, y: 8 }, show: { opacity: 1, y: 0 } };
@@ -216,17 +217,27 @@ export function TasksPage() {
   const [originChannel, setOriginChannel] = useState<OriginChannel | ''>('');
   const [sessionFilter, setSessionFilter] = useState('');
   const [detail, setDetail] = useState<TaskRecord | null>(null);
+  const [page, setPage] = useState(1);
+  const [perPage, setPerPage] = useState(20);
 
   const filters = useMemo(() => ({
     status: status || undefined,
     agent: agent || undefined,
     origin_channel: originChannel || undefined,
     session_id: sessionFilter.trim() || undefined,
-    limit: 200,
-  }), [status, agent, originChannel, sessionFilter]);
+    page,
+    per_page: perPage,
+  }), [status, agent, originChannel, sessionFilter, page, perPage]);
+
+  const resetPage = () => setPage(1);
 
   const { data: stats } = useSWR('/tasks/stats', () => taskService.stats(), { refreshInterval: 5000 });
-  const { data: tasks = [], mutate } = useSWR(['/tasks', filters], () => taskService.list(filters), { refreshInterval: 3000 });
+  const { data: result, mutate } = useSWR(
+    ['/tasks', filters],
+    () => taskService.list(filters) as Promise<PaginatedResponse<TaskRecord>>,
+    { refreshInterval: 3000 }
+  );
+  const tasks = result?.data ?? [];
 
   const selectCls = 'px-3 py-2 rounded border border-azure-border dark:border-matrix-primary bg-white dark:bg-black text-azure-text dark:text-matrix-secondary text-sm focus:outline-none focus:border-azure-primary dark:focus:border-matrix-highlight';
 
@@ -256,18 +267,18 @@ export function TasksPage() {
 
       {/* Filters */}
       <motion.div variants={item} className="rounded-lg border border-azure-border dark:border-matrix-primary p-4 bg-white dark:bg-black grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-        <select className={selectCls} value={status} onChange={(e) => setStatus((e.target.value || '') as TaskStatus | '')}>
+        <select className={selectCls} value={status} onChange={(e) => { setStatus((e.target.value || '') as TaskStatus | ''); resetPage(); }}>
           <option value="">All status</option>
           {Object.entries(statusLabel).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
         </select>
-        <select className={selectCls} value={agent} onChange={(e) => setAgent((e.target.value || '') as TaskAgent | '')}>
+        <select className={selectCls} value={agent} onChange={(e) => { setAgent((e.target.value || '') as TaskAgent | ''); resetPage(); }}>
           <option value="">All agents</option>
           <option value="apoc">Apoc</option>
           <option value="neo">Neo</option>
           <option value="smith">Smith</option>
           <option value="trinit">Trinity</option>
         </select>
-        <select className={selectCls} value={originChannel} onChange={(e) => setOriginChannel((e.target.value || '') as OriginChannel | '')}>
+        <select className={selectCls} value={originChannel} onChange={(e) => { setOriginChannel((e.target.value || '') as OriginChannel | ''); resetPage(); }}>
           <option value="">All channels</option>
           <option value="telegram">Telegram</option>
           <option value="discord">Discord</option>
@@ -279,7 +290,7 @@ export function TasksPage() {
         <input
           className={`${selectCls} placeholder:text-azure-text-secondary/50 dark:placeholder:text-matrix-secondary/40`}
           value={sessionFilter}
-          onChange={(e) => setSessionFilter(e.target.value)}
+          onChange={(e) => { setSessionFilter(e.target.value); resetPage(); }}
           placeholder="Filter by session ID"
         />
       </motion.div>
@@ -370,6 +381,22 @@ export function TasksPage() {
           </table>
         </div>
       </motion.div>
+
+      {/* Pagination */}
+      {result && result.total_pages > 1 && (
+        <motion.div variants={item}>
+          <div className="rounded-lg border border-azure-border dark:border-matrix-primary bg-white dark:bg-black">
+            <Pagination
+              page={page}
+              totalPages={result.total_pages}
+              perPage={perPage}
+              total={result.total}
+              onPageChange={setPage}
+              onPerPageChange={(p) => { setPerPage(p); setPage(1); }}
+            />
+          </div>
+        </motion.div>
+      )}
 
       {/* Detail modal */}
       {detail && (

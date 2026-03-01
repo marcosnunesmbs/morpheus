@@ -1,5 +1,6 @@
 import useSWR from 'swr';
 import { httpClient } from './httpClient';
+import type { PaginatedResponse } from '../components/Pagination';
 
 export type ScheduleType = 'once' | 'cron' | 'interval';
 export type ExecutionStatus = 'running' | 'success' | 'failed' | 'timeout';
@@ -67,13 +68,21 @@ export interface ChronosPreviewResponse {
 
 // ─── SWR Hooks ────────────────────────────────────────────────────────────────
 
-export function useChronosJobs(filters?: { enabled?: boolean; created_by?: CreatedBy }) {
+export function useChronosJobs(filters?: {
+  enabled?: boolean;
+  created_by?: CreatedBy;
+  page?: number;
+  per_page?: number;
+}) {
   const qs = new URLSearchParams();
   if (filters?.enabled !== undefined) qs.set('enabled', String(filters.enabled));
   if (filters?.created_by) qs.set('created_by', filters.created_by);
+  if (filters?.page !== undefined) qs.set('page', String(filters.page));
+  if (filters?.per_page !== undefined) qs.set('per_page', String(filters.per_page));
   const suffix = qs.toString() ? `?${qs}` : '';
-  return useSWR<ChronosJob[]>(`/chronos${suffix}`, () =>
-    httpClient.get<ChronosJob[]>(`/chronos${suffix}`)
+  return useSWR<PaginatedResponse<ChronosJob>>(
+    `/chronos${suffix}`,
+    () => httpClient.get<PaginatedResponse<ChronosJob>>(`/chronos${suffix}`)
   );
 }
 

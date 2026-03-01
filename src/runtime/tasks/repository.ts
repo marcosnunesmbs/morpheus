@@ -4,6 +4,7 @@ import path from 'path';
 import { homedir } from 'os';
 import { randomUUID } from 'crypto';
 import type { TaskCreateInput, TaskFilters, TaskRecord, TaskStats } from './types.js';
+import type { PaginatedResponse } from '../../types/pagination.js';
 
 export class TaskRepository {
   private static instance: TaskRepository | null = null;
@@ -224,6 +225,38 @@ export class TaskRepository {
 
     const rows = this.db.prepare(query).all(...params) as any[];
     return rows.map((row) => this.deserializeTask(row));
+  }
+
+  countTasks(filters?: Pick<TaskFilters, 'status' | 'agent' | 'origin_channel' | 'session_id'>): number {
+    const params: any[] = [];
+    let query = 'SELECT COUNT(*) as cnt FROM tasks WHERE 1=1';
+    if (filters?.status) { query += ' AND status = ?'; params.push(filters.status); }
+    if (filters?.agent) { query += ' AND agent = ?'; params.push(filters.agent); }
+    if (filters?.origin_channel) { query += ' AND origin_channel = ?'; params.push(filters.origin_channel); }
+    if (filters?.session_id) { query += ' AND session_id = ?'; params.push(filters.session_id); }
+    const row = this.db.prepare(query).get(...params) as { cnt: number };
+    return row.cnt;
+  }
+
+  listTasksPaginated(filters?: TaskFilters): PaginatedResponse<TaskRecord> {
+    const page = Math.max(1, filters?.page ?? 1);
+    const per_page = Math.min(100, Math.max(1, filters?.per_page ?? 20));
+    const offset = (page - 1) * per_page;
+
+    const total = this.countTasks(filters);
+    const total_pages = Math.ceil(total / per_page);
+
+    const params: any[] = [];
+    let query = 'SELECT * FROM tasks WHERE 1=1';
+    if (filters?.status) { query += ' AND status = ?'; params.push(filters.status); }
+    if (filters?.agent) { query += ' AND agent = ?'; params.push(filters.agent); }
+    if (filters?.origin_channel) { query += ' AND origin_channel = ?'; params.push(filters.origin_channel); }
+    if (filters?.session_id) { query += ' AND session_id = ?'; params.push(filters.session_id); }
+    query += ' ORDER BY created_at DESC LIMIT ? OFFSET ?';
+    params.push(per_page, offset);
+
+    const rows = this.db.prepare(query).all(...params) as any[];
+    return { data: rows.map((row) => this.deserializeTask(row)), total, page, per_page, total_pages };
   }
 
   getStats(): TaskStats {
