@@ -26,6 +26,7 @@ import {
 import { Footer } from './Footer';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '../hooks/useAuth';
+import { useBrowserNotifications } from '../hooks/useBrowserNotifications';
 import { MobileHeader } from './MobileHeader';
 import useSWR from 'swr';
 import { webhookService } from '../services/webhooks';
@@ -65,6 +66,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isRestartModalOpen, setIsRestartModalOpen] = useState(false);
   const { logout } = useAuth();
+  useBrowserNotifications();
 
   const cycleTheme = () =>
     setTheme(prev => THEME_ORDER[(THEME_ORDER.indexOf(prev) + 1) % THEME_ORDER.length]);
@@ -141,7 +143,6 @@ export function Layout({ children }: { children: React.ReactNode }) {
     { icon: Clock, label: 'Chronos', path: '/chronos' },
     { icon: Terminal, label: 'Logs', path: '/logs' },
     { icon: DollarSign, label: 'Model Pricing', path: '/model-pricing' },
-    { icon: Terminal, label: 'Logs', path: '/logs' },
   ];
 
   return (

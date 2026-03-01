@@ -311,6 +311,17 @@ export class ChronosRepository {
     return rows.map((r) => this.deserializeExecution(r));
   }
 
+  getRecentCompletions(since: number, limit = 20): (ChronosExecution & { job_prompt: string })[] {
+    const rows = this.db.prepare(`
+      SELECT e.*, j.prompt as job_prompt
+      FROM chronos_executions e
+      LEFT JOIN chronos_jobs j ON j.id = e.job_id
+      WHERE e.completed_at IS NOT NULL AND e.completed_at > ?
+      ORDER BY e.completed_at DESC LIMIT ?
+    `).all(since, limit) as any[];
+    return rows.map(r => ({ ...this.deserializeExecution(r), job_prompt: r.job_prompt ?? '' }));
+  }
+
   pruneExecutions(jobId: string, keepCount: number): void {
     this.db.prepare(`
       DELETE FROM chronos_executions

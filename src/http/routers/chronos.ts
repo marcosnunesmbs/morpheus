@@ -45,6 +45,17 @@ export function createChronosJobRouter(repo: ChronosRepository, _worker: Chronos
   const router = Router();
   const configManager = ConfigManager.getInstance();
 
+  // GET /api/chronos/executions/recent?since=<ms> — must be before /:id routes
+  router.get('/executions/recent', (req, res) => {
+    const since = Number(req.query.since) || (Date.now() - 60_000);
+    try {
+      const executions = repo.getRecentCompletions(since);
+      res.json(executions);
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
   // POST /api/chronos/preview — must be before /:id routes
   router.post('/preview', (req, res) => {
     const parsed = PreviewSchema.safeParse(req.body);

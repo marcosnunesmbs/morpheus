@@ -61,8 +61,12 @@ export const ChatPage: React.FC = () => {
   useEffect(() => { refreshSessions(); }, []);
 
   useEffect(() => {
-    if (activeSessionId) loadMessages(activeSessionId);
-    else setMessages([]);
+    if (activeSessionId) {
+      loadMessages(activeSessionId);
+      sessionStorage.setItem('morpheus.chat.uiSessionId', activeSessionId);
+    } else {
+      setMessages([]);
+    }
   }, [activeSessionId]);
 
   const loadMessages = async (id: string) => {
