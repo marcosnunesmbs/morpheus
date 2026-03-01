@@ -1,12 +1,13 @@
 import React, { useRef, useEffect, useState } from 'react';
 import type { Message, Session } from '../../services/chat';
 import { groupMessages, isDelegationCall } from '../../services/chat';
-import { Send, Bot, User, Menu, ChevronDown, Mic } from 'lucide-react';
+import { Send, Bot, User, Menu, ChevronDown, Mic, X } from 'lucide-react';
 import Markdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { ToolCallBlock } from './ToolCallBlock';
 import { AgentBlock } from './AgentBlock';
 import { MessageMeta } from './MessageMeta';
+import { httpClient } from '../../services/httpClient';
 
 interface ChatAreaProps {
   messages: Message[];
@@ -16,6 +17,30 @@ interface ChatAreaProps {
   activeSession?: Session | null;
   onToggleSidebar?: () => void;
 }
+
+/* ─── Agent mention types ────────────────────────────────────────── */
+
+interface AgentInfo {
+  name: string;
+  emoji: string;
+  description: string;
+  color: string; // tailwind text + bg classes for the badge
+}
+
+const STATIC_AGENTS: AgentInfo[] = [
+  { name: 'apoc',      emoji: '🧑‍🔬', description: 'Filesystem, shell & git',  color: 'amber'  },
+  { name: 'keymaker',  emoji: '🗝️',  description: 'Quick inline tasks',       color: 'purple' },
+  { name: 'neo',       emoji: '🥷',  description: 'MCP tool orchestration',   color: 'violet' },
+  { name: 'trinity',   emoji: '👩‍💻', description: 'Database specialist',      color: 'teal'   },
+];
+
+const AGENT_BADGE_CLASSES: Record<string, string> = {
+  amber:  'bg-amber-100  text-amber-800  border-amber-300  dark:bg-amber-900/30  dark:text-amber-300  dark:border-amber-700/60',
+  purple: 'bg-purple-100 text-purple-800 border-purple-300 dark:bg-purple-900/30 dark:text-purple-300 dark:border-purple-700/60',
+  violet: 'bg-violet-100 text-violet-800 border-violet-300 dark:bg-violet-900/30 dark:text-violet-300 dark:border-violet-700/60',
+  teal:   'bg-teal-100   text-teal-800   border-teal-300   dark:bg-teal-900/30   dark:text-teal-300   dark:border-teal-700/60',
+  gray:   'bg-zinc-100   text-zinc-700   border-zinc-300   dark:bg-zinc-800      dark:text-zinc-300   dark:border-zinc-600',
+};
 
 /* ─── Helpers ────────────────────────────────────────────────────── */
 
@@ -106,6 +131,11 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
   onToggleSidebar,
 }) => {
   const [input, setInput] = useState('');
+  const [mentionedAgents, setMentionedAgents] = useState<string[]>([]);
+  const [mentionState, setMentionState] = useState<{ query: string; startIdx: number } | null>(null);
+  const [mentionSelectedIdx, setMentionSelectedIdx] = useState(0);
+  const [smithAgents, setSmithAgents] = useState<AgentInfo[]>([]);
+
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -121,19 +151,110 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
     ta.style.height = ta.scrollHeight + 'px';
   }, [input]);
 
+  // Fetch smith agents for mention suggestions
+  useEffect(() => {
+    httpClient
+      .get<{ smiths: Array<{ name: string }> }>('/smiths')
+      .then(data =>
+        setSmithAgents(
+          data.smiths.map(s => ({
+            name: s.name,
+            emoji: '🕶️',
+            description: 'Remote Smith agent',
+            color: 'gray',
+          }))
+        )
+      )
+      .catch(() => {});
+  }, []);
+
+  const allAgents: AgentInfo[] = [...STATIC_AGENTS, ...smithAgents];
+
+  const filteredAgents = mentionState
+    ? allAgents.filter(a => a.name.toLowerCase().startsWith(mentionState.query.toLowerCase()))
+    : [];
+
+  /* ── Mention selection ─────────────────────────────────────────── */
+
+  const selectMention = (agentName: string) => {
+    if (!mentionState) return;
+    const before = input.slice(0, mentionState.startIdx);
+    const after = input.slice(mentionState.startIdx + 1 + mentionState.query.length);
+    const newInput = (before + after).replace(/  +/g, ' ').trim();
+    setInput(newInput);
+    setMentionedAgents(prev => (prev.includes(agentName) ? prev : [...prev, agentName]));
+    setMentionState(null);
+    setMentionSelectedIdx(0);
+    setTimeout(() => textareaRef.current?.focus(), 0);
+  };
+
+  const removeBadge = (agentName: string) => {
+    setMentionedAgents(prev => prev.filter(a => a !== agentName));
+  };
+
+  /* ── Input handlers ────────────────────────────────────────────── */
+
+  const handleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    const val = e.target.value;
+    setInput(val);
+
+    const cursorPos = e.target.selectionStart ?? val.length;
+    const textBeforeCursor = val.slice(0, cursorPos);
+    const atMatch = textBeforeCursor.match(/@(\w*)$/);
+
+    if (atMatch) {
+      setMentionState({ query: atMatch[1], startIdx: cursorPos - atMatch[0].length });
+      setMentionSelectedIdx(0);
+    } else {
+      setMentionState(null);
+    }
+  };
+
   const handleSend = () => {
-    if (!input.trim() || isLoading) return;
-    onSendMessage(input.trim());
+    const hasContent = input.trim() || mentionedAgents.length > 0;
+    if (!hasContent || isLoading) return;
+    const parts = [...mentionedAgents.map(a => `@${a}`), input.trim()].filter(Boolean);
+    onSendMessage(parts.join(' '));
     setInput('');
+    setMentionedAgents([]);
+    setMentionState(null);
     if (textareaRef.current) textareaRef.current.style.height = 'auto';
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (mentionState && filteredAgents.length > 0) {
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        setMentionSelectedIdx(prev => (prev + 1) % filteredAgents.length);
+        return;
+      }
+      if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        setMentionSelectedIdx(prev => (prev - 1 + filteredAgents.length) % filteredAgents.length);
+        return;
+      }
+      if (e.key === 'Tab' || e.key === 'Enter') {
+        e.preventDefault();
+        selectMention(filteredAgents[mentionSelectedIdx].name);
+        return;
+      }
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        setMentionState(null);
+        return;
+      }
+    }
+
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       handleSend();
     }
   };
+
+  /* ── Agent badge helper ────────────────────────────────────────── */
+
+  const getAgentInfo = (name: string): AgentInfo =>
+    allAgents.find(a => a.name === name) ?? { name, emoji: '🤖', description: '', color: 'gray' };
 
   return (
     <div className="flex-1 flex flex-col h-full bg-white dark:bg-black overflow-hidden transition-colors duration-300">
@@ -299,42 +420,118 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
 
           {/* ── Input area ──────────────────────────────────────── */}
           <div className="shrink-0 px-4 pt-3 pb-4 bg-white dark:bg-black border-t border-gray-300 dark:border-matrix-primary">
-            <form
-              onSubmit={(e) => { e.preventDefault(); handleSend(); }}
-              className="max-w-3xl mx-auto flex items-end gap-2"
-            >
-              <textarea
-                ref={textareaRef}
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                onKeyDown={handleKeyDown}
-                placeholder="Message Morpheus…"
-                rows={1}
-                disabled={isLoading}
-                className="
-                  flex-1 resize-none max-h-40 overflow-y-auto
-                  bg-gray-100 dark:bg-zinc-900
-                  border border-gray-300 dark:border-matrix-primary/60
-                  rounded-xl px-4 py-3
-                  text-sm leading-relaxed
-                  text-gray-800 dark:text-matrix-secondary
-                  placeholder-gray-400 dark:placeholder-matrix-secondary/40
-                  focus:outline-none focus:ring-2 focus:ring-azure-primary dark:focus:ring-matrix-highlight focus:border-transparent
-                  disabled:opacity-50
-                  transition-all duration-200
-                "
-              />
-              <button
-                type="submit"
-                disabled={!input.trim() || isLoading}
-                className="flex-shrink-0 p-3 rounded-xl bg-azure-primary text-white dark:bg-matrix-secondary dark:text-black hover:bg-azure-secondary dark:hover:bg-matrix-highlight disabled:opacity-40 disabled:cursor-not-allowed transition-colors shadow-sm"
+            <div className="max-w-3xl mx-auto relative">
+
+              {/* ── @mention dropdown (above input) ─────────────── */}
+              {mentionState && filteredAgents.length > 0 && (
+                <div className="absolute bottom-full left-0 right-0 mb-2 z-50 bg-white dark:bg-zinc-900 border border-gray-300 dark:border-matrix-primary rounded-xl shadow-xl overflow-hidden">
+                  <div className="px-3 py-1.5 border-b border-gray-100 dark:border-matrix-primary/40 flex items-center gap-1.5">
+                    <span className="text-[10px] font-semibold uppercase tracking-wider text-gray-400 dark:text-matrix-secondary/50">
+                      Agents
+                    </span>
+                  </div>
+                  <ul className="max-h-52 overflow-y-auto py-1">
+                    {filteredAgents.map((agent, idx) => (
+                      <li key={agent.name}>
+                        <button
+                          type="button"
+                          onMouseDown={(e) => { e.preventDefault(); selectMention(agent.name); }}
+                          onMouseEnter={() => setMentionSelectedIdx(idx)}
+                          className={`
+                            w-full flex items-center gap-3 px-3 py-2 text-left transition-colors
+                            ${idx === mentionSelectedIdx
+                              ? 'bg-azure-primary/10 dark:bg-matrix-primary/20'
+                              : 'hover:bg-gray-50 dark:hover:bg-matrix-primary/10'
+                            }
+                          `}
+                        >
+                          <span className="text-base leading-none">{agent.emoji}</span>
+                          <span className="flex-1 min-w-0">
+                            <span className="block text-sm font-medium text-gray-800 dark:text-matrix-highlight">
+                              @{agent.name}
+                            </span>
+                            <span className="block text-xs text-gray-400 dark:text-matrix-secondary/50 truncate">
+                              {agent.description}
+                            </span>
+                          </span>
+                          {idx === mentionSelectedIdx && (
+                            <kbd className="flex-shrink-0 text-[10px] px-1.5 py-0.5 rounded bg-gray-100 dark:bg-black text-gray-500 dark:text-matrix-secondary/60 font-mono border border-gray-200 dark:border-matrix-primary/40">
+                              Tab
+                            </kbd>
+                          )}
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              {/* ── Agent badges ─────────────────────────────────── */}
+              {mentionedAgents.length > 0 && (
+                <div className="flex flex-wrap gap-1.5 mb-2">
+                  {mentionedAgents.map(name => {
+                    const info = getAgentInfo(name);
+                    const badgeClass = AGENT_BADGE_CLASSES[info.color] ?? AGENT_BADGE_CLASSES.gray;
+                    return (
+                      <span
+                        key={name}
+                        className={`inline-flex items-center gap-1 pl-2 pr-1 py-0.5 rounded-full text-xs font-medium border ${badgeClass}`}
+                      >
+                        <span className="leading-none">{info.emoji}</span>
+                        <span>@{name}</span>
+                        <button
+                          type="button"
+                          onClick={() => removeBadge(name)}
+                          className="ml-0.5 rounded-full p-0.5 hover:bg-black/10 dark:hover:bg-white/10 transition-colors"
+                          aria-label={`Remove @${name}`}
+                        >
+                          <X size={10} />
+                        </button>
+                      </span>
+                    );
+                  })}
+                </div>
+              )}
+
+              {/* ── Textarea + send button ────────────────────────── */}
+              <form
+                onSubmit={(e) => { e.preventDefault(); handleSend(); }}
+                className="flex items-end gap-2"
               >
-                <Send size={18} />
-              </button>
-            </form>
-            <p className="mt-1.5 text-center text-[11px] text-gray-300 dark:text-matrix-secondary/25 select-none">
-              Enter to send · Shift+Enter for newline
-            </p>
+                <textarea
+                  ref={textareaRef}
+                  value={input}
+                  onChange={handleChange}
+                  onKeyDown={handleKeyDown}
+                  placeholder="Message Morpheus… (type @ to mention an agent)"
+                  rows={1}
+                  disabled={isLoading}
+                  className="
+                    flex-1 resize-none max-h-40 overflow-y-auto
+                    bg-gray-100 dark:bg-zinc-900
+                    border border-gray-300 dark:border-matrix-primary/60
+                    rounded-xl px-4 py-3
+                    text-sm leading-relaxed
+                    text-gray-800 dark:text-matrix-secondary
+                    placeholder-gray-400 dark:placeholder-matrix-secondary/40
+                    focus:outline-none focus:ring-2 focus:ring-azure-primary dark:focus:ring-matrix-highlight focus:border-transparent
+                    disabled:opacity-50
+                    transition-all duration-200
+                  "
+                />
+                <button
+                  type="submit"
+                  disabled={(!input.trim() && mentionedAgents.length === 0) || isLoading}
+                  className="flex-shrink-0 p-3 rounded-xl bg-azure-primary text-white dark:bg-matrix-secondary dark:text-black hover:bg-azure-secondary dark:hover:bg-matrix-highlight disabled:opacity-40 disabled:cursor-not-allowed transition-colors shadow-sm"
+                >
+                  <Send size={18} />
+                </button>
+              </form>
+
+              <p className="mt-1.5 text-center text-[11px] text-gray-300 dark:text-matrix-secondary/25 select-none">
+                Enter to send · Shift+Enter for newline · @ to mention an agent
+              </p>
+            </div>
           </div>
         </>
       )}

@@ -11,7 +11,7 @@ import { morpheusTools } from "./tools/index.js";
 import { SkillRegistry } from "./skills/registry.js";
 import { TaskRequestContext } from "./tasks/context.js";
 import type { OracleTaskContext, AgentResult } from "./tasks/types.js";
-import { extractRawUsage, persistAgentMessage, buildAgentResult } from "./subagent-utils.js";
+import { extractRawUsage, persistAgentMessage, buildAgentResult, emitToolAuditEvents } from "./subagent-utils.js";
 
 /**
  * Keymaker is a specialized agent for executing skills.
@@ -163,6 +163,7 @@ CRITICAL — NEVER FABRICATE DATA:
       const stepCount = response.messages.filter((m: BaseMessage) => m instanceof AIMessage).length;
 
       await persistAgentMessage('keymaker', content, keymakerConfig, targetSession, rawUsage, durationMs);
+      emitToolAuditEvents(response.messages.slice(2), targetSession, 'keymaker');
 
       this.display.log(
         `Keymaker completed skill "${this.skillName}" execution`,

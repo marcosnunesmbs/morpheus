@@ -53,12 +53,22 @@ export const ChatPage: React.FC = () => {
     try {
       const list = await chatService.getSessions();
       setSessions(list);
+      return list;
     } catch (error) {
       console.error('Failed to load sessions:', error);
+      return [];
     }
   };
 
-  useEffect(() => { refreshSessions(); }, []);
+  // On mount: restore last active session or auto-select the most recent one
+  useEffect(() => {
+    refreshSessions().then(list => {
+      if (!list.length) return;
+      const stored = sessionStorage.getItem('morpheus.chat.uiSessionId');
+      const target = stored && list.find(s => s.id === stored) ? stored : list[0].id;
+      setActiveSessionId(target);
+    });
+  }, []);
 
   useEffect(() => {
     if (activeSessionId) {

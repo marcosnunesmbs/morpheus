@@ -12,7 +12,7 @@ import { DatabaseRegistry } from "./memory/trinity-db.js";
 import { testConnection, introspectSchema, executeQuery } from "./trinity-connector.js";
 import type { OracleTaskContext, AgentResult } from "./tasks/types.js";
 import type { ISubagent } from "./ISubagent.js";
-import { extractRawUsage, persistAgentMessage, buildAgentResult } from "./subagent-utils.js";
+import { extractRawUsage, persistAgentMessage, buildAgentResult, emitToolAuditEvents } from "./subagent-utils.js";
 import { buildDelegationTool } from "./tools/delegation-utils.js";
 
 const TRINITY_BASE_DESCRIPTION = `Delegate a database task to Trinity, the specialized database subagent, asynchronously.
@@ -301,6 +301,7 @@ ${context ? `CONTEXT FROM ORACLE:\n${context}` : ''}
 
       const targetSession = sessionId ?? Trinity.currentSessionId ?? 'trinity';
       await persistAgentMessage('trinity', content, trinityConfig, targetSession, rawUsage, durationMs);
+      emitToolAuditEvents(response.messages.slice(2), targetSession, 'trinity');
 
       this.display.log('Trinity task completed.', { source: 'Trinity' });
       return buildAgentResult(content, trinityConfig, rawUsage, durationMs, stepCount);
