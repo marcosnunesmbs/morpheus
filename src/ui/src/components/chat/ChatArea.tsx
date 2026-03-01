@@ -3,6 +3,7 @@ import type { Message, Session } from '../../services/chat';
 import { groupMessages, isDelegationCall } from '../../services/chat';
 import { Send, Bot, User, Menu, ChevronDown } from 'lucide-react';
 import Markdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import { ToolCallBlock } from './ToolCallBlock';
 import { AgentBlock } from './AgentBlock';
 import { MessageMeta } from './MessageMeta';
@@ -63,6 +64,35 @@ const StandaloneToolBlock: React.FC<{ message: Message }> = ({ message }) => {
       )}
     </details>
   );
+};
+
+/* ─── Markdown table components ─────────────────────────────────── */
+
+const mdComponents = {
+  table: ({ children }: React.HTMLAttributes<HTMLTableElement>) => (
+    <div className="my-2 overflow-x-auto rounded-lg border border-gray-200 dark:border-matrix-primary/60">
+      <table className="min-w-full text-xs border-collapse">{children}</table>
+    </div>
+  ),
+  thead: ({ children }: React.HTMLAttributes<HTMLTableSectionElement>) => (
+    <thead className="bg-gray-100 dark:bg-zinc-900 text-gray-600 dark:text-matrix-secondary/70">
+      {children}
+    </thead>
+  ),
+  tbody: ({ children }: React.HTMLAttributes<HTMLTableSectionElement>) => (
+    <tbody className="divide-y divide-gray-100 dark:divide-matrix-primary/20">{children}</tbody>
+  ),
+  tr: ({ children }: React.HTMLAttributes<HTMLTableRowElement>) => (
+    <tr className="hover:bg-gray-50 dark:hover:bg-zinc-900/60 transition-colors">{children}</tr>
+  ),
+  th: ({ children }: React.ThHTMLAttributes<HTMLTableCellElement>) => (
+    <th className="px-3 py-2 text-left font-semibold whitespace-nowrap border-b border-gray-200 dark:border-matrix-primary/40">
+      {children}
+    </th>
+  ),
+  td: ({ children }: React.TdHTMLAttributes<HTMLTableCellElement>) => (
+    <td className="px-3 py-2 text-gray-700 dark:text-matrix-secondary align-top">{children}</td>
+  ),
 };
 
 /* ─── Main component ─────────────────────────────────────────────── */
@@ -211,6 +241,8 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
                             prose-ul:my-1.5 prose-ol:my-1.5 prose-li:my-0.5
                             prose-pre:my-2 prose-pre:rounded-lg prose-pre:text-xs
                             prose-code:text-[0.8em] prose-code:px-1 prose-code:py-0.5 prose-code:rounded prose-code:font-mono
+                            prose-table:my-0 prose-thead:border-0 prose-tbody:border-0
+                            prose-tr:border-0 prose-th:p-0 prose-td:p-0
                             dark:prose-p:text-matrix-secondary
                             dark:prose-headings:text-matrix-highlight
                             dark:prose-strong:text-matrix-highlight
@@ -218,7 +250,7 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
                             dark:prose-code:text-matrix-highlight dark:prose-code:bg-black/60
                             dark:prose-pre:bg-black dark:prose-pre:border dark:prose-pre:border-matrix-primary/30
                           ">
-                            <Markdown>{msg.content}</Markdown>
+                            <Markdown remarkPlugins={[remarkGfm]} components={mdComponents}>{msg.content}</Markdown>
                           </div>
                         )}
 
