@@ -71,7 +71,7 @@ export const EventTimeline: React.FC<EventTimelineProps> = ({
 
       {/* Event rows */}
       <div className="flex flex-col">
-        {grouped.map((group, gi) =>
+        {grouped.map((group) =>
           group.taskId ? (
             <div key={group.taskId} className="mb-1">
               {/* Task group header */}
