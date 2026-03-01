@@ -132,6 +132,10 @@ export class AuditRepository {
 
     const totalCostUsd = [...llmEvents, ...telephonistEvents].reduce((sum, e) => sum + (e.estimated_cost_usd ?? 0), 0);
     const totalDurationMs = events.reduce((sum, e) => sum + (e.duration_ms ?? 0), 0);
+    const totalAudioSeconds = telephonistEvents.reduce((sum, e) => {
+      const meta = e.metadata ? JSON.parse(e.metadata) : null;
+      return sum + (meta?.audio_duration_seconds ?? 0);
+    }, 0);
 
     // By agent (llm + telephonist)
     const agentMap = new Map<string, { llmCalls: number; inputTokens: number; outputTokens: number; estimatedCostUsd: number }>();
@@ -164,6 +168,7 @@ export class AuditRepository {
     return {
       totalCostUsd,
       totalDurationMs,
+      totalAudioSeconds,
       llmCallCount: llmEvents.length,
       toolCallCount: toolEvents.length,
       byAgent: Array.from(agentMap.entries()).map(([agent, s]) => ({ agent, ...s })),

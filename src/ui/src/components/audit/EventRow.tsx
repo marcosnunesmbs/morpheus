@@ -30,6 +30,18 @@ const EVENT_COLORS: Record<string, string> = {
   telephonist: 'text-rose-500 dark:text-rose-400',
 };
 
+const AGENT_EMOJIS: Record<string, string> = {
+  oracle: '🔮',
+  apoc: '🧑‍🔬',
+  neo: '🥷',
+  trinity: '👩‍💻',
+  smith: '🤖',
+  keymaker: '🗝️',
+  chronos: '⏰',
+  sati: '🧠',
+  telephonist: '📞',
+};
+
 const AGENT_BADGES: Record<string, string> = {
   oracle: 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300',
   apoc: 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300',
@@ -65,6 +77,8 @@ export const EventRow: React.FC<EventRowProps> = ({ event }) => {
   const icon = EVENT_ICONS[event.event_type] ?? <Wrench size={14} />;
   const colorClass = EVENT_COLORS[event.event_type] ?? 'text-gray-500';
   const agentBadge = event.agent ? (AGENT_BADGES[event.agent] ?? 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300') : null;
+  const agentEmoji = event.agent ? AGENT_EMOJIS[event.agent] : undefined;
+  const agentLabel = agentEmoji ? `${event.agent?.toUpperCase()} ${agentEmoji}` : event.agent?.toUpperCase() || null;
 
   const parsedMeta = event.metadata ? JSON.parse(event.metadata) : null;
   const label = event.event_type === 'memory_recovery'
@@ -102,7 +116,7 @@ export const EventRow: React.FC<EventRowProps> = ({ event }) => {
           <span className={`flex-shrink-0 ${colorClass}`}>{icon}</span>
           {agentBadge && (
             <span className={`flex-shrink-0 text-xs font-semibold px-1.5 py-0.5 rounded ${agentBadge}`}>
-              {event.agent}
+              {agentLabel}
             </span>
           )}
           <span className="flex-1 text-sm text-gray-700 dark:text-matrix-secondary font-mono break-all leading-snug">
@@ -123,7 +137,7 @@ export const EventRow: React.FC<EventRowProps> = ({ event }) => {
         <span className={`flex-shrink-0 ${colorClass}`}>{icon}</span>
         {agentBadge && (
           <span className={`flex-shrink-0 text-xs font-semibold px-1.5 py-0.5 rounded ${agentBadge}`}>
-            {event.agent}
+            {agentLabel}
           </span>
         )}
         <span className="flex-1 text-sm truncate text-gray-700 dark:text-matrix-secondary font-mono">

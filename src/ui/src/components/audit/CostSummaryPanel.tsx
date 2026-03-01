@@ -1,5 +1,5 @@
 import React from 'react';
-import { DollarSign, Zap, Wrench, Clock } from 'lucide-react';
+import { DollarSign, Zap, Wrench, Clock, Mic } from 'lucide-react';
 import type { AuditSessionSummary } from '../../services/audit';
 
 interface CostSummaryPanelProps {
@@ -42,6 +42,12 @@ export const CostSummaryPanel: React.FC<CostSummaryPanelProps> = ({ summary }) =
             <Clock size={12} className="text-gray-400" />
             <span>{fmtMs(summary.totalDurationMs)} total duration</span>
           </div>
+          {summary.totalAudioSeconds > 0 && (
+            <div className="flex items-center gap-1.5 col-span-2">
+              <Mic size={12} className="text-rose-400" />
+              <span>{summary.totalAudioSeconds.toFixed(1)}s audio</span>
+            </div>
+          )}
         </div>
       </div>
 

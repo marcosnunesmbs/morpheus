@@ -39,6 +39,7 @@ export interface AuditModelSummary {
 export interface AuditSessionSummary {
   totalCostUsd: number;
   totalDurationMs: number;
+  totalAudioSeconds: number;
   llmCallCount: number;
   toolCallCount: number;
   byAgent: AuditAgentSummary[];
