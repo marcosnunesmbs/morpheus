@@ -24,7 +24,13 @@ import { MCPManager } from "../config/mcp-manager.js";
 import { SkillRegistry, SkillExecuteTool, SkillDelegateTool, updateSkillToolDescriptions } from "./skills/index.js";
 import { SmithRegistry } from "./smiths/registry.js";
 import { AuditRepository } from "./audit/repository.js";
+import { emitToolAuditEvents } from "./subagent-utils.js";
 import { text } from "stream/consumers";
+
+const ORACLE_DELEGATION_TOOLS = new Set([
+  'apoc_delegate', 'neo_delegate', 'trinity_delegate', 'smith_delegate',
+  'skill_delegate', 'skill_execute',
+]);
 
 type AckGenerationResult = {
   content: string;
@@ -495,37 +501,9 @@ Use it to inform your response and tool selection (if needed), but do not assume
       // Emit tool_call audit events for Oracle's independent tool calls.
       // Delegation tools (apoc/neo/trinity/smith/skill) are already audited
       // inside buildDelegationTool or the task system — skip them here.
-      try {
-        const DELEGATION_TOOLS = new Set([
-          'apoc_delegate', 'neo_delegate', 'trinity_delegate', 'smith_delegate',
-          'skill_delegate', 'skill_execute',
-        ]);
-        // Build tool_call_id → result content map from ToolMessage instances
-        const toolResults = new Map<string, string>();
-        for (const msg of newGeneratedMessages) {
-          if (msg instanceof ToolMessage) {
-            const content = typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content);
-            toolResults.set((msg as any).tool_call_id, content);
-          }
-        }
-        for (const msg of newGeneratedMessages) {
-          if (!(msg instanceof AIMessage)) continue;
-          const toolCalls: any[] = (msg as any).tool_calls ?? [];
-          for (const tc of toolCalls) {
-            if (!tc?.name || DELEGATION_TOOLS.has(tc.name)) continue;
-            const result = tc.id ? toolResults.get(tc.id) : undefined;
-            const isError = typeof result === 'string' && /^error:/i.test(result.trim());
-            AuditRepository.getInstance().insert({
-              session_id: currentSessionId ?? 'default',
-              event_type: 'tool_call',
-              agent: 'oracle',
-              tool_name: tc.name,
-              status: isError ? 'error' : 'success',
-              metadata: tc.args && Object.keys(tc.args).length > 0 ? { args: tc.args } : undefined,
-            });
-          }
-        }
-      } catch { /* non-critical */ }
+      emitToolAuditEvents(newGeneratedMessages, currentSessionId ?? 'default', 'oracle', {
+        skipTools: ORACLE_DELEGATION_TOOLS,
+      });
 
       // Inject provider/model metadata and duration into all new AI messages
       for (const msg of newGeneratedMessages) {

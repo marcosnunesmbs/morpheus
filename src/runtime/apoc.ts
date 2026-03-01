@@ -9,7 +9,7 @@ import { DisplayManager } from "./display.js";
 import { buildDevKit } from "../devkit/index.js";
 import type { OracleTaskContext, AgentResult } from "./tasks/types.js";
 import type { ISubagent } from "./ISubagent.js";
-import { extractRawUsage, persistAgentMessage, buildAgentResult } from "./subagent-utils.js";
+import { extractRawUsage, persistAgentMessage, buildAgentResult, emitToolAuditEvents } from "./subagent-utils.js";
 import { buildDelegationTool } from "./tools/delegation-utils.js";
 
 /**
@@ -284,6 +284,7 @@ ${context ? `CONTEXT FROM ORACLE:\n${context}` : ""}
     const messages: BaseMessage[] = [systemMessage, userMessage];
 
     try {
+      const inputCount = messages.length;
       const startMs = Date.now();
       const response = await this.agent!.invoke({ messages });
       const durationMs = Date.now() - startMs;
@@ -300,6 +301,8 @@ ${context ? `CONTEXT FROM ORACLE:\n${context}` : ""}
 
       const targetSession = sessionId ?? Apoc.currentSessionId ?? "apoc";
       await persistAgentMessage('apoc', content, apocConfig, targetSession, rawUsage, durationMs);
+
+      emitToolAuditEvents(response.messages.slice(inputCount), targetSession, 'apoc');
 
       this.display.log("Apoc task completed.", { source: "Apoc" });
       return buildAgentResult(content, apocConfig, rawUsage, durationMs, stepCount);

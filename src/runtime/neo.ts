@@ -11,8 +11,11 @@ import { morpheusTools } from "./tools/index.js";
 import { TaskRequestContext } from "./tasks/context.js";
 import type { OracleTaskContext, AgentResult } from "./tasks/types.js";
 import type { ISubagent } from "./ISubagent.js";
-import { extractRawUsage, persistAgentMessage, buildAgentResult } from "./subagent-utils.js";
+import { extractRawUsage, persistAgentMessage, buildAgentResult, emitToolAuditEvents } from "./subagent-utils.js";
 import { buildDelegationTool } from "./tools/delegation-utils.js";
+
+// Internal Morpheus tools get 'tool_call' event type; MCP tools get 'mcp_tool'
+const MORPHEUS_TOOL_NAMES = new Set(morpheusTools.map((t) => t.name));
 
 const NEO_BUILTIN_CAPABILITIES = `
 Neo built-in capabilities (always available — no MCP required):
@@ -166,6 +169,7 @@ ${context ? `Context:\n${context}` : ""}
         origin_message_id: taskContext?.origin_message_id,
         origin_user_id: taskContext?.origin_user_id,
       };
+      const inputCount = messages.length;
       const startMs = Date.now();
       const response = await TaskRequestContext.run(invokeContext, () => this.agent!.invoke({ messages }));
       const durationMs = Date.now() - startMs;
@@ -181,6 +185,11 @@ ${context ? `Context:\n${context}` : ""}
 
       const targetSession = sessionId ?? Neo.currentSessionId ?? "neo";
       await persistAgentMessage('neo', content, neoConfig, targetSession, rawUsage, durationMs);
+
+      emitToolAuditEvents(response.messages.slice(inputCount), targetSession, 'neo', {
+        defaultEventType: 'mcp_tool',
+        internalToolNames: MORPHEUS_TOOL_NAMES,
+      });
 
       this.display.log("Neo task completed.", { source: "Neo" });
       return buildAgentResult(content, neoConfig, rawUsage, durationMs, stepCount);

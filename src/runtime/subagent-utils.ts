@@ -1,7 +1,9 @@
-import { AIMessage, BaseMessage } from "@langchain/core/messages";
+import { AIMessage, BaseMessage, ToolMessage } from "@langchain/core/messages";
 import { SQLiteChatMessageHistory } from "./memory/sqlite.js";
 import type { LLMConfig } from "../types/config.js";
 import type { AgentResult } from "./tasks/types.js";
+import { AuditRepository } from "./audit/repository.js";
+import type { AuditAgent, AuditEventType } from "./audit/types.js";
 
 export interface RawUsage {
   input_tokens?: number;
@@ -39,6 +41,61 @@ export async function persistAgentMessage(
   } finally {
     history.close();
   }
+}
+
+/**
+ * Emit audit events for each tool call found in the given messages.
+ * Scans AIMessage.tool_calls and matches results from ToolMessage instances.
+ * - defaultEventType: 'tool_call' for DevKit/internal, 'mcp_tool' for MCP tools (default: 'tool_call')
+ * - skipTools: tool names to ignore entirely (e.g. delegation tools already audited elsewhere)
+ * - internalToolNames: tool names that should always use 'tool_call' even when defaultEventType is 'mcp_tool'
+ */
+export function emitToolAuditEvents(
+  messages: BaseMessage[],
+  sessionId: string,
+  agent: AuditAgent,
+  opts?: {
+    defaultEventType?: AuditEventType;
+    skipTools?: Set<string>;
+    internalToolNames?: Set<string>;
+  },
+): void {
+  try {
+    const defaultEventType = opts?.defaultEventType ?? 'tool_call';
+    const skipTools = opts?.skipTools;
+    const internalToolNames = opts?.internalToolNames;
+
+    const toolResults = new Map<string, string>();
+    for (const msg of messages) {
+      if (msg instanceof ToolMessage) {
+        const content = typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content);
+        toolResults.set((msg as any).tool_call_id, content);
+      }
+    }
+
+    for (const msg of messages) {
+      if (!(msg instanceof AIMessage)) continue;
+      const toolCalls: any[] = (msg as any).tool_calls ?? [];
+      for (const tc of toolCalls) {
+        if (!tc?.name) continue;
+        if (skipTools?.has(tc.name)) continue;
+        const result = tc.id ? toolResults.get(tc.id) : undefined;
+        const isError = typeof result === 'string' && /^error:/i.test(result.trim());
+        const eventType: AuditEventType = internalToolNames?.has(tc.name) ? 'tool_call' : defaultEventType;
+        const meta: Record<string, unknown> = {};
+        if (tc.args && Object.keys(tc.args).length > 0) meta.args = tc.args;
+        if (result !== undefined) meta.result = result.length > 500 ? result.slice(0, 500) + '…' : result;
+        AuditRepository.getInstance().insert({
+          session_id: sessionId,
+          event_type: eventType,
+          agent,
+          tool_name: tc.name,
+          status: isError ? 'error' : 'success',
+          metadata: Object.keys(meta).length > 0 ? meta : undefined,
+        });
+      }
+    }
+  } catch { /* non-critical */ }
 }
 
 /** Assemble an AgentResult from extracted usage data. */
