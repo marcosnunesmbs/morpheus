@@ -100,13 +100,13 @@ export function Dashboard() {
     { refreshInterval: 30_000 },
   );
   const { data: smithsData } = useSWR<{ online: number; total: number; enabled: boolean }>(
-    '/api/smiths',
-    () => httpClient.get('/api/smiths'),
+    '/smiths',
+    () => httpClient.get('/smiths'),
     { refreshInterval: 10_000 },
   );
   const { data: chronosJobs = [] } = useSWR<{ id: string; enabled: boolean; next_run_at: number | null }[]>(
-    '/api/chronos',
-    () => httpClient.get('/api/chronos'),
+    '/chronos',
+    () => httpClient.get('/chronos'),
     { refreshInterval: 30_000 },
   );
   const { data: skillsData } = useSWR(
