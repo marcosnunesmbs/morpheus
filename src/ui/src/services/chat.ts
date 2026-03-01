@@ -21,6 +21,7 @@ export interface Message {
     provider?: string | null;
     model?: string | null;
     sati_memories_count?: number | null;
+    audio_duration_seconds?: number | null;
 }
 
 export interface ToolGroupItem {

@@ -1,5 +1,5 @@
 import React from 'react';
-import { Zap, Wrench, Globe, CheckCircle, XCircle, Clock, Bot, Play, Brain } from 'lucide-react';
+import { Zap, Wrench, Globe, CheckCircle, XCircle, Clock, Bot, Play, Brain, Mic } from 'lucide-react';
 import type { AuditEvent } from '../../services/audit';
 
 interface EventRowProps {
@@ -15,6 +15,7 @@ const EVENT_ICONS: Record<string, React.ReactNode> = {
   skill_executed: <Bot size={14} />,
   chronos_job: <Clock size={14} />,
   memory_recovery: <Brain size={14} />,
+  telephonist: <Mic size={14} />,
 };
 
 const EVENT_COLORS: Record<string, string> = {
@@ -26,6 +27,7 @@ const EVENT_COLORS: Record<string, string> = {
   skill_executed: 'text-teal-600 dark:text-teal-400',
   chronos_job: 'text-orange-500 dark:text-orange-400',
   memory_recovery: 'text-emerald-600 dark:text-emerald-400',
+  telephonist: 'text-rose-500 dark:text-rose-400',
 };
 
 const AGENT_BADGES: Record<string, string> = {
@@ -37,6 +39,7 @@ const AGENT_BADGES: Record<string, string> = {
   keymaker: 'bg-pink-100 text-pink-700 dark:bg-pink-900/40 dark:text-pink-300',
   chronos: 'bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300',
   sati: 'bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300',
+  telephonist: 'bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300',
 };
 
 function fmtMs(ms: number | null): string {
@@ -66,8 +69,20 @@ export const EventRow: React.FC<EventRowProps> = ({ event }) => {
   const parsedMeta = event.metadata ? JSON.parse(event.metadata) : null;
   const label = event.event_type === 'memory_recovery'
     ? `${parsedMeta?.memories_count ?? 0} memories retrieved`
-    : (event.tool_name ?? event.model ?? event.event_type);
-  const tokens = fmtTokens(event.input_tokens, event.output_tokens);
+    : event.event_type === 'telephonist'
+      ? (() => {
+          const secs = parsedMeta?.audio_duration_seconds;
+          const preview = parsedMeta?.text_preview;
+          const dur = secs != null ? `${secs}s` : '';
+          const txt = preview ? `"${preview.length > 60 ? preview.slice(0, 60) + '…' : preview}"` : '';
+          return [dur, txt].filter(Boolean).join(' · ') || 'audio transcription';
+        })()
+      : (event.tool_name ?? event.model ?? event.event_type);
+  const isTelephonist = event.event_type === 'telephonist';
+  const audioDurationSecs = parsedMeta?.audio_duration_seconds;
+  const tokens = isTelephonist
+    ? (audioDurationSecs != null ? `🎵 ${audioDurationSecs}s audio` : '')
+    : fmtTokens(event.input_tokens, event.output_tokens);
 
   const cost = fmtCost(event.estimated_cost_usd);
   const duration = fmtMs(event.duration_ms);

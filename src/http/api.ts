@@ -191,6 +191,7 @@ export function createApiRouter(oracle: IOracle, chronosWorker?: ChronosWorker) 
           duration_ms: row.duration_ms ?? null,
           provider: row.provider ?? null,
           model: row.model ?? null,
+          audio_duration_seconds: row.audio_duration_seconds ?? null,
           sati_memories_count: null as number | null,
         };
       });

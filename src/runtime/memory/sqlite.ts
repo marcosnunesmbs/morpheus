@@ -365,6 +365,7 @@ export class SQLiteChatMessageHistory extends BaseListChatMessageHistory {
     model?: string;
     agent?: string;
     duration_ms?: number | null;
+    audio_duration_seconds?: number | null;
   }>> {
     if (sessionIds.length === 0) {
       return [];
@@ -373,7 +374,7 @@ export class SQLiteChatMessageHistory extends BaseListChatMessageHistory {
     try {
       const placeholders = sessionIds.map(() => '?').join(', ');
       const stmt = this.db.prepare(
-        `SELECT id, session_id, type, content, created_at, input_tokens, output_tokens, total_tokens, cache_read_tokens, provider, model, agent, duration_ms
+        `SELECT id, session_id, type, content, created_at, input_tokens, output_tokens, total_tokens, cache_read_tokens, provider, model, agent, duration_ms, audio_duration_seconds
          FROM messages
          WHERE session_id IN (${placeholders})
          ORDER BY id DESC
@@ -394,6 +395,7 @@ export class SQLiteChatMessageHistory extends BaseListChatMessageHistory {
         model?: string;
         agent?: string;
         duration_ms?: number;
+        audio_duration_seconds?: number | null;
       }>;
     } catch (error) {
       if (error instanceof Error && error.message.includes('SQLITE_BUSY')) {

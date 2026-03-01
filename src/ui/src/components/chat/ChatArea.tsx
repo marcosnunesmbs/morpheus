@@ -1,7 +1,7 @@
 import React, { useRef, useEffect, useState } from 'react';
 import type { Message, Session } from '../../services/chat';
 import { groupMessages, isDelegationCall } from '../../services/chat';
-import { Send, Bot, User, Menu, ChevronDown } from 'lucide-react';
+import { Send, Bot, User, Menu, ChevronDown, Mic } from 'lucide-react';
 import Markdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { ToolCallBlock } from './ToolCallBlock';
@@ -211,9 +211,19 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
                   >
                     {/* Human text */}
                     {isHuman && (
-                      <p className="text-sm leading-relaxed whitespace-pre-wrap break-words">
-                        {msg.content}
-                      </p>
+                      <>
+                        {msg.audio_duration_seconds != null && (
+                          <div className="flex items-center gap-1 mb-1.5 text-white/70 dark:text-white/50">
+                            <Mic size={11} />
+                            <span className="text-[10px] font-mono tracking-wide">
+                              voice · {msg.audio_duration_seconds}s
+                            </span>
+                          </div>
+                        )}
+                        <p className="text-sm leading-relaxed whitespace-pre-wrap break-words">
+                          {msg.content}
+                        </p>
+                      </>
                     )}
 
                     {/* AI response */}

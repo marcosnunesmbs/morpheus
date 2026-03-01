@@ -6,7 +6,8 @@ export type AuditEventType =
   | 'task_completed'
   | 'skill_executed'
   | 'chronos_job'
-  | 'memory_recovery';
+  | 'memory_recovery'
+  | 'telephonist';
 
 export type AuditAgent =
   | 'oracle'
@@ -16,7 +17,8 @@ export type AuditAgent =
   | 'smith'
   | 'keymaker'
   | 'chronos'
-  | 'sati';
+  | 'sati'
+  | 'telephonist';
 
 export type AuditStatus = 'success' | 'error';
 

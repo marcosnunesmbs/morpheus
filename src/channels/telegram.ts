@@ -15,6 +15,7 @@ import { SQLiteChatMessageHistory } from '../runtime/memory/sqlite.js';
 import { SatiRepository } from '../runtime/memory/sati/repository.js';
 import { MCPManager } from '../config/mcp-manager.js';
 import { Construtor } from '../runtime/tools/factory.js';
+import { AuditRepository } from '../runtime/audit/repository.js';
 
 function escapeHtml(text: string): string {
   return text
@@ -364,9 +365,35 @@ export class TelegramAdapter {
 
           // Transcribe
           this.display.log(`Transcribing audio for @${user}...`, { source: 'Telephonist' });
+          const transcribeStart = Date.now();
           const { text, usage } = await this.telephonist.transcribe(filePath, 'audio/ogg', apiKey);
+          const transcribeDurationMs = Date.now() - transcribeStart;
 
           this.display.log(`Transcription success for @${user}: "${text}"`, { source: 'Telephonist', level: 'success' });
+
+          // Audit: record telephonist execution
+          try {
+            const sessionId = await this.history.getCurrentSessionOrCreate();
+            AuditRepository.getInstance().insert({
+              session_id: sessionId,
+              event_type: 'telephonist',
+              agent: 'telephonist',
+              provider: config.audio.provider,
+              model: config.audio.model,
+              input_tokens: usage.input_tokens ?? null,
+              output_tokens: usage.output_tokens ?? null,
+              duration_ms: transcribeDurationMs,
+              status: 'success',
+              metadata: {
+                audio_duration_seconds: usage.audio_duration_seconds ?? duration,
+                text_preview: text.slice(0, 120),
+                text_length: text.length,
+                user,
+              },
+            });
+          } catch {
+            // Audit failure never breaks the main flow
+          }
 
           // Reply with transcription (optional, maybe just process it?)
           // The prompt says "reply with the answer".
@@ -411,6 +438,21 @@ export class TelegramAdapter {
         } catch (error: any) {
           const detail = error?.cause?.message || error?.response?.data?.error?.message || error.message;
           this.display.log(`Audio processing error for @${user}: ${detail}`, { source: 'Telephonist', level: 'error' });
+          try {
+            const sessionId = await this.history.getCurrentSessionOrCreate();
+            AuditRepository.getInstance().insert({
+              session_id: sessionId,
+              event_type: 'telephonist',
+              agent: 'telephonist',
+              provider: this.config.get().audio.provider,
+              model: this.config.get().audio.model,
+              duration_ms: null,
+              status: 'error',
+              metadata: { error: detail, user },
+            });
+          } catch {
+            // Audit failure never breaks the main flow
+          }
           await ctx.reply("Sorry, I failed to process your audio message.");
         } finally {
           // Cleanup
