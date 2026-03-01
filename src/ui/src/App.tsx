@@ -20,6 +20,7 @@ const ChronosPage = lazy(() => import('./pages/Chronos').then(m => ({ default: m
 const SkillsPage = lazy(() => import('./pages/Skills').then(m => ({ default: m.SkillsPage })));
 const SmithsPage = lazy(() => import('./pages/Smiths').then(m => ({ default: m.SmithsPage })));
 const SessionAudit = lazy(() => import('./pages/SessionAudit').then(m => ({ default: m.SessionAudit })));
+const AuditDashboard = lazy(() => import('./pages/AuditDashboard').then(m => ({ default: m.AuditDashboard })));
 
 function App() {
   return (
@@ -49,6 +50,7 @@ function App() {
                     <Route path="/skills" element={<SkillsPage />} />
                     <Route path="/smiths" element={<SmithsPage />} />
                     <Route path="/sessions/:id/audit" element={<SessionAudit />} />
+                    <Route path="/audit" element={<AuditDashboard />} />
                     <Route path="*" element={<Navigate to="/" replace />} />
                   </Routes>
                 </Suspense>

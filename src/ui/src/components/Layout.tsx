@@ -12,7 +12,6 @@ import {
   LogOut,
   BarChart3,
   RotateCcw,
-  Puzzle,
   MessageSquare,
   DollarSign,
   Webhook,
@@ -22,7 +21,15 @@ import {
   Clock,
   Wand2,
   HatGlasses,
+  ShieldCheck,
 } from 'lucide-react';
+
+const McpIcon: React.FC<{ className?: string }> = ({ className }) => (
+  <svg className={className} viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <path d="M3.49994 11.7501L11.6717 3.57855C12.7762 2.47398 14.5672 2.47398 15.6717 3.57855C16.7762 4.68312 16.7762 6.47398 15.6717 7.57855M15.6717 7.57855L9.49994 13.7501M15.6717 7.57855C16.7762 6.47398 18.5672 6.47398 19.6717 7.57855C20.7762 8.68312 20.7762 10.474 19.6717 11.5785L12.7072 18.543C12.3167 18.9335 12.3167 19.5667 12.7072 19.9572L13.9999 21.2499" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+    <path d="M17.4999 9.74921L11.3282 15.921C10.2237 17.0255 8.43272 17.0255 7.32823 15.921C6.22373 14.8164 6.22373 13.0255 7.32823 11.921L13.4999 5.74939" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+  </svg>
+);
 import { Footer } from './Footer';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '../hooks/useAuth';
@@ -114,7 +121,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
     { icon: MessageSquare, label: 'Chat', path: '/chat' },
     { icon: Settings, label: 'Zaion', path: '/zaion' },
     { icon: HatGlasses, label: 'Smiths', path: '/smiths' },
-    { icon: Puzzle, label: 'MCP Servers', path: '/mcp-servers' },
+    { icon: McpIcon, label: 'MCP Servers', path: '/mcp-servers' },
     { icon: Wand2, label: 'Skills', path: '/skills' },
     { icon: BarChart3, label: 'Usage Stats', path: '/stats' },
     { icon: Activity, label: 'Sati Memories', path: '/sati-memories' },
@@ -125,6 +132,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
     { icon: Clock, label: 'Chronos', path: '/chronos' },
     { icon: Terminal, label: 'Logs', path: '/logs' },
     { icon: DollarSign, label: 'Model Pricing', path: '/model-pricing' },
+    { icon: ShieldCheck, label: 'Audit', path: '/audit' },
   ];
 
   const mobileNavItems = [
@@ -132,7 +140,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
     { icon: MessageSquare, label: 'Chat', path: '/chat' },
     { icon: Settings, label: 'Zaion', path: '/zaion' },
     { icon: HatGlasses, label: 'Smiths', path: '/smiths' },
-    { icon: Puzzle, label: 'MCP Servers', path: '/mcp-servers' },
+    { icon: McpIcon, label: 'MCP Servers', path: '/mcp-servers' },
     { icon: Wand2, label: 'Skills', path: '/skills' },
     { icon: BarChart3, label: 'Usage Stats', path: '/stats' },
     { icon: Activity, label: 'Sati Memories', path: '/sati-memories' },
@@ -143,6 +151,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
     { icon: Clock, label: 'Chronos', path: '/chronos' },
     { icon: Terminal, label: 'Logs', path: '/logs' },
     { icon: DollarSign, label: 'Model Pricing', path: '/model-pricing' },
+    { icon: ShieldCheck, label: 'Audit', path: '/audit' },
   ];
 
   return (
@@ -358,8 +367,8 @@ export function Layout({ children }: { children: React.ReactNode }) {
           )}
         </AnimatePresence>
         {/* Main Content */}
-        <main className={`flex-1  relative flex flex-col ${location.pathname === '/chat' || location.pathname.endsWith('/audit') ? 'overflow-hidden p-0 md:p-0' : 'overflow-auto p-4 md:p-8'}`}>
-          <div className={`w-full mx-auto flex-1 ${location.pathname === '/chat' || location.pathname.endsWith('/audit') ? 'h-full' : 'max-w-6xl'}`}>{children}</div>
+        <main className={`flex-1  relative flex flex-col ${location.pathname === '/chat' || /\/sessions\/[^/]+\/audit$/.test(location.pathname) ? 'overflow-hidden p-0 md:p-0' : 'overflow-auto p-4 md:p-8'}`}>
+          <div className={`w-full mx-auto flex-1 ${location.pathname === '/chat' || /\/sessions\/[^/]+\/audit$/.test(location.pathname) ? 'h-full' : 'max-w-6xl'}`}>{children}</div>
 
           {/* Scanline effect overlay (only in matrix theme) */}
           {theme === 'matrix' && (

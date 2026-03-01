@@ -51,6 +51,95 @@ export interface SessionAuditResponse {
   summary: AuditSessionSummary;
 }
 
+export interface GlobalAuditTotals {
+  estimatedCostUsd: number;
+  totalDurationMs: number;
+  totalAudioSeconds: number;
+  totalInputTokens: number;
+  totalOutputTokens: number;
+  totalEventCount: number;
+  llmCallCount: number;
+  toolCallCount: number;
+  mcpToolCount: number;
+  skillCount: number;
+  memoryRecoveryCount: number;
+  chronosJobCount: number;
+  taskCreatedCount: number;
+  taskCompletedCount: number;
+  telephonistCount: number;
+}
+
+export interface GlobalAuditByAgent {
+  agent: string;
+  llmCalls: number;
+  toolCalls: number;
+  inputTokens: number;
+  outputTokens: number;
+  estimatedCostUsd: number;
+  totalDurationMs: number;
+}
+
+export interface GlobalAuditByModel {
+  provider: string;
+  model: string;
+  calls: number;
+  inputTokens: number;
+  outputTokens: number;
+  estimatedCostUsd: number;
+}
+
+export interface GlobalAuditTopTool {
+  tool_name: string;
+  agent: string | null;
+  event_type: string;
+  count: number;
+  errorCount: number;
+}
+
+export interface GlobalAuditRecentSession {
+  session_id: string;
+  title: string | null;
+  status: string;
+  started_at: number | null;
+  event_count: number;
+  estimatedCostUsd: number;
+  totalDurationMs: number;
+  llmCallCount: number;
+}
+
+export interface GlobalAuditDailyActivity {
+  date: string;
+  eventCount: number;
+  llmCallCount: number;
+  estimatedCostUsd: number;
+}
+
+export interface GlobalAuditSummary {
+  sessions: {
+    total: number;
+    active: number;
+    paused: number;
+    archived: number;
+    deleted: number;
+    withAudit: number;
+  };
+  totals: GlobalAuditTotals;
+  byAgent: GlobalAuditByAgent[];
+  byModel: GlobalAuditByModel[];
+  topTools: GlobalAuditTopTool[];
+  recentSessions: GlobalAuditRecentSession[];
+  dailyActivity: GlobalAuditDailyActivity[];
+}
+
+export function useGlobalAudit() {
+  const { data, error, isLoading, mutate } = useSWR<GlobalAuditSummary>(
+    '/audit/global',
+    (url: string) => httpClient.get<GlobalAuditSummary>(url),
+    { revalidateOnFocus: false, refreshInterval: 30_000 }
+  );
+  return { data, error, isLoading, mutate };
+}
+
 export function useSessionAudit(sessionId: string | null, page = 0, pageSize = 100) {
   const limit = pageSize;
   const offset = page * pageSize;

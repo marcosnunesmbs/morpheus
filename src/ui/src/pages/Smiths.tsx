@@ -143,7 +143,7 @@ function SmithCard({ status, entry, onPing, onEdit, onDelete }: SmithCardProps) 
         : 'border-azure-border dark:border-matrix-primary'
     }`}>
       {/* Card Header */}
-      <div className="p-4">
+      <div className="p-4 bg-azure-surface/50 dark:bg-zinc-950/50">
         <div className="flex items-start justify-between gap-3">
           <div className="flex items-center gap-3 min-w-0">
             <div className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 ${

@@ -56,6 +56,74 @@ export interface AuditEventInsert {
   metadata?: Record<string, unknown> | null;
 }
 
+export interface GlobalAuditSummary {
+  sessions: {
+    total: number;
+    active: number;
+    paused: number;
+    archived: number;
+    deleted: number;
+    withAudit: number;
+  };
+  totals: {
+    estimatedCostUsd: number;
+    totalDurationMs: number;
+    totalAudioSeconds: number;
+    totalInputTokens: number;
+    totalOutputTokens: number;
+    totalEventCount: number;
+    llmCallCount: number;
+    toolCallCount: number;
+    mcpToolCount: number;
+    skillCount: number;
+    memoryRecoveryCount: number;
+    chronosJobCount: number;
+    taskCreatedCount: number;
+    taskCompletedCount: number;
+    telephonistCount: number;
+  };
+  byAgent: Array<{
+    agent: string;
+    llmCalls: number;
+    toolCalls: number;
+    inputTokens: number;
+    outputTokens: number;
+    estimatedCostUsd: number;
+    totalDurationMs: number;
+  }>;
+  byModel: Array<{
+    provider: string;
+    model: string;
+    calls: number;
+    inputTokens: number;
+    outputTokens: number;
+    estimatedCostUsd: number;
+  }>;
+  topTools: Array<{
+    tool_name: string;
+    agent: string | null;
+    event_type: string;
+    count: number;
+    errorCount: number;
+  }>;
+  recentSessions: Array<{
+    session_id: string;
+    title: string | null;
+    status: string;
+    started_at: number | null;
+    event_count: number;
+    estimatedCostUsd: number;
+    totalDurationMs: number;
+    llmCallCount: number;
+  }>;
+  dailyActivity: Array<{
+    date: string;
+    eventCount: number;
+    llmCallCount: number;
+    estimatedCostUsd: number;
+  }>;
+}
+
 export interface AuditSessionSummary {
   totalCostUsd: number;
   totalDurationMs: number;

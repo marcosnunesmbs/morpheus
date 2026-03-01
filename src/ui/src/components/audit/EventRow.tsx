@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Zap, Wrench, Globe, CheckCircle, XCircle, Clock, Bot, Play, Brain, Mic, ChevronRight, ChevronDown } from 'lucide-react';
+import { Zap, Wrench, CheckCircle, XCircle, Clock, Bot, Play, Brain, Mic, ChevronRight, ChevronDown } from 'lucide-react';
 import type { AuditEvent } from '../../services/audit';
 
 interface EventRowProps {
@@ -7,21 +7,26 @@ interface EventRowProps {
 }
 
 const EVENT_ICONS: Record<string, React.ReactNode> = {
-  llm_call: <Zap size={14} />,
-  tool_call: <Wrench size={14} />,
-  mcp_tool: <Globe size={14} />,
-  task_created: <Play size={14} />,
-  task_completed: <CheckCircle size={14} />,
-  skill_executed: <Bot size={14} />,
-  chronos_job: <Clock size={14} />,
-  memory_recovery: <Brain size={14} />,
-  telephonist: <Mic size={14} />,
+  llm_call: <Zap size={16} />,
+  tool_call: <Wrench size={16} />,
+  mcp_tool: (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <path d="M3.49994 11.7501L11.6717 3.57855C12.7762 2.47398 14.5672 2.47398 15.6717 3.57855C16.7762 4.68312 16.7762 6.47398 15.6717 7.57855M15.6717 7.57855L9.49994 13.7501M15.6717 7.57855C16.7762 6.47398 18.5672 6.47398 19.6717 7.57855C20.7762 8.68312 20.7762 10.474 19.6717 11.5785L12.7072 18.543C12.3167 18.9335 12.3167 19.5667 12.7072 19.9572L13.9999 21.2499" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+      <path d="M17.4999 9.74921L11.3282 15.921C10.2237 17.0255 8.43272 17.0255 7.32823 15.921C6.22373 14.8164 6.22373 13.0255 7.32823 11.921L13.4999 5.74939" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+    </svg>
+  ),
+  task_created: <Play size={16} />,
+  task_completed: <CheckCircle size={16} />,
+  skill_executed: <Bot size={16} />,
+  chronos_job: <Clock size={16} />,
+  memory_recovery: <Brain size={16} />,
+  telephonist: <Mic size={16} />,
 };
 
 const EVENT_COLORS: Record<string, string> = {
   llm_call: 'text-blue-400 dark:text-blue-400',
   tool_call: 'text-amber-500 dark:text-amber-400',
-  mcp_tool: 'text-purple-500 dark:text-purple-400',
+  mcp_tool: 'text-orange-500 dark:text-orange-400',
   task_created: 'text-gray-500 dark:text-matrix-secondary',
   task_completed: 'text-green-600 dark:text-matrix-highlight',
   skill_executed: 'text-teal-600 dark:text-teal-400',

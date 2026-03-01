@@ -226,7 +226,16 @@ export function createApiRouter(oracle: IOracle, chronosWorker?: ChronosWorker) 
     }
   });
 
-  // --- Session Audit ---
+  // --- Audit ---
+
+  router.get('/audit/global', (_req, res) => {
+    try {
+      const summary = AuditRepository.getInstance().getGlobalSummary();
+      res.json(summary);
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
 
   router.get('/sessions/:id/audit', (req, res) => {
     try {
