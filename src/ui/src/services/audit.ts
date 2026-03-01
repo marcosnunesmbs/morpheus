@@ -5,7 +5,7 @@ export interface AuditEvent {
   id: string;
   session_id: string;
   task_id: string | null;
-  event_type: 'llm_call' | 'tool_call' | 'mcp_tool' | 'task_created' | 'task_completed' | 'skill_executed' | 'chronos_job';
+  event_type: 'llm_call' | 'tool_call' | 'mcp_tool' | 'task_created' | 'task_completed' | 'skill_executed' | 'chronos_job' | 'memory_recovery';
   agent: string | null;
   tool_name: string | null;
   provider: string | null;
