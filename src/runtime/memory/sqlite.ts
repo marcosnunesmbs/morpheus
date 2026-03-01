@@ -240,6 +240,21 @@ export class SQLiteChatMessageHistory extends BaseListChatMessageHistory {
     } catch (error) {
       console.warn(`[SQLite] Migration check failed: ${error}`);
     }
+
+    // Migrate model_pricing table
+    try {
+      const pricingInfo = this.db.pragma('table_info(model_pricing)') as Array<{ name: string }>;
+      const pricingCols = new Set(pricingInfo.map(c => c.name));
+      if (!pricingCols.has('audio_cost_per_second')) {
+        this.db.exec('ALTER TABLE model_pricing ADD COLUMN audio_cost_per_second REAL');
+        // Seed Whisper pricing: $0.006/minute = $0.0001/second
+        this.db.prepare(
+          'INSERT OR IGNORE INTO model_pricing (provider, model, input_price_per_1m, output_price_per_1m, audio_cost_per_second) VALUES (?, ?, ?, ?, ?)'
+        ).run('openai', 'whisper-1', 0, 0, 0.0001);
+      }
+    } catch (error) {
+      console.warn(`[SQLite] model_pricing migration failed: ${error}`);
+    }
   }
 
   /**
@@ -796,14 +811,14 @@ export class SQLiteChatMessageHistory extends BaseListChatMessageHistory {
   // --- Model Pricing CRUD ---
 
   listModelPricing(): ModelPricingEntry[] {
-    const rows = this.db.prepare('SELECT provider, model, input_price_per_1m, output_price_per_1m FROM model_pricing ORDER BY provider, model').all() as ModelPricingEntry[];
+    const rows = this.db.prepare('SELECT provider, model, input_price_per_1m, output_price_per_1m, audio_cost_per_second FROM model_pricing ORDER BY provider, model').all() as ModelPricingEntry[];
     return rows;
   }
 
   upsertModelPricing(entry: ModelPricingEntry): void {
     this.db.prepare(
-      'INSERT INTO model_pricing (provider, model, input_price_per_1m, output_price_per_1m) VALUES (?, ?, ?, ?) ON CONFLICT(provider, model) DO UPDATE SET input_price_per_1m = excluded.input_price_per_1m, output_price_per_1m = excluded.output_price_per_1m'
-    ).run(entry.provider, entry.model, entry.input_price_per_1m, entry.output_price_per_1m);
+      'INSERT INTO model_pricing (provider, model, input_price_per_1m, output_price_per_1m, audio_cost_per_second) VALUES (?, ?, ?, ?, ?) ON CONFLICT(provider, model) DO UPDATE SET input_price_per_1m = excluded.input_price_per_1m, output_price_per_1m = excluded.output_price_per_1m, audio_cost_per_second = excluded.audio_cost_per_second'
+    ).run(entry.provider, entry.model, entry.input_price_per_1m, entry.output_price_per_1m, entry.audio_cost_per_second ?? null);
   }
 
   deleteModelPricing(provider: string, model: string): number {

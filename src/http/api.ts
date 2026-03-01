@@ -454,7 +454,8 @@ export function createApiRouter(oracle: IOracle, chronosWorker?: ChronosWorker) 
     provider: z.string().min(1),
     model: z.string().min(1),
     input_price_per_1m: z.number().nonnegative(),
-    output_price_per_1m: z.number().nonnegative()
+    output_price_per_1m: z.number().nonnegative(),
+    audio_cost_per_second: z.number().nonnegative().nullable().optional(),
   });
 
   router.get('/model-pricing', (req, res) => {
@@ -487,7 +488,8 @@ export function createApiRouter(oracle: IOracle, chronosWorker?: ChronosWorker) 
     const { provider, model } = req.params;
     const partial = z.object({
       input_price_per_1m: z.number().nonnegative().optional(),
-      output_price_per_1m: z.number().nonnegative().optional()
+      output_price_per_1m: z.number().nonnegative().optional(),
+      audio_cost_per_second: z.number().nonnegative().nullable().optional(),
     }).safeParse(req.body);
     if (!partial.success) {
       return res.status(400).json({ error: 'Invalid payload', details: partial.error.issues });
@@ -503,7 +505,10 @@ export function createApiRouter(oracle: IOracle, chronosWorker?: ChronosWorker) 
         provider,
         model,
         input_price_per_1m: partial.data.input_price_per_1m ?? existing.input_price_per_1m,
-        output_price_per_1m: partial.data.output_price_per_1m ?? existing.output_price_per_1m
+        output_price_per_1m: partial.data.output_price_per_1m ?? existing.output_price_per_1m,
+        audio_cost_per_second: 'audio_cost_per_second' in partial.data
+          ? partial.data.audio_cost_per_second
+          : existing.audio_cost_per_second,
       });
       h.close();
       res.json({ success: true });

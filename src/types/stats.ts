@@ -3,6 +3,7 @@ export interface ModelPricingEntry {
   model: string;
   input_price_per_1m: number;
   output_price_per_1m: number;
+  audio_cost_per_second?: number | null;
 }
 
 export interface ProviderModelUsageStats {

@@ -89,7 +89,24 @@ export class AuditRepository {
     const rows = this.db.prepare(`
       SELECT ae.*,
         CASE
-          WHEN ae.provider IS NOT NULL AND ae.model IS NOT NULL AND ae.input_tokens IS NOT NULL
+          -- Telephonist: prefer audio_cost_per_second when set
+          WHEN ae.event_type = 'telephonist'
+            AND mp.audio_cost_per_second IS NOT NULL
+            AND mp.audio_cost_per_second > 0
+          THEN
+            COALESCE(CAST(json_extract(ae.metadata, '$.audio_duration_seconds') AS REAL), 0)
+            * mp.audio_cost_per_second
+          -- Telephonist with token-based pricing (e.g. Gemini/OpenRouter with real tokens)
+          WHEN ae.event_type = 'telephonist'
+            AND ae.provider IS NOT NULL AND ae.model IS NOT NULL
+            AND ae.input_tokens IS NOT NULL AND ae.input_tokens > 0
+          THEN (
+            COALESCE(ae.input_tokens, 0) / 1000000.0 * COALESCE(mp.input_price_per_1m, 0) +
+            COALESCE(ae.output_tokens, 0) / 1000000.0 * COALESCE(mp.output_price_per_1m, 0)
+          )
+          -- All other events: token-based
+          WHEN ae.event_type != 'telephonist'
+            AND ae.provider IS NOT NULL AND ae.model IS NOT NULL AND ae.input_tokens IS NOT NULL
           THEN (
             COALESCE(ae.input_tokens, 0) / 1000000.0 * COALESCE(mp.input_price_per_1m, 0) +
             COALESCE(ae.output_tokens, 0) / 1000000.0 * COALESCE(mp.output_price_per_1m, 0)
@@ -111,13 +128,14 @@ export class AuditRepository {
 
     const llmEvents = events.filter(e => e.event_type === 'llm_call');
     const toolEvents = events.filter(e => e.event_type === 'tool_call' || e.event_type === 'mcp_tool');
+    const telephonistEvents = events.filter(e => e.event_type === 'telephonist');
 
-    const totalCostUsd = llmEvents.reduce((sum, e) => sum + (e.estimated_cost_usd ?? 0), 0);
+    const totalCostUsd = [...llmEvents, ...telephonistEvents].reduce((sum, e) => sum + (e.estimated_cost_usd ?? 0), 0);
     const totalDurationMs = events.reduce((sum, e) => sum + (e.duration_ms ?? 0), 0);
 
-    // By agent
+    // By agent (llm + telephonist)
     const agentMap = new Map<string, { llmCalls: number; inputTokens: number; outputTokens: number; estimatedCostUsd: number }>();
-    for (const e of llmEvents) {
+    for (const e of [...llmEvents, ...telephonistEvents]) {
       const key = e.agent ?? 'unknown';
       const existing = agentMap.get(key) ?? { llmCalls: 0, inputTokens: 0, outputTokens: 0, estimatedCostUsd: 0 };
       agentMap.set(key, {
@@ -128,9 +146,9 @@ export class AuditRepository {
       });
     }
 
-    // By model
+    // By model (llm + telephonist)
     const modelMap = new Map<string, { calls: number; inputTokens: number; outputTokens: number; estimatedCostUsd: number; provider: string }>();
-    for (const e of llmEvents) {
+    for (const e of [...llmEvents, ...telephonistEvents]) {
       if (!e.model) continue;
       const key = `${e.provider}/${e.model}`;
       const existing = modelMap.get(key) ?? { calls: 0, inputTokens: 0, outputTokens: 0, estimatedCostUsd: 0, provider: e.provider ?? '' };

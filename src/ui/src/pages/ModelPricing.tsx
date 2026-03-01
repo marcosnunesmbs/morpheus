@@ -15,6 +15,7 @@ const emptyForm = (): ModelPricingEntry => ({
   model: '',
   input_price_per_1m: 0,
   output_price_per_1m: 0,
+  audio_cost_per_second: null,
 });
 
 export const ModelPricing = () => {
@@ -114,7 +115,7 @@ export const ModelPricing = () => {
         <table className="w-full text-sm">
           <thead className="bg-azure-surface dark:bg-zinc-900 border-b border-azure-border dark:border-matrix-primary">
             <tr>
-              {['Provider', 'Model', 'Input ($/1M tokens)', 'Output ($/1M tokens)', 'Actions'].map((h) => (
+              {['Provider', 'Model', 'Input ($/1M tokens)', 'Output ($/1M tokens)', 'Audio ($/s)', 'Actions'].map((h) => (
                 <th key={h} className="px-4 py-3 text-left font-semibold text-azure-text-secondary dark:text-matrix-secondary">
                   {h}
                 </th>
@@ -124,7 +125,7 @@ export const ModelPricing = () => {
           <tbody>
             {data.length === 0 ? (
               <tr>
-                <td colSpan={5} className="px-4 py-8 text-center text-azure-text-secondary dark:text-matrix-secondary">
+                <td colSpan={6} className="px-4 py-8 text-center text-azure-text-secondary dark:text-matrix-secondary">
                   No pricing entries. Click "Add Pricing" to get started.
                 </td>
               </tr>
@@ -138,6 +139,11 @@ export const ModelPricing = () => {
                   <td className="px-4 py-3 font-mono text-azure-text-primary dark:text-matrix-highlight text-xs">{entry.model}</td>
                   <td className="px-4 py-3 text-azure-text-primary dark:text-matrix-text">${entry.input_price_per_1m.toFixed(4)}</td>
                   <td className="px-4 py-3 text-azure-text-primary dark:text-matrix-text">${entry.output_price_per_1m.toFixed(4)}</td>
+                  <td className="px-4 py-3 text-azure-text-primary dark:text-matrix-text">
+                    {entry.audio_cost_per_second != null
+                      ? `$${entry.audio_cost_per_second.toFixed(6)}`
+                      : <span className="text-azure-text-secondary dark:text-matrix-secondary/40">—</span>}
+                  </td>
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-2">
                       <button
@@ -224,6 +230,23 @@ export const ModelPricing = () => {
                   className="w-full px-3 py-2 rounded-lg border border-azure-border dark:border-matrix-primary bg-azure-surface dark:bg-black text-azure-text-primary dark:text-matrix-secondary text-sm focus:outline-none focus:ring-1 focus:ring-azure-primary dark:focus:ring-matrix-highlight focus:border-azure-primary dark:focus:border-matrix-highlight"
                 />
               </div>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-azure-text-secondary dark:text-matrix-secondary mb-1">
+                Audio price / second ($)
+                <span className="ml-2 text-[11px] font-normal text-azure-text-secondary/60 dark:text-matrix-secondary/40">
+                  for Whisper/audio-only models · leave blank for token-based
+                </span>
+              </label>
+              <input
+                type="number"
+                min={0}
+                step={0.000001}
+                placeholder="e.g. 0.0001 (Whisper = $0.006/min)"
+                value={form.audio_cost_per_second ?? ''}
+                onChange={(e) => setForm({ ...form, audio_cost_per_second: e.target.value === '' ? null : parseFloat(e.target.value) })}
+                className="w-full px-3 py-2 rounded-lg border border-azure-border dark:border-matrix-primary bg-azure-surface dark:bg-black text-azure-text-primary dark:text-matrix-secondary text-sm focus:outline-none focus:ring-1 focus:ring-azure-primary dark:focus:ring-matrix-highlight focus:border-azure-primary dark:focus:border-matrix-highlight placeholder-azure-text-secondary/40 dark:placeholder-matrix-secondary/30"
+              />
             </div>
             <div className="flex justify-end gap-3 pt-2">
               <button
