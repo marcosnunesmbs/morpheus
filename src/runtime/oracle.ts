@@ -27,6 +27,7 @@ import { MCPManager } from "../config/mcp-manager.js";
 import { SkillRegistry, SkillExecuteTool, SkillDelegateTool, updateSkillToolDescriptions } from "./skills/index.js";
 import { SmithRegistry } from "./smiths/registry.js";
 import { AuditRepository } from "./audit/repository.js";
+import { text } from "stream/consumers";
 
 type AckGenerationResult = {
   content: string;
@@ -273,14 +274,25 @@ You are ${this.config.agent.name}, ${this.config.agent.personality}, the Oracle.
 
 You are an orchestrator and task router.
 
-If the user request contains ANY time-related expression
-(today, tomorrow, this week, next month, in 3 days, etc),
-you **MUST** call the tool "time_verifier" before answering or call another tool **ALWAYS**.
+## Date & Time Resolution — MANDATORY
 
-With the time_verify, you remake the user prompt.
+You **MUST** call "time_verifier" before answering or delegating ANY request that depends on the current date or time.
+This includes — but is not limited to — **two categories**:
 
-Never assume dates.
-Always resolve temporal expressions using the tool.
+**Category A — Explicit temporal expressions** (pass the expression itself as 'text'):
+- Examples: "today", "tomorrow", "next week", "in 3 days", "this Friday", "at 20h"
+- PT: "hoje", "amanhã", "próxima semana", "em 3 dias", "na sexta"
+- Pass: '{ text: "<the expression>" }' → get resolved date → include it in the search/delegation
+
+**Category B — Implicit temporal intent** (pass "hoje" as 'text' to anchor the search to now):
+- "próximo jogo do Flamengo" → next scheduled event AFTER today
+- "próximo episódio de X" → upcoming release AFTER today
+- "latest version of Y", "resultado mais recente", "quem está liderando agora"
+- Any query whose answer changes depending on what day it is today
+- Pass: '{ text: "hoje" }'  → get today's resolved date → include it in the search/delegation
+
+**NEVER assume or invent a date. NEVER guess "today is [date]".**
+Always call time_verifier first, then use the resolved date in your tool call or delegation prompt.
 
 Rules:
 1. For conversation-only requests (greetings, conceptual explanation, memory follow-up, statements of fact, sharing personal information), answer directly. DO NOT create tasks or delegate for simple statements like "I have two cats" or "My name is John". Sati will automatically memorize facts in the background ( **ALWAYS** use SATI Memories to review or retrieve these facts if needed).
@@ -586,11 +598,12 @@ Use it to inform your response and tool selection (if needed), but do not assume
         const satiCfg = ConfigManager.getInstance().getSatiConfig();
         const evalInterval = satiCfg.evaluation_interval ?? 1;
         const contextWindow = this.config.llm?.context_window ?? this.config.memory?.limit ?? 100;
-        const shouldEval = (turnCount % evalInterval === 0) || (previousMessages.length >= contextWindow);
+        const effectiveInterval = Math.min(evalInterval, contextWindow);
+        const shouldEval = turnCount % effectiveInterval === 0;
 
         if (shouldEval) {
           this.display.log(
-            `Sati eval triggered (turn ${turnCount}, interval ${evalInterval}, history ${previousMessages.length}/${contextWindow})`,
+            `Sati eval triggered (turn ${turnCount}, effective interval ${effectiveInterval})`,
             { source: 'Sati', level: 'debug' }
           );
           this.satiMiddleware.afterAgent(responseContent, [...previousMessages, userMessage], currentSessionId)

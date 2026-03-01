@@ -782,7 +782,7 @@ export default function Settings() {
                       }
                       min={1}
                       step={1}
-                      helperText="Oracle turns between memory evaluations. Default: 1 (every turn). Evaluation also runs automatically when context window is full."
+                      helperText="Oracle turns between memory evaluations. Default: 1 (every turn). *If Evaluation interval is more than context window, this value will be ignored."
                     />
                     <Switch
                       label="Enable Archived Sessions in Memory Retrieval"
@@ -813,7 +813,7 @@ export default function Settings() {
                           bg-gray-200 dark:bg-matrix-primary/30
                           accent-azure-primary dark:accent-matrix-highlight"
                       />
-                      <p className="mt-1.5 text-xs text-gray-400 dark:text-matrix-secondary/50">
+                      <p className="mt-1.5 text-xs text-gray-400 dark:text-matrix-secondary">
                         Minimum cosine similarity to consider a memory relevant (0–1).
                       Lower values retrieve more memories, but may increase token consumption.
                       </p>

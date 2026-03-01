@@ -143,17 +143,24 @@ export const timeVerifierTool = tool(
   {
     name: "time_verifier",
     description: `
-Detects and resolves relative time expressions in user input.
-Supports multiple languages (English, Portuguese, Spanish).
-Use this tool whenever the user mentions words like:
-today, tomorrow, yesterday, this week, next week,
-hoje, amanhã, ontem, próxima semana,
-hoy, mañana, ayer, la próxima semana, etc.
+Resolves temporal expressions into concrete ISO dates anchored to the current date and timezone.
+Use this tool in TWO scenarios:
 
-Returns resolved ISO dates based on the current time and timezone configuration.
+1. EXPLICIT temporal expression — pass the expression itself as "text":
+   - "tomorrow at 9am", "next Friday", "in 3 days", "this week"
+   - "amanhã às 9h", "próxima sexta", "em 3 dias", "esta semana"
+
+2. IMPLICIT temporal query — the user asks about something whose answer depends on today's date,
+   but without stating a date explicitly. Pass "hoje" as text to resolve today's date:
+   - "próximo jogo do Flamengo" → you need today's date to search for games AFTER today
+   - "próximo episódio de X", "latest release", "resultado mais recente"
+   - Any "next", "upcoming", "latest", "current", "recent", "agora" query about real-world events
+
+After calling this tool, incorporate the resolved ISO date into your search query or delegation prompt
+so the agent knows the time context (e.g. "find Flamengo games after 2026-03-01").
     `,
     schema: z.object({
-      text: z.string().describe("User input text containing time expressions"),
+      text: z.string().describe('Temporal expression to resolve (e.g. "amanhã", "next Friday") — OR pass "hoje" to get today\'s date when the query has implicit temporal intent'),
       timezone: z.string().optional().describe("Optional timezone override. Defaults to system configuration."),
     }),
   }
