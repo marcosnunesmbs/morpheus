@@ -20,6 +20,7 @@ export interface Message {
     duration_ms?: number | null;
     provider?: string | null;
     model?: string | null;
+    sati_memories_count?: number | null;
 }
 
 export interface ToolGroupItem {

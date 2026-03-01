@@ -1,4 +1,5 @@
 import React from 'react';
+import { Brain } from 'lucide-react';
 import type { Message } from '../../services/chat';
 
 interface MessageMetaProps {
@@ -23,8 +24,9 @@ export const MessageMeta: React.FC<MessageMetaProps> = ({ message }) => {
   const hasTokens = inputTokens > 0 || outputTokens > 0;
   const duration = fmtMs(message.duration_ms);
   const model = message.model;
+  const memoriesCount = message.sati_memories_count ?? null;
 
-  if (!hasTokens && !duration && !model) return null;
+  if (!hasTokens && !duration && !model && memoriesCount == null) return null;
 
   // Shorten model name: strip provider prefix, keep meaningful segments
   const modelShort = model
@@ -49,6 +51,12 @@ export const MessageMeta: React.FC<MessageMetaProps> = ({ message }) => {
       {duration && (
         <span className="text-[11px] font-mono text-gray-400 dark:text-matrix-secondary/40">
           {duration}
+        </span>
+      )}
+      {memoriesCount != null && memoriesCount > 0 && (
+        <span className="flex items-center gap-1 text-[11px] font-mono text-purple-400 dark:text-purple-400/70">
+          <Brain size={10} />
+          {memoriesCount}
         </span>
       )}
     </div>

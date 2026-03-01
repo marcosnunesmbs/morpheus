@@ -191,8 +191,30 @@ export function createApiRouter(oracle: IOracle, chronosWorker?: ChronosWorker) 
           duration_ms: row.duration_ms ?? null,
           provider: row.provider ?? null,
           model: row.model ?? null,
+          sati_memories_count: null as number | null,
         };
       });
+
+      // Enrich AI messages with Sati memory recovery counts from audit events
+      const recoveryEvents = AuditRepository.getInstance()
+        .getBySession(id, { limit: 10_000 })
+        .filter(e => e.event_type === 'memory_recovery')
+        .sort((a, b) => a.created_at - b.created_at);
+
+      for (let ri = 0; ri < recoveryEvents.length; ri++) {
+        const ev = recoveryEvents[ri];
+        const windowEnd = recoveryEvents[ri + 1]?.created_at ?? Infinity;
+        const count: number = ev.metadata ? (JSON.parse(ev.metadata).memories_count ?? 0) : 0;
+        if (count === 0) continue;
+        // Assign to the LAST ai message within this recovery's window
+        for (let mi = normalizedMessages.length - 1; mi >= 0; mi--) {
+          const m = normalizedMessages[mi];
+          if (m.type === 'ai' && m.created_at > ev.created_at && m.created_at < windowEnd) {
+            m.sati_memories_count = count;
+            break;
+          }
+        }
+      }
 
       // Convert DESC to ASC for UI rendering
       res.json(normalizedMessages.reverse());
