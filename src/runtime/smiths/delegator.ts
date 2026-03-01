@@ -11,6 +11,8 @@ import { SQLiteChatMessageHistory } from '../memory/sqlite.js';
 import type { AgentResult } from '../tasks/types.js';
 import type { SmithTaskResultMessage, SmithToMorpheusMessage } from './types.js';
 import type { StructuredTool } from '@langchain/core/tools';
+import { AuditRepository } from '../audit/repository.js';
+import { TaskRequestContext } from '../tasks/context.js';
 
 /**
  * SmithDelegator — delegates natural-language tasks to a specific Smith.
@@ -88,6 +90,25 @@ export class SmithDelegator {
                 localTool.name,
                 args
               );
+
+              // Audit the remote tool execution — data already available from Smith's response
+              const sessionId = TaskRequestContext.get()?.session_id ?? 'smith';
+              const resultStr = result.data !== undefined
+                ? (typeof result.data === 'string' ? result.data : JSON.stringify(result.data))
+                : result.error;
+              const meta: Record<string, unknown> = { smith: smithName };
+              if (args && Object.keys(args).length > 0) meta.args = args;
+              if (resultStr) meta.result = resultStr.length > 500 ? resultStr.slice(0, 500) + '…' : resultStr;
+              AuditRepository.getInstance().insert({
+                session_id: sessionId,
+                event_type: 'tool_call',
+                agent: 'smith',
+                tool_name: `${smithName}/${localTool.name}`,
+                duration_ms: result.duration_ms,
+                status: result.success ? 'success' : 'error',
+                metadata: meta,
+              });
+
               if (result.success) {
                 return typeof result.data === 'string'
                   ? result.data
