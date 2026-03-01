@@ -24,6 +24,7 @@ export const LLMConfigSchema = z.object({
 export const SatiConfigSchema = LLMConfigSchema.extend({
     memory_limit: z.number().int().positive().optional(),
     enabled_archived_sessions: z.boolean().default(true),
+    similarity_threshold: z.number().min(0).max(1).default(0.9),
 });
 
 export const ApocConfigSchema = LLMConfigSchema.extend({

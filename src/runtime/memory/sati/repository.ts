@@ -6,6 +6,7 @@ import { randomUUID } from 'crypto';
 import { IMemoryRecord, MemoryCategory, MemoryImportance } from './types.js';
 import loadVecExtension from '../sqlite-vec.js';
 import { DisplayManager } from '../../display.js';
+import { ConfigManager } from '../../../config/manager.js';
 
 const EMBEDDING_DIM = 384;
 
@@ -241,7 +242,7 @@ export class SatiRepository {
   ): IMemoryRecord[] {
     if (!this.db) return [];
 
-    const SIMILARITY_THRESHOLD = 0.95;
+    const SIMILARITY_THRESHOLD = ConfigManager.getInstance().getSatiConfig().similarity_threshold ?? 0.9;
 
     const stmt = this.db.prepare(`
     SELECT *

@@ -183,7 +183,8 @@ export class ConfigManager {
         base_url: config.sati.base_url || config.llm.base_url,
         context_window: config.sati.context_window !== undefined ? resolveNumeric('MORPHEUS_SATI_CONTEXT_WINDOW', config.sati.context_window, config.sati.context_window!) : llmConfig.context_window,
         memory_limit: config.sati.memory_limit !== undefined ? resolveNumeric('MORPHEUS_SATI_MEMORY_LIMIT', config.sati.memory_limit, config.sati.memory_limit!) : undefined,
-        enabled_archived_sessions: resolveBoolean('MORPHEUS_SATI_ENABLED_ARCHIVED_SESSIONS', config.sati.enabled_archived_sessions, true)
+        enabled_archived_sessions: resolveBoolean('MORPHEUS_SATI_ENABLED_ARCHIVED_SESSIONS', config.sati.enabled_archived_sessions, true),
+        similarity_threshold: resolveNumeric('MORPHEUS_SATI_SIMILARITY_THRESHOLD', config.sati.similarity_threshold, 0.9),
       };
     }
 

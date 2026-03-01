@@ -58,6 +58,7 @@ export interface AudioConfig {
 export interface SatiConfig extends LLMConfig {
   memory_limit?: number;
   enabled_archived_sessions?: boolean;
+  similarity_threshold?: number;
 }
 
 export type SubAgentExecutionMode = 'sync' | 'async';
@@ -233,6 +234,7 @@ export const DEFAULT_CONFIG: MorpheusConfig = {
     context_window: 100,
     memory_limit: 100,
     enabled_archived_sessions: true,
+    similarity_threshold: 0.9,
   },
   devkit: {
     sandbox_dir: '',

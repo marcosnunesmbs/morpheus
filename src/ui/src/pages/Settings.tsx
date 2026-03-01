@@ -778,6 +778,32 @@ export default function Settings() {
                         handleSatiUpdate('enabled_archived_sessions', checked)
                       }
                     />
+                    <div>
+                      <div className="flex items-center justify-between mb-1">
+                        <label className="block text-sm font-medium text-azure-text-primary dark:text-matrix-secondary">
+                          Similarity Threshold
+                        </label>
+                        <span className="text-sm font-mono text-azure-text-primary dark:text-matrix-highlight">
+                          {((localSatiConfig as any).similarity_threshold ?? 0.9).toFixed(2)}
+                        </span>
+                      </div>
+                      <input
+                        type="range"
+                        min={0}
+                        max={1}
+                        step={0.01}
+                        value={(localSatiConfig as any).similarity_threshold ?? 0.9}
+                        onChange={(e) =>
+                          handleSatiUpdate('similarity_threshold' as any, parseFloat(e.target.value))
+                        }
+                        className="w-full h-1.5 rounded-full appearance-none cursor-pointer
+                          bg-gray-200 dark:bg-matrix-primary/30
+                          accent-azure-primary dark:accent-matrix-highlight"
+                      />
+                      <p className="mt-1.5 text-xs text-gray-400 dark:text-matrix-secondary/50">
+                        Minimum cosine similarity to consider a memory relevant (0–1). Valores menores recuperam mais memórias, mas podem aumentar o consumo de tokens.
+                      </p>
+                    </div>
                   </>
                 )}
               </Section>
