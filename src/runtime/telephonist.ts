@@ -2,19 +2,25 @@ import { GoogleGenAI } from '@google/genai';
 import OpenAI from 'openai';
 import { OpenRouter } from '@openrouter/sdk';
 import fs from 'fs';
+import { parseFile } from 'music-metadata';
 import { AudioConfig } from '../types/config.js';
 import { UsageMetadata } from '../types/usage.js';
 
 /**
- * Estimates audio duration in seconds based on file size and a typical bitrate.
- * Uses 32 kbps (4000 bytes/sec) as a conservative baseline for compressed audio (OGG, MP3, etc.).
- * This is an approximation — actual duration depends on encoding settings.
+ * Returns the actual audio duration in seconds by parsing the file header.
+ * Falls back to a size-based estimate (~32 kbps) if parsing fails.
  */
-function estimateAudioDurationSeconds(filePath: string): number {
+async function getAudioDurationSeconds(filePath: string): Promise<number> {
+  try {
+    const metadata = await parseFile(filePath);
+    const duration = metadata.format.duration;
+    if (duration != null && duration > 0) return Math.round(duration);
+  } catch {
+    // fall through to estimate
+  }
   try {
     const stats = fs.statSync(filePath);
-    const bytesPerSecond = 4000; // ~32 kbps
-    return Math.round(stats.size / bytesPerSecond);
+    return Math.round(stats.size / 4000); // ~32 kbps fallback
   } catch {
     return 0;
   }
@@ -80,7 +86,7 @@ class GeminiTelephonist implements ITelephonist {
       input_token_details: {
         cache_read: usage?.cachedContentTokenCount ?? 0
       },
-      audio_duration_seconds: estimateAudioDurationSeconds(filePath)
+      audio_duration_seconds: await getAudioDurationSeconds(filePath)
     };
 
     return { text, usage: usageMetadata };
@@ -118,7 +124,7 @@ class WhisperTelephonist implements ITelephonist {
       input_tokens: 0,
       output_tokens: 0,
       total_tokens: 0,
-      audio_duration_seconds: estimateAudioDurationSeconds(filePath)
+      audio_duration_seconds: await getAudioDurationSeconds(filePath)
     };
 
     return { text, usage: usageMetadata };
@@ -181,7 +187,7 @@ class OpenRouterTelephonist implements ITelephonist {
       input_tokens: usage?.prompt_tokens ?? 0,
       output_tokens: usage?.completion_tokens ?? 0,
       total_tokens: usage?.total_tokens ?? 0,
-      audio_duration_seconds: estimateAudioDurationSeconds(filePath)
+      audio_duration_seconds: await getAudioDurationSeconds(filePath)
     };
 
     return { text, usage: usageMetadata };
