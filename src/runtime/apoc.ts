@@ -1,4 +1,5 @@
 import { HumanMessage, SystemMessage, BaseMessage, AIMessage } from "@langchain/core/messages";
+import type { StructuredTool } from "@langchain/core/tools";
 import { MorpheusConfig } from "../types/config.js";
 import { ConfigManager } from "../config/manager.js";
 import { ProviderFactory } from "./providers/factory.js";
@@ -6,8 +7,10 @@ import { ReactAgent } from "langchain";
 import { ProviderError } from "./errors.js";
 import { DisplayManager } from "./display.js";
 import { buildDevKit } from "../devkit/index.js";
-import { SQLiteChatMessageHistory } from "./memory/sqlite.js";
-import type { AgentResult } from "./tasks/types.js";
+import type { OracleTaskContext, AgentResult } from "./tasks/types.js";
+import type { ISubagent } from "./ISubagent.js";
+import { extractRawUsage, persistAgentMessage, buildAgentResult } from "./subagent-utils.js";
+import { buildDelegationTool } from "./tools/delegation-utils.js";
 
 /**
  * Apoc is a subagent of Oracle specialized in devtools operations.
@@ -18,9 +21,10 @@ import type { AgentResult } from "./tasks/types.js";
  * dev-related tasks such as running commands, reading/writing files,
  * managing git, or inspecting system state.
  */
-export class Apoc {
+export class Apoc implements ISubagent {
   private static instance: Apoc | null = null;
   private static currentSessionId: string | undefined = undefined;
+  private static _delegateTool: StructuredTool | null = null;
 
   private agent?: ReactAgent;
   private config: MorpheusConfig;
@@ -47,11 +51,11 @@ export class Apoc {
 
   public static resetInstance(): void {
     Apoc.instance = null;
+    Apoc._delegateTool = null;
   }
 
   async initialize(): Promise<void> {
     const apocConfig = this.config.apoc || this.config.llm;
-    // console.log(`Apoc configuration: ${JSON.stringify(apocConfig)}`);
 
     const devkit = ConfigManager.getInstance().getDevKitConfig();
     const timeout_ms = devkit.timeout_ms || this.config.apoc?.timeout_ms || 30_000;
@@ -94,8 +98,9 @@ export class Apoc {
    * @param task Natural language task description
    * @param context Optional additional context from the ongoing conversation
    * @param sessionId Session to attribute token usage to (defaults to 'apoc')
+   * @param taskContext Optional Oracle task context (unused by Apoc directly — kept for ISubagent compatibility)
    */
-  async execute(task: string, context?: string, sessionId?: string): Promise<AgentResult> {
+  async execute(task: string, context?: string, sessionId?: string, taskContext?: OracleTaskContext): Promise<AgentResult> {
     if (!this.agent) {
       await this.initialize();
     }
@@ -217,7 +222,7 @@ If refinement is triggered:
 
 2. Execute a second search cycle (Cycle 2).
 3. Repeat selection, navigation, extraction, verification.
-4. Choose the stronger cycle’s evidence.
+4. Choose the stronger cycle's evidence.
 5. Do NOT perform more than 2 cycles.
 
 If Cycle 2 also fails:
@@ -262,10 +267,10 @@ LOW:
 OUTPUT FORMAT (STRICT)
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-1. Direct Answer  
-2. Evidence Summary  
-3. Sources (URLs)  
-4. Confidence Level (HIGH / MEDIUM / LOW)  
+1. Direct Answer
+2. Evidence Summary
+3. Sources (URLs)
+4. Confidence Level (HIGH / MEDIUM / LOW)
 5. Completion Status (true / false)
 
 No conversational filler.
@@ -290,41 +295,14 @@ ${context ? `CONTEXT FROM ORACLE:\n${context}` : ""}
           ? lastMessage.content
           : JSON.stringify(lastMessage.content);
 
-      // Aggregate token usage across all AI messages in this invocation
-      const rawUsage = (lastMessage as any).usage_metadata
-        ?? (lastMessage as any).response_metadata?.usage
-        ?? (lastMessage as any).response_metadata?.tokenUsage
-        ?? (lastMessage as any).usage;
-
-      const inputTokens = rawUsage?.input_tokens ?? 0;
-      const outputTokens = rawUsage?.output_tokens ?? 0;
+      const rawUsage = extractRawUsage(lastMessage);
       const stepCount = response.messages.filter((m: BaseMessage) => m instanceof AIMessage).length;
 
       const targetSession = sessionId ?? Apoc.currentSessionId ?? "apoc";
-      const history = new SQLiteChatMessageHistory({ sessionId: targetSession });
-      try {
-        const persisted = new AIMessage(content);
-        if (rawUsage) (persisted as any).usage_metadata = rawUsage;
-        (persisted as any).provider_metadata = { provider: apocConfig.provider, model: apocConfig.model };
-        (persisted as any).agent_metadata = { agent: 'apoc' };
-        (persisted as any).duration_ms = durationMs;
-        await history.addMessage(persisted);
-      } finally {
-        history.close();
-      }
+      await persistAgentMessage('apoc', content, apocConfig, targetSession, rawUsage, durationMs);
 
       this.display.log("Apoc task completed.", { source: "Apoc" });
-      return {
-        output: content,
-        usage: {
-          provider: apocConfig.provider,
-          model: apocConfig.model,
-          inputTokens,
-          outputTokens,
-          durationMs,
-          stepCount,
-        },
-      };
+      return buildAgentResult(content, apocConfig, rawUsage, durationMs, stepCount);
     } catch (err) {
       throw new ProviderError(
         this.config.apoc?.provider || this.config.llm.provider,
@@ -332,6 +310,41 @@ ${context ? `CONTEXT FROM ORACLE:\n${context}` : ""}
         "Apoc task execution failed"
       );
     }
+  }
+
+  createDelegateTool(): StructuredTool {
+    if (!Apoc._delegateTool) {
+      Apoc._delegateTool = buildDelegationTool({
+        name: "apoc_delegate",
+        description: `Delegate a devtools task to Apoc, the specialized development subagent.
+
+This tool enqueues a background task and returns an acknowledgement with task id.
+Do not expect final execution output in the same response.
+Each task must contain a single atomic action with a clear expected result.
+
+Use this tool when the user asks for ANY of the following:
+- File operations: read, write, create, delete files or directories
+- Shell commands: run scripts, execute commands, check output
+- Git: status, log, diff, commit, push, pull, clone, branch
+- Package management: npm install/update/audit, yarn, package.json inspection
+- Process management: list processes, kill processes, check ports
+- Network: ping hosts, curl URLs, DNS lookups
+- System info: environment variables, OS info, disk space, memory
+- Internet search: search DuckDuckGo and verify facts by reading at least 3 sources via browser_navigate before reporting results.
+- Browser automation: navigate websites (JS/SPA), inspect DOM, click elements, fill forms. Apoc will ask for missing user input (e.g. credentials, form fields) before proceeding.
+
+Provide a clear natural language task description. Optionally provide context
+from the current conversation to help Apoc understand the broader goal.`,
+        agentKey: "apoc",
+        agentLabel: "Apoc",
+        auditAgent: "apoc",
+        isSync: () => ConfigManager.getInstance().get().apoc?.execution_mode === 'sync',
+        notifyText: '🧑‍🔬 Apoc is executing your request...',
+        executeSync: (task, context, sessionId) =>
+          Apoc.getInstance().execute(task, context, sessionId),
+      });
+    }
+    return Apoc._delegateTool;
   }
 
   /** Reload with updated config (called when settings change) */

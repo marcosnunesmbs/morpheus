@@ -1,5 +1,6 @@
 import { HumanMessage, SystemMessage, BaseMessage, AIMessage } from "@langchain/core/messages";
 import { tool } from "@langchain/core/tools";
+import type { StructuredTool } from "@langchain/core/tools";
 import { z } from "zod";
 import { MorpheusConfig } from "../types/config.js";
 import { ConfigManager } from "../config/manager.js";
@@ -7,20 +8,48 @@ import { ProviderFactory } from "./providers/factory.js";
 import { ReactAgent } from "langchain";
 import { ProviderError } from "./errors.js";
 import { DisplayManager } from "./display.js";
-import { SQLiteChatMessageHistory } from "./memory/sqlite.js";
 import { DatabaseRegistry } from "./memory/trinity-db.js";
 import { testConnection, introspectSchema, executeQuery } from "./trinity-connector.js";
-import { updateTrinityDelegateToolDescription } from "./tools/trinity-tool.js";
-import type { AgentResult } from "./tasks/types.js";
+import type { OracleTaskContext, AgentResult } from "./tasks/types.js";
+import type { ISubagent } from "./ISubagent.js";
+import { extractRawUsage, persistAgentMessage, buildAgentResult } from "./subagent-utils.js";
+import { buildDelegationTool } from "./tools/delegation-utils.js";
+
+const TRINITY_BASE_DESCRIPTION = `Delegate a database task to Trinity, the specialized database subagent, asynchronously.
+
+This tool enqueues a background task and returns an acknowledgement with task id.
+Trinity interprets natural language database requests, generates the appropriate query, and returns results.
+
+Use this tool when the user asks for ANY of the following:
+- Querying data from a registered database (SELECT, find, aggregate)
+- Checking database status or schema
+- Running reports or analytics against a database
+- Listing tables, collections, or fields
+- Counting records or summarizing data`;
+
+function buildDatabaseCatalog(databases: ReturnType<DatabaseRegistry['listDatabases']>): string {
+  if (databases.length === 0) {
+    return '\n\nNo databases currently registered. Register databases via /api/trinity/databases.';
+  }
+
+  const lines = databases.map((db) => {
+    const schema = db.schema_json ? JSON.parse(db.schema_json) : null;
+    const tables = schema?.tables?.map((t: any) => t.name).join(', ') || 'schema not loaded';
+    return `- [${db.id}] ${db.name} (${db.type}): ${tables}`;
+  });
+
+  return `\n\nRegistered databases:\n${lines.join('\n')}`;
+}
 
 /**
  * Trinity is a subagent of Oracle specialized in database operations.
  * It receives delegated tasks from Oracle, interprets them in natural language,
  * generates appropriate queries (SQL or NoSQL), executes them, and returns results.
  */
-export class Trinity {
+export class Trinity implements ISubagent {
   private static instance: Trinity | null = null;
   private static currentSessionId: string | undefined = undefined;
+  private static _delegateTool: StructuredTool | null = null;
 
   private agent?: ReactAgent;
   private config: MorpheusConfig;
@@ -43,12 +72,16 @@ export class Trinity {
 
   public static resetInstance(): void {
     Trinity.instance = null;
+    Trinity._delegateTool = null;
   }
 
   public static async refreshDelegateCatalog(): Promise<void> {
     const registry = DatabaseRegistry.getInstance();
     const databases = registry.listDatabases();
-    updateTrinityDelegateToolDescription(databases);
+    if (Trinity._delegateTool) {
+      const full = `${TRINITY_BASE_DESCRIPTION}${buildDatabaseCatalog(databases)}`;
+      (Trinity._delegateTool as any).description = full;
+    }
   }
 
   private buildTrinityTools() {
@@ -207,7 +240,7 @@ export class Trinity {
     }
   }
 
-  async execute(task: string, context?: string, sessionId?: string): Promise<AgentResult> {
+  async execute(task: string, context?: string, sessionId?: string, taskContext?: OracleTaskContext): Promise<AgentResult> {
     if (!this.agent) {
       await this.initialize();
     }
@@ -263,40 +296,14 @@ ${context ? `CONTEXT FROM ORACLE:\n${context}` : ''}
           ? lastMessage.content
           : JSON.stringify(lastMessage.content);
 
-      const rawUsage = (lastMessage as any).usage_metadata
-        ?? (lastMessage as any).response_metadata?.usage
-        ?? (lastMessage as any).response_metadata?.tokenUsage
-        ?? (lastMessage as any).usage;
-
-      const inputTokens = rawUsage?.input_tokens ?? 0;
-      const outputTokens = rawUsage?.output_tokens ?? 0;
+      const rawUsage = extractRawUsage(lastMessage);
       const stepCount = response.messages.filter((m: BaseMessage) => m instanceof AIMessage).length;
 
       const targetSession = sessionId ?? Trinity.currentSessionId ?? 'trinity';
-      const history = new SQLiteChatMessageHistory({ sessionId: targetSession });
-      try {
-        const persisted = new AIMessage(content);
-        if (rawUsage) (persisted as any).usage_metadata = rawUsage;
-        (persisted as any).provider_metadata = { provider: trinityConfig.provider, model: trinityConfig.model };
-        (persisted as any).agent_metadata = { agent: 'trinity' };
-        (persisted as any).duration_ms = durationMs;
-        await history.addMessage(persisted);
-      } finally {
-        history.close();
-      }
+      await persistAgentMessage('trinity', content, trinityConfig, targetSession, rawUsage, durationMs);
 
       this.display.log('Trinity task completed.', { source: 'Trinity' });
-      return {
-        output: content,
-        usage: {
-          provider: trinityConfig.provider,
-          model: trinityConfig.model,
-          inputTokens,
-          outputTokens,
-          durationMs,
-          stepCount,
-        },
-      };
+      return buildAgentResult(content, trinityConfig, rawUsage, durationMs, stepCount);
     } catch (err) {
       throw new ProviderError(
         trinityConfig.provider,
@@ -304,6 +311,23 @@ ${context ? `CONTEXT FROM ORACLE:\n${context}` : ''}
         'Trinity task execution failed'
       );
     }
+  }
+
+  createDelegateTool(): StructuredTool {
+    if (!Trinity._delegateTool) {
+      Trinity._delegateTool = buildDelegationTool({
+        name: 'trinity_delegate',
+        description: TRINITY_BASE_DESCRIPTION,
+        agentKey: 'trinit',
+        agentLabel: 'Trinity',
+        auditAgent: 'trinity',
+        isSync: () => (ConfigManager.getInstance().get() as any).trinity?.execution_mode === 'sync',
+        notifyText: '👩‍💻 Trinity is executing your request...',
+        executeSync: (task, context, sessionId) =>
+          Trinity.getInstance().execute(task, context, sessionId),
+      });
+    }
+    return Trinity._delegateTool;
   }
 
   async reload(): Promise<void> {

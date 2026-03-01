@@ -73,7 +73,12 @@ export class TaskWorker {
       switch (task.agent) {
         case 'apoc': {
           const apoc = Apoc.getInstance();
-          result = await apoc.execute(task.input, task.context ?? undefined, task.session_id);
+          result = await apoc.execute(task.input, task.context ?? undefined, task.session_id, {
+            origin_channel: task.origin_channel,
+            session_id: task.session_id,
+            origin_message_id: task.origin_message_id ?? undefined,
+            origin_user_id: task.origin_user_id ?? undefined,
+          });
           break;
         }
         case 'neo': {
@@ -88,7 +93,12 @@ export class TaskWorker {
         }
         case 'trinit': {
           const trinity = Trinity.getInstance();
-          result = await trinity.execute(task.input, task.context ?? undefined, task.session_id);
+          result = await trinity.execute(task.input, task.context ?? undefined, task.session_id, {
+            origin_channel: task.origin_channel,
+            session_id: task.session_id,
+            origin_message_id: task.origin_message_id ?? undefined,
+            origin_user_id: task.origin_user_id ?? undefined,
+          });
           break;
         }
         case 'keymaker': {

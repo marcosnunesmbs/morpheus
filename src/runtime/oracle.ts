@@ -17,9 +17,6 @@ import type { OracleTaskContext } from "./tasks/types.js";
 import { TaskRepository } from "./tasks/repository.js";
 import { Neo } from "./neo.js";
 import { Trinity } from "./trinity.js";
-import { NeoDelegateTool } from "./tools/neo-tool.js";
-import { ApocDelegateTool } from "./tools/apoc-tool.js";
-import { TrinityDelegateTool } from "./tools/trinity-tool.js";
 import { SmithDelegateTool } from "./tools/smith-tool.js";
 import { TaskQueryTool, chronosTools, timeVerifierTool } from "./tools/index.js";
 import { Construtor } from "./tools/factory.js";
@@ -194,7 +191,16 @@ export class Oracle implements IOracle {
       updateSkillToolDescriptions();
 
       // Build tool list — conditionally include SmithDelegateTool based on config
-      const coreTools: any[] = [TaskQueryTool, NeoDelegateTool, ApocDelegateTool, TrinityDelegateTool, SkillExecuteTool, SkillDelegateTool, timeVerifierTool, ...chronosTools];
+      const coreTools: any[] = [
+        TaskQueryTool,
+        Neo.getInstance().createDelegateTool(),
+        Apoc.getInstance().createDelegateTool(),
+        Trinity.getInstance().createDelegateTool(),
+        SkillExecuteTool,
+        SkillDelegateTool,
+        timeVerifierTool,
+        ...chronosTools,
+      ];
       const smithsConfig = ConfigManager.getInstance().getSmithsConfig();
       if (smithsConfig.enabled && smithsConfig.entries.length > 0) {
         coreTools.push(SmithDelegateTool);
@@ -735,7 +741,16 @@ Use it to inform your response and tool selection (if needed), but do not assume
     await Neo.refreshDelegateCatalog().catch(() => {});
     await Trinity.refreshDelegateCatalog().catch(() => {});
     updateSkillToolDescriptions();
-    this.provider = await ProviderFactory.create(this.config.llm, [TaskQueryTool, NeoDelegateTool, ApocDelegateTool, TrinityDelegateTool, SkillExecuteTool, SkillDelegateTool, timeVerifierTool, ...chronosTools]);
+    this.provider = await ProviderFactory.create(this.config.llm, [
+      TaskQueryTool,
+      Neo.getInstance().createDelegateTool(),
+      Apoc.getInstance().createDelegateTool(),
+      Trinity.getInstance().createDelegateTool(),
+      SkillExecuteTool,
+      SkillDelegateTool,
+      timeVerifierTool,
+      ...chronosTools,
+    ]);
     await Neo.getInstance().reload();
     this.display.log(`Oracle and Neo tools reloaded`, { source: 'Oracle' });
   }

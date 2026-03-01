@@ -11,7 +11,7 @@ import { morpheusTools } from "./tools/index.js";
 import { SkillRegistry } from "./skills/registry.js";
 import { TaskRequestContext } from "./tasks/context.js";
 import type { OracleTaskContext, AgentResult } from "./tasks/types.js";
-import { SQLiteChatMessageHistory } from "./memory/sqlite.js";
+import { extractRawUsage, persistAgentMessage, buildAgentResult } from "./subagent-utils.js";
 
 /**
  * Keymaker is a specialized agent for executing skills.
@@ -157,41 +157,19 @@ CRITICAL — NEVER FABRICATE DATA:
           ? lastMessage.content
           : JSON.stringify(lastMessage.content);
 
-      // Persist message with token usage metadata (like Trinity/Neo/Apoc)
       const keymakerConfig = this.config.keymaker || this.config.llm;
       const targetSession = taskContext?.session_id ?? "keymaker";
-      const rawUsage = (lastMessage as any).usage_metadata
-        ?? (lastMessage as any).response_metadata?.usage
-        ?? (lastMessage as any).response_metadata?.tokenUsage
-        ?? (lastMessage as any).usage;
-      const history = new SQLiteChatMessageHistory({ sessionId: targetSession });
-      try {
-        const persisted = new AIMessage(content);
-        if (rawUsage) (persisted as any).usage_metadata = rawUsage;
-        (persisted as any).provider_metadata = { provider: keymakerConfig.provider, model: keymakerConfig.model };
-        (persisted as any).agent_metadata = { agent: 'keymaker' };
-        (persisted as any).duration_ms = durationMs;
-        await history.addMessage(persisted);
-      } finally {
-        history.close();
-      }
+      const rawUsage = extractRawUsage(lastMessage);
+      const stepCount = response.messages.filter((m: BaseMessage) => m instanceof AIMessage).length;
+
+      await persistAgentMessage('keymaker', content, keymakerConfig, targetSession, rawUsage, durationMs);
 
       this.display.log(
         `Keymaker completed skill "${this.skillName}" execution`,
         { source: "Keymaker" }
       );
 
-      return {
-        output: content,
-        usage: {
-          provider: keymakerConfig.provider,
-          model: keymakerConfig.model,
-          inputTokens: rawUsage?.input_tokens ?? 0,
-          outputTokens: rawUsage?.output_tokens ?? 0,
-          durationMs,
-          stepCount: response.messages.filter((m: BaseMessage) => m instanceof AIMessage).length,
-        },
-      };
+      return buildAgentResult(content, keymakerConfig, rawUsage, durationMs, stepCount);
     } catch (err: any) {
       this.display.log(
         `Keymaker execution error: ${err.message}`,

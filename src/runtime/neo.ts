@@ -1,4 +1,5 @@
 import { HumanMessage, SystemMessage, BaseMessage, AIMessage } from "@langchain/core/messages";
+import type { StructuredTool } from "@langchain/core/tools";
 import { MorpheusConfig } from "../types/config.js";
 import { ConfigManager } from "../config/manager.js";
 import { ProviderFactory } from "./providers/factory.js";
@@ -7,14 +8,56 @@ import { ProviderError } from "./errors.js";
 import { DisplayManager } from "./display.js";
 import { Construtor } from "./tools/factory.js";
 import { morpheusTools } from "./tools/index.js";
-import { SQLiteChatMessageHistory } from "./memory/sqlite.js";
 import { TaskRequestContext } from "./tasks/context.js";
 import type { OracleTaskContext, AgentResult } from "./tasks/types.js";
-import { updateNeoDelegateToolDescription } from "./tools/neo-tool.js";
+import type { ISubagent } from "./ISubagent.js";
+import { extractRawUsage, persistAgentMessage, buildAgentResult } from "./subagent-utils.js";
+import { buildDelegationTool } from "./tools/delegation-utils.js";
 
-export class Neo {
+const NEO_BUILTIN_CAPABILITIES = `
+Neo built-in capabilities (always available — no MCP required):
+• Config: morpheus_config_query, morpheus_config_update — read/write Morpheus configuration (LLM, channels, UI, etc.)
+• Diagnostics: diagnostic_check — full system health report (config, databases, LLM provider, logs)
+• Analytics: message_count, token_usage, provider_model_usage — message counts and token/cost usage stats
+• Tasks: task_query — look up task status by id or session
+• MCP Management: mcp_list, mcp_manage — list/add/update/delete/enable/disable MCP servers; use action "reload" to reload tools across all agents after config changes
+• Webhooks: webhook_list, webhook_manage — create/update/delete webhooks; create returns api_key`.trim();
+
+const NEO_BASE_DESCRIPTION = `Delegate execution to Neo asynchronously.
+
+This tool creates a background task and returns an acknowledgement with task id.
+Use it for any request that requires Neo's built-in capabilities or a runtime MCP tool listed below.
+Each delegated task must contain one atomic objective.
+
+${NEO_BUILTIN_CAPABILITIES}`;
+
+function normalizeDescription(text: string | undefined): string {
+  if (!text) return "No description";
+  return text.replace(/\s+/g, " ").trim();
+}
+
+function buildCatalogSection(mcpTools: StructuredTool[]): string {
+  if (mcpTools.length === 0) {
+    return "\n\nRuntime MCP tools: none currently loaded.";
+  }
+
+  const maxItems = 500;
+  const lines = mcpTools.slice(0, maxItems).map((t) => {
+    const desc = normalizeDescription(t.description).slice(0, 120);
+    return `- ${t.name}: ${desc}`;
+  });
+  const hidden = mcpTools.length - lines.length;
+  if (hidden > 0) {
+    lines.push(`- ... and ${hidden} more tools`);
+  }
+
+  return `\n\nRuntime MCP tools:\n${lines.join("\n")}`;
+}
+
+export class Neo implements ISubagent {
   private static instance: Neo | null = null;
   private static currentSessionId: string | undefined = undefined;
+  private static _delegateTool: StructuredTool | null = null;
 
   private agent?: ReactAgent;
   private config: MorpheusConfig;
@@ -37,11 +80,15 @@ export class Neo {
 
   public static resetInstance(): void {
     Neo.instance = null;
+    Neo._delegateTool = null;
   }
 
   public static async refreshDelegateCatalog(): Promise<void> {
     const mcpTools = await Construtor.create(() => Neo.currentSessionId);
-    updateNeoDelegateToolDescription(mcpTools);
+    if (Neo._delegateTool) {
+      const full = `${NEO_BASE_DESCRIPTION}${buildCatalogSection(mcpTools)}`;
+      (Neo._delegateTool as any).description = full;
+    }
   }
 
   async initialize(): Promise<void> {
@@ -49,7 +96,12 @@ export class Neo {
     const personality = this.config.neo?.personality || 'analytical_engineer';
     const mcpTools = await Construtor.create(() => Neo.currentSessionId);
     const tools = [...mcpTools, ...morpheusTools];
-    updateNeoDelegateToolDescription(mcpTools);
+
+    // Update delegate tool description with current catalog
+    if (Neo._delegateTool) {
+      const full = `${NEO_BASE_DESCRIPTION}${buildCatalogSection(mcpTools)}`;
+      (Neo._delegateTool as any).description = full;
+    }
 
     this.display.log(`Neo initialized with ${tools.length} tools (personality: ${personality}).`, { source: "Neo" });
 
@@ -124,40 +176,14 @@ ${context ? `Context:\n${context}` : ""}
           ? lastMessage.content
           : JSON.stringify(lastMessage.content);
 
-      const rawUsage = (lastMessage as any).usage_metadata
-        ?? (lastMessage as any).response_metadata?.usage
-        ?? (lastMessage as any).response_metadata?.tokenUsage
-        ?? (lastMessage as any).usage;
-
-      const inputTokens = rawUsage?.input_tokens ?? 0;
-      const outputTokens = rawUsage?.output_tokens ?? 0;
+      const rawUsage = extractRawUsage(lastMessage);
       const stepCount = response.messages.filter((m: BaseMessage) => m instanceof AIMessage).length;
 
       const targetSession = sessionId ?? Neo.currentSessionId ?? "neo";
-      const history = new SQLiteChatMessageHistory({ sessionId: targetSession });
-      try {
-        const persisted = new AIMessage(content);
-        if (rawUsage) (persisted as any).usage_metadata = rawUsage;
-        (persisted as any).provider_metadata = { provider: neoConfig.provider, model: neoConfig.model };
-        (persisted as any).agent_metadata = { agent: 'neo' };
-        (persisted as any).duration_ms = durationMs;
-        await history.addMessage(persisted);
-      } finally {
-        history.close();
-      }
+      await persistAgentMessage('neo', content, neoConfig, targetSession, rawUsage, durationMs);
 
       this.display.log("Neo task completed.", { source: "Neo" });
-      return {
-        output: content,
-        usage: {
-          provider: neoConfig.provider,
-          model: neoConfig.model,
-          inputTokens,
-          outputTokens,
-          durationMs,
-          stepCount,
-        },
-      };
+      return buildAgentResult(content, neoConfig, rawUsage, durationMs, stepCount);
     } catch (err) {
       throw new ProviderError(
         neoConfig.provider,
@@ -165,6 +191,28 @@ ${context ? `Context:\n${context}` : ""}
         "Neo task execution failed"
       );
     }
+  }
+
+  createDelegateTool(): StructuredTool {
+    if (!Neo._delegateTool) {
+      Neo._delegateTool = buildDelegationTool({
+        name: "neo_delegate",
+        description: NEO_BASE_DESCRIPTION,
+        agentKey: "neo",
+        agentLabel: "Neo",
+        auditAgent: "neo",
+        isSync: () => ConfigManager.getInstance().get().neo?.execution_mode === 'sync',
+        notifyText: '🥷 Neo is executing your request...',
+        executeSync: (task, context, sessionId, ctx) =>
+          Neo.getInstance().execute(task, context, sessionId, {
+            origin_channel: ctx?.origin_channel ?? "api",
+            session_id: sessionId,
+            origin_message_id: ctx?.origin_message_id,
+            origin_user_id: ctx?.origin_user_id,
+          }),
+      });
+    }
+    return Neo._delegateTool;
   }
 
   async reload(): Promise<void> {
