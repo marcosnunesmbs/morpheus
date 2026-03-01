@@ -79,6 +79,120 @@ Oracle is the root orchestrator. It delegates to specialized subagents via tools
 
 Oracle never executes DevKit/MCP tools directly — it routes through subagents.
 
+### Creating a New Subagent
+
+All subagents (Apoc, Neo, Trinity) follow a strict pattern. Follow these steps exactly.
+
+#### Shared utilities — always use, never duplicate
+
+```typescript
+// src/runtime/subagent-utils.ts
+extractRawUsage(lastMessage)           // 4-fallback chain for token usage
+persistAgentMessage(name, content, config, sessionId, rawUsage, durationMs)
+buildAgentResult(content, config, rawUsage, durationMs, stepCount)
+
+// src/runtime/tools/delegation-utils.ts
+buildDelegationTool(opts)              // builds Oracle's StructuredTool for sync/async delegation
+```
+
+#### 1. Create `src/runtime/<name>.ts`
+
+```typescript
+import type { ISubagent } from "./ISubagent.js";
+import { extractRawUsage, persistAgentMessage, buildAgentResult } from "./subagent-utils.js";
+import { buildDelegationTool } from "./tools/delegation-utils.js";
+
+export class MyAgent implements ISubagent {
+  private static instance: MyAgent | null = null;
+  private static currentSessionId: string | undefined = undefined;
+  private static _delegateTool: StructuredTool | null = null;
+
+  static getInstance(config?: MorpheusConfig): MyAgent { ... }
+  static resetInstance(): void { MyAgent.instance = null; MyAgent._delegateTool = null; }
+  static setSessionId(id: string | undefined): void { MyAgent.currentSessionId = id; }
+
+  // Optional: refresh tool description when runtime data changes (e.g. DB list, MCP catalog)
+  static async refreshDelegateCatalog(): Promise<void> { /* update MyAgent._delegateTool.description */ }
+
+  async initialize(): Promise<void> { ... }
+
+  async execute(task, context?, sessionId?, taskContext?: OracleTaskContext): Promise<AgentResult> {
+    // ... run agent ...
+    const rawUsage = extractRawUsage(lastMessage);
+    const stepCount = response.messages.filter(m => m instanceof AIMessage).length;
+    await persistAgentMessage('myagent', content, agentConfig, targetSession, rawUsage, durationMs);
+    return buildAgentResult(content, agentConfig, rawUsage, durationMs, stepCount);
+  }
+
+  createDelegateTool(): StructuredTool {
+    if (!MyAgent._delegateTool) {
+      MyAgent._delegateTool = buildDelegationTool({
+        name: 'myagent_delegate',
+        description: '...',
+        agentKey: 'myagent',        // TaskAgent — must match tasks.agent column
+        agentLabel: 'MyAgent',      // display name for logs
+        auditAgent: 'myagent',      // AuditAgent
+        isSync: () => ConfigManager.getInstance().get().myagent?.execution_mode === 'sync',
+        notifyText: '🤖 MyAgent is executing your request...',
+        executeSync: (task, context, sessionId, ctx) =>
+          MyAgent.getInstance().execute(task, context, sessionId, { ...ctx, session_id: sessionId }),
+      });
+    }
+    return MyAgent._delegateTool;
+  }
+
+  async reload(): Promise<void> { this.config = ConfigManager.getInstance().get(); this.agent = undefined; await this.initialize(); }
+}
+```
+
+**`agentKey` vs `auditAgent`:** `agentKey` is the string stored in `tasks.agent` (DB key). If the DB key differs from the display name, use the DB key (e.g. Trinity: `agentKey: 'trinit'`, `auditAgent: 'trinity'`).
+
+#### 2. Register types
+
+- `src/runtime/tasks/types.ts` — add to `TaskAgent` union: `| 'myagent'`
+- `src/runtime/audit/types.ts` — add to `AuditAgent` union: `| 'myagent'`
+
+#### 3. Add config
+
+- `src/config/schemas.ts` — add `MyAgentConfigSchema` **before** `ConfigSchema` (forward-reference rule)
+- `src/types/config.ts` — add `myagent?: MyAgentConfig` to `MorpheusConfig`
+- `src/config/manager.ts` — add `getMyAgentConfig()` + env var overrides
+
+#### 4. Wire into Oracle (`src/runtime/oracle.ts`)
+
+```typescript
+import { MyAgent } from './myagent.js';
+
+// In initialize() and reloadTools() — add to coreTools array:
+MyAgent.getInstance().createDelegateTool()
+
+// In chat() — propagate session:
+MyAgent.setSessionId(currentSessionId);
+
+// In initialize() + reloadTools() — if description is dynamic:
+await MyAgent.refreshDelegateCatalog().catch(() => {});
+```
+
+#### 5. Wire into TaskWorker (`src/runtime/tasks/worker.ts`)
+
+```typescript
+case 'myagent': {
+  const agent = MyAgent.getInstance();
+  result = await agent.execute(task.input, task.context ?? undefined, task.session_id, {
+    origin_channel: task.origin_channel,
+    session_id: task.session_id,
+    origin_message_id: task.origin_message_id ?? undefined,
+    origin_user_id: task.origin_user_id ?? undefined,
+  });
+  break;
+}
+```
+
+#### Out of scope for this pattern
+
+- **Keymaker** — per-task instantiation (not singleton), no delegation tool; uses `subagent-utils` only.
+- **Smith** — multi-instance registry, different delegation architecture; has its own `smith-tool.ts`.
+
 **Subagent Execution Mode** (`execution_mode: 'sync' | 'async'`):
 
 Each subagent (Apoc, Neo, Trinity, Smith) can be configured to run synchronously or asynchronously:
