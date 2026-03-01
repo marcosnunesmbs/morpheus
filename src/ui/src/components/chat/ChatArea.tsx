@@ -204,7 +204,7 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
                     className={`
                       max-w-[85%] md:max-w-[72%] min-w-0
                       ${isHuman
-                        ? 'bg-azure-primary text-white dark:bg-matrix-primary dark:text-black rounded-2xl rounded-br-sm px-4 py-2.5'
+                        ? 'bg-azure-primary text-white dark:text-white/80 dark:bg-matrix-primary rounded-2xl rounded-br-sm px-4 py-2.5'
                         : 'bg-gray-50 dark:bg-zinc-900 border border-gray-300 dark:border-matrix-primary/60 text-gray-800 dark:text-matrix-secondary rounded-2xl rounded-bl-sm px-4 py-3'
                       }
                     `}

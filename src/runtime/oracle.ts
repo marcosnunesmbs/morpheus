@@ -387,10 +387,15 @@ ${SmithRegistry.getInstance().getSystemPromptSection()}
       let previousMessages = await this.history.getMessages();
       previousMessages = previousMessages.reverse();
 
+      // Propagate current session to Apoc so its token usage lands in the right session
+      const currentSessionId = (this.history instanceof SQLiteChatMessageHistory)
+        ? this.history.currentSessionId
+        : undefined;
+
       // Sati Middleware: Retrieval
       let memoryMessage: AIMessage | null = null;
       try {
-        memoryMessage = await this.satiMiddleware.beforeAgent(message, previousMessages);
+        memoryMessage = await this.satiMiddleware.beforeAgent(message, previousMessages, currentSessionId);
         if (memoryMessage) {
           this.display.log('Sati memory retrieved.', { source: 'Sati' });
           
@@ -419,10 +424,6 @@ Use it to inform your response and tool selection (if needed), but do not assume
       messages.push(...previousMessages);
       messages.push(userMessage);
 
-      // Propagate current session to Apoc so its token usage lands in the right session
-      const currentSessionId = (this.history instanceof SQLiteChatMessageHistory)
-        ? this.history.currentSessionId
-        : undefined;
       Apoc.setSessionId(currentSessionId);
       Neo.setSessionId(currentSessionId);
       Trinity.setSessionId(currentSessionId);

@@ -1,5 +1,5 @@
 import React from 'react';
-import { Zap, Wrench, Globe, CheckCircle, XCircle, Clock, Bot, Play } from 'lucide-react';
+import { Zap, Wrench, Globe, CheckCircle, XCircle, Clock, Bot, Play, Brain } from 'lucide-react';
 import type { AuditEvent } from '../../services/audit';
 
 interface EventRowProps {
@@ -14,6 +14,7 @@ const EVENT_ICONS: Record<string, React.ReactNode> = {
   task_completed: <CheckCircle size={14} />,
   skill_executed: <Bot size={14} />,
   chronos_job: <Clock size={14} />,
+  memory_recovery: <Brain size={14} />,
 };
 
 const EVENT_COLORS: Record<string, string> = {
@@ -24,6 +25,7 @@ const EVENT_COLORS: Record<string, string> = {
   task_completed: 'text-green-600 dark:text-matrix-highlight',
   skill_executed: 'text-teal-600 dark:text-teal-400',
   chronos_job: 'text-orange-500 dark:text-orange-400',
+  memory_recovery: 'text-emerald-600 dark:text-emerald-400',
 };
 
 const AGENT_BADGES: Record<string, string> = {
@@ -34,6 +36,7 @@ const AGENT_BADGES: Record<string, string> = {
   smith: 'bg-gray-200 text-gray-700 dark:bg-gray-700/60 dark:text-gray-300',
   keymaker: 'bg-pink-100 text-pink-700 dark:bg-pink-900/40 dark:text-pink-300',
   chronos: 'bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300',
+  sati: 'bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300',
 };
 
 function fmtMs(ms: number | null): string {
@@ -60,7 +63,10 @@ export const EventRow: React.FC<EventRowProps> = ({ event }) => {
   const colorClass = EVENT_COLORS[event.event_type] ?? 'text-gray-500';
   const agentBadge = event.agent ? (AGENT_BADGES[event.agent] ?? 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300') : null;
 
-  const label = event.tool_name ?? event.model ?? event.event_type;
+  const parsedMeta = event.metadata ? JSON.parse(event.metadata) : null;
+  const label = event.event_type === 'memory_recovery'
+    ? `${parsedMeta?.memories_count ?? 0} memories retrieved`
+    : (event.tool_name ?? event.model ?? event.event_type);
   const tokens = fmtTokens(event.input_tokens, event.output_tokens);
 
   const cost = fmtCost(event.estimated_cost_usd);

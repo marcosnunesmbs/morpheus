@@ -5,7 +5,8 @@ export type AuditEventType =
   | 'task_created'
   | 'task_completed'
   | 'skill_executed'
-  | 'chronos_job';
+  | 'chronos_job'
+  | 'memory_recovery';
 
 export type AuditAgent =
   | 'oracle'
