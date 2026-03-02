@@ -286,7 +286,7 @@ ${context ? `CONTEXT FROM ORACLE:\n${context}` : ""}
     try {
       const inputCount = messages.length;
       const startMs = Date.now();
-      const response = await this.agent!.invoke({ messages }, { recursionLimit: 100 });
+      const response = await this.agent!.invoke({ messages }, { recursionLimit: 50 });
       const durationMs = Date.now() - startMs;
 
       const apocConfig = this.config.apoc || this.config.llm;

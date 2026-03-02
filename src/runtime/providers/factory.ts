@@ -2,7 +2,7 @@ import { BaseChatModel } from "@langchain/core/language_models/chat_models";
 import { ChatOpenAI } from "@langchain/openai";
 import { ChatAnthropic } from "@langchain/anthropic";
 import { ChatOllama } from "@langchain/ollama";
-import { ChatGoogleGenerativeAI } from "@langchain/google-genai";
+import { ChatGoogle } from "@langchain/google";
 import { LLMConfig } from "../../types/config.js";
 import { ProviderError } from "../errors.js";
 import { createAgent, createMiddleware, ReactAgent, toolCallLimitMiddleware } from "langchain";
@@ -81,7 +81,7 @@ export class ProviderFactory {
           baseUrl: config.base_url || usableApiKey,
         });
       case 'gemini':
-        return new ChatGoogleGenerativeAI({
+        return new ChatGoogle({
           model: config.model,
           temperature: config.temperature,
           apiKey: process.env.GOOGLE_API_KEY || usableApiKey

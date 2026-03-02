@@ -36,7 +36,7 @@ export default {
         }
       },
       fontFamily: {
-        mono: ['"Courier New"', 'Courier', 'monospace'],
+        mono: ['Helvetica','"Courier New"', 'Courier', 'monospace'],
       },
     },
   },

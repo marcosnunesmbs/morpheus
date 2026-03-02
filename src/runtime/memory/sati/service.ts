@@ -133,7 +133,7 @@ export class SatiService implements ISatiService {
       }
 
       const satiStartMs = Date.now();
-      const response = await agent.invoke({ messages }, { recursionLimit: 100 });
+      const response = await agent.invoke({ messages }, { recursionLimit: 50 });
       const satiDurationMs = Date.now() - satiStartMs;
 
       const lastMessage = response.messages[response.messages.length - 1];
