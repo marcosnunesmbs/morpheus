@@ -669,58 +669,20 @@ Use it to inform your response and tool selection (if needed), but do not assume
     }
   }
 
+  /**
+   * Updates the internal history pointer to the given session.
+   * No longer mutates DB session status — sessions are independently usable from any channel.
+   * Note: chat() uses per-call callHistory scoped to taskContext.session_id,
+   * so this method is only a fallback for callers that don't pass session in taskContext.
+   */
   async setSessionId(sessionId: string): Promise<void> {
     if (!this.history) {
       throw new Error("Message history not initialized. Call initialize() first.");
     }
 
-    // Check if the history provider supports switching sessions
-    // SQLiteChatMessageHistory does support it via constructor (new instance) or maybe we can add a method there too?
-    // Actually SQLiteChatMessageHistory has `switchSession(targetSessionId)` but that one logic is "pause current, activate target".
-    // For API usage, we might just want to *target* a session without necessarily changing the global "active" state regarding the Daemon?
-    //
-    // However, the user request implies this is "the" chat.
-    // If we use `switchSession` it pauses others. That seems correct for a single-user agent model.
-    //
-    // But `SQLiteChatMessageHistory` properties are `sessionId`.
-    // It seems `switchSession` in `sqlite.ts` updates the DB state.
-    // We also need to update the `sessionId` property of the `SQLiteChatMessageHistory` instance held by Oracle.
-    //
-    // Let's check `SQLiteChatMessageHistory` again.
-    // It has `sessionId` property.
-    // It does NOT have a method to just update `sessionId` property without DB side effects?
-    //
-    // Use `switchSession` from `sqlite.ts` is good for "Active/Paused" state management.
-    // But we also need the `history` instance to know it is now pointing to `sessionId`.
-
     if (this.history instanceof SQLiteChatMessageHistory) {
-      // Logic:
-      // 1. If currently active session is different, switch.
-      // 2. Update internal sessionId.
-
-      // Actually `switchSession` in `sqlite.ts` takes `targetSessionId`.
-      // It updates the DB status.
-      // It DOES NOT seem to update `this.sessionId` of the instance? 
-      // Wait, let me check `sqlite.ts` content from memory or view it again alongside.
-      //
-      // In `sqlite.ts`:
-      // public async switchSession(targetSessionId: string): Promise<void> { ... }
-      // It updates DB.
-      // It DOES NOT update `this.sessionId`.
-      //
-      // So we need to ensure `this.history` points to the new session.
-      // Since `SQLiteChatMessageHistory` might not allow changing `sessionId` publicly if it's protected/private...
-      // It is `private sessionId: string;`.
-      //
-      // So simple fix: Re-instantiate `this.history`?
-      // `this.history = new SQLiteChatMessageHistory({ sessionId: sessionId, ... })`
-      //
-      // This is safe and clean.
-
-      // Ensure the target session exists before switching (creates as 'paused' if not found).
+      // Ensure the target session exists in DB
       (this.history as SQLiteChatMessageHistory).ensureSession(sessionId);
-
-      await (this.history as SQLiteChatMessageHistory).switchSession(sessionId);
 
       // Close previous connection before re-instantiating to avoid file handle leaks
       (this.history as SQLiteChatMessageHistory).close();
@@ -731,7 +693,6 @@ Use it to inform your response and tool selection (if needed), but do not assume
         databasePath: this.databasePath,
         limit: this.config.llm?.context_window ?? 100
       });
-
     } else {
       throw new Error("Current history provider does not support session switching.");
     }

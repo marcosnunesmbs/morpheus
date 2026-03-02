@@ -166,6 +166,8 @@ export class TelegramAdapter {
   private telephonistProvider: string | null = null;
   private telephonistModel: string | null = null;
   private history = new SQLiteChatMessageHistory({ sessionId: '' });
+  /** Per-channel session tracking — which session this Telegram adapter is currently using */
+  private currentSessionId: string | null = null;
 
   private readonly RATE_LIMIT_MS = 3000; // minimum ms between requests per user
   private rateLimiter = new Map<string, number>(); // userId -> last request timestamp
@@ -273,8 +275,8 @@ export class TelegramAdapter {
           // Send "typing" status
           await ctx.sendChatAction('typing');
 
-          const sessionId = await this.history.getCurrentSessionOrCreate();
-          await this.oracle.setSessionId(sessionId);
+          const sessionId = this.currentSessionId ?? await this.history.getCurrentSessionOrCreate();
+          this.currentSessionId = sessionId;
 
           // Process with Agent
           const response = await this.oracle.chat(text, undefined, false, {
@@ -373,9 +375,9 @@ export class TelegramAdapter {
 
           // Audit: record telephonist execution
           try {
-            const sessionId = await this.history.getCurrentSessionOrCreate();
+            const auditSessionId = this.currentSessionId ?? await this.history.getCurrentSessionOrCreate();
             AuditRepository.getInstance().insert({
-              session_id: sessionId,
+              session_id: auditSessionId,
               event_type: 'telephonist',
               agent: 'telephonist',
               provider: config.audio.provider,
@@ -403,8 +405,8 @@ export class TelegramAdapter {
           await ctx.reply(`🎤 Transcription: "${text}"`);
           await ctx.sendChatAction('typing');
 
-          const sessionId = await this.history.getCurrentSessionOrCreate();
-          await this.oracle.setSessionId(sessionId);
+          const sessionId = this.currentSessionId ?? await this.history.getCurrentSessionOrCreate();
+          this.currentSessionId = sessionId;
 
           // Process with Agent
           const response = await this.oracle.chat(text, usage, true, {
@@ -439,9 +441,9 @@ export class TelegramAdapter {
           const detail = error?.cause?.message || error?.response?.data?.error?.message || error.message;
           this.display.log(`Audio processing error for @${user}: ${detail}`, { source: 'Telephonist', level: 'error' });
           try {
-            const sessionId = await this.history.getCurrentSessionOrCreate();
+            const auditSessionId = this.currentSessionId ?? 'default';
             AuditRepository.getInstance().insert({
-              session_id: sessionId,
+              session_id: auditSessionId,
               event_type: 'telephonist',
               agent: 'telephonist',
               provider: this.config.get().audio.provider,
@@ -490,13 +492,16 @@ export class TelegramAdapter {
         }
 
         try {
-          // Obter a sessão atual antes de alternar
+          // Validate session exists and is usable
           const history = new SQLiteChatMessageHistory({ sessionId: "" });
-          // Alternar para a nova sessão
           await history.switchSession(sessionId);
+          history.close();
+
+          // Track this session as the current one for this Telegram channel
+          this.currentSessionId = sessionId;
           await ctx.answerCbQuery();
 
-          // Remover a mensagem anterior e enviar confirmação
+          // Remove the previous message and send confirmation
           if (ctx.updateType === 'callback_query') {
             ctx.deleteMessage().catch(() => { });
           }
@@ -1254,7 +1259,10 @@ export class TelegramAdapter {
   private async handleApproveNewSessionCommand(ctx: any, user: string) {
     try {
       const history = new SQLiteChatMessageHistory({ sessionId: "" });
-      await history.createNewSession();
+      const newSessionId = await history.createNewSession();
+      history.close();
+      // Track the new session as the current one for this Telegram channel
+      this.currentSessionId = newSessionId;
     } catch (e: any) {
       await ctx.reply(`Error creating new session: ${e.message}`);
     }
@@ -1271,7 +1279,7 @@ export class TelegramAdapter {
       );
 
       if (sessions.length === 0) {
-        await ctx.reply('No active or paused sessions found\\.', { parse_mode: 'MarkdownV2' });
+        await ctx.reply('No sessions found\\.', { parse_mode: 'MarkdownV2' });
         return;
       }
 
@@ -1280,16 +1288,15 @@ export class TelegramAdapter {
 
       for (const session of sessions) {
         const title = session.title || 'Untitled Session';
-        const statusEmoji = session.status === 'active' ? '🟢' : '🟡';
+        const isCurrent = session.id === this.currentSessionId;
+        const statusEmoji = isCurrent ? '🟢' : '⚪';
         response += `${statusEmoji} *${escMdRaw(title)}*\n`;
         response += `\\- ID: \`${escMdRaw(session.id)}\`\n`;
-        response += `\\- Status: ${escMdRaw(session.status)}\n`;
         response += `\\- Started: ${escMdRaw(new Date(session.started_at).toLocaleString())}\n\n`;
 
-        // Adicionar botão inline para alternar para esta sessão
         const sessionButtons = [];
 
-        if (session.status !== 'active') {
+        if (!isCurrent) {
           sessionButtons.push({
             text: `➡️ Switch`,
             callback_data: `switch_session_${session.id}`

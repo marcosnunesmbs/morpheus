@@ -71,8 +71,7 @@ export function createApiRouter(oracle: IOracle, chronosWorker?: ChronosWorker) 
 
   router.post('/sessions', async (req, res) => {
     try {
-      await history.createNewSession();
-      const newSessionId = await history.getCurrentSessionOrCreate(); // Should be the new one
+      const newSessionId = await history.createNewSession();
       res.json({ success: true, id: newSessionId, message: 'New session started' });
     } catch (err: any) {
       res.status(500).json({ error: err.message });

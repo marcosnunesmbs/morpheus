@@ -869,44 +869,24 @@ export class SQLiteChatMessageHistory extends BaseListChatMessageHistory {
     }
   }
 
-  public async createNewSession(): Promise<void> {
+  public async createNewSession(): Promise<string> {
     const now = Date.now();
+    const newId = randomUUID();
 
-    // Transação para garantir consistência
-    const tx = this.db.transaction(() => {
-      // Pegar a sessão atualmente ativa
-      const activeSession = this.db.prepare(`
-        SELECT id FROM sessions
-        WHERE status = 'active'
-      `).get() as { id: string } | undefined;
+    this.db.prepare(`
+      INSERT INTO sessions (
+        id,
+        started_at,
+        status
+      ) VALUES (?, ?, 'active')
+    `).run(newId, now);
 
-      // Se houver uma sessão ativa, mudar seu status para 'paused'
-      if (activeSession) {
-        this.db.prepare(`
-          UPDATE sessions
-          SET status = 'paused'
-          WHERE id = ?
-        `).run(activeSession.id);
-      }
+    // Update this instance to point to the new session
+    this.sessionId = newId;
+    this.titleSet = false;
 
-      // Criar uma nova sessão ativa
-      const newId = randomUUID();
-      this.db.prepare(`
-        INSERT INTO sessions (
-          id,
-          started_at,
-          status
-        ) VALUES (?, ?, 'active')
-      `).run(newId, now);
-
-      // Atualizar o ID da sessão atual desta instância
-      this.sessionId = newId;
-      this.titleSet = false; // reset cache for new session
-    });
-
-    tx(); // Executar a transação
-
-    this.display.log('✅ Nova sessão iniciada e sessão anterior pausada', { source: 'Sati' });
+    this.display.log('✅ New session created', { source: 'Sati' });
+    return newId;
   }
 
 
@@ -1068,27 +1048,6 @@ export class SQLiteChatMessageHistory extends BaseListChatMessageHistory {
 
     tx(); // Executar a transação
 
-    // Se a sessão era active, verificar se há outra para ativar
-    if (session.status === 'active') {
-      const nextSession = this.db.prepare(`
-        SELECT id FROM sessions
-        WHERE status = 'paused'
-        ORDER BY started_at DESC
-        LIMIT 1
-      `).get() as { id: string } | undefined;
-
-      if (nextSession) {
-        // Promover a próxima sessão a ativa
-        this.db.prepare(`
-          UPDATE sessions
-          SET status = 'active'
-          WHERE id = ?
-        `).run(nextSession.id);
-      } else {
-        // Nenhuma outra sessão, criar nova
-        this.createFreshSession();
-      }
-    }
   }
 
   /**
@@ -1125,117 +1084,54 @@ export class SQLiteChatMessageHistory extends BaseListChatMessageHistory {
   }
 
   /**
-   * Trocar o contexto ativo entre sessões não finalizadas.
-   * Validar sessão alvo: existe e status ∈ (paused, active).
-   * Se já for active, não faz nada.
-   * Transação: sessão atual active → paused, sessão alvo → active.
-   */
-  /**
-   * Creates a session row with status 'paused' if it doesn't already exist.
+   * Creates a session row with status 'active' if it doesn't already exist.
    * Safe to call multiple times — idempotent.
    */
   public ensureSession(sessionId: string): void {
     const existing = this.db.prepare('SELECT id FROM sessions WHERE id = ?').get(sessionId);
     if (!existing) {
       this.db.prepare(
-        "INSERT INTO sessions (id, started_at, status) VALUES (?, ?, 'paused')"
+        "INSERT INTO sessions (id, started_at, status) VALUES (?, ?, 'active')"
       ).run(sessionId, Date.now());
     }
   }
 
+  /**
+   * Validates that the target session exists and is usable (not archived/deleted).
+   * No longer swaps active↔paused — sessions are independently usable from any channel.
+   */
   public async switchSession(targetSessionId: string): Promise<void> {
-    // Validar sessão alvo: existe e status ∈ (paused, active)
     const targetSession = this.db.prepare(`
       SELECT id, status FROM sessions
       WHERE id = ?
     `).get(targetSessionId) as { id: string, status: string } | undefined;
 
     if (!targetSession) {
-      throw new Error(`Sessão alvo com ID ${targetSessionId} não encontrada.`);
+      throw new Error(`Session with ID ${targetSessionId} not found.`);
     }
 
-    if (targetSession.status !== 'active' && targetSession.status !== 'paused') {
-      throw new Error(`Sessão alvo com ID ${targetSessionId} não está em estado ativo ou pausado. Status atual: ${targetSession.status}`);
+    if (targetSession.status === 'archived' || targetSession.status === 'deleted') {
+      throw new Error(`Session ${targetSessionId} is ${targetSession.status} and cannot be used.`);
     }
-
-    // Se já for active, não faz nada
-    if (targetSession.status === 'active') {
-      return; // A sessão alvo já está ativa, não precisa fazer nada
-    }
-
-    // Transação: sessão atual active → paused, sessão alvo → active
-    const tx = this.db.transaction(() => {
-      // Pegar a sessão atualmente ativa
-      const currentActiveSession = this.db.prepare(`
-        SELECT id FROM sessions
-        WHERE status = 'active'
-      `).get() as { id: string } | undefined;
-
-      // Se houver uma sessão ativa, mudar seu status para 'paused'
-      if (currentActiveSession) {
-        this.db.prepare(`
-          UPDATE sessions
-          SET status = 'paused'
-          WHERE id = ?
-        `).run(currentActiveSession.id);
-      }
-
-      // Mudar o status da sessão alvo para 'active'
-      this.db.prepare(`
-        UPDATE sessions
-        SET status = 'active'
-        WHERE id = ?
-      `).run(targetSessionId);
-    });
-
-    tx(); // Executar a transação
   }
 
   /**
-   * Garantir que sempre exista uma sessão ativa válida.
-   * Buscar sessão com status = 'active', retornar seu id se existir,
-   * ou criar nova sessão (createFreshSession) e retornar o novo id.
+   * Returns the most recently created usable session, or creates one if none exist.
+   * A session is usable if its status is 'active' or 'paused' (both are equivalent post-refactor).
    */
   public async getCurrentSessionOrCreate(): Promise<string> {
-    // Buscar sessão com status = 'active'
-    const activeSession = this.db.prepare(`
+    const session = this.db.prepare(`
       SELECT id FROM sessions
-      WHERE status = 'active'
+      WHERE status IN ('active', 'paused')
+      ORDER BY started_at DESC
+      LIMIT 1
     `).get() as { id: string } | undefined;
 
-    if (activeSession) {
-      // Se existir, retornar seu id
-      return activeSession.id;
-    } else {
-      // Se não existir, criar nova sessão (createFreshSession) e retornar o novo id
-      const newId = await this.createFreshSession();
-      return newId;
-    }
-  }
-
-  private async createFreshSession(): Promise<string> {
-    // Validar que não existe sessão 'active'
-    const activeSession = this.db.prepare(`
-      SELECT id FROM sessions
-      WHERE status = 'active'
-    `).get() as { id: string } | undefined;
-
-    if (activeSession) {
-      throw new Error('Já existe uma sessão ativa. Não é possível criar uma nova sessão ativa.');
+    if (session) {
+      return session.id;
     }
 
-    const now = Date.now();
-    const newId = randomUUID();
-
-    this.db.prepare(`
-    INSERT INTO sessions (
-      id,
-      started_at,
-      status
-    ) VALUES (?, ?, 'active')
-  `).run(newId, now);
-
-    return newId;
+    return this.createNewSession();
   }
 
   /**

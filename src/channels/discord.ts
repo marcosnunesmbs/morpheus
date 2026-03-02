@@ -8,9 +8,14 @@ import {
   Routes,
   SlashCommandBuilder,
   ChatInputCommandInteraction,
+  ButtonInteraction,
   Message,
   Attachment,
   DMChannel,
+  ActionRowBuilder,
+  ButtonBuilder,
+  ButtonStyle,
+  ComponentType,
 } from 'discord.js';
 import chalk from 'chalk';
 import fs from 'fs-extra';
@@ -44,6 +49,19 @@ const SLASH_COMMANDS = [
   new SlashCommandBuilder()
     .setName('newsession')
     .setDescription('Archive current session and start a new one')
+    .setDMPermission(true),
+
+  new SlashCommandBuilder()
+    .setName('sessions')
+    .setDescription('List all sessions and switch between them')
+    .setDMPermission(true),
+
+  new SlashCommandBuilder()
+    .setName('session_switch')
+    .setDescription('Switch to a specific session')
+    .addStringOption(opt =>
+      opt.setName('id').setDescription('Session ID to switch to').setRequired(true)
+    )
     .setDMPermission(true),
 
   new SlashCommandBuilder()
@@ -158,6 +176,8 @@ export class DiscordAdapter {
   private display = DisplayManager.getInstance();
   private config = ConfigManager.getInstance();
   private history = new SQLiteChatMessageHistory({ sessionId: '' });
+  /** Per-channel session tracking — which session this Discord adapter is currently using */
+  private currentSessionId: string | null = null;
 
   private telephonist: ITelephonist | null = null;
   private telephonistProvider: string | null = null;
@@ -263,8 +283,8 @@ export class DiscordAdapter {
       this.display.log(`${message.author.tag}: ${text}`, { source: 'Discord' });
 
       try {
-        const sessionId = await this.history.getCurrentSessionOrCreate();
-        await this.oracle.setSessionId(sessionId);
+        const sessionId = this.currentSessionId ?? await this.history.getCurrentSessionOrCreate();
+        this.currentSessionId = sessionId;
 
         const response = await this.oracle.chat(text, undefined, false, {
           origin_channel: 'discord',
@@ -412,8 +432,8 @@ export class DiscordAdapter {
       await channel.send(`🎤 "${text}"`);
 
       // Process with Oracle
-      const sessionId = await this.history.getCurrentSessionOrCreate();
-      await this.oracle.setSessionId(sessionId);
+      const sessionId = this.currentSessionId ?? await this.history.getCurrentSessionOrCreate();
+      this.currentSessionId = sessionId;
 
       const response = await this.oracle.chat(text, usage, true, {
         origin_channel: 'discord',
@@ -474,6 +494,8 @@ export class DiscordAdapter {
       case 'status':          await this.cmdStatus(interaction);          break;
       case 'stats':           await this.cmdStats(interaction);           break;
       case 'newsession':      await this.cmdNewSession(interaction);      break;
+      case 'sessions':        await this.cmdSessions(interaction);       break;
+      case 'session_switch':  await this.cmdSessionSwitch(interaction);  break;
       case 'chronos':         await this.cmdChronos(interaction);         break;
       case 'chronos_list':    await this.cmdChronosList(interaction);     break;
       case 'chronos_view':    await this.cmdChronosView(interaction);     break;
@@ -499,6 +521,8 @@ export class DiscordAdapter {
       '`/status` — Check Morpheus status',
       '`/stats` — Token usage statistics',
       '`/newsession` — Start a new session',
+      '`/sessions` — List all sessions (switch, archive, delete)',
+      '`/session_switch id:` — Switch to a specific session',
       '',
       '**Chronos (Scheduler)**',
       '`/chronos prompt: time:` — Schedule a job for the Oracle',
@@ -570,9 +594,127 @@ export class DiscordAdapter {
   private async cmdNewSession(interaction: ChatInputCommandInteraction): Promise<void> {
     try {
       const history = new SQLiteChatMessageHistory({ sessionId: '' });
-      await history.createNewSession();
+      const newSessionId = await history.createNewSession();
       history.close();
+      // Track the new session as the current one for this Discord channel
+      this.currentSessionId = newSessionId;
       await interaction.reply({ content: '✅ New session started.' });
+    } catch (err: any) {
+      await interaction.reply({ content: `Error: ${err.message}` });
+    }
+  }
+
+  private async cmdSessions(interaction: ChatInputCommandInteraction): Promise<void> {
+    try {
+      const history = new SQLiteChatMessageHistory({ sessionId: '' });
+      const sessions = (await history.listSessions()).filter(
+        (s) => !s.id.startsWith('chronos-job-') && !s.id.startsWith('sati-evaluation')
+      );
+      history.close();
+
+      if (sessions.length === 0) {
+        await interaction.reply({ content: 'No sessions found.' });
+        return;
+      }
+
+      const lines: string[] = ['**Sessions:**\n'];
+      const rows: ActionRowBuilder<ButtonBuilder>[] = [];
+
+      for (const session of sessions) {
+        const title = session.title || 'Untitled Session';
+        const isCurrent = session.id === this.currentSessionId;
+        const icon = isCurrent ? '🟢' : '⚪';
+        const started = new Date(session.started_at).toLocaleString();
+        lines.push(`${icon} **${title}**`);
+        lines.push(`  ID: \`${session.id}\``);
+        lines.push(`  Started: ${started}\n`);
+
+        // Discord allows max 5 buttons per row, max 5 rows per message
+        if (rows.length < 5) {
+          const btns: ButtonBuilder[] = [];
+          if (!isCurrent) {
+            btns.push(
+              new ButtonBuilder()
+                .setCustomId(`session_switch_${session.id}`)
+                .setLabel('Switch')
+                .setStyle(ButtonStyle.Primary)
+                .setEmoji('➡️')
+            );
+          }
+          btns.push(
+            new ButtonBuilder()
+              .setCustomId(`session_archive_${session.id}`)
+              .setLabel('Archive')
+              .setStyle(ButtonStyle.Secondary)
+              .setEmoji('📂')
+          );
+          btns.push(
+            new ButtonBuilder()
+              .setCustomId(`session_delete_${session.id}`)
+              .setLabel('Delete')
+              .setStyle(ButtonStyle.Danger)
+              .setEmoji('🗑️')
+          );
+          rows.push(new ActionRowBuilder<ButtonBuilder>().addComponents(...btns));
+        }
+      }
+
+      const content = lines.join('\n').slice(0, 2000);
+      const reply = await interaction.reply({ content, components: rows, fetchReply: true });
+
+      // Collect button interactions for 60 seconds
+      const collector = reply.createMessageComponentCollector({
+        componentType: ComponentType.Button,
+        time: 60_000,
+      });
+
+      collector.on('collect', async (btn: ButtonInteraction) => {
+        try {
+          if (btn.customId.startsWith('session_switch_')) {
+            const sid = btn.customId.replace('session_switch_', '');
+            const h = new SQLiteChatMessageHistory({ sessionId: '' });
+            await h.switchSession(sid);
+            h.close();
+            this.currentSessionId = sid;
+            await btn.reply({ content: `✅ Switched to session \`${sid}\`.`, ephemeral: true });
+          } else if (btn.customId.startsWith('session_archive_')) {
+            const sid = btn.customId.replace('session_archive_', '');
+            const h = new SQLiteChatMessageHistory({ sessionId: '' });
+            await h.archiveSession(sid);
+            h.close();
+            if (this.currentSessionId === sid) this.currentSessionId = null;
+            await btn.reply({ content: `📂 Session \`${sid}\` archived.`, ephemeral: true });
+          } else if (btn.customId.startsWith('session_delete_')) {
+            const sid = btn.customId.replace('session_delete_', '');
+            const h = new SQLiteChatMessageHistory({ sessionId: '' });
+            await h.deleteSession(sid);
+            h.close();
+            if (this.currentSessionId === sid) this.currentSessionId = null;
+            await btn.reply({ content: `🗑️ Session \`${sid}\` deleted.`, ephemeral: true });
+          }
+        } catch (err: any) {
+          await btn.reply({ content: `Error: ${err.message}`, ephemeral: true }).catch(() => {});
+        }
+      });
+
+      collector.on('end', async () => {
+        try {
+          await interaction.editReply({ components: [] });
+        } catch { /* message may have been deleted */ }
+      });
+    } catch (err: any) {
+      await interaction.reply({ content: `Error: ${err.message}` });
+    }
+  }
+
+  private async cmdSessionSwitch(interaction: ChatInputCommandInteraction): Promise<void> {
+    const sessionId = interaction.options.getString('id', true);
+    try {
+      const history = new SQLiteChatMessageHistory({ sessionId: '' });
+      await history.switchSession(sessionId);
+      history.close();
+      this.currentSessionId = sessionId;
+      await interaction.reply({ content: `✅ Switched to session \`${sessionId}\`.` });
     } catch (err: any) {
       await interaction.reply({ content: `Error: ${err.message}` });
     }
