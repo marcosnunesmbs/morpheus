@@ -5,7 +5,8 @@ import { ProviderFactory } from "./providers/factory.js";
 import { ReactAgent } from "langchain";
 import { ProviderError } from "./errors.js";
 import { DisplayManager } from "./display.js";
-import { buildDevKit } from "../devkit/index.js";
+import { buildDevKit } from "morpheus-devkit";
+import { instrumentDevKitTools } from "./devkit-instrument.js";
 import { Construtor } from "./tools/factory.js";
 import { morpheusTools } from "./tools/index.js";
 import { SkillRegistry } from "./skills/registry.js";
@@ -43,8 +44,8 @@ export class Keymaker {
     // Build DevKit tools (filesystem, shell, git, browser, network, etc.)
     const devkit = ConfigManager.getInstance().getDevKitConfig();
     const timeout_ms = devkit.timeout_ms || 30_000;
-    await import("../devkit/index.js");
-    const devKitTools = buildDevKit({
+    await import("morpheus-devkit");
+    const devKitTools = instrumentDevKitTools(buildDevKit({
       working_dir: devkit.sandbox_dir || process.cwd(),
       allowed_commands: devkit.allowed_shell_commands || [],
       timeout_ms,
@@ -54,7 +55,7 @@ export class Keymaker {
       enable_shell: devkit.enable_shell,
       enable_git: devkit.enable_git,
       enable_network: devkit.enable_network,
-    });
+    }), () => undefined, () => 'keymaker');
 
     // Load MCP tools from configured servers
     const mcpTools = await Construtor.create();

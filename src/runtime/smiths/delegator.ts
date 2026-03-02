@@ -6,7 +6,7 @@ import { DisplayManager } from '../display.js';
 import { SmithRegistry } from './registry.js';
 import { ConfigManager } from '../../config/manager.js';
 import { ProviderFactory } from '../providers/factory.js';
-import { buildDevKit } from '../../devkit/index.js';
+import { buildDevKit } from 'morpheus-devkit';
 import { SQLiteChatMessageHistory } from '../memory/sqlite.js';
 import type { AgentResult } from '../tasks/types.js';
 import type { SmithTaskResultMessage, SmithToMorpheusMessage } from './types.js';

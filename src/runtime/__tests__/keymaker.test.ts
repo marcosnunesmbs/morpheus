@@ -36,11 +36,15 @@ vi.mock('../display.js', () => ({
   },
 }));
 
-vi.mock('../../devkit/index.js', () => ({
+vi.mock('morpheus-devkit', () => ({
   buildDevKit: vi.fn(() => [
     { name: 'fs_read', description: 'Read file' },
     { name: 'shell_exec', description: 'Execute shell command' },
   ]),
+}));
+
+vi.mock('../devkit-instrument.js', () => ({
+  instrumentDevKitTools: vi.fn((tools: any[]) => tools),
 }));
 
 vi.mock('../tools/factory.js', () => ({
@@ -110,7 +114,7 @@ describe('Keymaker', () => {
   describe('initialize()', () => {
     it('should initialize agent with all tools', async () => {
       const { ProviderFactory } = await import('../providers/factory.js');
-      const { buildDevKit } = await import('../../devkit/index.js');
+      const { buildDevKit } = await import('morpheus-devkit');
       const { Construtor } = await import('../tools/factory.js');
 
       const keymaker = new Keymaker('test-skill', '# Instructions');

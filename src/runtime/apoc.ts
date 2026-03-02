@@ -6,7 +6,8 @@ import { ProviderFactory } from "./providers/factory.js";
 import { ReactAgent } from "langchain";
 import { ProviderError } from "./errors.js";
 import { DisplayManager } from "./display.js";
-import { buildDevKit } from "../devkit/index.js";
+import { buildDevKit } from "morpheus-devkit";
+import { instrumentDevKitTools } from "./devkit-instrument.js";
 import type { OracleTaskContext, AgentResult } from "./tasks/types.js";
 import type { ISubagent } from "./ISubagent.js";
 import { extractRawUsage, persistAgentMessage, buildAgentResult, emitToolAuditEvents } from "./subagent-utils.js";
@@ -61,9 +62,9 @@ export class Apoc implements ISubagent {
     const timeout_ms = devkit.timeout_ms || this.config.apoc?.timeout_ms || 30_000;
     const personality = this.config.apoc?.personality || 'pragmatic_dev';
 
-    // Import all devkit tool factories (side-effect registration)
-    await import("../devkit/index.js");
-    const tools = buildDevKit({
+    // Import morpheus-devkit to trigger side-effect tool registration
+    await import("morpheus-devkit");
+    const rawTools = buildDevKit({
       working_dir: devkit.sandbox_dir || process.cwd(),
       allowed_commands: devkit.allowed_shell_commands || [],
       timeout_ms,
@@ -73,9 +74,8 @@ export class Apoc implements ISubagent {
       enable_shell: devkit.enable_shell,
       enable_git: devkit.enable_git,
       enable_network: devkit.enable_network,
-      getSessionId: () => Apoc.currentSessionId,
-      getAgent: () => 'apoc',
     });
+    const tools = instrumentDevKitTools(rawTools, () => Apoc.currentSessionId, () => 'apoc');
 
     this.display.log(
       `Apoc initialized with ${tools.length} DevKit tools (sandbox_dir: ${devkit.sandbox_dir}, personality: ${personality})`,
