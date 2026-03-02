@@ -464,7 +464,7 @@ Use it to inform your response and tool selection (if needed), but do not assume
       let syncDelegationCount = 0;
       const oracleStartMs = Date.now();
       const response = await TaskRequestContext.run(invokeContext, async () => {
-        const agentResponse = await this.provider!.invoke({ messages });
+        const agentResponse = await this.provider!.invoke({ messages }, { recursionLimit: 100 });
         contextDelegationAcks = TaskRequestContext.getDelegationAcks();
         syncDelegationCount = TaskRequestContext.getSyncDelegationCount();
         return agentResponse;

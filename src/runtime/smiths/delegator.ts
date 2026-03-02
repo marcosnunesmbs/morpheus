@@ -186,7 +186,7 @@ Respond in the same language as the task.`
 
       const messages: BaseMessage[] = [systemMessage, new HumanMessage(userContent)];
       const startMs = Date.now();
-      const response = await agent.invoke({ messages });
+      const response = await agent.invoke({ messages }, { recursionLimit: 100 });
       const durationMs = Date.now() - startMs;
 
       // Extract final response

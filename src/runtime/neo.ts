@@ -171,7 +171,7 @@ ${context ? `Context:\n${context}` : ""}
       };
       const inputCount = messages.length;
       const startMs = Date.now();
-      const response = await TaskRequestContext.run(invokeContext, () => this.agent!.invoke({ messages }));
+      const response = await TaskRequestContext.run(invokeContext, () => this.agent!.invoke({ messages }, { recursionLimit: 100 }));
       const durationMs = Date.now() - startMs;
 
       const lastMessage = response.messages[response.messages.length - 1];
