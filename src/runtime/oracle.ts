@@ -265,6 +265,9 @@ export class Oracle implements IOracle {
       throw new Error("Message history not initialized. Call initialize() first.");
     }
 
+    // Per-call scoped history — declared outside try so finally can close it.
+    let callHistory: SQLiteChatMessageHistory | undefined;
+
     try {
       this.display.log('Processing message...', { source: 'Oracle' });
 
@@ -409,14 +412,23 @@ ${SkillRegistry.getInstance().getSystemPromptSection()}
 ${SmithRegistry.getInstance().getSystemPromptSection()}
 `);
 
-      // Load existing history from database in reverse order (most recent first)
-      let previousMessages = await this.history.getMessages();
-      previousMessages = previousMessages.reverse();
+      // Resolve the authoritative session ID for this call.
+      // Priority: explicit taskContext > current history instance > fallback.
+      const currentSessionId: string | undefined =
+        taskContext?.session_id
+        ?? ((this.history instanceof SQLiteChatMessageHistory) ? this.history.currentSessionId : undefined);
 
-      // Propagate current session to Apoc so its token usage lands in the right session
-      const currentSessionId = (this.history instanceof SQLiteChatMessageHistory)
-        ? this.history.currentSessionId
-        : undefined;
+      // Create a per-call scoped history so concurrent chat() calls for
+      // different sessions never interfere with each other.
+      callHistory = new SQLiteChatMessageHistory({
+        sessionId: currentSessionId ?? 'default',
+        databasePath: this.databasePath,
+        limit: this.config.llm?.context_window ?? 100,
+      });
+
+      // Load existing history from database in reverse order (most recent first)
+      let previousMessages = await callHistory.getMessages();
+      previousMessages = previousMessages.reverse();
 
       // Sati Middleware: Retrieval
       let memoryMessage: AIMessage | null = null;
@@ -554,8 +566,8 @@ Use it to inform your response and tool selection (if needed), but do not assume
           (ackMessage as any).usage_metadata = ackResult.usage_metadata;
         }
         // Persist with addMessage so ack-provider usage is tracked per message row.
-        await this.history.addMessage(userMessage);
-        await this.history.addMessage(ackMessage);
+        await callHistory.addMessage(userMessage);
+        await callHistory.addMessage(ackMessage);
         // Unblock tasks for execution: the ack message is now persisted and will be
         // returned to the caller (Telegram / UI) immediately after this point.
         this.taskRepository.markAckSent(validDelegationAcks.map(a => a.task_id));
@@ -571,7 +583,7 @@ Use it to inform your response and tool selection (if needed), but do not assume
           provider: this.config.llm.provider,
           model: this.config.llm.model,
         };
-        await this.history.addMessages([userMessage, failureMessage]);
+        await callHistory.addMessages([userMessage, failureMessage]);
       } else {
         const lastMessage = response.messages[response.messages.length - 1];
         responseContent = (typeof lastMessage.content === 'string') ? lastMessage.content : JSON.stringify(lastMessage.content);
@@ -598,10 +610,10 @@ Use it to inform your response and tool selection (if needed), but do not assume
           if (usage) {
             (failureMessage as any).usage_metadata = usage;
           }
-          await this.history.addMessages([userMessage, failureMessage]);
+          await callHistory.addMessages([userMessage, failureMessage]);
         } else {
           // Persist user message + all generated messages in a single transaction
-          await this.history.addMessages([userMessage, ...newGeneratedMessages]);
+          await callHistory.addMessages([userMessage, ...newGeneratedMessages]);
         }
       }
 
@@ -632,6 +644,8 @@ Use it to inform your response and tool selection (if needed), but do not assume
       return responseContent;
     } catch (err) {
       throw new ProviderError(this.config.llm.provider, err, "Chat request failed");
+    } finally {
+      callHistory?.close();
     }
   }
 

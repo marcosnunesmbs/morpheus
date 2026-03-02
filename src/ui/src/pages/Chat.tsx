@@ -9,15 +9,22 @@ export const ChatPage: React.FC = () => {
   const [sessions, setSessions] = useState<Session[]>([]);
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
+  // Per-session loading state: allows concurrent conversations without blocking
+  const [loadingSessions, setLoadingSessions] = useState<Record<string, boolean>>({});
 
   // Sidebar starts open on desktop, closed on mobile
   const [isSidebarOpen, setIsSidebarOpen] = useState(
     () => typeof window !== 'undefined' ? window.innerWidth >= 768 : true
   );
 
+  // Derived: is the *current* session loading?
+  const isLoading = activeSessionId ? (loadingSessions[activeSessionId] ?? false) : false;
   const isLoadingRef = useRef(false);
   useEffect(() => { isLoadingRef.current = isLoading; }, [isLoading]);
+
+  // Track activeSessionId in a ref so async callbacks can read the *current* value
+  const activeSessionRef = useRef(activeSessionId);
+  useEffect(() => { activeSessionRef.current = activeSessionId; }, [activeSessionId]);
 
   // Background poll — picks up async task results written by the dispatcher
   useEffect(() => {
@@ -108,17 +115,25 @@ export const ChatPage: React.FC = () => {
 
   const handleSendMessage = async (text: string) => {
     if (!activeSessionId) return;
+    const targetSessionId = activeSessionId;
     const optimisticMessage: Message = { type: 'human', content: text };
     setMessages(prev => [...prev, optimisticMessage]);
-    setIsLoading(true);
+    setLoadingSessions(prev => ({ ...prev, [targetSessionId]: true }));
     try {
-      await chatService.sendMessage(activeSessionId, text);
-      await loadMessages(activeSessionId);
+      await chatService.sendMessage(targetSessionId, text);
+      // Only update messages if the user is still viewing this session
+      if (targetSessionId === activeSessionRef.current) {
+        await loadMessages(targetSessionId);
+      }
       await refreshSessions();
     } catch (error) {
       console.error('Failed to send message:', error);
     } finally {
-      setIsLoading(false);
+      setLoadingSessions(prev => {
+        const next = { ...prev };
+        delete next[targetSessionId];
+        return next;
+      });
     }
   };
 

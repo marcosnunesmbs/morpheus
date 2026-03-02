@@ -266,7 +266,7 @@ export function createApiRouter(oracle: IOracle, chronosWorker?: ChronosWorker) 
 
     try {
       const { message, sessionId } = parsed.data;
-      await (oracle as any).setSessionId(sessionId);
+      // Session is passed via taskContext — no need to mutate global Oracle state.
       const response = await oracle.chat(message, undefined, false, {
         origin_channel: 'ui',
         session_id: sessionId,
