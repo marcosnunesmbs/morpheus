@@ -16,6 +16,8 @@ import { getVersion } from '../utils/version.js';
 import { TaskWorker } from '../../runtime/tasks/worker.js';
 import { TaskNotifier } from '../../runtime/tasks/notifier.js';
 import { WebhookDispatcher } from '../../runtime/webhooks/dispatcher.js';
+import { LinkRepository } from '../../runtime/link/repository.js';
+import { LinkWorker } from '../../runtime/link/worker.js';
 
 export const restartCommand = new Command('restart')
   .description('Restart the Morpheus agent')
@@ -118,6 +120,18 @@ export const restartCommand = new Command('restart')
       const taskNotifier = new TaskNotifier();
       const asyncTasksEnabled = config.runtime?.async_tasks?.enabled !== false;
 
+      // Initialize Link (Document RAG)
+      try {
+        await fs.ensureDir(PATHS.docs);
+        const linkRepository = LinkRepository.getInstance();
+        linkRepository.initialize();
+        const linkWorker = new LinkWorker(linkRepository);
+        LinkWorker.setInstance(linkWorker);
+        linkWorker.start();
+      } catch (err: any) {
+        display.log(chalk.yellow(`Link initialization warning: ${err.message}`), { source: 'Link' });
+      }
+
       // Initialize Web UI
       if (options.ui && config.ui.enabled) {
         try {
@@ -165,6 +179,10 @@ export const restartCommand = new Command('restart')
 
         for (const adapter of adapters) {
           await adapter.disconnect();
+        }
+        const linkWorker = LinkWorker.getInstance();
+        if (linkWorker) {
+          linkWorker.stop();
         }
         if (asyncTasksEnabled) {
           taskWorker.stop();

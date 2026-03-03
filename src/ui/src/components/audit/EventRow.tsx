@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Zap, Wrench, CheckCircle, XCircle, Clock, Bot, Play, Brain, Mic, ChevronRight, ChevronDown, Plus, Pencil, Archive } from 'lucide-react';
+import { Zap, Wrench, CheckCircle, XCircle, Clock, Bot, Play, Brain, Mic, ChevronRight, ChevronDown, Plus, Pencil, Archive, FileSearch, FilePlus } from 'lucide-react';
 import type { AuditEvent } from '../../services/audit';
 
 interface EventRowProps {
@@ -22,6 +22,8 @@ const EVENT_ICONS: Record<string, React.ReactNode> = {
   memory_recovery: <Brain size={16} />,
   memory_persist: <Brain size={16} />,
   telephonist: <Mic size={16} />,
+  link_search: <FileSearch size={16} />,
+  link_index: <FilePlus size={16} />,
 };
 
 const EVENT_COLORS: Record<string, string> = {
@@ -35,6 +37,8 @@ const EVENT_COLORS: Record<string, string> = {
   memory_recovery: 'text-emerald-600 dark:text-emerald-400',
   memory_persist: 'text-violet-600 dark:text-violet-400',
   telephonist: 'text-rose-500 dark:text-rose-400',
+  link_search: 'text-cyan-600 dark:text-cyan-400',
+  link_index: 'text-indigo-600 dark:text-indigo-400',
 };
 
 // Left-border accent colour for the expanded metadata panel
@@ -49,6 +53,8 @@ const META_BORDER_COLORS: Record<string, string> = {
   memory_recovery: 'border-emerald-300 dark:border-emerald-500/40',
   memory_persist: 'border-violet-300 dark:border-violet-500/40',
   telephonist: 'border-rose-300 dark:border-rose-500/40',
+  link_search: 'border-cyan-300 dark:border-cyan-500/40',
+  link_index: 'border-indigo-300 dark:border-indigo-500/40',
 };
 
 const AGENT_EMOJIS: Record<string, string> = {
@@ -61,6 +67,7 @@ const AGENT_EMOJIS: Record<string, string> = {
   chronos: '⏰',
   sati: '🧠',
   telephonist: '📞',
+  link: '🔗',
 };
 
 const AGENT_BADGES: Record<string, string> = {
@@ -73,6 +80,7 @@ const AGENT_BADGES: Record<string, string> = {
   chronos: 'bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300',
   sati: 'bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300',
   telephonist: 'bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300',
+  link: 'bg-cyan-100 text-cyan-700 dark:bg-cyan-900/40 dark:text-cyan-300',
 };
 
 function fmtMs(ms: number | null): string {

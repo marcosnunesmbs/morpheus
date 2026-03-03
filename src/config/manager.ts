@@ -1,7 +1,7 @@
 import fs from 'fs-extra';
 import yaml from 'js-yaml';
 import { z } from 'zod';
-import { MorpheusConfig, DEFAULT_CONFIG, SatiConfig, ApocConfig, NeoConfig, TrinityConfig, LLMProvider, ChronosConfig, SubAgentExecutionMode, DevKitConfig, SmithsConfig, SetupConfig } from '../types/config.js';
+import { MorpheusConfig, DEFAULT_CONFIG, SatiConfig, ApocConfig, NeoConfig, TrinityConfig, LLMProvider, ChronosConfig, SubAgentExecutionMode, DevKitConfig, SmithsConfig, SetupConfig, LinkConfig } from '../types/config.js';
 import { PATHS } from './paths.js';
 import { setByPath } from './utils.js';
 import { ConfigSchema } from './schemas.js';
@@ -71,6 +71,11 @@ export class ConfigManager {
       decrypted.trinity = { ...decrypted.trinity, api_key: tryDecrypt(decrypted.trinity.api_key) };
     }
 
+    // Decrypt Link
+    if (decrypted.link?.api_key) {
+      decrypted.link = { ...decrypted.link, api_key: tryDecrypt(decrypted.link.api_key) };
+    }
+
     // Decrypt Audio (Telephonist)
     if (decrypted.audio?.apiKey) {
       decrypted.audio = { ...decrypted.audio, apiKey: tryDecrypt(decrypted.audio.apiKey) };
@@ -118,6 +123,11 @@ export class ConfigManager {
     // Encrypt Trinity
     if (encrypted.trinity?.api_key) {
       encrypted.trinity = { ...encrypted.trinity, api_key: tryEncrypt(encrypted.trinity.api_key) };
+    }
+
+    // Encrypt Link
+    if (encrypted.link?.api_key) {
+      encrypted.link = { ...encrypted.link, api_key: tryEncrypt(encrypted.link.api_key) };
     }
 
     // Encrypt Audio (Telephonist)
@@ -482,6 +492,26 @@ export class ConfigManager {
     return { ...this.config.llm };
   }
 
+  public getLinkConfig(): LinkConfig {
+    const defaults: LinkConfig = {
+      provider: this.config.llm.provider,
+      model: this.config.llm.model,
+      temperature: 0.2,
+      execution_mode: 'async',
+      chunk_size: 500,
+      score_threshold: 0.7,
+      vector_weight: 0.8,
+      bm25_weight: 0.2,
+      scan_interval_ms: 60000,
+      max_file_size_mb: 50,
+      allowed_extensions: ['.txt', '.md', '.pdf', '.docx', '.json', '.csv', '.ts', '.js', '.py', '.java', '.cpp', '.c', '.h', '.hpp', '.html', '.css', '.xml', '.yaml', '.yml'],
+    };
+    if (this.config.link) {
+      return { ...defaults, ...this.config.link };
+    }
+    return defaults;
+  }
+
   public getChronosConfig(): ChronosConfig {
     const defaults: ChronosConfig = { timezone: 'UTC', check_interval_ms: 60000, max_active_jobs: 100 };
     if (this.config.chronos) {
@@ -541,6 +571,7 @@ export class ConfigManager {
       neo: boolean;
       apoc: boolean;
       trinity: boolean;
+      link: boolean;
       audio: boolean;
     };
     hasPlaintextKeys: boolean;
@@ -556,6 +587,7 @@ export class ConfigManager {
       neo: checkKey(this.config.neo?.api_key),
       apoc: checkKey(this.config.apoc?.api_key),
       trinity: checkKey(this.config.trinity?.api_key),
+      link: checkKey(this.config.link?.api_key),
       audio: checkKey(this.config.audio?.apiKey),
     };
 

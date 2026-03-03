@@ -8,7 +8,9 @@ export type AuditEventType =
   | 'chronos_job'
   | 'memory_recovery'
   | 'memory_persist'
-  | 'telephonist';
+  | 'telephonist'
+  | 'link_search'
+  | 'link_index';
 
 export type AuditAgent =
   | 'oracle'
@@ -19,7 +21,8 @@ export type AuditAgent =
   | 'keymaker'
   | 'chronos'
   | 'sati'
-  | 'telephonist';
+  | 'telephonist'
+  | 'link';
 
 export type AuditStatus = 'success' | 'error';
 
@@ -83,6 +86,8 @@ export interface GlobalAuditSummary {
     taskCreatedCount: number;
     taskCompletedCount: number;
     telephonistCount: number;
+    linkSearchCount: number;
+    linkIndexCount: number;
   };
   byAgent: Array<{
     agent: string;

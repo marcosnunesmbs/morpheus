@@ -176,6 +176,26 @@ export interface SetupConfig {
   fields: string[];
 }
 
+export interface LinkConfig extends LLMConfig {
+  personality?: string;
+  /** When 'sync', Oracle executes Link inline and returns result directly. Default: 'async'. */
+  execution_mode?: SubAgentExecutionMode;
+  /** Chunk size for document splitting. Default: 500 */
+  chunk_size?: number;
+  /** Minimum similarity score threshold for search results. Default: 0.7 */
+  score_threshold?: number;
+  /** Weight for vector search in hybrid scoring (0-1). Default: 0.8 */
+  vector_weight?: number;
+  /** Weight for BM25 search in hybrid scoring (0-1). Default: 0.2 */
+  bm25_weight?: number;
+  /** Interval in ms for scanning docs folder. Default: 60000 */
+  scan_interval_ms?: number;
+  /** Maximum file size in MB to index. Default: 50 */
+  max_file_size_mb?: number;
+  /** Allowed file extensions for indexing. Default: ['.txt', '.md', '.pdf', '.docx', ...] */
+  allowed_extensions?: string[];
+}
+
 export interface MorpheusConfig {
   agent: AgentConfig;
   llm: LLMConfig;
@@ -184,6 +204,7 @@ export interface MorpheusConfig {
   apoc?: ApocConfig;
   trinity?: TrinityConfig;
   keymaker?: KeymakerConfig;
+  link?: LinkConfig;
   devkit?: DevKitConfig;
   smiths?: SmithsConfig;
   setup?: SetupConfig;
@@ -278,6 +299,20 @@ export const DEFAULT_CONFIG: MorpheusConfig = {
     temperature: 0.2,
     personality: 'data_specialist',
     execution_mode: 'async',
+  },
+  link: {
+    provider: 'openai',
+    model: 'gpt-4',
+    temperature: 0.2,
+    personality: 'documentation_specialist',
+    execution_mode: 'async',
+    chunk_size: 500,
+    score_threshold: 0.7,
+    vector_weight: 0.8,
+    bm25_weight: 0.2,
+    scan_interval_ms: 60000,
+    max_file_size_mb: 50,
+    allowed_extensions: ['.txt', '.md', '.pdf', '.docx', '.json', '.csv', '.ts', '.js', '.py', '.java', '.cpp', '.c', '.h', '.hpp', '.html', '.css', '.xml', '.yaml', '.yml'],
   },
   smiths: {
     enabled: false,

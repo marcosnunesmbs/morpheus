@@ -23,6 +23,8 @@ import { TaskWorker } from '../../runtime/tasks/worker.js';
 import { TaskNotifier } from '../../runtime/tasks/notifier.js';
 import { ChronosWorker } from '../../runtime/chronos/worker.js';
 import { ChronosRepository } from '../../runtime/chronos/repository.js';
+import { LinkRepository } from '../../runtime/link/repository.js';
+import { LinkWorker } from '../../runtime/link/worker.js';
 import { SkillRegistry } from '../../runtime/skills/index.js';
 import { MCPToolCache } from '../../runtime/tools/cache.js';
 import { SmithRegistry } from '../../runtime/smiths/registry.js';
@@ -224,6 +226,20 @@ export const startCommand = new Command('start')
       const chronosWorker = new ChronosWorker(chronosRepo, oracle);
       ChronosWorker.setInstance(chronosWorker);
 
+      // Initialize Link (Document RAG)
+      try {
+        await fs.ensureDir(PATHS.docs);
+        const linkRepository = LinkRepository.getInstance();
+        linkRepository.initialize();
+        const linkWorker = new LinkWorker(linkRepository);
+        LinkWorker.setInstance(linkWorker);
+        linkWorker.start();
+        const stats = linkRepository.getStats();
+        display.log(chalk.green(`✓ Link initialized: ${stats.totalDocuments} documents, ${stats.totalChunks} chunks`), { source: 'Link' });
+      } catch (err: any) {
+        display.log(chalk.yellow(`Link initialization warning: ${err.message}`), { source: 'Link' });
+      }
+
       // Initialize Web UI
       if (options.ui && config.ui.enabled) {
         try {
@@ -300,6 +316,10 @@ export const startCommand = new Command('start')
           await adapter.disconnect();
         }
         chronosWorker.stop();
+        const linkWorker = LinkWorker.getInstance();
+        if (linkWorker) {
+          linkWorker.stop();
+        }
         if (asyncTasksEnabled) {
           taskWorker.stop();
           taskNotifier.stop();

@@ -89,6 +89,17 @@ export const SmithsConfigSchema = z.object({
   entries: z.array(SmithEntrySchema).default([]),
 });
 
+export const LinkConfigSchema = LLMConfigSchema.extend({
+  execution_mode: z.enum(['sync', 'async']).default('async'),
+  chunk_size: z.number().int().min(100).max(2000).default(500),
+  score_threshold: z.number().min(0).max(1).default(0.7),
+  vector_weight: z.number().min(0).max(1).default(0.8),
+  bm25_weight: z.number().min(0).max(1).default(0.2),
+  scan_interval_ms: z.number().int().min(5000).default(60000),
+  max_file_size_mb: z.number().int().min(1).max(100).default(50),
+  allowed_extensions: z.array(z.string()).default(['.txt', '.md', '.pdf', '.docx', '.json', '.csv', '.ts', '.js', '.py', '.java', '.cpp', '.c', '.h', '.hpp', '.html', '.css', '.xml', '.yaml', '.yml']),
+});
+
 // Zod Schema matching MorpheusConfig interface
 export const ConfigSchema = z.object({
   agent: z.object({
@@ -101,6 +112,7 @@ export const ConfigSchema = z.object({
   apoc: ApocConfigSchema.optional(),
   trinity: TrinityConfigSchema.optional(),
   keymaker: KeymakerConfigSchema.optional(),
+  link: LinkConfigSchema.optional(),
   webhooks: WebhookConfigSchema,
   audio: AudioConfigSchema.default(DEFAULT_CONFIG.audio),
   memory: z.object({

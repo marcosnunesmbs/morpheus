@@ -22,6 +22,7 @@ import {
   Wand2,
   HatGlasses,
   ShieldCheck,
+  Link2,
 } from 'lucide-react';
 
 const McpIcon: React.FC<{ className?: string }> = ({ className }) => (
@@ -124,6 +125,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
     { icon: McpIcon, label: 'MCP Servers', path: '/mcp-servers' },
     { icon: Wand2, label: 'Skills', path: '/skills' },
     // { icon: BarChart3, label: 'Usage Stats', path: '/stats' },
+    { icon: Link2, label: 'Link', path: '/link' },
     { icon: Activity, label: 'Sati Memories', path: '/sati-memories' },
     { icon: Webhook, label: 'Webhooks', path: '/webhooks' },
     { icon: Bell, label: 'Notifications', path: '/notifications' },
@@ -143,6 +145,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
     { icon: McpIcon, label: 'MCP Servers', path: '/mcp-servers' },
     { icon: Wand2, label: 'Skills', path: '/skills' },
     { icon: BarChart3, label: 'Usage Stats', path: '/stats' },
+    { icon: Link2, label: 'Link', path: '/link' },
     { icon: Activity, label: 'Sati Memories', path: '/sati-memories' },
     { icon: Webhook, label: 'Webhooks', path: '/webhooks' },
     { icon: Bell, label: 'Notifications', path: '/notifications' },
