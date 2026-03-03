@@ -132,7 +132,7 @@ function StatCard({
 
 function Section({ title, icon, children }: { title: string; icon: React.ReactNode; children: React.ReactNode }) {
   return (
-    <div className="rounded-lg border border-gray-200 dark:border-matrix-primary overflow-hidden">
+    <div className="rounded-lg border border-gray-200 dark:border-matrix-primary overflow-hidden bg-white dark:bg-zinc-900 shadow-sm">
       <div className="px-4 py-3 bg-gray-50 dark:bg-zinc-900 border-b border-gray-200 dark:border-matrix-primary flex items-center gap-2">
         <span className="text-gray-500 dark:text-matrix-secondary/70">{icon}</span>
         <h2 className="text-sm font-semibold text-gray-700 dark:text-matrix-secondary uppercase tracking-wider">{title}</h2>

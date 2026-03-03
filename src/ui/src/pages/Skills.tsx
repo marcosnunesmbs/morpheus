@@ -29,8 +29,8 @@ function SkillCard({
       variants={item}
       className={`rounded-lg border flex flex-col transition-all ${
         skill.enabled
-          ? 'border-azure-primary/50 dark:border-matrix-primary bg-white dark:bg-black'
-          : 'border-azure-border dark:border-matrix-primary/30 bg-azure-surface/50 dark:bg-black'
+          ? 'border-azure-primary/50 dark:border-matrix-primary bg-white dark:bg-zinc-900 shadow-sm'
+          : 'border-azure-border dark:border-matrix-primary/30 bg-azure-surface/50 dark:bg-zinc-900 shadow-sm'
       }`}
     >
       {/* Body */}

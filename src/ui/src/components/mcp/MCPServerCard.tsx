@@ -58,7 +58,7 @@ export const MCPServerCard = ({ server, probeResult, onEdit, onDelete, onToggle 
   const envEntries = server.config.env ? Object.entries(server.config.env) : [];
 
   return (
-    <div className={`rounded-lg border flex flex-col bg-azure-surface/50 dark:bg-zinc-950/50 transition-all ${
+    <div className={`rounded-lg border flex flex-col bg-white dark:bg-zinc-900 shadow-sm transition-all ${
       !server.enabled
         ? 'border-azure-border dark:border-matrix-primary/30'
         : isFailed

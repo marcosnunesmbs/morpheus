@@ -133,7 +133,7 @@ function SmithCard({ status, entry, onPing, onEdit, onDelete }: SmithCardProps) 
   const isOnline = status.state === 'online';
 
   return (
-    <div className={`rounded-lg border bg-white dark:bg-black transition-all ${
+    <div className={`rounded-lg border bg-white dark:bg-zinc-900 shadow-sm transition-all ${
       isOnline
         ? 'border-emerald-500/40 dark:border-emerald-500/30'
         : status.state === 'error'
@@ -143,7 +143,7 @@ function SmithCard({ status, entry, onPing, onEdit, onDelete }: SmithCardProps) 
         : 'border-azure-border dark:border-matrix-primary'
     }`}>
       {/* Card Header */}
-      <div className="p-4 bg-azure-surface/50 dark:bg-zinc-950/50">
+      <div className="p-4 bg-white dark:bg-zinc-900 shadow-sm rounded-tl-lg rounded-tr-lg">
         <div className="flex items-start justify-between gap-3">
           <div className="flex items-center gap-3 min-w-0">
             <div className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 ${
