@@ -18,7 +18,9 @@ import type {
   TrinityConfig,
 } from '../../../types/config';
 import { ZodError } from 'zod';
-import { Settings as SettingsIcon, X } from 'lucide-react';
+import { Settings as SettingsIcon, X, AlertTriangle } from 'lucide-react';
+import { ConfirmationModal } from '../components/ConfirmationModal';
+import { dangerService, type ResetCategory } from '../services/danger';
 
 const TABS = [
   { id: 'general', label: 'General' },
@@ -29,6 +31,7 @@ const TABS = [
   // { id: 'ui', label: 'Interface' },
   // { id: 'logging', label: 'Logging' },
   { id: 'chronos', label: 'Chronos' },
+  { id: 'danger', label: 'Danger Zone' },
 ];
 
 const AGENT_TABS = [
@@ -1689,7 +1692,166 @@ export default function Settings() {
           </Section>
         )}
 
+        {activeTab === 'danger' && (
+          <DangerZoneTab />
+        )}
+
       </div>
     </div>
+  );
+}
+
+/* ─── Danger Zone Tab ─── */
+
+const RESET_CATEGORIES: { id: ResetCategory; label: string; description: string }[] = [
+  { id: 'sessions',  label: 'Sessions & Messages',   description: 'All chat sessions and their messages' },
+  { id: 'memories',  label: 'Long-term Memories',     description: 'Sati knowledge base, embeddings, and archived session chunks' },
+  { id: 'tasks',     label: 'Tasks',                  description: 'Background task queue and execution results' },
+  { id: 'audit',     label: 'Audit Logs',             description: 'All agent and tool audit events' },
+  { id: 'chronos',   label: 'Chronos Jobs',           description: 'Scheduled jobs and their execution history' },
+  { id: 'webhooks',  label: 'Webhooks',               description: 'Webhook definitions and notification history' },
+];
+
+function DangerZoneTab() {
+  const [selected, setSelected] = useState<Set<ResetCategory>>(new Set());
+  const [showResetModal, setShowResetModal] = useState(false);
+  const [isResetting, setIsResetting] = useState(false);
+  const [resetResult, setResetResult] = useState<{ success: boolean; message: string } | null>(null);
+
+  const toggleCategory = (cat: ResetCategory) => {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(cat)) next.delete(cat);
+      else next.add(cat);
+      return next;
+    });
+  };
+
+  const toggleAll = () => {
+    if (selected.size === RESET_CATEGORIES.length) {
+      setSelected(new Set());
+    } else {
+      setSelected(new Set(RESET_CATEGORIES.map((c) => c.id)));
+    }
+  };
+
+  const handleReset = async () => {
+    if (selected.size === 0) return;
+    setIsResetting(true);
+    setResetResult(null);
+    try {
+      const result = await dangerService.resetData([...selected]);
+      setResetResult({ success: true, message: result.message });
+      setSelected(new Set());
+      // Invalidate all SWR caches so UI reflects the clean state
+      mutate(() => true, undefined, { revalidate: true });
+    } catch (err) {
+      setResetResult({
+        success: false,
+        message: err instanceof Error ? err.message : 'Failed to reset data',
+      });
+    } finally {
+      setIsResetting(false);
+    }
+  };
+
+  const selectedLabels = RESET_CATEGORIES
+    .filter((c) => selected.has(c.id))
+    .map((c) => c.label);
+
+  return (
+    <>
+      <div className="rounded-lg border-2 border-red-300 dark:border-red-900 bg-red-50 dark:bg-red-950/20 p-6 space-y-5">
+        <div className="flex items-center gap-3">
+          <AlertTriangle className="w-6 h-6 text-red-500 dark:text-red-400 shrink-0" />
+          <h3 className="text-lg font-semibold text-red-700 dark:text-red-400">
+            Danger Zone
+          </h3>
+        </div>
+
+        <p className="text-sm text-red-600 dark:text-red-300/80">
+          Select the data you want to permanently delete. These actions are <strong>irreversible</strong>.
+        </p>
+
+        {/* Category checkboxes */}
+        <div className="rounded-md border border-red-200 dark:border-red-900/60 bg-white dark:bg-black p-4 space-y-3">
+          {/* Select all */}
+          <label className="flex items-center gap-3 pb-2 border-b border-red-100 dark:border-red-900/40 cursor-pointer select-none">
+            <input
+              type="checkbox"
+              checked={selected.size === RESET_CATEGORIES.length}
+              onChange={toggleAll}
+              className="w-4 h-4 rounded border-red-300 text-red-600 focus:ring-red-500
+                dark:border-red-800 dark:bg-black dark:checked:bg-red-600"
+            />
+            <span className="text-sm font-medium text-red-700 dark:text-red-400">
+              Select all
+            </span>
+          </label>
+
+          {RESET_CATEGORIES.map((cat) => (
+            <label key={cat.id} className="flex items-start gap-3 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={selected.has(cat.id)}
+                onChange={() => toggleCategory(cat.id)}
+                className="w-4 h-4 mt-0.5 rounded border-red-300 text-red-600 focus:ring-red-500
+                  dark:border-red-800 dark:bg-black dark:checked:bg-red-600"
+              />
+              <div>
+                <span className="text-sm font-medium text-red-700 dark:text-red-300">
+                  {cat.label}
+                </span>
+                <p className="text-xs text-red-500 dark:text-red-300/60">
+                  {cat.description}
+                </p>
+              </div>
+            </label>
+          ))}
+        </div>
+
+        {/* Action button */}
+        <div className="flex items-center justify-between gap-4">
+          <p className="text-xs text-red-500 dark:text-red-300/50">
+            {selected.size === 0
+              ? 'No categories selected'
+              : `${selected.size} of ${RESET_CATEGORIES.length} selected`}
+          </p>
+          <button
+            onClick={() => setShowResetModal(true)}
+            disabled={isResetting || selected.size === 0}
+            className="shrink-0 px-4 py-2 text-sm font-medium rounded-md
+              bg-red-600 text-white hover:bg-red-700
+              dark:bg-red-900/50 dark:text-red-200 dark:hover:bg-red-800/60
+              disabled:opacity-50 disabled:cursor-not-allowed
+              transition-colors"
+          >
+            {isResetting ? 'Resetting...' : 'Reset selected data'}
+          </button>
+        </div>
+
+        {resetResult && (
+          <div
+            className={`rounded-md p-3 text-sm ${
+              resetResult.success
+                ? 'bg-green-50 text-green-700 dark:bg-green-950/30 dark:text-green-400 border border-green-200 dark:border-green-900'
+                : 'bg-red-100 text-red-700 dark:bg-red-950/40 dark:text-red-300 border border-red-300 dark:border-red-800'
+            }`}
+          >
+            {resetResult.message}
+          </div>
+        )}
+      </div>
+
+      <ConfirmationModal
+        isOpen={showResetModal}
+        onClose={() => setShowResetModal(false)}
+        onConfirm={handleReset}
+        title="Reset selected data?"
+        description={`This will permanently delete: ${selectedLabels.join(', ')}. This action cannot be undone.`}
+        confirmJson="Yes, delete permanently"
+        variant="destructive"
+      />
+    </>
   );
 }

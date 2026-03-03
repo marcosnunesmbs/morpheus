@@ -86,10 +86,11 @@ export class HttpClient {
     return this.handleResponse(response);
   }
 
-  public async delete<T>(path: string): Promise<T> {
+  public async delete<T>(path: string, body?: unknown): Promise<T> {
     const response = await fetch(`${API_BASE}${path}`, {
       method: 'DELETE',
-      headers: this.getHeaders(),
+      headers: this.getHeaders(body !== undefined ? { 'Content-Type': 'application/json' } : {}),
+      ...(body !== undefined && { body: JSON.stringify(body) }),
     });
     return this.handleResponse(response);
   }
