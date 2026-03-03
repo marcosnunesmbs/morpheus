@@ -2496,6 +2496,195 @@ Error response `404`:
 }
 ```
 
+## 8.20 Audit Endpoints (Protected)
+
+### GET `/api/audit/global`
+Returns a global audit summary with session counts, token/cost totals, breakdowns by agent and model, top tools, recent sessions, and daily activity for the last 30 days.
+
+Request payload:
+- No body
+
+Success response `200`:
+
+```json
+{
+  "sessions": {
+    "total": 42,
+    "active": 5,
+    "paused": 2,
+    "archived": 30,
+    "deleted": 5,
+    "withAudit": 38
+  },
+  "totals": {
+    "estimatedCostUsd": 1.245,
+    "totalDurationMs": 320000,
+    "totalAudioSeconds": 0,
+    "totalInputTokens": 850000,
+    "totalOutputTokens": 120000,
+    "totalEventCount": 1240,
+    "llmCallCount": 310,
+    "toolCallCount": 580,
+    "mcpToolCount": 45,
+    "skillCount": 12,
+    "memoryRecoveryCount": 8,
+    "memoryPersistCount": 15,
+    "chronosJobCount": 20,
+    "taskCreatedCount": 90,
+    "taskCompletedCount": 85,
+    "telephonistCount": 0
+  },
+  "byAgent": [
+    {
+      "agent": "oracle",
+      "llmCalls": 150,
+      "toolCalls": 0,
+      "inputTokens": 400000,
+      "outputTokens": 60000,
+      "totalDurationMs": 120000,
+      "estimatedCostUsd": 0.55
+    },
+    {
+      "agent": "neo",
+      "llmCalls": 80,
+      "toolCalls": 45,
+      "inputTokens": 200000,
+      "outputTokens": 30000,
+      "totalDurationMs": 90000,
+      "estimatedCostUsd": 0.35
+    }
+  ],
+  "byModel": [
+    {
+      "provider": "anthropic",
+      "model": "claude-sonnet-4-20250514",
+      "calls": 200,
+      "inputTokens": 500000,
+      "outputTokens": 80000,
+      "estimatedCostUsd": 0.85
+    }
+  ],
+  "topTools": [
+    {
+      "tool_name": "exec_shell",
+      "agent": "apoc",
+      "event_type": "tool_call",
+      "count": 120,
+      "errorCount": 3
+    }
+  ],
+  "recentSessions": [
+    {
+      "session_id": "abc-123",
+      "title": "Debug auth flow",
+      "status": "active",
+      "started_at": 1740000000000,
+      "event_count": 45,
+      "llmCallCount": 12,
+      "totalDurationMs": 18000,
+      "estimatedCostUsd": 0.08
+    }
+  ],
+  "dailyActivity": [
+    {
+      "date": "2026-03-01",
+      "eventCount": 85,
+      "llmCallCount": 25,
+      "estimatedCostUsd": 0.12
+    },
+    {
+      "date": "2026-03-02",
+      "eventCount": 120,
+      "llmCallCount": 40,
+      "estimatedCostUsd": 0.18
+    }
+  ]
+}
+```
+
+### GET `/api/sessions/:id/audit`
+Returns audit events and a cost/token summary for a specific session.
+
+Query parameters:
+- `limit` (optional, default `100`, max `500`) — max events to return
+- `offset` (optional, default `0`) — pagination offset
+
+Success response `200`:
+
+```json
+{
+  "events": [
+    {
+      "id": "evt-uuid-1",
+      "session_id": "abc-123",
+      "task_id": null,
+      "event_type": "llm_call",
+      "agent": "oracle",
+      "tool_name": null,
+      "provider": "anthropic",
+      "model": "claude-sonnet-4-20250514",
+      "input_tokens": 2500,
+      "output_tokens": 350,
+      "duration_ms": 1200,
+      "status": "success",
+      "metadata": null,
+      "created_at": 1740000000000,
+      "estimated_cost_usd": 0.0045
+    },
+    {
+      "id": "evt-uuid-2",
+      "session_id": "abc-123",
+      "task_id": null,
+      "event_type": "tool_call",
+      "agent": "apoc",
+      "tool_name": "exec_shell",
+      "provider": null,
+      "model": null,
+      "input_tokens": null,
+      "output_tokens": null,
+      "duration_ms": 450,
+      "status": "success",
+      "metadata": "{\"command\":\"ls -la\"}",
+      "created_at": 1740000001000,
+      "estimated_cost_usd": null
+    }
+  ],
+  "summary": {
+    "totalCostUsd": 0.08,
+    "totalDurationMs": 18000,
+    "totalAudioSeconds": 0,
+    "llmCallCount": 12,
+    "toolCallCount": 25,
+    "byAgent": [
+      {
+        "agent": "oracle",
+        "llmCalls": 8,
+        "inputTokens": 20000,
+        "outputTokens": 3000,
+        "estimatedCostUsd": 0.05
+      },
+      {
+        "agent": "apoc",
+        "llmCalls": 4,
+        "inputTokens": 8000,
+        "outputTokens": 1200,
+        "estimatedCostUsd": 0.03
+      }
+    ],
+    "byModel": [
+      {
+        "provider": "anthropic",
+        "model": "claude-sonnet-4-20250514",
+        "calls": 12,
+        "inputTokens": 28000,
+        "outputTokens": 4200,
+        "estimatedCostUsd": 0.08
+      }
+    ]
+  }
+}
+```
+
 ## 9. Operational Notes
 
 ### 9.1 Async Toggle
