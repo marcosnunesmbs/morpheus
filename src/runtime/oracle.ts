@@ -448,6 +448,12 @@ ${SmithRegistry.getInstance().getSystemPromptSection()}
         limit: this.config.llm?.context_window ?? 100,
       });
 
+      // Ensure the session row exists in the DB before we try to persist
+      // messages.  Without this, external callers (webhooks, chronos) that
+      // supply a custom session_id would hit "Sessão não encontrada" inside
+      // addMessages → setSessionTitleIfNeeded → renameSession.
+      callHistory.ensureSession(currentSessionId ?? 'default');
+
       // Load existing history from database in reverse order (most recent first)
       let previousMessages = await callHistory.getMessages();
       previousMessages = previousMessages.reverse();
