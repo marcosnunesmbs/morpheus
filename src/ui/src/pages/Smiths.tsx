@@ -27,6 +27,7 @@ import { TextInput } from '../components/forms/TextInput';
 import { NumberInput } from '../components/forms/NumberInput';
 import { SelectInput } from '../components/forms/SelectInput';
 import { Switch } from '../components/forms/Switch';
+import { ConfirmationModal } from '../components/ConfirmationModal';
 // @ts-ignore
 import type { SmithsConfig, SmithEntry } from '../../../types/config';
 
@@ -418,6 +419,7 @@ export function SmithsPage() {
 
   const [notification, setNotification] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
   const [refreshing, setRefreshing] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
 
   // Sync config to local state when loaded
   if (smithsConfig && !localConfig) {
@@ -438,16 +440,22 @@ export function SmithsPage() {
     }
   };
 
-  const handleDelete = async (name: string) => {
-    if (!confirm(`Remove Smith "${name}" from the registry?`)) return;
+  const handleDelete = (name: string) => {
+    setDeleteTarget(name);
+  };
+
+  const confirmDelete = async () => {
+    if (!deleteTarget) return;
     try {
-      await configService.removeSmith(name);
+      await configService.removeSmith(deleteTarget);
       mutateList();
       mutateConfig();
       setLocalConfig(null);
-      showNotification('success', `Smith "${name}" removed.`);
+      showNotification('success', `Smith "${deleteTarget}" removed.`);
     } catch (err: any) {
       showNotification('error', `Failed to remove: ${err.message}`);
+    } finally {
+      setDeleteTarget(null);
     }
   };
 
@@ -735,6 +743,16 @@ export function SmithsPage() {
           error={modalError}
         />
       )}
+
+      <ConfirmationModal
+        isOpen={!!deleteTarget}
+        onClose={() => setDeleteTarget(null)}
+        onConfirm={confirmDelete}
+        title="Remove Smith"
+        description={`Are you sure you want to remove "${deleteTarget}" from the registry? This action cannot be undone.`}
+        confirmJson="Remove"
+        variant="destructive"
+      />
     </div>
   );
 }

@@ -190,13 +190,25 @@ export function createSmithsRouter(): Router {
   /**
    * DELETE /api/smiths/:name — Remove a Smith
    */
-  router.delete('/:name', (req, res) => {
+  router.delete('/:name', async (req, res) => {
     try {
-      const removed = registry.unregister(req.params.name);
+      const smithName = req.params.name;
+      const removed = registry.unregister(smithName);
       if (!removed) {
-        return res.status(404).json({ error: `Smith '${req.params.name}' not found` });
+        return res.status(404).json({ error: `Smith '${smithName}' not found` });
       }
-      res.json({ status: 'removed', name: req.params.name });
+
+      // Persist removal to zaion.yaml
+      const configManager = ConfigManager.getInstance();
+      const currentConfig = configManager.get();
+      const smithsConfig = configManager.getSmithsConfig();
+      const updatedEntries = smithsConfig.entries.filter(e => e.name !== smithName);
+      await configManager.save({
+        ...currentConfig,
+        smiths: { ...smithsConfig, entries: updatedEntries },
+      });
+
+      res.json({ status: 'removed', name: smithName });
     } catch (err: any) {
       res.status(500).json({ error: err.message });
     }
