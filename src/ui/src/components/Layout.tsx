@@ -123,16 +123,16 @@ export function Layout({ children }: { children: React.ReactNode }) {
     { icon: HatGlasses, label: 'Smiths', path: '/smiths' },
     { icon: McpIcon, label: 'MCP Servers', path: '/mcp-servers' },
     { icon: Wand2, label: 'Skills', path: '/skills' },
-    { icon: BarChart3, label: 'Usage Stats', path: '/stats' },
+    // { icon: BarChart3, label: 'Usage Stats', path: '/stats' },
     { icon: Activity, label: 'Sati Memories', path: '/sati-memories' },
     { icon: Webhook, label: 'Webhooks', path: '/webhooks' },
     { icon: Bell, label: 'Notifications', path: '/notifications' },
     { icon: ListChecks, label: 'Tasks', path: '/tasks' },
     { icon: Database, label: 'Trinity DBs', path: '/trinity-databases' },
     { icon: Clock, label: 'Chronos', path: '/chronos' },
-    { icon: Terminal, label: 'Logs', path: '/logs' },
-    { icon: DollarSign, label: 'Model Pricing', path: '/model-pricing' },
     { icon: ShieldCheck, label: 'Audit', path: '/audit' },
+    { icon: DollarSign, label: 'Model Pricing', path: '/model-pricing' },
+    { icon: Terminal, label: 'Logs', path: '/logs' },
   ];
 
   const mobileNavItems = [

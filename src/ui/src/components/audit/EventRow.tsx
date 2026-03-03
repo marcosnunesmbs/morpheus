@@ -226,7 +226,12 @@ export const EventRow: React.FC<EventRowProps> = ({ event }) => {
   const agentLabel = agentEmoji ? `${event.agent?.toUpperCase()} ${agentEmoji}` : event.agent?.toUpperCase() || null;
 
   const parsedMeta: Record<string, unknown> | null = (() => {
-    try { return event.metadata ? JSON.parse(event.metadata) : null; } catch { return null; }
+    try {
+      if (!event.metadata) return null;
+      // Handle both string (from API) and already-parsed object (edge case)
+      if (typeof event.metadata === 'object') return event.metadata as unknown as Record<string, unknown>;
+      return JSON.parse(event.metadata);
+    } catch { return null; }
   })();
 
   const hasExpandableMeta = parsedMeta !== null && Object.keys(parsedMeta).length > 0;
