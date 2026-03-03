@@ -46,18 +46,23 @@ Users can inspect:
 - Copy-friendly IDs in code blocks
 - Voice message transcription (Gemini/Whisper/OpenRouter)
 - Inline buttons for Trinity database actions
+- Session management commands (list, switch, rename)
 
 #### Discord
 - DM-only responses from authorized users
 - Slash commands for all major operations
+- Session management commands (list, switch, rename)
 - Voice message and audio file transcription
 - Automatic command registration on startup
 
 #### Web Chat
-- Markdown AI rendering
+- Markdown AI rendering (GitHub Flavored Markdown)
 - Collapsible tool-call blocks
 - SATI memory collapses
 - Token badges per message
+- Memory recovery counts in message metadata
+- Browser notifications when tab is in background
+- Per-session loading state indicators
 
 ## 5. Primary Workflows
 
@@ -93,6 +98,9 @@ User asks "status/consultou?" and Oracle uses direct task query (no delegation r
 - Chronos configuration: polling interval and default timezone.
 - Per-job notification channel routing (`notify_channels`).
 - Smith remote agent management: config hot-reload, ping, add/remove via API or LLM tools.
+- Sati memory configuration: evaluation interval, similarity threshold.
+- Audit dashboard: session audit, tool call tracking, cost breakdowns.
+- Danger Zone: destructive data operations (reset sessions, tasks, jobs, audit, factory reset).
 
 ## 7. Non-Functional Requirements
 - Privacy: local-first by default; external API calls are explicit by chosen providers/tools.
@@ -100,7 +108,8 @@ User asks "status/consultou?" and Oracle uses direct task query (no delegation r
 - Reliability: persisted queue with retry and stale-recovery logic.
 - Cost tracking: token usage persisted per message/provider/model for analytics.
 - Extensibility: new channels implement `IChannelAdapter` and register with `ChannelRegistry`.
-- Remote execution: Smith agents extend DevKit reach to isolated machines via WebSocket.
+- Remote execution: Smith agents extend DevKit reach to isolated machines via WebSocket (TLS supported).
+- Auditability: comprehensive execution audit trail with tool call tracking and cost breakdowns.
 
 ## 8. Product Direction
 Morpheus is evolving from chat assistant to an asynchronous local operator:

@@ -263,7 +263,7 @@ Skills are loaded at startup and on demand via `/api/skills/reload` or `/skills_
 
 ### 11.1 Components
 - `src/runtime/smiths/registry.ts`: `SmithRegistry` — singleton managing all Smith connections. Initialized at startup, non-blocking.
-- `src/runtime/smiths/connection.ts`: `SmithConnection` — WebSocket client per Smith instance. Auth via token handshake. Max 3 reconnect attempts; 401 errors skip retry.
+- `src/runtime/smiths/connection.ts`: `SmithConnection` — WebSocket client per Smith instance. Auth via token handshake. TLS supported. Max 3 reconnect attempts; 401 errors skip retry.
 - `src/runtime/smiths/delegator.ts`: `SmithDelegator` — creates a LangChain ReactAgent with **proxy tools** (local DevKit tools built for schema extraction, filtered by Smith capabilities, wrapped in proxies that forward execution to the remote Smith via WebSocket).
 - `src/runtime/tools/smith-tool.ts`: Oracle tool for `smith_delegate` (sync or async, like other subagents).
 - `src/http/routers/smiths.ts`: REST API for Smith management, config CRUD, ping, delegation.
@@ -292,7 +292,16 @@ smiths:
 ### 11.4 Task Agent Name
 Smith tasks are stored in the `tasks` table with `agent = 'smith'`.
 
-## 12. Security Model
+## 12. Audit System
+- `src/runtime/audit/`: Agent execution audit trail with tool call tracking.
+- **Event trail:** All agent executions (Oracle, Neo, Apoc, Trinity, Smith, Keymaker, Sati) logged with timestamps, duration, and token usage.
+- **Tool call tracking:** Individual tool invocations recorded with arguments and results.
+- **Audio tracking:** Voice message transcription duration aggregated in session summaries.
+- **Cost breakdown:** Per-model usage statistics for budget monitoring.
+- **Memory recovery logging:** Sati memory retrieval events tracked for observability.
+- **UI dashboard:** Session audit view (`/audit/:sessionId`) with event timeline, global totals, expandable metadata, and cost breakdowns by model.
+
+## 13. Security Model
 - Local-first storage by default.
 - `x-architect-pass` protects `/api/*` management routes.
 - webhook trigger uses per-webhook `x-api-key`.
@@ -302,8 +311,9 @@ Smith tasks are stored in the `tasks` table with `agent = 'smith'`.
 - Smith remote connections use token-based auth, max 3 reconnect attempts, 401 auth failures stop immediately.
 - Trinity database passwords encrypted at rest with AES-256-GCM (`MORPHEUS_SECRET` env var).
 - Per-database permission flags (`allow_read`, `allow_insert`, `allow_update`, `allow_delete`, `allow_ddl`) gate Trinity query execution.
+- **Danger Zone:** Settings UI section for destructive data operations (reset sessions, tasks, jobs, audit, or factory reset) with explicit confirmation dialogs.
 
-## 13. Runtime Lifecycle
+## 14. Runtime Lifecycle
 At daemon boot (`start` / `restart` commands):
 - load config and initialize Oracle
 - load skills via `SkillRegistry`

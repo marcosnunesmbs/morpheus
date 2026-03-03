@@ -1,32 +1,197 @@
-# Morpheus Copilot Instructions
+# CLAUDE.md
 
-## 🧠 Project Context
-**Morpheus** is a local-first AI operator/agent for developers. It runs as a persistent background daemon (CLI + HTTP Server), bridging LLMs (via LangChain) to external channels (Telegram, Discord), a Web UI, and local tools (MCP + DevKit + Skills).
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-**Key Insight**: Morpheus is an *orchestrator* not just a chatbot - it manages LLM lifecycle, persistent memory (short & long-term), tool execution, async task queues, scheduled jobs, and multi-channel communication as a unified daemon process.
+## Project Overview
+Morpheus is a local-first AI operator/agent for developers. Node.js + TypeScript daemon with a React 19 + Vite + TailwindCSS web dashboard. It runs as a CLI daemon that orchestrates multiple LLM subagents, integrates with DevKit tools, MCP servers, and communicates via Terminal, Telegram, and Discord.
 
-## 🏗 Architecture & Core Components
+---
 
-### Entry Point & CLI
-- **Entry:** `bin/morpheus.js` → executes built `src/cli/index.ts`
-- **Framework:** `commander` parses commands (`src/cli/commands/*.ts`)
-- **Daemon:** `src/runtime/lifecycle.ts` manages PID file (`~/.morpheus/morpheus.pid`)
-- **Startup Flow:** `start.ts` → scaffold → checkStalePid → load config → load SkillRegistry → initialize Oracle → start channels/HTTP → start workers
+## Commands
 
-### Multi-Agent Architecture
+### Backend Development
+```bash
+npm run dev:cli            # Run backend in watch mode (tsx watch)
+npm run build              # Build backend (tsc) + frontend (vite build)
+npm run start              # Run compiled daemon (bin/morpheus.js)
+```
+
+### Frontend Development
+```bash
+npm run dev:ui             # Vite dev server for the dashboard (src/ui/)
+npm run build:ui           # Build frontend only
+```
+
+### Testing
+```bash
+npm test                   # Run all tests (vitest)
+npx vitest run <file>      # Run a single test file
+npx vitest run src/runtime/chronos/__tests__/parser.test.ts
+```
+
+### Installing New Packages
+When adding `node-cron`, `cron-parser`, or similar scheduling/peer-dep-heavy packages, use:
+```bash
+npm install <pkg> --legacy-peer-deps
+```
+
+---
+
+## Key Conventions
+
+### TypeScript / ESM
+- Use `.js` extension in all relative imports: `import { Foo } from './foo.js'`
+- `"type": "module"` in package.json — all files are ESM
+- `tsconfig.json`: `target: ES2022`, `module: NodeNext`, `moduleResolution: NodeNext`
+- Zod v4: use `.issues` (not `.errors`) for validation error arrays
+
+### Config Precedence (highest → lowest)
+1. Environment variables (e.g., `MORPHEUS_LLM_PROVIDER`)
+2. `~/.morpheus/zaion.yaml`
+3. `DEFAULT_CONFIG` in `src/types/config.ts`
+
+When adding new config keys: define the Zod schema in `src/config/schemas.ts` (child schemas must be declared BEFORE `ConfigSchema` to avoid forward-reference TS errors), add to `src/types/config.ts`, and handle env var override in `src/config/manager.ts`.
+
+---
+
+## Architecture
+
+### Startup Flow
+```
+bin/morpheus.js             # Shebang entry: loads .env, dynamic import
+  → src/cli/index.ts        # Commander.js program, calls scaffold() preAction
+  → src/runtime/scaffold.ts # Ensures ~/.morpheus/ dirs + zaion.yaml exist
+  → src/cli/commands/start.ts  # Instantiates all services:
+      Oracle, HttpServer, ChronosRepository, ChronosWorker,
+      TaskRepository, TaskWorker, TaskNotifier, TelegramAdapter,
+      SmithRegistry (connects to remote Smiths)
+```
+
+### Agent Delegation Pattern
 Oracle is the root orchestrator. It delegates to specialized subagents via tools:
 
 | Tool | Subagent | File | Domain |
 |---|---|---|---|
-| `skill_execute` | Keymaker | `src/runtime/keymaker.ts` | Sync skill execution (immediate result) |
-| `skill_delegate` | Keymaker | `src/runtime/keymaker.ts` | Async skill execution (background task) |
 | `apoc_delegate` | Apoc | `src/runtime/apoc.ts` | Filesystem, shell, git, browser via DevKit |
-| `trinity_delegate` | Trinity | `src/runtime/trinity.ts` | PostgreSQL/MySQL/SQLite/MongoDB queries |
+| `trinity_delegate` | Trinity | `src/runtime/trinity.ts` | PostgreSQL, MySQL, SQLite, MongoDB |
 | `neo_delegate` | Neo | `src/runtime/neo.ts` | MCP tool orchestration |
 | `smith_delegate` | Smith (remote) | `src/runtime/smiths/delegator.ts` | Remote DevKit execution via WebSocket |
-| `chronos_schedule` | Chronos | `src/runtime/chronos/` | Scheduled job management |
 
 Oracle never executes DevKit/MCP tools directly — it routes through subagents.
+
+### Creating a New Subagent
+
+All subagents (Apoc, Neo, Trinity) follow a strict pattern. Follow these steps exactly.
+
+#### Shared utilities — always use, never duplicate
+
+```typescript
+// src/runtime/subagent-utils.ts
+extractRawUsage(lastMessage)           // 4-fallback chain for token usage
+persistAgentMessage(name, content, config, sessionId, rawUsage, durationMs)
+buildAgentResult(content, config, rawUsage, durationMs, stepCount)
+
+// src/runtime/tools/delegation-utils.ts
+buildDelegationTool(opts)              // builds Oracle's StructuredTool for sync/async delegation
+```
+
+#### 1. Create `src/runtime/<name>.ts`
+
+```typescript
+import type { ISubagent } from "./ISubagent.js";
+import { extractRawUsage, persistAgentMessage, buildAgentResult } from "./subagent-utils.js";
+import { buildDelegationTool } from "./tools/delegation-utils.js";
+
+export class MyAgent implements ISubagent {
+  private static instance: MyAgent | null = null;
+  private static currentSessionId: string | undefined = undefined;
+  private static _delegateTool: StructuredTool | null = null;
+
+  static getInstance(config?: MorpheusConfig): MyAgent { ... }
+  static resetInstance(): void { MyAgent.instance = null; MyAgent._delegateTool = null; }
+  static setSessionId(id: string | undefined): void { MyAgent.currentSessionId = id; }
+
+  // Optional: refresh tool description when runtime data changes (e.g. DB list, MCP catalog)
+  static async refreshDelegateCatalog(): Promise<void> { /* update MyAgent._delegateTool.description */ }
+
+  async initialize(): Promise<void> { ... }
+
+  async execute(task, context?, sessionId?, taskContext?: OracleTaskContext): Promise<AgentResult> {
+    // ... run agent ...
+    const rawUsage = extractRawUsage(lastMessage);
+    const stepCount = response.messages.filter(m => m instanceof AIMessage).length;
+    await persistAgentMessage('myagent', content, agentConfig, targetSession, rawUsage, durationMs);
+    return buildAgentResult(content, agentConfig, rawUsage, durationMs, stepCount);
+  }
+
+  createDelegateTool(): StructuredTool {
+    if (!MyAgent._delegateTool) {
+      MyAgent._delegateTool = buildDelegationTool({
+        name: 'myagent_delegate',
+        description: '...',
+        agentKey: 'myagent',        // TaskAgent — must match tasks.agent column
+        agentLabel: 'MyAgent',      // display name for logs
+        auditAgent: 'myagent',      // AuditAgent
+        isSync: () => ConfigManager.getInstance().get().myagent?.execution_mode === 'sync',
+        notifyText: '🤖 MyAgent is executing your request...',
+        executeSync: (task, context, sessionId, ctx) =>
+          MyAgent.getInstance().execute(task, context, sessionId, { ...ctx, session_id: sessionId }),
+      });
+    }
+    return MyAgent._delegateTool;
+  }
+
+  async reload(): Promise<void> { this.config = ConfigManager.getInstance().get(); this.agent = undefined; await this.initialize(); }
+}
+```
+
+**`agentKey` vs `auditAgent`:** `agentKey` is the string stored in `tasks.agent` (DB key). If the DB key differs from the display name, use the DB key (e.g. Trinity: `agentKey: 'trinit'`, `auditAgent: 'trinity'`).
+
+#### 2. Register types
+
+- `src/runtime/tasks/types.ts` — add to `TaskAgent` union: `| 'myagent'`
+- `src/runtime/audit/types.ts` — add to `AuditAgent` union: `| 'myagent'`
+
+#### 3. Add config
+
+- `src/config/schemas.ts` — add `MyAgentConfigSchema` **before** `ConfigSchema` (forward-reference rule)
+- `src/types/config.ts` — add `myagent?: MyAgentConfig` to `MorpheusConfig`
+- `src/config/manager.ts` — add `getMyAgentConfig()` + env var overrides
+
+#### 4. Wire into Oracle (`src/runtime/oracle.ts`)
+
+```typescript
+import { MyAgent } from './myagent.js';
+
+// In initialize() and reloadTools() — add to coreTools array:
+MyAgent.getInstance().createDelegateTool()
+
+// In chat() — propagate session:
+MyAgent.setSessionId(currentSessionId);
+
+// In initialize() + reloadTools() — if description is dynamic:
+await MyAgent.refreshDelegateCatalog().catch(() => {});
+```
+
+#### 5. Wire into TaskWorker (`src/runtime/tasks/worker.ts`)
+
+```typescript
+case 'myagent': {
+  const agent = MyAgent.getInstance();
+  result = await agent.execute(task.input, task.context ?? undefined, task.session_id, {
+    origin_channel: task.origin_channel,
+    session_id: task.session_id,
+    origin_message_id: task.origin_message_id ?? undefined,
+    origin_user_id: task.origin_user_id ?? undefined,
+  });
+  break;
+}
+```
+
+#### Out of scope for this pattern
+
+- **Keymaker** — per-task instantiation (not singleton), no delegation tool; uses `subagent-utils` only.
+- **Smith** — multi-instance registry, different delegation architecture; has its own `smith-tool.ts`.
 
 **Subagent Execution Mode** (`execution_mode: 'sync' | 'async'`):
 
@@ -40,151 +205,229 @@ Configurable via `zaion.yaml` (e.g., `neo.execution_mode: sync`), env var (e.g.,
 
 When enabled, every tool execution by any agent sends a real-time notification (`🔧 executing: <tool_name>`) to the originating channel (Telegram, Discord, etc.). Channels `api` and `ui` are excluded. Configurable via `zaion.yaml`, env var `MORPHEUS_VERBOSE_MODE`, or the Settings UI.
 
-### Skills System (Keymaker)
-- **Location:** `src/runtime/skills/` (loader, registry, tool, types)
-- **User Skills:** `~/.morpheus/skills/` folders with `SKILL.md` (YAML frontmatter + instructions)
-- **Execution Modes:**
-  - `sync` (default): `skill_execute` returns result inline
-  - `async`: `skill_delegate` queues background task, notifies on completion
-- **Format:** Single `SKILL.md` with frontmatter:
-  ```markdown
-  ---
-  name: my-skill
-  description: Brief description
-  execution_mode: sync
-  tags: [automation]
-  ---
-  # Instructions for Keymaker...
-  ```
+### HTTP API Structure
+```
+src/http/
+  ├─ server.ts         # Express wrapper: middleware, routes, start/stop
+  ├─ api.ts            # createApiRouter(oracle, chronosWorker) — all endpoints
+  ├─ routers/
+  │   ├─ chronos.ts    # createChronosJobRouter() + createChronosConfigRouter()
+  │   └─ smiths.ts     # Smith management, config, ping, delegation
+  ├─ webhooks-router.ts
+  └─ middleware/
+      └─ auth.ts       # API key validation
+```
 
-### DevKit Security (Shared Config)
-- **Shared config:** `devkit` section in `zaion.yaml` governs both Apoc and Keymaker
-- **Sandbox:** `sandbox_dir` confines ALL file/shell/git/network operations (default: CWD)
-- **Readonly:** `readonly_mode` blocks destructive ops (write, delete, move, copy)
-- **Category toggles:** `enable_filesystem`, `enable_shell`, `enable_git`, `enable_network`
-- **Shell allowlist:** `allowed_shell_commands: []` (empty = allow all)
-- **Migration:** `apoc.working_dir` auto-migrates to `devkit.sandbox_dir`
-- **UI:** Settings → DevKit tab (Security, Tool Categories, Shell Allowlist)
-- **Env vars:** `MORPHEUS_DEVKIT_SANDBOX_DIR`, `MORPHEUS_DEVKIT_READONLY_MODE`, etc.
+New feature routers follow the factory-function pattern from `chronos.ts`: export `createXRouter(deps)` and mount in `api.ts`.
+
+### DevKit Tools (Apoc's toolbox)
+```
+src/devkit/tools/
+  ├─ filesystem.ts   # read, write, delete, list, mkdir, copy, move
+  ├─ shell.ts        # execShell, execCommand
+  ├─ git.ts          # clone, commit, push, pull, status, diff, log, branch
+  ├─ network.ts      # GET/POST/PUT/DELETE, health checks
+  ├─ packages.ts     # npm/pip install, list, search
+  ├─ processes.ts    # spawn, kill, list, wait
+  ├─ system.ts       # CPU, memory, disk, env vars
+  └─ browser.ts      # Puppeteer: navigate, screenshot, extract, form fill
+```
+
+`buildDevKit()` in `src/devkit/index.ts` returns a `StructuredTool[]` array for LangChain.
 
 ### Smith — Remote Agent System
-- **Architecture:** `SmithRegistry` (singleton) manages WebSocket connections to remote Smith instances
-- **Proxy Tools:** `SmithDelegator` creates LangChain ReactAgent with proxy StructuredTools forwarding execution to Smith via WebSocket
-- **Config:** `smiths` section in `zaion.yaml` — `enabled`, `execution_mode`, `entries[]` (name, host, port, auth_token)
-- **Hot-reload:** `SmithRegistry.reload()` diffs config vs runtime — triggered by API or `smith_manage` tool
-- **Resilience:** Max 3 reconnect attempts, 401 auth errors stop immediately, non-blocking startup
-- **LLM tools:** `smith_list` (list Smiths + state), `smith_manage` (add/remove/ping/enable/disable)
-- **API router:** `src/http/routers/smiths.ts` — management, config, ping, delegation
 
-### Memory System (Three-Database Architecture)
-- **Short-term:** `~/.morpheus/memory/short-memory.db` - per-session chat history
-- **Long-term (Sati):** `~/.morpheus/memory/sati-memory.db` - persistent facts + session embeddings
-- **Trinity:** `~/.morpheus/memory/trinity.db` - database registry (encrypted passwords)
+Smith enables remote DevKit execution on isolated machines (Docker, VMs, cloud) via WebSocket.
 
-**Sati Middleware:** `SatiMemoryMiddleware` hooks `beforeAgent` (retrieval) and `afterAgent` (consolidation).
+**Architecture:**
+- `SmithRegistry` (singleton) manages all connections. Initialized at startup, non-blocking.
+- `SmithConnection` wraps a WebSocket client per Smith instance. Auth via token handshake. TLS supported.
+- `SmithDelegator` creates a LangChain ReactAgent with **proxy tools** — local DevKit tools built for schema extraction, filtered by Smith's declared capabilities, wrapped in proxies that forward execution to the remote Smith via WebSocket.
+- Oracle delegates via `smith_delegate` tool (sync or async, like other subagents).
 
-### Channels & Adapters
-- **Pattern:** `src/channels/registry.ts` (`ChannelRegistry` singleton) + `IChannelAdapter` interface
-- **Adding a channel:**
-  1. Create `src/channels/<name>.ts` implementing `IChannelAdapter`
-  2. Add config to `src/types/config.ts` + `src/config/schemas.ts`
-  3. Register in `start.ts` via `ChannelRegistry.register(adapter)`
-  4. Dispatchers pick it up automatically
+**Config (`zaion.yaml`):**
+```yaml
+smiths:
+  enabled: true
+  execution_mode: sync    # or async
+  heartbeat_interval_ms: 30000
+  connection_timeout_ms: 10000
+  task_timeout_ms: 300000
+  entries:
+    - name: smith1
+      host: localhost
+      port: 7778
+      auth_token: secret-token
+```
+
+**Key behaviors:**
+- **Hot-reload:** `SmithRegistry.reload()` diffs config vs runtime — connects new entries, disconnects removed ones. Triggered by `PUT /api/smiths/config` and `smith_manage` tool.
+- **Reconnection:** Max 3 attempts. 401 auth failures stop retries immediately (`_authFailed` flag).
+- **Non-blocking startup:** `connectAll()` fires and forgets — Smith connection failures don't block daemon boot.
+- **LLM management tools:** `smith_list` (list all Smiths with state/capabilities), `smith_manage` (add/remove/ping/enable/disable).
+- **Task queue:** Async Smith tasks use `agent = 'smith'` in the `tasks` table.
+
+### Channel Adapter Pattern
+
+`src/channels/registry.ts` — `ChannelRegistry` singleton + `IChannelAdapter` interface.
+
+Every channel adapter implements `IChannelAdapter` and self-registers at startup via `ChannelRegistry.register()`. Notification machinery (`TaskDispatcher`, `ChronosWorker`, `WebhookDispatcher`) routes through the registry and never holds direct adapter references.
+
+**`IChannelAdapter` interface** (required fields):
+```typescript
+interface IChannelAdapter {
+  readonly channel: string;                                       // e.g. 'telegram', 'discord'
+  sendMessage(text: string): Promise<void>;                      // broadcast to all users
+  sendMessageToUser(userId: string, text: string): Promise<void>;
+  disconnect(): Promise<void>;
+}
+```
+
+**To add a new channel:**
+1. Create `src/channels/<name>.ts` implementing `IChannelAdapter` with `readonly channel = '<name>' as const`
+2. Add config to `src/types/config.ts` + `src/config/schemas.ts` + `src/config/manager.ts`
+3. `ChannelRegistry.register(adapter)` in `src/cli/commands/start.ts` **and** `restart.ts`
+4. Add UI section in `src/ui/src/pages/Settings.tsx` under the Channels tab
+5. Nothing else changes — dispatchers pick it up automatically
+
+**`OriginChannel` routing in `TaskDispatcher`:**
+
+| `origin_channel` | Routing |
+|---|---|
+| `'telegram'` / `'discord'` / any channel | `ChannelRegistry.sendToUser(channel, userId, msg)` or `adapter.sendMessage()` |
+| `'chronos'` | `ChannelRegistry.broadcast(msg)` — all registered adapters |
+| `'webhook'` | iterates `webhook.notification_channels`, calls each via registry |
+| `'ui'` | writes result to SQLite session history |
+
+**Chronos jobs** always tag delegated tasks as `origin_channel: 'chronos'` so TaskDispatcher broadcasts their result to every registered channel.
+
+---
 
 ### Background Workers
-All use singleton + `start()`/`stop()` pattern:
+All workers use a singleton + `start()`/`stop()` pattern:
+- **ChronosWorker** — `tick()` loop, executes due jobs, parses next run times
 - **TaskWorker** — polls `tasks` table, routes to agent by `tasks.agent` column
 - **TaskNotifier** — sends completion notifications via `ChannelRegistry`
-- **ChronosWorker** — executes due scheduled jobs
+- **Session embedding scheduler** — populates Sati embeddings asynchronously
 
-**Note:** Trinity tasks use `agent = 'trinit'` (not `'trinity'`). Smith tasks use `agent = 'smith'`.
-
-### HTTP Server & Web UI
-- **Server:** `src/http/server.ts` (Express.js) → API routes in `src/http/api.ts`
-- **Auth:** `x-architect-pass` header (optional `THE_ARCHITECT_PASS` env var)
-- **UI:** `src/ui/` (React 19, Vite, TailwindCSS)
-
-## 🛠 Developer Patterns & Conventions
-
-### TypeScript & ESM (STRICT)
-- **Native ESM:** `import { Foo } from './foo.js';` — MUST include `.js` extension
-- **Type Imports:** Use `import type` for type-only imports
-- **Zod v4:** Use `.issues` (not `.errors`) for validation error arrays
-
-### Config Precedence (highest → lowest)
-1. Environment variables (e.g., `MORPHEUS_LLM_PROVIDER`)
-2. `~/.morpheus/zaion.yaml`
-3. `DEFAULT_CONFIG` in `src/types/config.ts`
-
-**Adding config keys:** Define Zod schema in `schemas.ts` (child schemas BEFORE parent), add to `types/config.ts`, handle env override in `manager.ts`.
-
-### Infrastructure Patterns
-- **Singletons:** `ClassName.getInstance()` (ConfigManager, DisplayManager, SkillRegistry, etc.)
-- **Logging:** `DisplayManager.getInstance().log(message, { source: 'ComponentName', level: 'info' })` — NEVER `console.log`
-- **Validation:** Zod schemas for all external inputs
-
-### UI Design System (Dual-Theme)
-- **Themes:** Azure (light) + Matrix (dark). Dark is default.
-- **Dark mode tokens:**
-  - `dark:bg-black` — modals/inputs
-  - `dark:bg-zinc-900` — read-only content
-  - `dark:border-matrix-primary` — all borders (full opacity)
-  - `dark:text-matrix-highlight` — titles only
-  - `dark:text-matrix-secondary` — body text, labels
-- **Anti-patterns:** Never use `dark:bg-zinc-800`, `dark:border-matrix-primary/30`, `dark:text-matrix-highlight` for input text
-
-## 🚀 Workflows
-
-### Building & Running
-```bash
-npm run build          # Backend tsc + UI vite build
-npm run dev:cli        # Watch backend with tsx
-npm run dev:ui         # Vite dev server for dashboard
-npm start -- start     # Run daemon
-npm test               # Vitest
-```
-
-### Key Commands
-```bash
-npm start -- init           # Scaffold ~/.morpheus/
-npm start -- doctor         # Diagnose environment
-npm start -- status         # Check daemon running
-npm start -- session new    # Start new session
-npm start -- skills         # List loaded skills
-npm start -- skills --reload # Reload skills from disk
-```
-
-### Adding Features
-1. **Config:** Define Zod schema in `schemas.ts`, types in `types/config.ts`
-2. **Backend:** Core logic in `src/runtime/`, CLI in `src/cli/commands/`
-3. **API:** Add routes to `src/http/api.ts`
-4. **UI:** Components in `src/ui/src/`
-5. **Register:** CLI in `index.ts`, API routes in `api.ts`
+In `tasks` table, Trinity agent rows use `agent = 'trinit'` (not `'trinity'`). Smith tasks use `agent = 'smith'`.
 
 ### Architecture Quick Reference
-| Component | Path |
-|---|---|
-| Oracle (main agent) | `src/runtime/oracle.ts` |
-| Skills system | `src/runtime/skills/` |
-| Keymaker (skill executor) | `src/runtime/keymaker.ts` |
-| Apoc (DevKit) | `src/runtime/apoc.ts` |
-| DevKit config | `src/devkit/registry.ts` |
-| Trinity (databases) | `src/runtime/trinity.ts` |
-| Neo (MCP) | `src/runtime/neo.ts` |
-| Smith (remote DevKit) | `src/runtime/smiths/` |
-| MCP Tool Cache | `src/runtime/tools/cache.ts` |
-| MCP Factory | `src/runtime/tools/factory.ts` |
-| Chronos (scheduler) | `src/runtime/chronos/` |
-| Channel adapters | `src/channels/` |
-| Task queue | `src/runtime/tasks/` |
-| Memory (Sati) | `src/runtime/memory/sati/` |
-| Config | `src/config/` |
-| HTTP API | `src/http/api.ts` |
-| UI | `src/ui/src/` |
 
-## 📝 Spec-Driven Development
-For major features, create `specs/NNN-feature/` with:
-- `spec.md` — requirements, user stories, acceptance criteria
-- `plan.md` — technical design, architecture decisions
+| Layer | Path | Notes |
+|---|---|---|
+| Main entry | `src/index.ts` | |
+| CLI entry | `src/cli/index.ts` | Commander.js |
+| Start command | `src/cli/commands/start.ts` | Wires all services, registers channel adapters |
+| Channel registry | `src/channels/registry.ts` | `IChannelAdapter` + `ChannelRegistry` singleton |
+| Telegram adapter | `src/channels/telegram.ts` | `channel = 'telegram'`, implements `IChannelAdapter` |
+| Discord adapter | `src/channels/discord.ts` | `channel = 'discord'`, implements `IChannelAdapter` |
+| Oracle agent | `src/runtime/oracle.ts` | LangChain ReactAgent |
+| Apoc subagent | `src/runtime/apoc.ts` | DevKit, `apoc_delegate` |
+| Trinity subagent | `src/runtime/trinity.ts` | DB specialist, `trinity_delegate` |
+| Neo subagent | `src/runtime/neo.ts` | MCP tools, `neo_delegate` |
+| Smith delegator | `src/runtime/smiths/delegator.ts` | Remote DevKit via WebSocket, `smith_delegate` |
+| Smith registry | `src/runtime/smiths/registry.ts` | Singleton managing Smith connections |
+| Smith connection | `src/runtime/smiths/connection.ts` | WebSocket client per Smith instance |
+| Smith tool | `src/runtime/tools/smith-tool.ts` | Oracle tool for `smith_delegate` |
+| Smiths API router | `src/http/routers/smiths.ts` | Smith management + config + ping |
+| MCP Tool Cache | `src/runtime/tools/cache.ts` | Singleton cache for MCP tools |
+| MCP Factory | `src/runtime/tools/factory.ts` | `Construtor.create()` / `reload()` / `getStats()` |
+| Provider factory | `src/runtime/providers/factory.ts` | `create()` / `createBare()` |
+| HTTP API | `src/http/api.ts` | Express, mounted at `/api` |
+| Config manager | `src/config/manager.ts` | Singleton, `getInstance().get()` |
+| Config schemas | `src/config/schemas.ts` | Zod schemas |
+| Paths constants | `src/config/paths.ts` | `PATHS.root`, `PATHS.config`, etc. |
+| Frontend | `src/ui/src/` | React 19 + Vite |
+| Chronos scheduler | `src/runtime/chronos/` | parser, worker, repository |
+| Memory DB | `~/.morpheus/memory/short-memory.db` | sessions, messages, tasks, chronos, audit |
+| Trinity DB | `~/.morpheus/memory/trinity.db` | DB registry (encrypted passwords) |
+| Sati DB | `~/.morpheus/memory/sati-memory.db` | sqlite-vec embeddings |
+| MCP config | `~/.morpheus/mcps.json` | MCP server definitions |
+| Daemon config | `~/.morpheus/zaion.yaml` | User config file |
+
+### Test File Locations
+```
+src/
+  ├─ channels/__tests__/        # Telegram adapter
+  ├─ config/__tests__/          # Config manager
+  ├─ http/__tests__/            # Auth middleware, config API
+  ├─ runtime/__tests__/         # Oracle agent behavior
+  ├─ runtime/chronos/__tests__/ # Parser + Worker
+  ├─ runtime/memory/__tests__/  # SQLite chat history
+  ├─ runtime/memory/sati/__tests__/  # Sati memory
+  └─ runtime/tools/__tests__/   # MCP tool loading + execution
+```
+
+---
+
+## UI Design System
+
+The dashboard uses a **dual-theme** system: Azure (light) and Matrix (dark).
+Matrix is the default theme. All new UI must support both modes via Tailwind `dark:` classes.
+
+### Dark Mode Color Tokens
+
+| Token | Role |
+|---|---|
+| `dark:bg-black` | Modal backgrounds, interactive inputs |
+| `dark:bg-zinc-900` | Read-only content boxes inside modals |
+| `dark:border-matrix-primary` | All borders (full opacity — never `/30`) |
+| `dark:text-matrix-highlight` | Titles, headings, emphasis |
+| `dark:text-matrix-secondary` | Input text, labels, body text |
+| `dark:text-matrix-tertiary` | Icons, muted secondary text |
+
+### Modal / Dialog Pattern
+```tsx
+// Container
+className="... dark:bg-black dark:border-matrix-primary shadow-xl ..."
+
+// Title
+className="... dark:text-matrix-highlight ..."
+
+// Close button
+className="... dark:text-matrix-tertiary dark:hover:text-matrix-highlight ..."
+
+// Backdrop
+className="fixed inset-0 bg-black/50 backdrop-blur-sm"
+```
+
+### Form Input Pattern (input, textarea, select)
+```tsx
+className="... dark:bg-black dark:border-matrix-primary dark:text-matrix-secondary
+            dark:focus:border-matrix-highlight dark:placeholder-matrix-secondary/50 ..."
+```
+
+### Form Label Pattern
+```tsx
+className="... dark:text-matrix-secondary ..."
+```
+
+### Content Box Pattern (read-only areas inside modals)
+```tsx
+className="... dark:bg-zinc-900 dark:text-matrix-secondary ..."
+```
+
+### Anti-patterns — Never Use
+- `dark:bg-zinc-800` / `dark:bg-zinc-950` / `dark:bg-matrix-base` for inputs
+- `dark:text-matrix-highlight` for input text (titles only)
+- `dark:text-matrix-text` or `dark:text-matrix-dim` (deprecated — use `matrix-secondary`)
+- `dark:border-matrix-primary/30` for modal/input borders (full opacity only)
+- `shadow-lg` on modals (use `shadow-xl`)
+
+### Shared Input Components
+Prefer reusable components in `src/ui/src/components/forms/`:
+- `TextInput` — text input with label + error
+- `NumberInput` — number input with label + error
+- `SelectInput` — select with label + options + error
+
+These already have the correct dark mode classes applied.
+
+---
+
+## Spec-Driven Development
+New features require a `specs/NNN-feature-name/` folder with:
+- `spec.md` — functional requirements (source of truth)
+- `plan.md` — technical implementation strategy
 - `tasks.md` — implementation checklist
-- `contracts/` — TypeScript interfaces before coding
+- `contracts/` — TypeScript interfaces defined before coding

@@ -266,6 +266,13 @@ Telegram responses use rich HTML formatting conversion with:
 
 Task results are delivered proactively with metadata (task id, agent, status) and output/error body.
 
+**Session commands:**
+- `/session` — Show current session info
+- `/session list` — List recent sessions
+- `/session new` — Create new session
+- `/session switch <id>` — Switch to existing session
+- `/session rename <name>` — Rename current session
+
 **Voice messages:** Telegram voice messages are automatically transcribed (Gemini / Whisper / OpenRouter) and processed as text through the Oracle.
 
 ## Discord Experience
@@ -279,7 +286,11 @@ Discord bot responds to **DMs only** from authorized user IDs (`allowedUsers`).
 | `/help` | Show available commands |
 | `/status` | Check Morpheus status |
 | `/stats` | Token usage statistics |
-| `/newsession` | Start a new session |
+| `/session` | Show current session info |
+| `/session_list` | List recent sessions |
+| `/session_new` | Start a new session |
+| `/session_switch id:` | Switch to existing session |
+| `/session_rename name:` | Rename current session |
 | `/mcps` | List MCP servers with tool counts |
 | `/mcpreload` | Reload MCP connections and tools |
 | `/mcp_enable name:` | Enable an MCP server |
@@ -314,16 +325,19 @@ Adding a new channel requires only implementing `IChannelAdapter` (`channel`, `s
 ## Web UI
 
 The dashboard includes:
-- Chat with session management
-- Tasks page (stats, filters, details, retry)
+- Chat with session management and browser notifications
+- Tasks page (stats, filters, details, retry, pagination)
 - Agent settings (Oracle/Sati/Neo/Apoc/Trinity/Smiths)
 - MCP manager (add/edit/delete/toggle/reload)
-- Sati memories (search, bulk delete)
+- Sati memories (search, bulk delete, pagination)
 - Usage stats and model pricing
 - Trinity databases (register/test/refresh schema)
 - Chronos scheduler (create/edit/delete jobs, execution history)
+- Smiths management (add/edit/delete, real-time status, ping)
+- Audit dashboard (session audit, tool call tracking, cost breakdowns)
 - Webhooks and notification inbox
 - Logs viewer
+- Danger Zone (Settings → reset sessions, tasks, jobs, audit, or factory reset)
 
 Chat-specific rendering:
 - AI messages rendered as markdown

@@ -8,6 +8,73 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+
+- **Danger Zone**: Settings UI section for destructive data operations
+  - Reset all sessions and messages
+  - Reset task queue (pending/running tasks)
+  - Reset Chronos scheduled jobs
+  - Reset audit logs
+  - Factory reset (all data + config to defaults)
+  - Each action requires explicit confirmation
+
+- **Session Management Commands**: Full session control in Discord and Telegram
+  - `/session` — Show current session info
+  - `/session list` — List recent sessions
+  - `/session new` — Create new session
+  - `/session switch <id>` — Switch to existing session
+  - `/session rename <name>` — Rename current session
+  - Session tracking improvements in channel adapters
+
+- **Audit System Enhancements**: Comprehensive execution auditing
+  - Tool call auditing for Apoc, Neo, Oracle, and Smith subagents
+  - Audit dashboard with global totals and per-agent breakdowns
+  - Expandable metadata panel in event rows
+  - Total audio duration tracking in session summaries
+  - Memory recovery event logging in Sati middleware
+  - Agent mention feature with session restoration logic
+
+- **Sati Memory Configuration**: Fine-grained memory retrieval settings
+  - `evaluation_interval` — How often to consolidate memories
+  - `similarity_threshold` — Minimum relevance for memory retrieval
+  - Memory recovery counts displayed in AI message metadata
+
+- **Browser Notifications**: Real-time desktop notifications (Web UI)
+  - Chat message notifications when tab is in background
+  - Webhook trigger notifications
+
+- **Pagination Support**: Efficient large dataset handling
+  - Jobs endpoint pagination
+  - Notifications pagination
+  - Memories pagination
+  - Tasks pagination
+
+- **Smiths Management Page** (`/smiths`): Full UI for remote agent management
+  - CRUD operations for Smith entries
+  - Real-time connection status indicators
+  - System stats display (CPU, memory, disk)
+  - Ping and reconnect actions
+  - TLS support for secure WebSocket connections
+  - Auth token management in Settings UI
+
+- **Google LangChain Integration**: `@langchain/google` package for Gemini models
+
+- **Per-Session Loading State**: ChatPage now tracks loading state per session
+
+- **Enhanced Browser Tools**: Improved Puppeteer tooling with configurable invocation limits
+
+- **Audio Duration Tracking**: Total audio duration in session summary using `music-metadata` library
+
+- **remark-gfm Integration**: Enhanced Markdown rendering with GitHub Flavored Markdown in ChatArea
+
+### Changed
+- Reduced recursion limit for agent invocations (performance optimization)
+- Removed legacy tools and types from DevKit
+- Improved sidebar positioning and z-index in Chat and SessionAudit components
+- Theme handling improvements in Layout and MobileHeader components
+
+## [0.8.0] - 2026-02-27
+
+### Added
 - **Smith — Remote Agent System**: Remote DevKit execution on isolated machines (Docker, VMs, cloud) via WebSocket
   - `SmithRegistry` singleton manages all Smith connections with non-blocking startup
   - `SmithConnection` WebSocket client per Smith instance with token-based auth handshake

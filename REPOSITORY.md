@@ -289,8 +289,10 @@ The container probes this endpoint every 30s (60s start period, 3 retries).
 | `/model-pricing` | Configure per-model pricing for cost tracking |
 | `/webhooks` | Manage webhook triggers and notifications |
 | `/chronos` | Schedule and manage automated jobs |
+| `/smiths` | Manage remote Smith agents (add/edit/ping/status) |
+| `/audit` | Session audit dashboard with event timeline and cost breakdowns |
 | `/logs` | Browse application log files |
-| `/zaion` | Agent, LLM, audio, channel settings |
+| `/zaion` | Agent, LLM, audio, channel, DevKit, and Danger Zone settings |
 
 ---
 
@@ -300,8 +302,11 @@ The container probes this endpoint every 30s (60s start period, 3 retries).
 |---|---|
 | `/status` | Check if Morpheus is running |
 | `/stats` | Token usage and cost summary |
-| `/sessions` | List and switch sessions |
-| `/newsession` | Start a new session |
+| `/session` | Show current session info |
+| `/session list` | List recent sessions |
+| `/session new` | Create new session |
+| `/session switch <id>` | Switch to existing session |
+| `/session rename <name>` | Rename current session |
 | `/sati [n]` | Show last N long-term memories |
 | `/trinity` | List registered databases |
 | `/mcp` | List MCP servers with enable/disable buttons |
@@ -325,7 +330,11 @@ The container probes this endpoint every 30s (60s start period, 3 retries).
 | `/help` | Show available commands |
 | `/status` | Check Morpheus status |
 | `/stats` | Token usage statistics |
-| `/newsession` | Start a new session |
+| `/session` | Show current session info |
+| `/session_list` | List recent sessions |
+| `/session_new` | Start a new session |
+| `/session_switch id:` | Switch to existing session |
+| `/session_rename name:` | Rename current session |
 | `/mcps` | List MCP servers with tool counts |
 | `/mcpreload` | Reload MCP connections and tools |
 | `/mcp_enable name:` | Enable an MCP server |

@@ -268,7 +268,7 @@ Smith enables remote DevKit execution on isolated machines (Docker, VMs, cloud) 
 
 **Architecture:**
 - `SmithRegistry` (singleton) manages all connections. Initialized at startup, non-blocking.
-- `SmithConnection` wraps a WebSocket client per Smith instance. Auth via token handshake.
+- `SmithConnection` wraps a WebSocket client per Smith instance. Auth via token handshake. TLS supported.
 - `SmithDelegator` creates a LangChain ReactAgent with **proxy tools** — local DevKit tools built for schema extraction, filtered by Smith's declared capabilities, wrapped in proxies that forward execution to the remote Smith via WebSocket.
 - Oracle delegates via `smith_delegate` tool (sync or async, like other subagents).
 
@@ -368,7 +368,7 @@ In `tasks` table, Trinity agent rows use `agent = 'trinit'` (not `'trinity'`). S
 | Paths constants | `src/config/paths.ts` | `PATHS.root`, `PATHS.config`, etc. |
 | Frontend | `src/ui/src/` | React 19 + Vite |
 | Chronos scheduler | `src/runtime/chronos/` | parser, worker, repository |
-| Memory DB | `~/.morpheus/memory/short-memory.db` | sessions, messages, tasks, chronos |
+| Memory DB | `~/.morpheus/memory/short-memory.db` | sessions, messages, tasks, chronos, audit |
 | Trinity DB | `~/.morpheus/memory/trinity.db` | DB registry (encrypted passwords) |
 | Sati DB | `~/.morpheus/memory/sati-memory.db` | sqlite-vec embeddings |
 | MCP config | `~/.morpheus/mcps.json` | MCP server definitions |

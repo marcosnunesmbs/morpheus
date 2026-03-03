@@ -201,8 +201,11 @@ Task completion/failure notifications include:
 - `/help`
 - `/zaion`
 - `/sati <qnt>`
-- `/newsession`
-- `/sessions`
+- `/session` — show current session info
+- `/session list` — list recent sessions
+- `/session new` — create new session
+- `/session switch <id>` — switch to existing session
+- `/session rename <name>` — rename current session
 - `/restart`
 - `/mcpreload`
 - `/mcp` or `/mcps`
@@ -230,7 +233,11 @@ Registered automatically on startup:
 | `/help` | Show available commands |
 | `/status` | Check Morpheus status |
 | `/stats` | Token usage statistics |
-| `/newsession` | Start a new session |
+| `/session` | Show current session info |
+| `/session_list` | List recent sessions |
+| `/session_new` | Start a new session |
+| `/session_switch id:` | Switch to existing session |
+| `/session_rename name:` | Rename current session |
 | `/mcps` | List MCP servers with tool counts |
 | `/mcpreload` | Reload MCP connections and tools |
 | `/mcp_enable name:` | Enable an MCP server |
@@ -260,16 +267,20 @@ Discord voice messages and audio file attachments are transcribed and processed 
 
 ### 6.1 Chat
 - session-based conversation
-- AI markdown rendering
+- AI markdown rendering (GitHub Flavored Markdown via remark-gfm)
 - tool messages in collapsible blocks
 - SATI traces grouped as `SATI Memory`
 - per-message token badge (input/output)
+- memory recovery counts in AI message metadata
+- browser notifications when tab is in background
+- per-session loading state indicators
 
 ### 6.2 Tasks Page
 - live polling for queue and stats
 - filters by status, agent, channel, session
-- details modal
+- details modal with expandable metadata
 - retry for failed tasks
+- pagination for large task lists
 
 ### 6.3 Settings
 Dedicated agent tabs:
@@ -307,8 +318,27 @@ Dedicated agent tabs:
 ### 6.7 Smiths Page
 - Smiths table showing all registered Smith instances with connection state (online/offline/connecting)
 - Configuration form: enabled toggle, execution mode, entries (name, host, port, auth_token)
+- TLS support for secure WebSocket connections
+- System stats display (CPU, memory, disk usage)
 - Ping action to test connectivity
 - Hot-reload on config save (connects new Smiths, disconnects removed ones)
+
+### 6.8 Audit Dashboard
+- Session audit view with comprehensive event timeline
+- Global totals and per-agent breakdowns
+- Cost summary panel with model-level details
+- Tool call tracking for all subagents (Oracle, Neo, Apoc, Trinity, Smith)
+- Audio duration tracking in session summaries
+- Expandable metadata panel for event details
+- Memory recovery event logging
+
+### 6.9 Danger Zone (Settings)
+- Reset all sessions and messages
+- Reset task queue (clears pending/running tasks)
+- Reset Chronos scheduled jobs
+- Reset audit logs
+- Factory reset (all data + config to defaults)
+- Each action requires explicit confirmation dialog
 
 ## 7. Configuration
 
@@ -331,6 +361,8 @@ sati:
   temperature: 0.3
   memory_limit: 100
   enabled_archived_sessions: true
+  evaluation_interval: 3       # consolidate memories every N messages
+  similarity_threshold: 0.7    # minimum relevance for memory retrieval (0-1)
 
 neo:
   provider: openai
