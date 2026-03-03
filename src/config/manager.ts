@@ -1,7 +1,7 @@
 import fs from 'fs-extra';
 import yaml from 'js-yaml';
 import { z } from 'zod';
-import { MorpheusConfig, DEFAULT_CONFIG, SatiConfig, ApocConfig, NeoConfig, TrinityConfig, LLMProvider, ChronosConfig, SubAgentExecutionMode, DevKitConfig, SmithsConfig } from '../types/config.js';
+import { MorpheusConfig, DEFAULT_CONFIG, SatiConfig, ApocConfig, NeoConfig, TrinityConfig, LLMProvider, ChronosConfig, SubAgentExecutionMode, DevKitConfig, SmithsConfig, SetupConfig } from '../types/config.js';
 import { PATHS } from './paths.js';
 import { setByPath } from './utils.js';
 import { ConfigSchema } from './schemas.js';
@@ -382,6 +382,10 @@ export class ConfigManager {
         entries: config.smiths?.entries ?? [],
       },
       verbose_mode: resolveBoolean('MORPHEUS_VERBOSE_MODE', config.verbose_mode, true),
+      setup: {
+        enabled: resolveBoolean('MORPHEUS_SETUP_ENABLED', config.setup?.enabled, true),
+        fields: config.setup?.fields ?? ['name', 'timezone', 'preferred_language'],
+      },
     };
   }
 
@@ -482,6 +486,14 @@ export class ConfigManager {
     const defaults: ChronosConfig = { timezone: 'UTC', check_interval_ms: 60000, max_active_jobs: 100 };
     if (this.config.chronos) {
       return { ...defaults, ...this.config.chronos };
+    }
+    return defaults;
+  }
+
+  public getSetupConfig(): SetupConfig {
+    const defaults: SetupConfig = { enabled: true, fields: ['name', 'timezone', 'preferred_language'] };
+    if (this.config.setup) {
+      return { ...defaults, ...this.config.setup };
     }
     return defaults;
   }

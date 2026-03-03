@@ -7,6 +7,7 @@ export type AuditEventType =
   | 'skill_executed'
   | 'chronos_job'
   | 'memory_recovery'
+  | 'memory_persist'
   | 'telephonist';
 
 export type AuditAgent =
@@ -77,6 +78,7 @@ export interface GlobalAuditSummary {
     mcpToolCount: number;
     skillCount: number;
     memoryRecoveryCount: number;
+    memoryPersistCount: number;
     chronosJobCount: number;
     taskCreatedCount: number;
     taskCompletedCount: number;
@@ -115,11 +117,15 @@ export interface GlobalAuditSummary {
     estimatedCostUsd: number;
     totalDurationMs: number;
     llmCallCount: number;
+    memoryRecoveryCount: number;
+    memoryPersistCount: number;
   }>;
   dailyActivity: Array<{
     date: string;
     eventCount: number;
     llmCallCount: number;
+    memoryRecoveryCount: number;
+    memoryPersistCount: number;
     estimatedCostUsd: number;
   }>;
 }

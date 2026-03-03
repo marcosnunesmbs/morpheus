@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Zap, Wrench, CheckCircle, XCircle, Clock, Bot, Play, Brain, Mic, ChevronRight, ChevronDown } from 'lucide-react';
+import { Zap, Wrench, CheckCircle, XCircle, Clock, Bot, Play, Brain, Mic, ChevronRight, ChevronDown, Plus, Pencil, Archive } from 'lucide-react';
 import type { AuditEvent } from '../../services/audit';
 
 interface EventRowProps {
@@ -20,6 +20,7 @@ const EVENT_ICONS: Record<string, React.ReactNode> = {
   skill_executed: <Bot size={16} />,
   chronos_job: <Clock size={16} />,
   memory_recovery: <Brain size={16} />,
+  memory_persist: <Brain size={16} />,
   telephonist: <Mic size={16} />,
 };
 
@@ -32,6 +33,7 @@ const EVENT_COLORS: Record<string, string> = {
   skill_executed: 'text-teal-600 dark:text-teal-400',
   chronos_job: 'text-orange-500 dark:text-orange-400',
   memory_recovery: 'text-emerald-600 dark:text-emerald-400',
+  memory_persist: 'text-violet-600 dark:text-violet-400',
   telephonist: 'text-rose-500 dark:text-rose-400',
 };
 
@@ -45,6 +47,7 @@ const META_BORDER_COLORS: Record<string, string> = {
   skill_executed: 'border-teal-300 dark:border-teal-500/40',
   chronos_job: 'border-orange-300 dark:border-orange-500/40',
   memory_recovery: 'border-emerald-300 dark:border-emerald-500/40',
+  memory_persist: 'border-violet-300 dark:border-violet-500/40',
   telephonist: 'border-rose-300 dark:border-rose-500/40',
 };
 
@@ -99,6 +102,79 @@ function prettyValue(v: unknown): string {
 function MetaPanel({ parsedMeta, eventType }: { parsedMeta: Record<string, unknown>; eventType: string }) {
   const isToolEvent = eventType === 'tool_call' || eventType === 'mcp_tool';
   const { args, result, ...rest } = parsedMeta as { args?: unknown; result?: unknown; [k: string]: unknown };
+
+  // ── memory_persist: structured display of inclusions / edits / deletions ──
+  if (eventType === 'memory_persist') {
+    const inclusions = Array.isArray(parsedMeta.inclusions) ? parsedMeta.inclusions as { category?: string; importance?: number; summary?: string }[] : [];
+    const edits = Array.isArray(parsedMeta.edits) ? parsedMeta.edits as { id?: string; summary?: string; reason?: string }[] : [];
+    const deletions = Array.isArray(parsedMeta.deletions) ? parsedMeta.deletions as { id?: string; reason?: string }[] : [];
+
+    if (inclusions.length === 0 && edits.length === 0 && deletions.length === 0) {
+      return (
+        <p className="text-[11px] text-gray-400 dark:text-matrix-secondary/50 italic">No memory changes recorded.</p>
+      );
+    }
+
+    return (
+      <div className="space-y-2.5">
+        {inclusions.length > 0 && (
+          <div>
+            <p className="text-[10px] font-semibold uppercase tracking-widest text-gray-400 dark:text-matrix-secondary/50 mb-1 flex items-center gap-1">
+              <Plus size={10} className="text-green-500 dark:text-green-400" /> new memories ({inclusions.length})
+            </p>
+            <div className="space-y-1">
+              {inclusions.map((m, i) => (
+                <div key={i} className="text-[11px] font-mono text-gray-600 dark:text-matrix-secondary bg-gray-50 dark:bg-zinc-900 rounded px-2 py-1.5 flex items-start gap-2">
+                  <span className="flex-shrink-0 text-[10px] uppercase font-bold text-violet-500 dark:text-violet-400 bg-violet-50 dark:bg-violet-900/30 px-1 rounded">
+                    {m.category ?? '?'}
+                  </span>
+                  <span className="flex-1 break-words">{m.summary ?? '—'}</span>
+                  {m.importance != null && (
+                    <span className="flex-shrink-0 text-[10px] text-gray-400 dark:text-matrix-secondary/50">
+                      imp:{m.importance}
+                    </span>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {edits.length > 0 && (
+          <div>
+            <p className="text-[10px] font-semibold uppercase tracking-widest text-gray-400 dark:text-matrix-secondary/50 mb-1 flex items-center gap-1">
+              <Pencil size={10} className="text-amber-500 dark:text-amber-400" /> edited memories ({edits.length})
+            </p>
+            <div className="space-y-1">
+              {edits.map((e, i) => (
+                <div key={i} className="text-[11px] font-mono text-gray-600 dark:text-matrix-secondary bg-gray-50 dark:bg-zinc-900 rounded px-2 py-1.5">
+                  {e.id && <span className="text-[10px] text-gray-400 dark:text-matrix-secondary/50 mr-2">#{e.id}</span>}
+                  {e.summary && <span className="break-words">{e.summary}</span>}
+                  {e.reason && <span className="text-[10px] text-gray-400 dark:text-matrix-secondary/50 ml-2">— {e.reason}</span>}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {deletions.length > 0 && (
+          <div>
+            <p className="text-[10px] font-semibold uppercase tracking-widest text-gray-400 dark:text-matrix-secondary/50 mb-1 flex items-center gap-1">
+              <Archive size={10} className="text-red-500 dark:text-red-400" /> archived memories ({deletions.length})
+            </p>
+            <div className="space-y-1">
+              {deletions.map((d, i) => (
+                <div key={i} className="text-[11px] font-mono text-gray-600 dark:text-matrix-secondary bg-gray-50 dark:bg-zinc-900 rounded px-2 py-1.5">
+                  {d.id && <span className="text-[10px] text-gray-400 dark:text-matrix-secondary/50 mr-2">#{d.id}</span>}
+                  {d.reason && <span className="break-words">{d.reason}</span>}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }
 
   if (isToolEvent && (args !== undefined || result !== undefined)) {
     return (
@@ -157,7 +233,18 @@ export const EventRow: React.FC<EventRowProps> = ({ event }) => {
 
   const label = event.event_type === 'memory_recovery'
     ? `${parsedMeta?.memories_count ?? 0} memories retrieved`
-    : event.event_type === 'telephonist'
+    : event.event_type === 'memory_persist'
+      ? (() => {
+          const inc = parsedMeta?.inclusions_count ?? 0;
+          const ed = parsedMeta?.edits_count ?? 0;
+          const del = parsedMeta?.deletions_count ?? 0;
+          const parts: string[] = [];
+          if (inc) parts.push(`+${inc} new`);
+          if (ed) parts.push(`~${ed} edited`);
+          if (del) parts.push(`-${del} archived`);
+          return parts.length > 0 ? parts.join(', ') : 'memory persisted';
+        })()
+      : event.event_type === 'telephonist'
       ? (() => {
           const secs = parsedMeta?.audio_duration_seconds;
           const preview = parsedMeta?.text_preview;

@@ -45,7 +45,8 @@ const AGENT_BADGE_CLASSES: Record<string, string> = {
 /* ─── Helpers ────────────────────────────────────────────────────── */
 
 function formatToolContent(content: string): string {
-  try { return JSON.stringify(JSON.parse(content), null, 2); } catch { return content; }
+  const stripped = content.replace(/^```json\s*/i, '').replace(/\s*```$/, '');
+  try { return JSON.stringify(JSON.parse(stripped), null, 2); } catch { return stripped; }
 }
 
 function isSatiTool(msg: Message): boolean {

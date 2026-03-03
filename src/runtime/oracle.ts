@@ -23,8 +23,8 @@ import { Construtor } from "./tools/factory.js";
 import { MCPManager } from "../config/mcp-manager.js";
 import { SkillRegistry, SkillExecuteTool, SkillDelegateTool, updateSkillToolDescriptions } from "./skills/index.js";
 import { SmithRegistry } from "./smiths/registry.js";
-import { AuditRepository } from "./audit/repository.js";
-import { emitToolAuditEvents } from "./subagent-utils.js";
+import { AuditRepository } from "./audit/repository.js";import { SetupRepository } from './setup/repository.js';
+import { buildSetupTool } from './tools/setup-tool.js';import { emitToolAuditEvents } from "./subagent-utils.js";
 import { text } from "stream/consumers";
 
 const ORACLE_DELEGATION_TOOLS = new Set([
@@ -197,7 +197,11 @@ export class Oracle implements IOracle {
       updateSkillToolDescriptions();
 
       // Build tool list — conditionally include SmithDelegateTool based on config
+      // Initialize setup repository (creates table if needed)
+      SetupRepository.getInstance();
+
       const coreTools: any[] = [
+        buildSetupTool(),
         TaskQueryTool,
         Neo.getInstance().createDelegateTool(),
         Apoc.getInstance().createDelegateTool(),
@@ -284,8 +288,26 @@ export class Oracle implements IOracle {
         (userMessage as any).usage_metadata = extraUsage;
       }
 
-      const systemMessage = new SystemMessage(`
-You are ${this.config.agent.name}, ${this.config.agent.personality}, the Oracle.
+      // Build first-time setup block if setup is not yet completed
+      const setupRepo = SetupRepository.getInstance();
+      let setupBlock = '';
+      if (!setupRepo.isCompleted()) {
+        const missingFields = setupRepo.getMissingFields();
+        if (missingFields.length > 0) {
+          setupBlock = `## [FIRST-TIME SETUP — ACTIVE]
+Before responding to any other request, you MUST collect the user's basic information.
+Ask for the following fields conversationally (one or two at a time — do NOT list them all at once):
+${missingFields.map((f) => `- ${f}`).join('\n')}
+
+Once the user provides a value, immediately call \`setup_save\` with the collected fields.
+Do NOT proceed with other tasks until all required fields have been collected and saved.
+---
+
+`;
+        }
+      }
+
+      const systemMessage = new SystemMessage(`${setupBlock}You are ${this.config.agent.name}, ${this.config.agent.personality}, the Oracle.
 
 You are an orchestrator and task router.
 
@@ -729,6 +751,7 @@ Use it to inform your response and tool selection (if needed), but do not assume
     await Trinity.refreshDelegateCatalog().catch(() => {});
     updateSkillToolDescriptions();
     this.provider = await ProviderFactory.create(this.config.llm, [
+      buildSetupTool(),
       TaskQueryTool,
       Neo.getInstance().createDelegateTool(),
       Apoc.getInstance().createDelegateTool(),

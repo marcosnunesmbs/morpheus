@@ -75,6 +75,11 @@ export const SmithEntrySchema = z.object({
   tls: z.boolean().default(false),
 });
 
+export const SetupConfigSchema = z.object({
+  enabled: z.boolean().default(true),
+  fields: z.array(z.string()).default(['name', 'timezone', 'preferred_language']),
+});
+
 export const SmithsConfigSchema = z.object({
   enabled: z.boolean().default(false),
   execution_mode: z.enum(['sync', 'async']).default('async'),
@@ -109,6 +114,7 @@ export const ConfigSchema = z.object({
   chronos: ChronosConfigSchema.optional(),
   devkit: DevKitConfigSchema.optional(),
   smiths: SmithsConfigSchema.optional(),
+  setup: SetupConfigSchema.optional(),
   verbose_mode: z.boolean().default(true),
   channels: z.object({
     telegram: z.object({

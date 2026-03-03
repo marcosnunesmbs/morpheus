@@ -5,6 +5,7 @@ import { homedir } from 'os';
 import fs from 'fs-extra';
 import { z } from 'zod';
 import { SatiRepository } from '../../runtime/memory/sati/repository.js';
+import { SetupRepository } from '../../runtime/setup/repository.js';
 import { DisplayManager } from '../../runtime/display.js';
 
 /**
@@ -81,6 +82,12 @@ export function createDangerRouter(): Router {
             counts.messages = msgResult.changes;
             const sessResult = db.prepare('DELETE FROM sessions').run();
             counts.sessions = sessResult.changes;
+            // Also clear first-time setup state so onboarding runs again after reset
+            try {
+              db.prepare('DELETE FROM setup_state').run();
+            } catch {
+              // Table may not exist on older installations — safe to ignore
+            }
           }
 
           if (categories.includes('tasks')) {

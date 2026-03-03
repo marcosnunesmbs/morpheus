@@ -169,6 +169,13 @@ export interface SmithsConfig {
   entries: SmithEntry[];
 }
 
+export interface SetupConfig {
+  /** When false, the first-time setup flow is completely skipped. Default: true */
+  enabled: boolean;
+  /** List of field names to collect during setup (e.g. ['name', 'city', 'timezone']). Default: ['name'] */
+  fields: string[];
+}
+
 export interface MorpheusConfig {
   agent: AgentConfig;
   llm: LLMConfig;
@@ -179,6 +186,7 @@ export interface MorpheusConfig {
   keymaker?: KeymakerConfig;
   devkit?: DevKitConfig;
   smiths?: SmithsConfig;
+  setup?: SetupConfig;
   webhooks?: WebhookConfig;
   channels: ChannelsConfig;
   ui: UIConfig;

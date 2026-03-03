@@ -250,6 +250,32 @@ export class SatiService implements ISatiService {
         }
       }
 
+      // Emit audit event for memory persistence results
+      const inclusionsCount = (result.inclusions ?? []).filter(i => i.summary && i.category && i.importance).length;
+      const editsCount = (result.edits ?? []).filter(e => !!e.id).length;
+      const deletionsCount = (result.deletions ?? []).filter(d => !!d.id).length;
+      const totalOps = inclusionsCount + editsCount + deletionsCount;
+
+      if (totalOps > 0) {
+        try {
+          AuditRepository.getInstance().insert({
+            session_id: userSessionId ?? 'sati-persist',
+            event_type: 'memory_persist',
+            agent: 'sati',
+            duration_ms: Date.now() - satiStartMs,
+            status: 'success',
+            metadata: {
+              inclusions_count: inclusionsCount,
+              edits_count: editsCount,
+              deletions_count: deletionsCount,
+              inclusions: (result.inclusions ?? []).filter(i => i.summary && i.category && i.importance).map(i => ({ category: i.category, importance: i.importance, summary: i.summary })),
+              edits: (result.edits ?? []).filter(e => !!e.id).map(e => ({ id: e.id, summary: e.summary, reason: e.reason })),
+              deletions: (result.deletions ?? []).filter(d => !!d.id).map(d => ({ id: d.id, reason: d.reason })),
+            },
+          });
+        } catch { console.warn('[SatiService] Failed to log memory persistence audit event'); }
+      }
+
     } catch (error) {
       console.error('[SatiService] Evaluation failed:', error);
     }
