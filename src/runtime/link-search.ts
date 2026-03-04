@@ -276,4 +276,140 @@ export class LinkSearch {
 
     return this.hybridSearch(queryEmbedding, queryText, maxResults, minThreshold);
   }
+
+  /**
+   * Search within a specific document by document_id.
+   * Runs vector + BM25 search filtered to chunks belonging to that document.
+   */
+  async searchInDocument(
+    queryText: string,
+    documentId: string,
+    limit?: number,
+    threshold?: number
+  ): Promise<Array<{
+    chunk_id: string;
+    document_id: string;
+    filename: string;
+    position: number;
+    content: string;
+    score: number;
+    vector_score: number;
+    bm25_score: number;
+  }>> {
+    if (!this.embeddingService || !this.db) {
+      throw new Error('LinkSearch not initialized');
+    }
+
+    const config = ConfigManager.getInstance().getLinkConfig();
+    const maxResults = limit ?? config.max_results;
+    const minThreshold = threshold ?? config.score_threshold;
+    const vectorWeight = config.vector_weight;
+    const bm25Weight = config.bm25_weight;
+    const fetchLimit = maxResults * 3;
+
+    // Generate embedding for the query
+    const queryEmbedding = await this.embeddingService.generate(queryText);
+    const embeddingBlob = new Float32Array(queryEmbedding);
+
+    // Vector search filtered by document
+    const vectorRows = this.db.prepare(`
+      SELECT
+        e.chunk_id,
+        c.document_id,
+        d.filename,
+        c.position,
+        c.content,
+        vec_distance_cosine(e.embedding, ?) as distance
+      FROM embeddings e
+      JOIN chunks c ON e.chunk_id = c.id
+      JOIN documents d ON c.document_id = d.id
+      WHERE d.status = 'indexed' AND c.document_id = ?
+      ORDER BY distance ASC
+      LIMIT ?
+    `).all(embeddingBlob, documentId, fetchLimit) as any[];
+
+    const vectorResults = vectorRows.map(row => ({
+      chunk_id: row.chunk_id,
+      document_id: row.document_id,
+      filename: row.filename,
+      position: row.position,
+      content: row.content,
+      score: 1 - row.distance,
+    }));
+
+    // BM25 search filtered by document
+    const escapedQuery = queryText
+      .replace(/[^\p{L}\p{N}\s]/gu, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+
+    let bm25Results: typeof vectorResults = [];
+    if (escapedQuery) {
+      const bm25Rows = this.db.prepare(`
+        SELECT
+          c.id as chunk_id,
+          c.document_id,
+          d.filename,
+          c.position,
+          c.content,
+          bm25(chunks_fts) as bm25_score
+        FROM chunks_fts fts
+        JOIN chunks c ON c.rowid = fts.rowid
+        JOIN documents d ON c.document_id = d.id
+        WHERE d.status = 'indexed'
+          AND c.document_id = ?
+          AND chunks_fts MATCH ?
+        ORDER BY bm25_score ASC
+        LIMIT ?
+      `).all(documentId, escapedQuery, fetchLimit) as any[];
+
+      bm25Results = bm25Rows.map(row => ({
+        chunk_id: row.chunk_id,
+        document_id: row.document_id,
+        filename: row.filename,
+        position: row.position,
+        content: row.content,
+        score: -row.bm25_score,
+      }));
+    }
+
+    // Normalize and combine
+    const normalizedVector = this.normalizeScores(vectorResults);
+    const normalizedBM25 = this.normalizeScores(bm25Results);
+
+    const vectorMap = new Map(normalizedVector.map(r => [r.chunk_id, r]));
+    const bm25Map = new Map(normalizedBM25.map(r => [r.chunk_id, r]));
+    const allChunkIds = new Set([...vectorMap.keys(), ...bm25Map.keys()]);
+
+    const combined: Array<{
+      chunk_id: string; document_id: string; filename: string;
+      position: number; content: string; score: number;
+      vector_score: number; bm25_score: number;
+    }> = [];
+
+    for (const chunkId of allChunkIds) {
+      const vResult = vectorMap.get(chunkId);
+      const bResult = bm25Map.get(chunkId);
+      const vectorScore = vResult?.score ?? 0;
+      const bm25Score = bResult?.score ?? 0;
+      const data = vResult || bResult;
+      if (!data) continue;
+
+      combined.push({
+        chunk_id: chunkId,
+        document_id: data.document_id,
+        filename: data.filename,
+        position: data.position,
+        content: data.content,
+        score: (vectorScore * vectorWeight) + (bm25Score * bm25Weight),
+        vector_score: vectorScore,
+        bm25_score: bm25Score,
+      });
+    }
+
+    return combined
+      .filter(r => r.score >= minThreshold)
+      .sort((a, b) => b.score - a.score)
+      .slice(0, maxResults);
+  }
 }

@@ -253,8 +253,8 @@ export async function processDocument(
   // Parse document
   const parsed = await parseDocument(filePath);
 
-  // Calculate hash
-  const hash = hashDocument(parsed.text);
+  // Calculate hash from raw file bytes (must match hashFile used by the caller)
+  const hash = await hashFile(filePath);
 
   // Chunk text
   const chunks = chunkText(parsed.text, chunkSize);

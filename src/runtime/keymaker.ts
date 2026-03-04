@@ -148,7 +148,7 @@ CRITICAL — NEVER FABRICATE DATA:
 
       const startMs = Date.now();
       const response = await TaskRequestContext.run(invokeContext, () =>
-        this.agent!.invoke({ messages }, { recursionLimit: 5 })
+        this.agent!.invoke({ messages }, { recursionLimit: 10 })
       );
       const durationMs = Date.now() - startMs;
 

@@ -17,8 +17,10 @@ const storage = multer.diskStorage({
     cb(null, DOCS_PATH);
   },
   filename: (req, file, cb) => {
-    // Keep original filename
-    cb(null, file.originalname);
+    // Multer decodes originalname as Latin1 per HTTP spec.
+    // Re-encode to get the raw bytes and decode as UTF-8.
+    const fixedName = Buffer.from(file.originalname, 'latin1').toString('utf-8');
+    cb(null, fixedName);
   },
 });
 
@@ -28,7 +30,8 @@ const upload = multer({
     fileSize: 50 * 1024 * 1024, // 50MB default, will check config
   },
   fileFilter: (req, file, cb) => {
-    const ext = path.extname(file.originalname).toLowerCase();
+    const name = Buffer.from(file.originalname, 'latin1').toString('utf-8');
+    const ext = path.extname(name).toLowerCase();
     const allowed = ['.pdf', '.txt', '.md', '.docx'];
     if (allowed.includes(ext)) {
       cb(null, true);
@@ -90,7 +93,8 @@ export function createLinkRouter(): Router {
         storage,
         limits: { fileSize: maxSizeMB * 1024 * 1024 },
         fileFilter: (req, file, cb) => {
-          const ext = path.extname(file.originalname).toLowerCase();
+          const name = Buffer.from(file.originalname, 'latin1').toString('utf-8');
+          const ext = path.extname(name).toLowerCase();
           const allowed = ['.pdf', '.txt', '.md', '.docx'];
           if (allowed.includes(ext)) {
             cb(null, true);
@@ -117,7 +121,7 @@ export function createLinkRouter(): Router {
 
       res.json({
         message: 'File uploaded successfully',
-        filename: req.file.originalname,
+        filename: Buffer.from(req.file.originalname, 'latin1').toString('utf-8'),
         path: req.file.path,
         indexed: result.indexed,
       });

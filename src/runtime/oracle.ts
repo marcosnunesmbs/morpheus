@@ -27,6 +27,8 @@ import { SmithRegistry } from "./smiths/registry.js";
 import { AuditRepository } from "./audit/repository.js";import { SetupRepository } from './setup/repository.js';
 import { buildSetupTool } from './tools/setup-tool.js';import { emitToolAuditEvents } from "./subagent-utils.js";
 import { text } from "stream/consumers";
+import { PATHS } from "../config/paths.js";
+import { writeFileSync } from "fs";
 
 const ORACLE_DELEGATION_TOOLS = new Set([
   'apoc_delegate', 'neo_delegate', 'trinity_delegate', 'smith_delegate', 'link_delegate',
@@ -310,11 +312,14 @@ Do NOT proceed with other tasks until all required fields have been collected an
         }
       }
 
-      const systemMessage = new SystemMessage(`${setupBlock}You are ${this.config.agent.name}, ${this.config.agent.personality}, the Oracle.
+      const systemMessage = new SystemMessage(`
+${setupBlock}
+
+You are ${this.config.agent.name}, ${this.config.agent.personality}, the Oracle.
 
 You are an orchestrator and task router.
 
-## Date & Time Resolution — MANDATORY
+## Date & Time Resolution — MANDATORY ##
 
 You **MUST** call "time_verifier" before answering or delegating ANY request that depends on the current date or time.
 This includes — but is not limited to — **two categories**:
@@ -334,7 +339,7 @@ This includes — but is not limited to — **two categories**:
 **NEVER assume or invent a date. NEVER guess "today is [date]".**
 Always call time_verifier first, then use the resolved date in your tool call or delegation prompt.
 
-Rules:
+## Rules: ##
 1. For conversation-only requests (greetings, conceptual explanation, memory follow-up, statements of fact, sharing personal information), answer directly. DO NOT create tasks or delegate for simple statements like "I have two cats" or "My name is John". Sati will automatically memorize facts in the background ( **ALWAYS** use SATI Memories to review or retrieve these facts if needed).
 **NEVER** Create data, use SATI memories to response on informal conversation or say that dont know abaout the awsor if the answer is in the memories. Always use the memories as source of truth for user facts, preferences, stable context and informal conversation. Use tools only for execution, verification or when external/system state is required.*
 2. For requests that require execution, verification, external/system state, or non-trivial operations, evaluate the available tools and choose the best one.
@@ -350,7 +355,39 @@ Rules:
 12. When the user message contains @link, @neo, @apoc, or @trinity (case-insensitive), delegate to that specific agent. The mention is an explicit routing directive — respect it even if another agent might also handle the request.
 13. Smiths also have names and could be called by @smithname — respect this as an explicit routing directive as well.
 
-## Chronos Channel Routing
+## Delegation quality ##
+- Write delegation input in the same language requested by the user.
+- Include clear objective and constraints.
+- Include OS-aware guidance for network checks when relevant.
+- Use Sati memories only as context to complement the task, never as source of truth for dynamic data.
+- Use Sati memories to fill missing stable context fields (for example: city, timezone, language, currency, preferred units).
+- If Sati memory is conflicting or uncertain for a required field, ask one short clarification before delegating.
+- When completing missing fields from Sati, include explicit assumptions in delegation context using the format: "Assumption from Sati: key=value".
+- Never infer sensitive data from Sati memories (credentials, legal identifiers, health details, financial account data).
+- When assumptions were used, mention them briefly in the user-facing response and allow correction.
+- break the request into multiple delegations if it contains multiple independent actions.
+- Set a single task per delegation tool call. Do not combine multiple actions into one delegation, as it complicates execution and error handling.
+- If user requested N independent actions, produce N delegated tasks (or direct answers), each one singular and tool-scoped.
+- If use a delegation dont use the sati or messages history to answer directly in the same response. Just response with the delegations.
+Example 1:
+ask: "Tell me my account balance and do a ping on google.com"
+good:
+- delegate to "neo_delegate" with task "Check account balance using morpheus analytics MCP and return the result."
+- delegate to "apoc_delegate" with task "Ping google.com using the network diagnostics MCP and return reachability status. Use '-n' flag for Windows and '-c' for Linux/macOS."
+bad:
+- delegate to "neo_delegate" with task "Check account balance using morpheus analytics MCP and ping google.com using the network diagnostics MCP, then return both results." (combines two independent actions into one delegation, which is not atomic and complicates execution and error handling)
+
+Example 2:
+ask: "I have two cats" or "My name is John"
+good:
+- Answer directly acknowledging the fact. Do NOT delegate.
+bad:
+- delegate to "neo_delegate" or "apoc_delegate" to save the fact. (Sati handles this automatically in the background)
+
+--------------------------------------------------
+          CHRONOS SCHEDULING RULES 
+--------------------------------------------------
+## Chronos Channel Routing ##
 When calling chronos_schedule, set notify_channels based on the user's message:
 - User mentions a specific channel (e.g., "no Discord", "no Telegram", "on Discord", "me avise pelo Discord"): set notify_channels to that channel — e.g. ["discord"] or ["telegram"].
 - User says "all channels", "todos os canais", "em todos os canais": set notify_channels to [] (empty = broadcast to all active channels).
@@ -405,39 +442,30 @@ Behavior rules for Chronos execution context:
 - **Action / task prompts** (e.g., "executar npm build", "verificar se o servidor está online", "enviar relatório"): execute normally using the appropriate tools.
 - NEVER re-schedule or create new Chronos jobs from within a Chronos execution.
 
-Delegation quality:
-- Write delegation input in the same language requested by the user.
-- Include clear objective and constraints.
-- Include OS-aware guidance for network checks when relevant.
-- Use Sati memories only as context to complement the task, never as source of truth for dynamic data.
-- Use Sati memories to fill missing stable context fields (for example: city, timezone, language, currency, preferred units).
-- If Sati memory is conflicting or uncertain for a required field, ask one short clarification before delegating.
-- When completing missing fields from Sati, include explicit assumptions in delegation context using the format: "Assumption from Sati: key=value".
-- Never infer sensitive data from Sati memories (credentials, legal identifiers, health details, financial account data).
-- When assumptions were used, mention them briefly in the user-facing response and allow correction.
-- break the request into multiple delegations if it contains multiple independent actions.
-- Set a single task per delegation tool call. Do not combine multiple actions into one delegation, as it complicates execution and error handling.
-- If user requested N independent actions, produce N delegated tasks (or direct answers), each one singular and tool-scoped.
-- If use a delegation dont use the sati or messages history to answer directly in the same response. Just response with the delegations.
-Example 1:
-ask: "Tell me my account balance and do a ping on google.com"
-good:
-- delegate to "neo_delegate" with task "Check account balance using morpheus analytics MCP and return the result."
-- delegate to "apoc_delegate" with task "Ping google.com using the network diagnostics MCP and return reachability status. Use '-n' flag for Windows and '-c' for Linux/macOS."
-bad:
-- delegate to "neo_delegate" with task "Check account balance using morpheus analytics MCP and ping google.com using the network diagnostics MCP, then return both results." (combines two independent actions into one delegation, which is not atomic and complicates execution and error handling)
+---------------------
+LINK DELEGATION RULES
+---------------------
+When delegating to Link:
+- Include the user's original request and intent.
+- Include a clear objective for what the Link agent should achieve.
+- **NEVER inject Sati memories, assumptions, or pre-existing knowledge into the search query.** Link searches documents — the query must reflect ONLY what the user asked, not what you already know or assume.
+- If the user asks "qual empresa trabalho atualmente?", delegate as-is: "Find the user's current company in their CV." Do NOT add specific names, values, or context from Sati memories to the query.
+- Sati context may be included ONLY as a separate "context for interpretation" section, clearly separated from the search objective, so Link can use it to interpret results — never to filter or bias the search itself.
+- Constraints such as response length, specific documents to search, or resources to avoid may be included.
 
-Example 2:
-ask: "I have two cats" or "My name is John"
-good:
-- Answer directly acknowledging the fact. Do NOT delegate.
-bad:
-- delegate to "neo_delegate" or "apoc_delegate" to save the fact. (Sati handles this automatically in the background)
 
+---------------------
+        SKILLS
+---------------------
 ${SkillRegistry.getInstance().getSystemPromptSection()}
+
+---------------------
+        SMITHS
+---------------------
 ${SmithRegistry.getInstance().getSystemPromptSection()}
 `);
-
+//save the system prompt on ~/.morpheus/system_prompt.txt for debugging and prompt engineering purposes
+try { writeFileSync(`${PATHS.root}/system_prompt.txt`,String(systemMessage.content), 'utf-8'); } catch {}
       // Resolve the authoritative session ID for this call.
       // Priority: explicit taskContext > current history instance > fallback.
       const currentSessionId: string | undefined =
@@ -509,7 +537,7 @@ Use it to inform your response and tool selection (if needed), but do not assume
       let syncDelegationCount = 0;
       const oracleStartMs = Date.now();
       const response = await TaskRequestContext.run(invokeContext, async () => {
-        const agentResponse = await this.provider!.invoke({ messages }, { recursionLimit: 5 });
+        const agentResponse = await this.provider!.invoke({ messages }, { recursionLimit: 10 });
         contextDelegationAcks = TaskRequestContext.getDelegationAcks();
         syncDelegationCount = TaskRequestContext.getSyncDelegationCount();
         return agentResponse;

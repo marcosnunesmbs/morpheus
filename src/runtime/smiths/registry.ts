@@ -298,7 +298,7 @@ export class SmithRegistry extends EventEmitter {
     const lines = online.map(s => {
       const caps = s.capabilities.length > 0 ? ` (capabilities: ${s.capabilities.join(', ')})` : '';
       const os = s.stats?.os ? ` [${s.stats.os}]` : '';
-      return `- **${s.name}**: ${s.host}:${s.port}${os}${caps}`;
+      return `- **${s.name}** (@${s.name}): ${s.host}:${s.port}${os}${caps}`;
     });
 
     return `\n## Available Smiths (Remote Agents)

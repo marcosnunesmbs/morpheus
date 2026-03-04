@@ -84,13 +84,14 @@ export class Link implements ISubagent {
   /**
    * Build the internal search tool that the ReactAgent will use.
    */
-  private buildSearchTool(): DynamicStructuredTool {
+  private buildTools(): DynamicStructuredTool[] {
     const search = this.search;
+    const repository = this.repository;
     const agentConfig = this.agentConfig;
 
-    return new DynamicStructuredTool({
+    const searchTool = new DynamicStructuredTool({
       name: 'link_search_documents',
-      description: 'Search indexed user documents using hybrid vector + keyword search. Returns the most relevant document chunks for a given query.',
+      description: 'Search ALL indexed user documents using hybrid vector + keyword search. Returns the most relevant document chunks for a given query. Use this for broad searches when you don\'t know which document contains the answer.',
       schema: z.object({
         query: z.string().describe('The search query to find relevant document passages'),
         limit: z.number().optional().describe('Maximum number of results to return (default: max_results from config)'),
@@ -111,6 +112,66 @@ export class Link implements ISubagent {
         return `Found ${results.length} relevant passages:\n\n${formatted}`;
       },
     });
+
+    const listDocumentsTool = new DynamicStructuredTool({
+      name: 'link_list_documents',
+      description: 'List indexed documents. Use this to find documents by filename before searching within a specific one. Supports optional name filter (case-insensitive partial match).',
+      schema: z.object({
+        name_filter: z.string().optional().describe('Optional partial filename to filter by (case-insensitive). E.g. "CV", "contrato", "readme"'),
+      }),
+      func: async ({ name_filter }) => {
+        const docs = repository.listDocuments('indexed');
+        if (docs.length === 0) {
+          return 'No indexed documents found.';
+        }
+
+        let filtered = docs;
+        if (name_filter) {
+          const lower = name_filter.toLowerCase();
+          filtered = docs.filter(d => d.filename.toLowerCase().includes(lower));
+        }
+
+        if (filtered.length === 0) {
+          const allNames = docs.map(d => `- ${d.filename}`).join('\n');
+          return `No documents matching "${name_filter}". Available documents:\n${allNames}`;
+        }
+
+        const lines = filtered.map(d => `- [${d.id}] ${d.filename} (${d.chunk_count} chunks)`);
+        return `Found ${filtered.length} document(s):\n${lines.join('\n')}`;
+      },
+    });
+
+    const searchInDocumentTool = new DynamicStructuredTool({
+      name: 'link_search_in_document',
+      description: 'Search within a SPECIFIC document by its ID. Use this when you know which document to search (e.g. after using link_list_documents to find it). More precise than link_search_documents for targeted queries.',
+      schema: z.object({
+        document_id: z.string().describe('The document ID to search within (get this from link_list_documents)'),
+        query: z.string().describe('The search query to find relevant passages within this document'),
+        limit: z.number().optional().describe('Maximum number of results (default: max_results from config)'),
+      }),
+      func: async ({ document_id, query, limit }) => {
+        const doc = repository.getDocument(document_id);
+        if (!doc) {
+          return `Document not found: ${document_id}`;
+        }
+
+        const maxResults = limit ?? agentConfig.max_results;
+        const threshold = agentConfig.score_threshold;
+        const results = await search.searchInDocument(query, document_id, maxResults, threshold);
+
+        if (results.length === 0) {
+          return `No relevant passages found in "${doc.filename}" for query: "${query}"`;
+        }
+
+        const formatted = results
+          .map((r, i) => `[${i + 1}] (chunk ${r.position}, score: ${r.score.toFixed(3)})\n${r.content}`)
+          .join('\n\n---\n\n');
+
+        return `Found ${results.length} passages in "${doc.filename}":\n\n${formatted}`;
+      },
+    });
+
+    return [listDocumentsTool, searchTool, searchInDocumentTool];
   }
 
   async initialize(): Promise<void> {
@@ -119,7 +180,7 @@ export class Link implements ISubagent {
 
     const linkConfig = this.agentConfig;
     const personality = linkConfig.personality || 'documentation_specialist';
-    const searchTool = this.buildSearchTool();
+    const tools = this.buildTools();
 
     // Update delegate tool description with current document catalog
     if (Link._delegateTool) {
@@ -130,7 +191,7 @@ export class Link implements ISubagent {
     this.display.log(`Link initialized with personality: ${personality}.`, { source: 'Link' });
 
     try {
-      this.agent = await ProviderFactory.create(linkConfig, [searchTool]);
+      this.agent = await ProviderFactory.create(linkConfig, tools);
     } catch (err) {
       throw new ProviderError(
         linkConfig.provider,
@@ -205,6 +266,14 @@ Rules:
 6. If the query is ambiguous, search with multiple relevant terms to maximize coverage.
 7. Keep responses concise and focused on the user's question.
 8. Respond in the language requested by the user. If not explicit, use the dominant language of the task/context.
+
+## Tool Selection Strategy
+- When the user refers to a SPECIFIC document (by name or partial name like "meu currículo", "CV", "contrato"):
+  1. First call **link_list_documents** with a name filter to find the document ID.
+  2. Then call **link_search_in_document** with that document ID for a targeted search.
+- When the user asks a general question without referencing a specific document:
+  - Use **link_search_documents** for a broad search across all documents.
+- When unsure which document contains the answer, start with **link_search_documents**, then narrow down with **link_search_in_document** if results point to a specific file.
 
 ${context ? `Context:\n${context}` : ''}
     `);
