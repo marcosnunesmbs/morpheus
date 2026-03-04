@@ -71,6 +71,11 @@ export class ConfigManager {
       decrypted.trinity = { ...decrypted.trinity, api_key: tryDecrypt(decrypted.trinity.api_key) };
     }
 
+    // Decrypt Link
+    if (decrypted.link?.api_key) {
+      decrypted.link = { ...decrypted.link, api_key: tryDecrypt(decrypted.link.api_key) };
+    }
+
     // Decrypt Audio (Telephonist)
     if (decrypted.audio?.apiKey) {
       decrypted.audio = { ...decrypted.audio, apiKey: tryDecrypt(decrypted.audio.apiKey) };
@@ -118,6 +123,11 @@ export class ConfigManager {
     // Encrypt Trinity
     if (encrypted.trinity?.api_key) {
       encrypted.trinity = { ...encrypted.trinity, api_key: tryEncrypt(encrypted.trinity.api_key) };
+    }
+
+    // Encrypt Link
+    if (encrypted.link?.api_key) {
+      encrypted.link = { ...encrypted.link, api_key: tryEncrypt(encrypted.link.api_key) };
     }
 
     // Encrypt Audio (Telephonist)
@@ -318,6 +328,7 @@ export class ConfigManager {
         max_file_size_mb: resolveNumeric('MORPHEUS_LINK_MAX_FILE_SIZE_MB', config.link?.max_file_size_mb, 50),
         vector_weight: resolveNumeric('MORPHEUS_LINK_VECTOR_WEIGHT', config.link?.vector_weight, 0.8),
         bm25_weight: resolveNumeric('MORPHEUS_LINK_BM25_WEIGHT', config.link?.bm25_weight, 0.2),
+        personality: resolveString('MORPHEUS_LINK_PERSONALITY', config.link?.personality, 'documentation_specialist'),
       };
     }
 
@@ -553,6 +564,7 @@ export class ConfigManager {
       provider: this.config.llm.provider,
       model: this.config.llm.model,
       temperature: this.config.llm.temperature,
+      personality: 'documentation_specialist',
       chunk_size: 500,
       score_threshold: 0.5,
       max_results: 10,

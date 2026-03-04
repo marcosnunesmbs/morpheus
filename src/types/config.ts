@@ -108,6 +108,7 @@ export interface TrinityConfig extends LLMConfig {
 }
 
 export interface LinkConfig extends LLMConfig {
+  personality?: string;
   /** Size of each chunk in characters. Default: 500. */
   chunk_size: number;
   /** Minimum score (0-1) for search results to be included. Default: 0.5. */
@@ -303,10 +304,11 @@ export const DEFAULT_CONFIG: MorpheusConfig = {
     provider: 'openai',
     model: 'gpt-4',
     temperature: 0.2,
+    personality: 'documentation_specialist',
     chunk_size: 500,
     score_threshold: 0.5,
     max_results: 10,
-    execution_mode: 'async',
+    execution_mode: 'sync',
     scan_interval_ms: 30000,
     max_file_size_mb: 50,
     vector_weight: 0.8,

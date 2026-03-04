@@ -7,6 +7,7 @@ import { SelectInput } from '../components/forms/SelectInput';
 import { NumberInput } from '../components/forms/NumberInput';
 import { Switch } from '../components/forms/Switch';
 import { configService } from '../services/config';
+import { httpClient } from '../services/httpClient';
 // @ts-ignore
 import { ConfigSchema } from '../../../config/schemas';
 // @ts-ignore
@@ -75,7 +76,7 @@ export default function Settings() {
   );
   const { data: linkServerConfig } = useSWR(
     '/api/link/config',
-    (url: string) => fetch(url).then(r => r.json())
+    () => httpClient.get<LinkConfig>('/link/config')
   );
   const { data: encryptionStatus } = useSWR(
     '/api/config/encryption-status',
@@ -374,6 +375,21 @@ export default function Settings() {
     });
   };
 
+  const handleLinkUpdate = (field: keyof LinkConfig, value: any) => {
+    if (!localLinkConfig) return;
+    setLocalLinkConfig({ ...localLinkConfig, [field]: value });
+  };
+
+  const handleCopyLinkFromOracle = () => {
+    if (!localConfig || !localLinkConfig) return;
+    setLocalLinkConfig({
+      ...localLinkConfig,
+      provider: localConfig.llm.provider,
+      model: localConfig.llm.model,
+      api_key: localConfig.llm.api_key,
+    });
+  };
+
   const handleSave = async () => {
     if (!localConfig) return;
     setSaving(true);
@@ -403,11 +419,7 @@ export default function Settings() {
       }
 
       if (localLinkConfig) {
-        await fetch('/api/link/config', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(localLinkConfig),
-        });
+        await httpClient.post('/link/config', localLinkConfig);
       }
 
       mutate('/api/config');
@@ -1154,17 +1166,76 @@ export default function Settings() {
             {activeAgentTab === 'link' && (
               <Section title="Link Agent">
                 <p className="text-sm text-azure-text-secondary dark:text-matrix-secondary mb-4">
-                  Documentation specialist — indexes documents from ~/.morpheus/docs and provides RAG search capabilities via hybrid vector + BM25 search
+                  Documentation specialist — indexes documents from ~/.morpheus/docs, uses an LLM to reason over search results and synthesize intelligent answers
                 </p>
 
                 {localLinkConfig && (
                   <>
+                    <div className="mb-4">
+                      <button
+                        type="button"
+                        onClick={handleCopyLinkFromOracle}
+                        className="px-3 py-1.5 text-sm bg-azure-surface border border-azure-border rounded hover:bg-azure-primary/10 dark:bg-matrix-primary/20 dark:border-matrix-primary dark:hover:bg-matrix-highlight/10 text-azure-primary dark:text-matrix-highlight transition-colors"
+                      >
+                        Copy from Oracle Agent
+                      </button>
+                    </div>
+
+                    <SelectInput
+                      label="Provider"
+                      value={localLinkConfig.provider || 'openai'}
+                      onChange={(e) => handleLinkUpdate('provider', e.target.value)}
+                      options={[
+                        { value: 'openai', label: 'OpenAI' },
+                        { value: 'anthropic', label: 'Anthropic' },
+                        { value: 'openrouter', label: 'OpenRouter' },
+                        { value: 'ollama', label: 'Ollama' },
+                        { value: 'gemini', label: 'Gemini' },
+                      ]}
+                    />
+                    <TextInput
+                      label="Model Name"
+                      value={localLinkConfig.model || ''}
+                      onChange={(e) => handleLinkUpdate('model', e.target.value)}
+                      placeholder="e.g., gpt-4"
+                    />
+                    <TextInput
+                      label="Personality"
+                      value={localLinkConfig.personality || ''}
+                      onChange={(e) => handleLinkUpdate('personality', e.target.value)}
+                      placeholder="documentation_specialist"
+                    />
+                    <SelectInput
+                      label="Execution Mode"
+                      value={localLinkConfig.execution_mode || 'async'}
+                      onChange={(e) => handleLinkUpdate('execution_mode', e.target.value)}
+                      options={[
+                        { value: 'async', label: 'Async (background task)' },
+                        { value: 'sync', label: 'Sync (inline response)' },
+                      ]}
+                    />
+                    <NumberInput
+                      label="Temperature"
+                      value={localLinkConfig.temperature ?? 0.2}
+                      onChange={(e) => handleLinkUpdate('temperature', parseFloat(e.target.value))}
+                      step={0.1}
+                      min={0}
+                      max={1}
+                    />
+                    <TextInput
+                      label="API Key (optional — falls back to Oracle)"
+                      value={localLinkConfig.api_key || ''}
+                      onChange={(e) => handleLinkUpdate('api_key', e.target.value || undefined)}
+                      type="password"
+                      placeholder="Leave empty to use Oracle's API key"
+                    />
+
+                    <h4 className="text-sm font-medium text-azure-text dark:text-matrix-highlight mt-6 mb-3">RAG Settings</h4>
+
                     <NumberInput
                       label="Chunk Size"
                       value={localLinkConfig.chunk_size}
-                      onChange={(e) =>
-                        setLocalLinkConfig({ ...localLinkConfig, chunk_size: parseInt(e.target.value) || 500 })
-                      }
+                      onChange={(e) => handleLinkUpdate('chunk_size', parseInt(e.target.value) || 500)}
                       min={100}
                       max={2000}
                       helperText="Character count per document chunk (default: 500)"
@@ -1172,9 +1243,7 @@ export default function Settings() {
                     <NumberInput
                       label="Score Threshold"
                       value={localLinkConfig.score_threshold}
-                      onChange={(e) =>
-                        setLocalLinkConfig({ ...localLinkConfig, score_threshold: parseFloat(e.target.value) || 0.5 })
-                      }
+                      onChange={(e) => handleLinkUpdate('score_threshold', parseFloat(e.target.value) || 0.5)}
                       step={0.1}
                       min={0}
                       max={1}
@@ -1183,30 +1252,15 @@ export default function Settings() {
                     <NumberInput
                       label="Max Results"
                       value={localLinkConfig.max_results}
-                      onChange={(e) =>
-                        setLocalLinkConfig({ ...localLinkConfig, max_results: parseInt(e.target.value) || 10 })
-                      }
+                      onChange={(e) => handleLinkUpdate('max_results', parseInt(e.target.value) || 10)}
                       min={1}
                       max={50}
                       helperText="Maximum number of chunks to return per search (default: 10)"
                     />
-                    <SelectInput
-                      label="Execution Mode"
-                      value={localLinkConfig.execution_mode || 'async'}
-                      onChange={(e) =>
-                        setLocalLinkConfig({ ...localLinkConfig, execution_mode: e.target.value as 'sync' | 'async' })
-                      }
-                      options={[
-                        { value: 'async', label: 'Async (background task)' },
-                        { value: 'sync', label: 'Sync (inline response)' },
-                      ]}
-                    />
                     <NumberInput
                       label="Scan Interval (ms)"
                       value={localLinkConfig.scan_interval_ms}
-                      onChange={(e) =>
-                        setLocalLinkConfig({ ...localLinkConfig, scan_interval_ms: parseInt(e.target.value) || 30000 })
-                      }
+                      onChange={(e) => handleLinkUpdate('scan_interval_ms', parseInt(e.target.value) || 30000)}
                       min={5000}
                       max={300000}
                       helperText="How often to scan docs folder for changes (default: 30000ms = 30s)"
@@ -1214,9 +1268,7 @@ export default function Settings() {
                     <NumberInput
                       label="Max File Size (MB)"
                       value={localLinkConfig.max_file_size_mb}
-                      onChange={(e) =>
-                        setLocalLinkConfig({ ...localLinkConfig, max_file_size_mb: parseInt(e.target.value) || 50 })
-                      }
+                      onChange={(e) => handleLinkUpdate('max_file_size_mb', parseInt(e.target.value) || 50)}
                       min={1}
                       max={100}
                       helperText="Maximum file size to process (default: 50MB)"
@@ -1225,9 +1277,7 @@ export default function Settings() {
                       <NumberInput
                         label="Vector Weight"
                         value={localLinkConfig.vector_weight}
-                        onChange={(e) =>
-                          setLocalLinkConfig({ ...localLinkConfig, vector_weight: parseFloat(e.target.value) || 0.8 })
-                        }
+                        onChange={(e) => handleLinkUpdate('vector_weight', parseFloat(e.target.value) || 0.8)}
                         step={0.1}
                         min={0}
                         max={1}
@@ -1236,9 +1286,7 @@ export default function Settings() {
                       <NumberInput
                         label="BM25 Weight"
                         value={localLinkConfig.bm25_weight}
-                        onChange={(e) =>
-                          setLocalLinkConfig({ ...localLinkConfig, bm25_weight: parseFloat(e.target.value) || 0.2 })
-                        }
+                        onChange={(e) => handleLinkUpdate('bm25_weight', parseFloat(e.target.value) || 0.2)}
                         step={0.1}
                         min={0}
                         max={1}

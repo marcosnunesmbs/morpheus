@@ -43,6 +43,7 @@ export const TrinityConfigSchema = LLMConfigSchema.extend({
 });
 
 export const LinkConfigSchema = LLMConfigSchema.extend({
+    personality: z.string().optional(),
     chunk_size: z.number().int().positive().default(500),
     score_threshold: z.number().min(0).max(1).default(0.5),
     max_results: z.number().int().positive().default(10),

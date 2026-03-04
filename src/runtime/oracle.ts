@@ -29,7 +29,7 @@ import { buildSetupTool } from './tools/setup-tool.js';import { emitToolAuditEve
 import { text } from "stream/consumers";
 
 const ORACLE_DELEGATION_TOOLS = new Set([
-  'apoc_delegate', 'neo_delegate', 'trinity_delegate', 'smith_delegate',
+  'apoc_delegate', 'neo_delegate', 'trinity_delegate', 'smith_delegate', 'link_delegate',
   'skill_delegate', 'skill_execute',
 ]);
 
@@ -157,7 +157,7 @@ export class Oracle implements IOracle {
       if (!(msg instanceof AIMessage)) continue;
       const toolCalls = (msg as any).tool_calls ?? [];
       if (!Array.isArray(toolCalls)) continue;
-      if (toolCalls.some((tc: any) => tc?.name === "apoc_delegate" || tc?.name === "neo_delegate" || tc?.name === "trinity_delegate" || tc?.name === "smith_delegate")) {
+      if (toolCalls.some((tc: any) => tc?.name === "apoc_delegate" || tc?.name === "neo_delegate" || tc?.name === "trinity_delegate" || tc?.name === "smith_delegate" || tc?.name === "link_delegate")) {
         return true;
       }
     }
@@ -195,6 +195,7 @@ export class Oracle implements IOracle {
       // Fail-open: Oracle can still initialize even if catalog refresh fails.
       await Neo.refreshDelegateCatalog().catch(() => {});
       await Trinity.refreshDelegateCatalog().catch(() => {});
+      await Link.refreshDelegateCatalog().catch(() => {});
       updateSkillToolDescriptions();
 
       // Build tool list — conditionally include SmithDelegateTool based on config
@@ -346,7 +347,8 @@ Rules:
 9. Avoid duplicate delegations to the same tool or agent.
 10. After enqueuing all required delegated tasks for the current message, stop calling tools and return a concise acknowledgement.
 11. If a delegation is rejected as "not atomic", immediately split into smaller delegations and retry.
-12. When the user message contains @neo, @apoc, or @trinity (case-insensitive), delegate to that specific agent. The mention is an explicit routing directive — respect it even if another agent might also handle the request.
+12. When the user message contains @link, @neo, @apoc, or @trinity (case-insensitive), delegate to that specific agent. The mention is an explicit routing directive — respect it even if another agent might also handle the request.
+13. Smiths also have names and could be called by @smithname — respect this as an explicit routing directive as well.
 
 ## Chronos Channel Routing
 When calling chronos_schedule, set notify_channels based on the user's message:
@@ -507,7 +509,7 @@ Use it to inform your response and tool selection (if needed), but do not assume
       let syncDelegationCount = 0;
       const oracleStartMs = Date.now();
       const response = await TaskRequestContext.run(invokeContext, async () => {
-        const agentResponse = await this.provider!.invoke({ messages }, { recursionLimit: 50 });
+        const agentResponse = await this.provider!.invoke({ messages }, { recursionLimit: 5 });
         contextDelegationAcks = TaskRequestContext.getDelegationAcks();
         syncDelegationCount = TaskRequestContext.getSyncDelegationCount();
         return agentResponse;
@@ -542,7 +544,7 @@ Use it to inform your response and tool selection (if needed), but do not assume
       const newGeneratedMessages = response.messages.slice(startNewMessagesIndex);
 
       // Emit tool_call audit events for Oracle's independent tool calls.
-      // Delegation tools (apoc/neo/trinity/smith/skill) are already audited
+      // Delegation tools (apoc/neo/trinity/smith/skill/link) are already audited
       // inside buildDelegationTool or the task system — skip them here.
       emitToolAuditEvents(newGeneratedMessages, currentSessionId ?? 'default', 'oracle', {
         skipTools: ORACLE_DELEGATION_TOOLS,
@@ -773,6 +775,9 @@ Use it to inform your response and tool selection (if needed), but do not assume
       ...chronosTools,
     ]);
     await Neo.getInstance().reload();
+    await Apoc.getInstance().reload();
+    await Trinity.getInstance().reload();
+    await Link.getInstance().reload();
     this.display.log(`Oracle and Neo tools reloaded`, { source: 'Oracle' });
   }
 }
