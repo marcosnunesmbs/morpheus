@@ -1,7 +1,7 @@
 import fs from 'fs-extra';
 import yaml from 'js-yaml';
 import { z } from 'zod';
-import { MorpheusConfig, DEFAULT_CONFIG, SatiConfig, ApocConfig, NeoConfig, TrinityConfig, LLMProvider, ChronosConfig, SubAgentExecutionMode, DevKitConfig, SmithsConfig, SetupConfig } from '../types/config.js';
+import { MorpheusConfig, DEFAULT_CONFIG, SatiConfig, ApocConfig, NeoConfig, TrinityConfig, LinkConfig, LLMProvider, ChronosConfig, SubAgentExecutionMode, DevKitConfig, SmithsConfig, SetupConfig } from '../types/config.js';
 import { PATHS } from './paths.js';
 import { setByPath } from './utils.js';
 import { ConfigSchema } from './schemas.js';
@@ -287,6 +287,40 @@ export class ConfigManager {
       };
     }
 
+    // Apply precedence to Link config
+    const linkEnvVars = [
+      'MORPHEUS_LINK_PROVIDER',
+      'MORPHEUS_LINK_MODEL',
+      'MORPHEUS_LINK_TEMPERATURE',
+      'MORPHEUS_LINK_API_KEY',
+    ];
+    const hasLinkEnvOverrides = linkEnvVars.some((envVar) => process.env[envVar] !== undefined);
+
+    let linkConfig: LinkConfig | undefined;
+    if (config.link || hasLinkEnvOverrides) {
+      const linkProvider = resolveProvider('MORPHEUS_LINK_PROVIDER', config.link?.provider, llmConfig.provider);
+      const linkMaxTokensFallback = config.link?.max_tokens ?? llmConfig.max_tokens;
+      const linkContextWindowFallback = config.link?.context_window ?? llmConfig.context_window;
+
+      linkConfig = {
+        provider: linkProvider,
+        model: resolveModel(linkProvider, 'MORPHEUS_LINK_MODEL', config.link?.model || llmConfig.model),
+        temperature: resolveNumeric('MORPHEUS_LINK_TEMPERATURE', config.link?.temperature, llmConfig.temperature),
+        max_tokens: resolveOptionalNumeric('MORPHEUS_LINK_MAX_TOKENS', config.link?.max_tokens, linkMaxTokensFallback),
+        api_key: resolveApiKey(linkProvider, 'MORPHEUS_LINK_API_KEY', config.link?.api_key || llmConfig.api_key),
+        base_url: config.link?.base_url || config.llm.base_url,
+        context_window: resolveOptionalNumeric('MORPHEUS_LINK_CONTEXT_WINDOW', config.link?.context_window, linkContextWindowFallback),
+        chunk_size: resolveNumeric('MORPHEUS_LINK_CHUNK_SIZE', config.link?.chunk_size, 500),
+        score_threshold: resolveNumeric('MORPHEUS_LINK_SCORE_THRESHOLD', config.link?.score_threshold, 0.5),
+        max_results: resolveNumeric('MORPHEUS_LINK_MAX_RESULTS', config.link?.max_results, 10),
+        execution_mode: resolveString('MORPHEUS_LINK_EXECUTION_MODE', config.link?.execution_mode, 'async') as SubAgentExecutionMode,
+        scan_interval_ms: resolveNumeric('MORPHEUS_LINK_SCAN_INTERVAL_MS', config.link?.scan_interval_ms, 30000),
+        max_file_size_mb: resolveNumeric('MORPHEUS_LINK_MAX_FILE_SIZE_MB', config.link?.max_file_size_mb, 50),
+        vector_weight: resolveNumeric('MORPHEUS_LINK_VECTOR_WEIGHT', config.link?.vector_weight, 0.8),
+        bm25_weight: resolveNumeric('MORPHEUS_LINK_BM25_WEIGHT', config.link?.bm25_weight, 0.2),
+      };
+    }
+
     // Apply precedence to audio config
     const audioProvider = resolveString('MORPHEUS_AUDIO_PROVIDER', config.audio.provider, DEFAULT_CONFIG.audio.provider) as typeof config.audio.provider;
     // AudioProvider uses 'google' but resolveApiKey expects LLMProvider which uses 'gemini'
@@ -366,6 +400,7 @@ export class ConfigManager {
       neo: neoConfig,
       apoc: apocConfig,
       trinity: trinityConfig,
+      link: linkConfig,
       audio: audioConfig,
       channels: channelsConfig,
       ui: uiConfig,
@@ -509,6 +544,26 @@ export class ConfigManager {
     };
     if (this.config.smiths) {
       return { ...defaults, ...this.config.smiths };
+    }
+    return defaults;
+  }
+
+  public getLinkConfig(): LinkConfig {
+    const defaults: LinkConfig = {
+      provider: this.config.llm.provider,
+      model: this.config.llm.model,
+      temperature: this.config.llm.temperature,
+      chunk_size: 500,
+      score_threshold: 0.5,
+      max_results: 10,
+      execution_mode: 'async',
+      scan_interval_ms: 30000,
+      max_file_size_mb: 50,
+      vector_weight: 0.8,
+      bm25_weight: 0.2,
+    };
+    if (this.config.link) {
+      return { ...defaults, ...this.config.link };
     }
     return defaults;
   }

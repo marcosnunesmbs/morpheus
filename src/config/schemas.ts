@@ -42,6 +42,17 @@ export const TrinityConfigSchema = LLMConfigSchema.extend({
     execution_mode: z.enum(['sync', 'async']).default('async'),
 });
 
+export const LinkConfigSchema = LLMConfigSchema.extend({
+    chunk_size: z.number().int().positive().default(500),
+    score_threshold: z.number().min(0).max(1).default(0.5),
+    max_results: z.number().int().positive().default(10),
+    execution_mode: z.enum(['sync', 'async']).default('async'),
+    scan_interval_ms: z.number().int().min(5000).default(30000),
+    max_file_size_mb: z.number().int().positive().default(50),
+    vector_weight: z.number().min(0).max(1).default(0.8),
+    bm25_weight: z.number().min(0).max(1).default(0.2),
+});
+
 export const KeymakerConfigSchema = LLMConfigSchema.extend({
     skills_dir: z.string().optional(),
 });
@@ -100,6 +111,7 @@ export const ConfigSchema = z.object({
   neo: NeoConfigSchema.optional(),
   apoc: ApocConfigSchema.optional(),
   trinity: TrinityConfigSchema.optional(),
+  link: LinkConfigSchema.optional(),
   keymaker: KeymakerConfigSchema.optional(),
   webhooks: WebhookConfigSchema,
   audio: AudioConfigSchema.default(DEFAULT_CONFIG.audio),

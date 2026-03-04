@@ -26,6 +26,8 @@ import { ChronosRepository } from '../../runtime/chronos/repository.js';
 import { SkillRegistry } from '../../runtime/skills/index.js';
 import { MCPToolCache } from '../../runtime/tools/cache.js';
 import { SmithRegistry } from '../../runtime/smiths/registry.js';
+import { Link } from '../../runtime/link.js';
+import { LinkWorker } from '../../runtime/link-worker.js';
 
 // Load .env file explicitly in start command
 const envPath = path.join(process.cwd(), '.env');
@@ -185,6 +187,16 @@ export const startCommand = new Command('start')
         display.log(chalk.yellow(`Smiths initialization warning: ${err.message}`), { source: 'Smiths' });
       }
 
+      // Initialize Link (Documentation Specialist) before Oracle
+      try {
+        const linkConfig = ConfigManager.getInstance().getLinkConfig();
+        const link = Link.getInstance(config);
+        await link.initialize();
+        display.log(chalk.green('✓ Link initialized'), { source: 'Link' });
+      } catch (err: any) {
+        display.log(chalk.yellow(`Link initialization warning: ${err.message}`), { source: 'Link' });
+      }
+
       // Initialize Oracle
       const oracle = new Oracle(config);
       try {
@@ -277,6 +289,9 @@ export const startCommand = new Command('start')
       // Start Background Services
       startSessionEmbeddingScheduler();
       chronosWorker.start();
+      // Start LinkWorker for document indexing
+      const linkWorker = LinkWorker.getInstance();
+      linkWorker.start();
       if (asyncTasksEnabled) {
         taskWorker.start();
         taskNotifier.start();
@@ -300,6 +315,7 @@ export const startCommand = new Command('start')
           await adapter.disconnect();
         }
         chronosWorker.stop();
+        linkWorker.stop();
         if (asyncTasksEnabled) {
           taskWorker.stop();
           taskNotifier.stop();

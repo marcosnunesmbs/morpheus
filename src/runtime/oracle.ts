@@ -17,6 +17,7 @@ import type { OracleTaskContext } from "./tasks/types.js";
 import { TaskRepository } from "./tasks/repository.js";
 import { Neo } from "./neo.js";
 import { Trinity } from "./trinity.js";
+import { Link } from "./link.js";
 import { SmithDelegateTool } from "./tools/smith-tool.js";
 import { TaskQueryTool, chronosTools, timeVerifierTool } from "./tools/index.js";
 import { Construtor } from "./tools/factory.js";
@@ -206,6 +207,7 @@ export class Oracle implements IOracle {
         Neo.getInstance().createDelegateTool(),
         Apoc.getInstance().createDelegateTool(),
         Trinity.getInstance().createDelegateTool(),
+        Link.getInstance().createDelegateTool(),
         SkillExecuteTool,
         SkillDelegateTool,
         timeVerifierTool,
@@ -493,6 +495,7 @@ Use it to inform your response and tool selection (if needed), but do not assume
       Apoc.setSessionId(currentSessionId);
       Neo.setSessionId(currentSessionId);
       Trinity.setSessionId(currentSessionId);
+      Link.setSessionId(currentSessionId);
 
       const invokeContext: OracleTaskContext = {
         origin_channel: taskContext?.origin_channel ?? "api",
@@ -755,6 +758,7 @@ Use it to inform your response and tool selection (if needed), but do not assume
 
     await Neo.refreshDelegateCatalog().catch(() => {});
     await Trinity.refreshDelegateCatalog().catch(() => {});
+    await Link.refreshDelegateCatalog().catch(() => {});
     updateSkillToolDescriptions();
     this.provider = await ProviderFactory.create(this.config.llm, [
       buildSetupTool(),
@@ -762,6 +766,7 @@ Use it to inform your response and tool selection (if needed), but do not assume
       Neo.getInstance().createDelegateTool(),
       Apoc.getInstance().createDelegateTool(),
       Trinity.getInstance().createDelegateTool(),
+      Link.getInstance().createDelegateTool(),
       SkillExecuteTool,
       SkillDelegateTool,
       timeVerifierTool,

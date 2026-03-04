@@ -25,6 +25,7 @@ import { createChronosJobRouter, createChronosConfigRouter } from './routers/chr
 import { createSkillsRouter } from './routers/skills.js';
 import { createSmithsRouter } from './routers/smiths.js';
 import { createDangerRouter } from './routers/danger.js';
+import { createLinkRouter } from './routers/link.js';
 import { getActiveEnvOverrides } from '../config/precedence.js';
 import { hotReloadConfig, getRestartRequiredChanges } from '../runtime/hot-reload.js';
 import { AuditRepository } from '../runtime/audit/repository.js';
@@ -61,6 +62,9 @@ export function createApiRouter(oracle: IOracle, chronosWorker?: ChronosWorker) 
 
   // Mount Danger Zone router
   router.use('/danger', createDangerRouter());
+
+  // Mount Link router (Documentation management)
+  router.use('/link', createLinkRouter());
 
   // --- Session Management ---
 

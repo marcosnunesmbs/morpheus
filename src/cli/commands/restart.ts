@@ -16,6 +16,8 @@ import { getVersion } from '../utils/version.js';
 import { TaskWorker } from '../../runtime/tasks/worker.js';
 import { TaskNotifier } from '../../runtime/tasks/notifier.js';
 import { WebhookDispatcher } from '../../runtime/webhooks/dispatcher.js';
+import { Link } from '../../runtime/link.js';
+import { LinkWorker } from '../../runtime/link-worker.js';
 
 export const restartCommand = new Command('restart')
   .description('Restart the Morpheus agent')
@@ -112,6 +114,15 @@ export const restartCommand = new Command('restart')
         process.exit(1);
       }
 
+      // Initialize Link (Documentation Specialist)
+      try {
+        const link = Link.getInstance(config);
+        await link.initialize();
+        display.log(chalk.green('✓ Link initialized'), { source: 'Link' });
+      } catch (err: any) {
+        display.log(chalk.yellow(`Link initialization warning: ${err.message}`), { source: 'Link' });
+      }
+
       const adapters: any[] = [];
       let httpServer: HttpServer | undefined;
       const taskWorker = new TaskWorker();
@@ -154,6 +165,10 @@ export const restartCommand = new Command('restart')
         taskNotifier.start();
       }
 
+      // Start LinkWorker for document indexing
+      const linkWorker = LinkWorker.getInstance();
+      linkWorker.start();
+
       // Handle graceful shutdown
       const shutdown = async (signal: string) => {
         display.stopSpinner();
@@ -166,6 +181,7 @@ export const restartCommand = new Command('restart')
         for (const adapter of adapters) {
           await adapter.disconnect();
         }
+        linkWorker.stop();
         if (asyncTasksEnabled) {
           taskWorker.stop();
           taskNotifier.stop();

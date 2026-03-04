@@ -19,7 +19,8 @@ export type AuditAgent =
   | 'keymaker'
   | 'chronos'
   | 'sati'
-  | 'telephonist';
+  | 'telephonist'
+  | 'link';
 
 export type AuditStatus = 'success' | 'error';
 

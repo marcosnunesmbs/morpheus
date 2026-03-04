@@ -146,7 +146,7 @@ function Section({ title, icon, children }: { title: string; icon: React.ReactNo
 
 const AGENT_EMOJIS: Record<string, string> = {
   oracle: '🔮', apoc: '🧑‍🔬', neo: '🥷', trinity: '👩‍💻',
-  smith: '🤖', keymaker: '🗝️', chronos: '⏰', sati: '🧠', telephonist: '📞', unknown: '?',
+  smith: '🤖', keymaker: '🗝️', chronos: '⏰', sati: '🧠', telephonist: '📞', link: '📄', unknown: '?',
 };
 const AGENT_COLORS: Record<string, string> = {
   oracle:      'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300',
@@ -158,6 +158,7 @@ const AGENT_COLORS: Record<string, string> = {
   chronos:     'bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300',
   sati:        'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300',
   telephonist: 'bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300',
+  link:        'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300',
   unknown:     'bg-gray-100 text-gray-500 dark:bg-zinc-800 dark:text-matrix-secondary/60',
 };
 

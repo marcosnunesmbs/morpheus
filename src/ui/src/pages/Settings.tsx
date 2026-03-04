@@ -16,6 +16,7 @@ import type {
   NeoConfig,
   ApocConfig,
   TrinityConfig,
+  LinkConfig,
 } from '../../../types/config';
 import { ZodError } from 'zod';
 import { Settings as SettingsIcon, X, AlertTriangle } from 'lucide-react';
@@ -40,6 +41,7 @@ const AGENT_TABS = [
   { id: 'neo', label: 'Neo' },
   { id: 'apoc', label: 'Apoc' },
   { id: 'trinity', label: 'Trinity' },
+  { id: 'link', label: 'Link' },
 ];
 
 const PROVIDER_OPTIONS = [
@@ -71,6 +73,10 @@ export default function Settings() {
     '/api/config/trinity',
     configService.getTrinityConfig
   );
+  const { data: linkServerConfig } = useSWR(
+    '/api/link/config',
+    (url: string) => fetch(url).then(r => r.json())
+  );
   const { data: encryptionStatus } = useSWR(
     '/api/config/encryption-status',
     () => configService.getEncryptionStatus()
@@ -88,6 +94,7 @@ export default function Settings() {
   const [localNeoConfig, setLocalNeoConfig] = useState<NeoConfig | null>(null);
   const [localApocConfig, setLocalApocConfig] = useState<ApocConfig | null>(null);
   const [localTrinityConfig, setLocalTrinityConfig] = useState<TrinityConfig | null>(null);
+  const [localLinkConfig, setLocalLinkConfig] = useState<LinkConfig | null>(null);
   const [activeTab, setActiveTab] = useState('general');
   const [activeAgentTab, setActiveAgentTab] = useState('oracle');
   const [saving, setSaving] = useState(false);
@@ -150,13 +157,20 @@ export default function Settings() {
     }
   }, [chronosServerConfig]);
 
+  useEffect(() => {
+    if (linkServerConfig && !localLinkConfig) {
+      setLocalLinkConfig(linkServerConfig);
+    }
+  }, [linkServerConfig]);
+
   const isDirty =
     JSON.stringify(serverConfig) !== JSON.stringify(localConfig) ||
     JSON.stringify(satiServerConfig) !== JSON.stringify(localSatiConfig) ||
     JSON.stringify(neoServerConfig) !== JSON.stringify(localNeoConfig) ||
     JSON.stringify(apocServerConfig) !== JSON.stringify(localApocConfig) ||
     JSON.stringify(trinityServerConfig) !== JSON.stringify(localTrinityConfig) ||
-    JSON.stringify(chronosServerConfig) !== JSON.stringify(localChronosConfig);
+    JSON.stringify(chronosServerConfig) !== JSON.stringify(localChronosConfig) ||
+    JSON.stringify(linkServerConfig) !== JSON.stringify(localLinkConfig);
 
   const tabDirty: Record<string, boolean> = {
     general:
@@ -167,7 +181,8 @@ export default function Settings() {
       JSON.stringify(satiServerConfig) !== JSON.stringify(localSatiConfig) ||
       JSON.stringify(neoServerConfig) !== JSON.stringify(localNeoConfig) ||
       JSON.stringify(apocServerConfig) !== JSON.stringify(localApocConfig) ||
-      JSON.stringify(trinityServerConfig) !== JSON.stringify(localTrinityConfig),
+      JSON.stringify(trinityServerConfig) !== JSON.stringify(localTrinityConfig) ||
+      JSON.stringify(linkServerConfig) !== JSON.stringify(localLinkConfig),
     devkit: JSON.stringify(serverConfig?.devkit) !== JSON.stringify(localConfig?.devkit),
     audio: JSON.stringify(serverConfig?.audio) !== JSON.stringify(localConfig?.audio),
     channels:
@@ -387,12 +402,21 @@ export default function Settings() {
         await chronosService.updateConfig(localChronosConfig);
       }
 
+      if (localLinkConfig) {
+        await fetch('/api/link/config', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(localLinkConfig),
+        });
+      }
+
       mutate('/api/config');
       mutate('/api/config/sati');
       mutate('/api/config/neo');
       mutate('/api/config/apoc');
       mutate('/api/config/trinity');
       mutate('/api/config/chronos');
+      mutate('/api/link/config');
 
       setErrors({});
 
@@ -1121,6 +1145,109 @@ export default function Settings() {
                         helperText="Base URL for OpenRouter API"
                       />
                     )}
+                  </>
+                )}
+              </Section>
+            )}
+
+            {/* Link */}
+            {activeAgentTab === 'link' && (
+              <Section title="Link Agent">
+                <p className="text-sm text-azure-text-secondary dark:text-matrix-secondary mb-4">
+                  Documentation specialist — indexes documents from ~/.morpheus/docs and provides RAG search capabilities via hybrid vector + BM25 search
+                </p>
+
+                {localLinkConfig && (
+                  <>
+                    <NumberInput
+                      label="Chunk Size"
+                      value={localLinkConfig.chunk_size}
+                      onChange={(e) =>
+                        setLocalLinkConfig({ ...localLinkConfig, chunk_size: parseInt(e.target.value) || 500 })
+                      }
+                      min={100}
+                      max={2000}
+                      helperText="Character count per document chunk (default: 500)"
+                    />
+                    <NumberInput
+                      label="Score Threshold"
+                      value={localLinkConfig.score_threshold}
+                      onChange={(e) =>
+                        setLocalLinkConfig({ ...localLinkConfig, score_threshold: parseFloat(e.target.value) || 0.5 })
+                      }
+                      step={0.1}
+                      min={0}
+                      max={1}
+                      helperText="Minimum similarity score to include in results (0-1, default: 0.5)"
+                    />
+                    <NumberInput
+                      label="Max Results"
+                      value={localLinkConfig.max_results}
+                      onChange={(e) =>
+                        setLocalLinkConfig({ ...localLinkConfig, max_results: parseInt(e.target.value) || 10 })
+                      }
+                      min={1}
+                      max={50}
+                      helperText="Maximum number of chunks to return per search (default: 10)"
+                    />
+                    <SelectInput
+                      label="Execution Mode"
+                      value={localLinkConfig.execution_mode || 'async'}
+                      onChange={(e) =>
+                        setLocalLinkConfig({ ...localLinkConfig, execution_mode: e.target.value as 'sync' | 'async' })
+                      }
+                      options={[
+                        { value: 'async', label: 'Async (background task)' },
+                        { value: 'sync', label: 'Sync (inline response)' },
+                      ]}
+                    />
+                    <NumberInput
+                      label="Scan Interval (ms)"
+                      value={localLinkConfig.scan_interval_ms}
+                      onChange={(e) =>
+                        setLocalLinkConfig({ ...localLinkConfig, scan_interval_ms: parseInt(e.target.value) || 30000 })
+                      }
+                      min={5000}
+                      max={300000}
+                      helperText="How often to scan docs folder for changes (default: 30000ms = 30s)"
+                    />
+                    <NumberInput
+                      label="Max File Size (MB)"
+                      value={localLinkConfig.max_file_size_mb}
+                      onChange={(e) =>
+                        setLocalLinkConfig({ ...localLinkConfig, max_file_size_mb: parseInt(e.target.value) || 50 })
+                      }
+                      min={1}
+                      max={100}
+                      helperText="Maximum file size to process (default: 50MB)"
+                    />
+                    <div className="grid grid-cols-2 gap-4">
+                      <NumberInput
+                        label="Vector Weight"
+                        value={localLinkConfig.vector_weight}
+                        onChange={(e) =>
+                          setLocalLinkConfig({ ...localLinkConfig, vector_weight: parseFloat(e.target.value) || 0.8 })
+                        }
+                        step={0.1}
+                        min={0}
+                        max={1}
+                        helperText="Weight for vector similarity (default: 0.8)"
+                      />
+                      <NumberInput
+                        label="BM25 Weight"
+                        value={localLinkConfig.bm25_weight}
+                        onChange={(e) =>
+                          setLocalLinkConfig({ ...localLinkConfig, bm25_weight: parseFloat(e.target.value) || 0.2 })
+                        }
+                        step={0.1}
+                        min={0}
+                        max={1}
+                        helperText="Weight for keyword matching (default: 0.2)"
+                      />
+                    </div>
+                    <p className="text-xs text-azure-text-secondary dark:text-matrix-secondary mt-2">
+                      Note: Vector weight + BM25 weight should equal 1.0 for balanced results
+                    </p>
                   </>
                 )}
               </Section>

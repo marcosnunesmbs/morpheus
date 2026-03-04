@@ -3,6 +3,7 @@ import { DisplayManager } from '../display.js';
 import { Apoc } from '../apoc.js';
 import { Neo } from '../neo.js';
 import { Trinity } from '../trinity.js';
+import { Link } from '../link.js';
 import { executeKeymakerTask } from '../keymaker.js';
 import { SmithDelegator } from '../smiths/delegator.js';
 import { TaskRepository } from './repository.js';
@@ -134,6 +135,16 @@ export class TaskWorker {
           }
           const delegator = SmithDelegator.getInstance();
           result = await delegator.delegate(smithName, task.input, task.context ?? undefined);
+          break;
+        }
+        case 'link': {
+          const link = Link.getInstance();
+          result = await link.execute(task.input, task.context ?? undefined, task.session_id, {
+            origin_channel: task.origin_channel,
+            session_id: task.session_id,
+            origin_message_id: task.origin_message_id ?? undefined,
+            origin_user_id: task.origin_user_id ?? undefined,
+          });
           break;
         }
         default: {

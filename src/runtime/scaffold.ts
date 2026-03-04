@@ -88,6 +88,7 @@ export async function scaffold(): Promise<void> {
       fs.ensureDir(PATHS.cache),
       fs.ensureDir(PATHS.commands),
       fs.ensureDir(PATHS.skills),
+      fs.ensureDir(PATHS.docs),
     ]);
 
     // Migrate config.yaml -> zaion.yaml if needed

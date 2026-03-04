@@ -107,6 +107,25 @@ export interface TrinityConfig extends LLMConfig {
   execution_mode?: SubAgentExecutionMode;
 }
 
+export interface LinkConfig extends LLMConfig {
+  /** Size of each chunk in characters. Default: 500. */
+  chunk_size: number;
+  /** Minimum score (0-1) for search results to be included. Default: 0.5. */
+  score_threshold: number;
+  /** Maximum number of chunks to return in search results. Default: 10. */
+  max_results: number;
+  /** Execution mode: sync (inline) or async (background task). Default: 'async'. */
+  execution_mode: SubAgentExecutionMode;
+  /** Document scan interval in milliseconds. Default: 30000 (30 seconds). */
+  scan_interval_ms: number;
+  /** Maximum file size in MB. Default: 50. */
+  max_file_size_mb: number;
+  /** Weight for vector similarity search (0-1). Default: 0.8. */
+  vector_weight: number;
+  /** Weight for BM25 text search (0-1). Default: 0.2. */
+  bm25_weight: number;
+}
+
 export interface KeymakerConfig extends LLMConfig {
   personality?: string;
   skills_dir?: string;
@@ -183,6 +202,7 @@ export interface MorpheusConfig {
   neo?: NeoConfig;
   apoc?: ApocConfig;
   trinity?: TrinityConfig;
+  link?: LinkConfig;
   keymaker?: KeymakerConfig;
   devkit?: DevKitConfig;
   smiths?: SmithsConfig;
@@ -278,6 +298,19 @@ export const DEFAULT_CONFIG: MorpheusConfig = {
     temperature: 0.2,
     personality: 'data_specialist',
     execution_mode: 'async',
+  },
+  link: {
+    provider: 'openai',
+    model: 'gpt-4',
+    temperature: 0.2,
+    chunk_size: 500,
+    score_threshold: 0.5,
+    max_results: 10,
+    execution_mode: 'async',
+    scan_interval_ms: 30000,
+    max_file_size_mb: 50,
+    vector_weight: 0.8,
+    bm25_weight: 0.2,
   },
   smiths: {
     enabled: false,
