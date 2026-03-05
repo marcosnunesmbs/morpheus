@@ -75,6 +75,7 @@ Oracle is the root orchestrator. It delegates to specialized subagents via tools
 | `apoc_delegate` | Apoc | `src/runtime/apoc.ts` | Filesystem, shell, git, browser via DevKit |
 | `trinity_delegate` | Trinity | `src/runtime/trinity.ts` | PostgreSQL, MySQL, SQLite, MongoDB |
 | `neo_delegate` | Neo | `src/runtime/neo.ts` | MCP tool orchestration |
+| `link_delegate` | Link | `src/runtime/link.ts` | Document search and RAG over indexed files |
 | `smith_delegate` | Smith (remote) | `src/runtime/smiths/delegator.ts` | Remote DevKit execution via WebSocket |
 
 Oracle never executes DevKit/MCP tools directly — it routes through subagents.
@@ -190,14 +191,13 @@ case 'myagent': {
 
 #### Out of scope for this pattern
 
-- **Keymaker** — per-task instantiation (not singleton), no delegation tool; uses `subagent-utils` only.
 - **Smith** — multi-instance registry, different delegation architecture; has its own `smith-tool.ts`.
 
 **Subagent Execution Mode** (`execution_mode: 'sync' | 'async'`):
 
-Each subagent (Apoc, Neo, Trinity, Smith) can be configured to run synchronously or asynchronously:
+Each subagent (Apoc, Neo, Trinity, Link, Smith) can be configured to run synchronously or asynchronously:
 - **`async`** (default): Creates a background task in the queue. TaskWorker picks it up, executes it, and TaskNotifier delivers the result via the originating channel. Oracle responds immediately with a task acknowledgement.
-- **`sync`**: Oracle executes the subagent inline during the same turn. The result is returned directly in Oracle's response, like `skill_execute` does for Keymaker. No task is created in the queue.
+- **`sync`**: Oracle executes the subagent inline during the same turn. The result is returned directly in Oracle's response. No task is created in the queue.
 
 Configurable via `zaion.yaml` (e.g., `neo.execution_mode: sync`), env var (e.g., `MORPHEUS_NEO_EXECUTION_MODE=sync`), or the Settings UI.
 
@@ -220,20 +220,55 @@ src/http/
 
 New feature routers follow the factory-function pattern from `chronos.ts`: export `createXRouter(deps)` and mount in `api.ts`.
 
-### DevKit Tools (Apoc's toolbox)
-```
-src/devkit/tools/
-  ├─ filesystem.ts   # read, write, delete, list, mkdir, copy, move
-  ├─ shell.ts        # execShell, execCommand
-  ├─ git.ts          # clone, commit, push, pull, status, diff, log, branch
-  ├─ network.ts      # GET/POST/PUT/DELETE, health checks
-  ├─ packages.ts     # npm/pip install, list, search
-  ├─ processes.ts    # spawn, kill, list, wait
-  ├─ system.ts       # CPU, memory, disk, env vars
-  └─ browser.ts      # Puppeteer: navigate, screenshot, extract, form fill
+### DevKit Tools (External Library)
+
+DevKit tools are now imported from the external `morpheus-devkit` library (published on npm). This library provides the complete toolset for filesystem, shell, git, network, packages, processes, system, and browser operations.
+
+**Package dependency:**
+```json
+{
+  "morpheus-devkit": "^1.0.0"
+}
 ```
 
-`buildDevKit()` in `src/devkit/index.ts` returns a `StructuredTool[]` array for LangChain.
+**Tool categories:**
+- `filesystem` — read, write, delete, list, mkdir, copy, move
+- `shell` — execShell, execCommand
+- `git` — clone, commit, push, pull, status, diff, log, branch
+- `network` — GET/POST/PUT/DELETE, health checks
+- `packages` — npm/pip install, list, search
+- `processes` — spawn, kill, list, wait
+- `system` — CPU, memory, disk, env vars
+- `browser` — Puppeteer: navigate, screenshot, extract, form fill
+
+`buildDevKit()` in `src/devkit/index.ts` imports and returns a `StructuredTool[]` array from the external library for LangChain.
+
+### DevKit Security (Shared Config)
+
+DevKit tools are used by Apoc. Security is configured via a **shared** `devkit` section in `zaion.yaml`:
+
+```yaml
+devkit:
+  sandbox_dir: /home/user/projects    # All file/shell ops confined here (default: CWD)
+  readonly_mode: false                 # Block destructive filesystem ops (write, delete, move)
+  enable_filesystem: true              # Toggle filesystem tools
+  enable_shell: true                   # Toggle shell tools
+  enable_git: true                     # Toggle git tools
+  enable_network: true                 # Toggle network tools
+  allowed_shell_commands: []           # Shell command allowlist (empty = allow all)
+  timeout_ms: 30000                    # Tool execution timeout
+```
+
+**Security model:**
+- **Sandbox enforcement:** `guardPath()` confines ALL filesystem operations (reads AND writes) to `sandbox_dir`. Shell `cwd`, git clone destinations, and network downloads are also validated.
+- **Readonly mode:** When enabled, destructive operations (write, delete, move, copy) return an error.
+- **Category toggles:** Disable entire tool categories (filesystem, shell, git, network). Non-toggleable categories (processes, packages, system, browser) always load.
+- **Shell allowlist:** When `allowed_shell_commands` is non-empty, only listed commands are permitted.
+- **Migration:** `apoc.working_dir` is auto-migrated to `devkit.sandbox_dir` if the latter is not set.
+
+Environment variables: `MORPHEUS_DEVKIT_SANDBOX_DIR`, `MORPHEUS_DEVKIT_READONLY_MODE`, `MORPHEUS_DEVKIT_ENABLE_FILESYSTEM`, etc.
+
+UI: Settings → DevKit tab (3 sections: Security, Tool Categories, Shell Allowlist).
 
 ### Smith — Remote Agent System
 
@@ -308,9 +343,10 @@ All workers use a singleton + `start()`/`stop()` pattern:
 - **ChronosWorker** — `tick()` loop, executes due jobs, parses next run times
 - **TaskWorker** — polls `tasks` table, routes to agent by `tasks.agent` column
 - **TaskNotifier** — sends completion notifications via `ChannelRegistry`
+- **LinkWorker** — background document indexing and embedding generation
 - **Session embedding scheduler** — populates Sati embeddings asynchronously
 
-In `tasks` table, Trinity agent rows use `agent = 'trinit'` (not `'trinity'`). Smith tasks use `agent = 'smith'`.
+In `tasks` table, Trinity agent rows use `agent = 'trinit'` (not `'trinity'`). Smith tasks use `agent = 'smith'`. Link tasks use `agent = 'link'`.
 
 ### Architecture Quick Reference
 
@@ -324,13 +360,20 @@ In `tasks` table, Trinity agent rows use `agent = 'trinit'` (not `'trinity'`). S
 | Discord adapter | `src/channels/discord.ts` | `channel = 'discord'`, implements `IChannelAdapter` |
 | Oracle agent | `src/runtime/oracle.ts` | LangChain ReactAgent |
 | Apoc subagent | `src/runtime/apoc.ts` | DevKit, `apoc_delegate` |
+| DevKit config | `src/devkit/registry.ts` | Shared security: sandbox, readonly, category toggles |
+| DevKit library | `morpheus-devkit` | External npm package (filesystem, shell, git, network, packages, processes, system, browser) |
 | Trinity subagent | `src/runtime/trinity.ts` | DB specialist, `trinity_delegate` |
 | Neo subagent | `src/runtime/neo.ts` | MCP tools, `neo_delegate` |
+| Link subagent | `src/runtime/link.ts` | Document RAG, `link_delegate` |
+| Link repository | `src/runtime/link-repository.ts` | Document and chunk storage |
+| Link search | `src/runtime/link-search.ts` | Hybrid vector + keyword search |
+| Link worker | `src/runtime/link-worker.ts` | Background indexing and embedding |
 | Smith delegator | `src/runtime/smiths/delegator.ts` | Remote DevKit via WebSocket, `smith_delegate` |
 | Smith registry | `src/runtime/smiths/registry.ts` | Singleton managing Smith connections |
 | Smith connection | `src/runtime/smiths/connection.ts` | WebSocket client per Smith instance |
 | Smith tool | `src/runtime/tools/smith-tool.ts` | Oracle tool for `smith_delegate` |
 | Smiths API router | `src/http/routers/smiths.ts` | Smith management + config + ping |
+| Link API router | `src/http/routers/link.ts` | Document upload, list, delete, reindex |
 | MCP Tool Cache | `src/runtime/tools/cache.ts` | Singleton cache for MCP tools |
 | MCP Factory | `src/runtime/tools/factory.ts` | `Construtor.create()` / `reload()` / `getStats()` |
 | Provider factory | `src/runtime/providers/factory.ts` | `create()` / `createBare()` |
@@ -343,6 +386,8 @@ In `tasks` table, Trinity agent rows use `agent = 'trinit'` (not `'trinity'`). S
 | Memory DB | `~/.morpheus/memory/short-memory.db` | sessions, messages, tasks, chronos, audit |
 | Trinity DB | `~/.morpheus/memory/trinity.db` | DB registry (encrypted passwords) |
 | Sati DB | `~/.morpheus/memory/sati-memory.db` | sqlite-vec embeddings |
+| Link DB | `~/.morpheus/memory/link.db` | Document embeddings (sqlite-vec) |
+| Documents dir | `~/.morpheus/docs/` | User uploaded documents |
 | MCP config | `~/.morpheus/mcps.json` | MCP server definitions |
 | Daemon config | `~/.morpheus/zaion.yaml` | User config file |
 
@@ -358,6 +403,15 @@ src/
   ├─ runtime/memory/sati/__tests__/  # Sati memory
   └─ runtime/tools/__tests__/   # MCP tool loading + execution
 ```
+
+---
+
+## Spec-Driven Development
+New features require a `specs/NNN-feature-name/` folder with:
+- `spec.md` — functional requirements (source of truth)
+- `plan.md` — technical implementation strategy
+- `tasks.md` — implementation checklist
+- `contracts/` — TypeScript interfaces defined before coding
 
 ---
 
