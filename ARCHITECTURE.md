@@ -36,11 +36,11 @@ The runtime is a modular monolith built on Node.js + TypeScript, with SQLite as 
 
 | Agent | Responsibility | Tool Scope | Personality |
 |---|---|---|---|
-| Oracle | Conversation orchestrator and router | `task_query`, `neo_delegate`, `apoc_delegate`, `trinity_delegate`, `smith_delegate`, `skill_execute`, `skill_delegate` | configurable via `agent.personality` |
+| Oracle | Conversation orchestrator and router | `task_query`, `neo_delegate`, `apoc_delegate`, `trinity_delegate`, `smith_delegate`, `link_delegate`, `load_skill` | configurable via `agent.personality` |
 | Neo | Analytical/operational execution | Runtime MCP tools + config/diagnostic/analytics tools | configurable via `neo.personality` (default: `analytical_engineer`) |
 | Apoc | DevTools and browser execution | DevKit toolchain | configurable via `apoc.personality` (default: `pragmatic_dev`) |
 | Trinity | Database specialist | PostgreSQL/MySQL/SQLite/MongoDB query execution + schema introspection | configurable via `trinity.personality` (default: `data_specialist`) |
-| Keymaker | Skill executor | DevKit + MCP + all internal tools (full access) | configurable via `keymaker.personality` (default: `versatile_specialist`) |
+| Link | Documentation specialist | Document search and RAG over indexed files | configurable via `link.personality` (default: `documentation_specialist`) |
 | Smith | Remote DevKit executor | Proxy DevKit tools forwarded via WebSocket | N/A (uses Oracle's LLM) |
 | Sati | Long-term memory evaluator | No execution tools (memory-focused reasoning) | uses Oracle personality |
 
@@ -225,13 +225,12 @@ Oracle exposes four Chronos management tools:
 
 These tools are blocked (`ChronosWorker.isExecuting`) while a Chronos job is executing.
 
-## 10. Skills — Keymaker Subsystem
+## 10. Skills — On-Demand Instructions
 
 ### 10.1 Components
 - `src/runtime/skills/loader.ts`: `SkillLoader` — scans `~/.morpheus/skills/` directories, parses SKILL.md frontmatter, validates schema.
 - `src/runtime/skills/registry.ts`: `SkillRegistry` — singleton managing loaded skills, enable/disable state, system prompt generation.
-- `src/runtime/skills/tool.ts`: `SkillExecuteTool` (sync) and `SkillDelegateTool` (async) — Oracle tools for skill invocation.
-- `src/runtime/keymaker.ts`: Keymaker subagent (ReactAgent) with full tool access (DevKit + MCP + internal tools).
+- `src/runtime/skills/tool.ts`: `load_skill` tool — Oracle loads skill content into context on-demand.
 
 ### 10.2 Skill Format
 Each skill is a folder in `~/.morpheus/skills/` containing a single `SKILL.md` file with YAML frontmatter:
@@ -240,7 +239,6 @@ Each skill is a folder in `~/.morpheus/skills/` containing a single `SKILL.md` f
 ---
 name: my-skill
 description: Brief description
-execution_mode: sync  # or async
 tags:
   - automation
 examples:
@@ -249,15 +247,23 @@ examples:
 
 # Skill Instructions
 
-[Instructions for Keymaker to execute]
+[Instructions for Oracle to follow]
 ```
 
-### 10.3 Execution Modes
-- **`sync`** (default): Oracle calls `skill_execute`, Keymaker executes immediately, result returned inline to conversation.
-- **`async`**: Oracle calls `skill_delegate`, task queued for background execution, user notified via channel when complete.
+### 10.3 Execution Model
+Skills are **instruction templates** that Oracle loads into its context:
+1. User request matches a skill's examples/description
+2. Oracle calls `load_skill` tool with the skill name
+3. Tool returns the skill's full content (SKILL.md)
+4. Oracle follows the instructions using its existing tools (delegation, MCP, etc.)
+
+**Key changes from previous model:**
+- No separate `execution_mode` — skills are always loaded inline
+- No Keymaker agent — Oracle executes directly with its own tools
+- Simpler flow: load instructions → execute with available tools
 
 ### 10.4 Skill Discovery
-Skills are loaded at startup and on demand via `/api/skills/reload` or `/skills_reload` commands. The registry generates dynamic system prompt sections listing available sync and async skills for Oracle.
+Skills are loaded at startup and on demand via `/api/skills/reload` or `/skills_reload` commands. The registry generates a dynamic system prompt section listing available skills for Oracle.
 
 ## 11. Smith — Remote Agent System
 
@@ -292,16 +298,54 @@ smiths:
 ### 11.4 Task Agent Name
 Smith tasks are stored in the `tasks` table with `agent = 'smith'`.
 
-## 12. Audit System
+## 12. Link — Documentation Specialist
+
+### 12.1 Components
+- `src/runtime/link.ts`: `Link` singleton subagent with `link_delegate` tool for Oracle delegation.
+- `src/runtime/link-repository.ts`: `LinkRepository` — SQLite-backed document and chunk storage (`~/.morpheus/memory/link.db`).
+- `src/runtime/link-search.ts`: `LinkSearch` — hybrid vector + keyword search using sqlite-vec for embeddings.
+- `src/runtime/link-chunker.ts`: Document chunking with configurable chunk size and overlap.
+- `src/runtime/link-worker.ts`: `LinkWorker` — background processor for document indexing and embedding generation.
+- `src/http/routers/link.ts`: REST API for document upload, listing, deletion, and reindexing.
+
+### 12.2 Document Storage
+- Documents stored in `~/.morpheus/docs/`
+- Embeddings stored in `~/.morpheus/memory/link.db` (SQLite with sqlite-vec extension)
+- Supported formats: PDF, Markdown, TXT, DOCX
+
+### 12.3 Tools
+Link's ReactAgent has three internal tools:
+- `link_list_documents` — list indexed documents with optional name filter
+- `link_search_documents` — hybrid search across all documents
+- `link_search_in_document` — targeted search within a specific document by ID
+
+### 12.4 Config
+```yaml
+link:
+  provider: openai
+  model: gpt-4o-mini
+  temperature: 0.2
+  personality: documentation_specialist
+  execution_mode: async    # 'sync' = inline response, 'async' = background task
+  max_results: 10          # max search results per query
+  score_threshold: 0.5     # minimum similarity score (0-1)
+  chunk_size: 1000         # characters per chunk
+  chunk_overlap: 200       # overlap between chunks
+```
+
+### 12.5 Task Agent Name
+Link tasks are stored in the `tasks` table with `agent = 'link'`.
+
+## 13. Audit System
 - `src/runtime/audit/`: Agent execution audit trail with tool call tracking.
-- **Event trail:** All agent executions (Oracle, Neo, Apoc, Trinity, Smith, Keymaker, Sati) logged with timestamps, duration, and token usage.
+- **Event trail:** All agent executions (Oracle, Neo, Apoc, Trinity, Smith, Link, Sati) logged with timestamps, duration, and token usage.
 - **Tool call tracking:** Individual tool invocations recorded with arguments and results.
 - **Audio tracking:** Voice message transcription duration aggregated in session summaries.
 - **Cost breakdown:** Per-model usage statistics for budget monitoring.
 - **Memory recovery logging:** Sati memory retrieval events tracked for observability.
 - **UI dashboard:** Session audit view (`/audit/:sessionId`) with event timeline, global totals, expandable metadata, and cost breakdowns by model.
 
-## 13. Security Model
+## 14. Security Model
 - Local-first storage by default.
 - `x-architect-pass` protects `/api/*` management routes.
 - webhook trigger uses per-webhook `x-api-key`.
@@ -313,7 +357,7 @@ Smith tasks are stored in the `tasks` table with `agent = 'smith'`.
 - Per-database permission flags (`allow_read`, `allow_insert`, `allow_update`, `allow_delete`, `allow_ddl`) gate Trinity query execution.
 - **Danger Zone:** Settings UI section for destructive data operations (reset sessions, tasks, jobs, audit, or factory reset) with explicit confirmation dialogs.
 
-## 14. Runtime Lifecycle
+## 15. Runtime Lifecycle
 At daemon boot (`start` / `restart` commands):
 - load config and initialize Oracle
 - load skills via `SkillRegistry`
@@ -325,6 +369,7 @@ At daemon boot (`start` / `restart` commands):
 - start background workers when `runtime.async_tasks.enabled != false`:
   - `TaskWorker`
   - `TaskNotifier`
+  - `LinkWorker` (document indexing and embedding generation)
 - start `ChronosWorker` (polls for due scheduled jobs)
 
 Graceful shutdown stops HTTP, adapters, workers, and clears PID state.

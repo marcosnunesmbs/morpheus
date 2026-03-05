@@ -20,17 +20,17 @@ This document reflects the current runtime behavior and API contracts.
 
 | Agent | Role | Main Tool Scope | Personality |
 |---|---|---|---|
-| Oracle (`src/runtime/oracle.ts`) | Orchestrator and router | `task_query`, `neo_delegate`, `apoc_delegate`, `trinity_delegate`, `smith_delegate`, `skill_execute`, `skill_delegate` | `agent.personality` (default: `helpful_dev`) |
+| Oracle (`src/runtime/oracle.ts`) | Orchestrator and router | `task_query`, `neo_delegate`, `apoc_delegate`, `trinity_delegate`, `smith_delegate`, `link_delegate`, `load_skill` | `agent.personality` (default: `helpful_dev`) |
 | Neo (`src/runtime/neo.ts`) | MCP + internal operational execution | MCP tools + config/diagnostic/analytics tools | `neo.personality` (default: `analytical_engineer`) |
 | Apoc (`src/runtime/apoc.ts`) | DevTools and browser executor | DevKit tools | `apoc.personality` (default: `pragmatic_dev`) |
 | Trinity (`src/runtime/trinity.ts`) | Database specialist | PostgreSQL/MySQL/SQLite/MongoDB execution + schema introspection | `trinity.personality` (default: `data_specialist`) |
-| Keymaker (`src/runtime/keymaker.ts`) | Skill executor | DevKit + MCP + morpheusTools (full tool access) | `keymaker.personality` (default: `versatile_specialist`) |
+| Link (`src/runtime/link.ts`) | Documentation specialist | Document search and RAG over indexed files | `link.personality` (default: `documentation_specialist`) |
 | Smith (`src/runtime/smiths/delegator.ts`) | Remote DevKit executor | Proxy DevKit tools forwarded via WebSocket | N/A (uses Oracle's LLM) |
 | Sati (`src/runtime/memory/sati/*`) | Long-term memory retrieval/evaluation | Memory-only reasoning | uses Oracle personality |
 
 ### 2.2 Subagent Execution Mode
 
-Neo, Apoc, Trinity, and Smith each support an `execution_mode` setting (`'sync'` or `'async'`):
+Neo, Apoc, Trinity, Link, and Smith each support an `execution_mode` setting (`'sync'` or `'async'`):
 
 - **`async`** (default): Oracle creates a background task in the queue. `TaskWorker` picks it up, executes it, and `TaskNotifier` delivers the result via the originating channel. Oracle responds immediately with a task acknowledgement.
 - **`sync`**: Oracle executes the subagent inline during the same turn. The result is returned directly in Oracle's response — no task is created in the queue.
@@ -306,16 +306,23 @@ Dedicated agent tabs:
 - Enable/disable/delete actions with confirmation dialog
 
 ### 6.6 Skills Page
-- Skills table showing all loaded skills with enabled/disabled status and execution mode (sync/async)
-- Skill details: name, description, tags, examples, author, execution_mode
+- Skills table showing all loaded skills with enabled/disabled status
+- Skill details: name, description, tags, examples, author
 - Enable/disable toggle per skill
 - Reload button to refresh skills from `~/.morpheus/skills/`
 - Link to skill instructions (SKILL.md content preview)
-- Sync skills execute immediately via `skill_execute` tool
-- Async skills run as background tasks via `skill_delegate` tool
-- Both modes use Keymaker agent with full tool access (DevKit + MCP + internal tools)
+- Skills are loaded into Oracle's context via `load_skill` tool
+- Oracle executes skill instructions using its available tools
 
-### 6.7 Smiths Page
+### 6.7 Documents Page (Link)
+- Documents table showing all indexed documents with status (pending, indexing, indexed, error)
+- Upload button with drag-and-drop support for PDF, Markdown, TXT, DOCX files
+- Document actions: delete, reindex
+- Document stats: chunk count, file size
+- Background indexing via LinkWorker
+- Search via Link subagent with hybrid vector + keyword search
+
+### 6.8 Smiths Page
 - Smiths table showing all registered Smith instances with connection state (online/offline/connecting)
 - Configuration form: enabled toggle, execution mode, entries (name, host, port, auth_token)
 - TLS support for secure WebSocket connections
@@ -323,16 +330,16 @@ Dedicated agent tabs:
 - Ping action to test connectivity
 - Hot-reload on config save (connects new Smiths, disconnects removed ones)
 
-### 6.8 Audit Dashboard
+### 6.9 Audit Dashboard
 - Session audit view with comprehensive event timeline
 - Global totals and per-agent breakdowns
 - Cost summary panel with model-level details
-- Tool call tracking for all subagents (Oracle, Neo, Apoc, Trinity, Smith)
+- Tool call tracking for all subagents (Oracle, Neo, Apoc, Trinity, Smith, Link)
 - Audio duration tracking in session summaries
 - Expandable metadata panel for event details
 - Memory recovery event logging
 
-### 6.9 Danger Zone (Settings)
+### 6.10 Danger Zone (Settings)
 - Reset all sessions and messages
 - Reset task queue (clears pending/running tasks)
 - Reset Chronos scheduled jobs
@@ -386,6 +393,17 @@ trinity:
   temperature: 0.2
   personality: data_specialist
   execution_mode: async        # 'sync' = inline response, 'async' = background task (default)
+
+link:
+  provider: openai
+  model: gpt-4o-mini
+  temperature: 0.2
+  personality: documentation_specialist
+  execution_mode: async        # 'sync' = inline response, 'async' = background task (default)
+  max_results: 10              # max search results per query
+  score_threshold: 0.5         # minimum similarity score (0-1)
+  chunk_size: 1000             # characters per chunk
+  chunk_overlap: 200           # overlap between chunks
 
 devkit:
   sandbox_dir: /home/user/projects    # All file/shell ops confined here (default: CWD)
@@ -1152,6 +1170,55 @@ Success response `200`:
 ```
 
 ### DELETE `/api/config/trinity`
+Success response `200`:
+
+```json
+{
+  "success": true
+}
+```
+
+## 8.8c Link Agent Config Endpoints (Protected)
+
+### GET `/api/config/link`
+Success response `200` example:
+
+```json
+{
+  "provider": "openai",
+  "model": "gpt-4o-mini",
+  "temperature": 0.2,
+  "personality": "documentation_specialist",
+  "execution_mode": "async",
+  "max_results": 10,
+  "score_threshold": 0.5,
+  "chunk_size": 1000,
+  "chunk_overlap": 200
+}
+```
+
+### POST `/api/config/link`
+Request payload example:
+
+```json
+{
+  "provider": "openai",
+  "model": "gpt-4o-mini",
+  "temperature": 0.2,
+  "max_results": 15,
+  "score_threshold": 0.6
+}
+```
+
+Success response `200`:
+
+```json
+{
+  "success": true
+}
+```
+
+### DELETE `/api/config/link`
 Success response `200`:
 
 ```json
@@ -2496,7 +2563,107 @@ Error response `404`:
 }
 ```
 
-## 8.20 Audit Endpoints (Protected)
+## 8.20 Link Document Endpoints (Protected)
+
+### GET `/api/link/documents`
+Returns all indexed documents with status and stats.
+
+Success response `200`:
+
+```json
+{
+  "total": 3,
+  "documents": [
+    {
+      "id": "doc-uuid-1",
+      "filename": "contract.pdf",
+      "status": "indexed",
+      "chunk_count": 45,
+      "file_size": 125000,
+      "created_at": "2026-03-04T10:00:00.000Z",
+      "updated_at": "2026-03-04T10:05:00.000Z"
+    },
+    {
+      "id": "doc-uuid-2",
+      "filename": "readme.md",
+      "status": "indexed",
+      "chunk_count": 12,
+      "file_size": 8500,
+      "created_at": "2026-03-04T11:00:00.000Z",
+      "updated_at": "2026-03-04T11:01:00.000Z"
+    }
+  ]
+}
+```
+
+### POST `/api/link/upload`
+Uploads a document for indexing. Supports `multipart/form-data`.
+
+Request payload:
+- `file`: The document file (PDF, Markdown, TXT, DOCX)
+
+Success response `200`:
+
+```json
+{
+  "success": true,
+  "document": {
+    "id": "doc-uuid-3",
+    "filename": "report.pdf",
+    "status": "pending"
+  }
+}
+```
+
+Error response `400`:
+
+```json
+{
+  "error": "Unsupported file type"
+}
+```
+
+### DELETE `/api/link/documents/:id`
+Deletes a document and its embeddings.
+
+Success response `200`:
+
+```json
+{
+  "success": true,
+  "message": "Document deleted"
+}
+```
+
+Not found `404`:
+
+```json
+{
+  "error": "Document not found"
+}
+```
+
+### POST `/api/link/documents/:id/reindex`
+Reindexes a document (regenerates chunks and embeddings).
+
+Success response `200`:
+
+```json
+{
+  "success": true,
+  "message": "Document reindexing started"
+}
+```
+
+Not found `404`:
+
+```json
+{
+  "error": "Document not found"
+}
+```
+
+## 8.21 Audit Endpoints (Protected)
 
 ### GET `/api/audit/global`
 Returns a global audit summary with session counts, token/cost totals, breakdowns by agent and model, top tools, recent sessions, and daily activity for the last 30 days.

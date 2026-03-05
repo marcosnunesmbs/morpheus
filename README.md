@@ -22,8 +22,8 @@ It runs as a daemon and orchestrates LLMs, MCP tools, DevKit tools, memory, and 
 - `Apoc`: DevTools/browser execution (filesystem, shell, git, network, packages, processes, system, browser automation).
 - `Sati`: long-term memory retrieval/evaluation.
 - `Trinity`: database specialist. Executes queries, introspects schemas, and manages registered databases (PostgreSQL, MySQL, SQLite, MongoDB).
+- `Link`: documentation specialist. RAG over indexed user documents (PDF, Markdown, TXT, DOCX) with hybrid vector + keyword search.
 - `Chronos`: temporal scheduler. Runs Oracle prompts on a recurring or one-time schedule.
-- `Keymaker`: skill executor. Runs user-defined skills with full tool access (DevKit + MCP + internal tools).
 - `Smith`: remote DevKit executor. Runs DevKit operations on isolated machines (Docker, VMs, cloud) via WebSocket.
 
 ## Installation
@@ -510,14 +510,15 @@ Precedence order:
 
 ## Skills
 
-Skills are user-defined capabilities that extend Morpheus. Each skill is a folder in `~/.morpheus/skills/` containing a single `SKILL.md` file with YAML frontmatter for metadata.
+Skills are user-defined instruction templates that extend Morpheus capabilities. Each skill is a folder in `~/.morpheus/skills/` containing a single `SKILL.md` file with YAML frontmatter for metadata.
 
-### Execution Modes
+### How Skills Work
 
-Skills support two execution modes:
-
-- **`sync`** (default) - Executes immediately via `skill_execute`, returns result inline
-- **`async`** - Runs as background task via `skill_delegate`, notifies when complete
+Skills are **instruction templates** loaded into Oracle's context on-demand:
+1. User request matches a skill's examples/description
+2. Oracle calls `load_skill` tool with the skill name
+3. Tool returns the skill's full content (SKILL.md)
+4. Oracle follows the instructions using its existing tools (delegation, MCP, etc.)
 
 ### Creating a Skill
 
@@ -533,7 +534,6 @@ description: Brief description of what this skill does
 version: 1.0.0
 author: your-name
 enabled: true
-execution_mode: sync
 tags:
   - automation
   - example
@@ -546,44 +546,17 @@ examples:
 You are an expert at [domain]. Follow these instructions...
 
 ## Your Task
-[Instructions for Keymaker to execute]
-```
-
-### Async Skill Example
-
-For long-running tasks like deployments or builds:
-
-```markdown
----
-name: deploy-staging
-description: Deploy application to staging environment
-execution_mode: async
-tags:
-  - deployment
-  - devops
----
-
-# Deploy to Staging
-
-Execute a full deployment to the staging environment...
+[Instructions for Oracle to execute]
 ```
 
 ### Using Skills
 
-Once a skill is loaded, Oracle will automatically suggest delegating matching tasks to Keymaker:
+Once a skill is loaded, Oracle follows the instructions using its available tools:
 
-**Sync Skills (immediate result):**
 ```
 User: "Review the code in src/auth.ts"
-Oracle: [executes code-reviewer skill via skill_execute]
-Keymaker: [returns detailed review immediately]
-```
-
-**Async Skills (background task):**
-```
-User: "Deploy to staging"
-Oracle: [delegates via skill_delegate, task queued]
-Morpheus: [notifies via Telegram/Discord when complete]
+Oracle: [loads code-reviewer skill via load_skill]
+Oracle: [executes review using its tools and returns result]
 ```
 
 ### Managing Skills
@@ -617,13 +590,59 @@ POST   /api/skills/:name/disable  - Disable skill
 ### Sample Skills
 
 Example skills are available in `examples/skills/`:
-- `code-reviewer` - Reviews code for issues and best practices (sync)
-- `git-helper` - Assists with Git operations (sync)
-- `deploy-staging` - Deploy to staging environment (async)
+- `code-reviewer` - Reviews code for issues and best practices
+- `git-helper` - Assists with Git operations
 
 Copy them to your skills directory:
 ```bash
 cp -r examples/skills/* ~/.morpheus/skills/
+```
+
+## Link — Document RAG
+
+Link is a documentation specialist subagent that provides RAG (Retrieval-Augmented Generation) over user documents.
+
+**Supported formats:** PDF, Markdown, TXT, DOCX
+
+**Document storage:** `~/.morpheus/docs/`
+
+**Embedding database:** `~/.morpheus/memory/link.db` (SQLite with sqlite-vec)
+
+### Using Link
+
+Oracle automatically delegates to Link when users ask about their documents:
+
+```
+User: "What does my contract say about termination?"
+Oracle: [delegates to Link via link_delegate]
+Link: [searches indexed documents and returns answer with citations]
+```
+
+### Managing Documents
+
+**Web UI:** Navigate to `/documents` to upload, delete, and reindex documents.
+
+**API Endpoints:**
+```
+GET    /api/link/documents           - List all documents
+POST   /api/link/upload              - Upload a document
+DELETE /api/link/documents/:id       - Delete a document
+POST   /api/link/documents/:id/reindex - Reindex a document
+```
+
+### Configuration
+
+```yaml
+link:
+  provider: openai
+  model: gpt-4o-mini
+  temperature: 0.2
+  personality: documentation_specialist
+  execution_mode: async    # 'sync' = inline, 'async' = background task
+  max_results: 10          # max search results per query
+  score_threshold: 0.5     # minimum similarity score (0-1)
+  chunk_size: 1000         # characters per chunk
+  chunk_overlap: 200       # overlap between chunks
 ```
 
 ## MCP Configuration
@@ -655,9 +674,10 @@ Authenticated endpoints (`x-architect-pass`):
 - Sessions: `/api/sessions*`
 - Chat: `POST /api/chat`
 - Tasks: `GET /api/tasks`, `GET /api/tasks/stats`, `GET /api/tasks/:id`, `POST /api/tasks/:id/retry`
-- Config: `/api/config`, `/api/config/sati`, `/api/config/neo`, `/api/config/apoc`, `/api/config/trinity`, `/api/config/chronos`, `/api/config/smiths`
+- Config: `/api/config`, `/api/config/sati`, `/api/config/neo`, `/api/config/apoc`, `/api/config/trinity`, `/api/config/link`, `/api/config/chronos`, `/api/config/smiths`
 - MCP: `/api/mcp/*` (servers CRUD + reload + status)
 - Sati memories: `/api/sati/memories*`
+- Link documents: `/api/link/documents`, `/api/link/upload`, `/api/link/documents/:id/reindex`
 - Trinity databases: `GET/POST/PUT/DELETE /api/trinity/databases`, `POST /api/trinity/databases/:id/test`, `POST /api/trinity/databases/:id/refresh-schema`
 - Chronos: `GET/POST /api/chronos`, `GET/PUT/DELETE /api/chronos/:id`, `PATCH /api/chronos/:id/enable`, `PATCH /api/chronos/:id/disable`, `GET /api/chronos/:id/executions`, `POST /api/chronos/preview`
 - Smiths: `GET /api/smiths`, `GET/PUT /api/smiths/config`, `GET/DELETE /api/smiths/:name`, `POST /api/smiths/:name/ping`

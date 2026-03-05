@@ -9,6 +9,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Link — Documentation Specialist Subagent**: RAG (Retrieval-Augmented Generation) over user documents
+  - `Link` singleton subagent with `link_delegate` tool for Oracle delegation
+  - Document indexing and embedding generation via `LinkWorker` background processor
+  - Hybrid vector + keyword search through `LinkSearch` with sqlite-vec
+  - Supported formats: PDF, Markdown, TXT, DOCX
+  - Tools: `link_list_documents`, `link_search_documents`, `link_search_in_document`
+  - Documents stored in `~/.morpheus/docs/`, embeddings in `~/.morpheus/memory/link.db`
+  - Configurable LLM provider/model/temperature/personality via `link` section in `zaion.yaml`
+  - Execution mode: `sync` (inline) or `async` (background task)
+  - Documents UI page (`/documents`) for upload, delete, reindex, and status tracking
+  - API endpoints: `GET/POST /api/link/documents`, `POST /api/link/upload`, `DELETE /api/link/documents/:id`, `POST /api/link/documents/:id/reindex`
+
+- **Skills Refactoring**: Simplified skill execution model
+  - New `load_skill` tool replaces `skill_execute` and `skill_delegate`
+  - Skills now load instructions into Oracle's context — Oracle executes with its own tools
+  - Removed `execution_mode` from skill metadata (no longer needed)
+  - Keymaker agent removed from skill execution flow
+  - Unified system prompt section listing available skills
+
 - **Danger Zone**: Settings UI section for destructive data operations
   - Reset all sessions and messages
   - Reset task queue (pending/running tasks)
