@@ -23,7 +23,6 @@ This folder contains custom skills for Morpheus.
    ---
    name: my-skill
    description: What this skill does (max 500 chars)
-   execution_mode: sync
    version: 1.0.0
    author: your-name
    tags:
@@ -34,7 +33,7 @@ This folder contains custom skills for Morpheus.
 
    # My Skill
 
-   Instructions for Keymaker to follow when executing this skill.
+   Instructions for Oracle to follow when handling this skill.
 
    ## Steps
    1. First step
@@ -44,23 +43,11 @@ This folder contains custom skills for Morpheus.
    How to format the result.
    \`\`\`
 
-## Execution Modes
-
-| Mode | Tool | Description |
-|------|------|-------------|
-| sync | skill_execute | Result returned immediately (default) |
-| async | skill_delegate | Runs in background, notifies when done |
-
-**sync** (default): Best for quick tasks like code review, analysis.
-**async**: Best for long-running tasks like builds, deployments.
-
 ## How It Works
 
 - Oracle lists available skills in its system prompt
-- When a request matches a sync skill, Oracle calls \`skill_execute\`
-- When a request matches an async skill, Oracle calls \`skill_delegate\`
-- Keymaker has access to ALL tools (filesystem, shell, git, MCP, databases)
-- Keymaker follows SKILL.md instructions to complete the task
+- When a request matches a skill, Oracle calls \`load_skill\` to load its instructions
+- Oracle then follows the skill instructions using its existing tools (DevKit, MCP, databases, etc.)
 
 ## Frontmatter Schema
 
@@ -68,7 +55,6 @@ This folder contains custom skills for Morpheus.
 |-------|----------|---------|-------------|
 | name | Yes | - | Unique identifier (a-z, 0-9, hyphens) |
 | description | Yes | - | Short description (max 500 chars) |
-| execution_mode | No | sync | sync or async |
 | version | No | - | Semver (e.g., 1.0.0) |
 | author | No | - | Your name |
 | enabled | No | true | true/false |

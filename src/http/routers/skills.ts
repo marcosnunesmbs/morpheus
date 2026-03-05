@@ -4,7 +4,7 @@ import extract from 'extract-zip';
 import fs from 'fs-extra';
 import path from 'path';
 import os from 'os';
-import { SkillRegistry, updateSkillDelegateDescription } from '../../runtime/skills/index.js';
+import { SkillRegistry } from '../../runtime/skills/index.js';
 import { DisplayManager } from '../../runtime/display.js';
 import { PATHS } from '../../config/paths.js';
 import { SkillMetadataSchema } from '../../runtime/skills/schema.js';
@@ -126,9 +126,6 @@ export function createSkillsRouter(): Router {
     try {
       const registry = SkillRegistry.getInstance();
       const result = await registry.reload();
-      
-      // Update skill_delegate tool description with new skills
-      updateSkillDelegateDescription();
 
       display.log(`Skills reloaded: ${result.skills.length} loaded, ${result.errors.length} errors`, {
         source: 'SkillsAPI',
@@ -233,7 +230,6 @@ export function createSkillsRouter(): Router {
       // Reload skills
       const registry = SkillRegistry.getInstance();
       await registry.reload();
-      updateSkillDelegateDescription();
 
       display.log(`Skill "${metadata.name}" uploaded successfully`, { source: 'SkillsAPI' });
 
@@ -290,9 +286,6 @@ export function createSkillsRouter(): Router {
         return res.status(404).json({ error: `Skill "${name}" not found` });
       }
 
-      // Update skill_delegate tool description
-      updateSkillDelegateDescription();
-
       display.log(`Skill "${name}" enabled`, { source: 'SkillsAPI' });
       res.json({ success: true, name, enabled: true });
     } catch (err: any) {
@@ -311,9 +304,6 @@ export function createSkillsRouter(): Router {
       if (!success) {
         return res.status(404).json({ error: `Skill "${name}" not found` });
       }
-
-      // Update skill_delegate tool description
-      updateSkillDelegateDescription();
 
       display.log(`Skill "${name}" disabled`, { source: 'SkillsAPI' });
       res.json({ success: true, name, enabled: false });

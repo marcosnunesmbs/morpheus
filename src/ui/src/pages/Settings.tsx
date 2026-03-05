@@ -1443,7 +1443,7 @@ export default function Settings() {
           <>
           <Section title="DevKit Security">
             <p className="text-sm text-azure-text-secondary dark:text-matrix-secondary mb-4">
-              Shared security configuration for DevKit tools used by Apoc and Keymaker.
+              Shared security configuration for DevKit tools used by Apoc.
               Controls path sandboxing, shell command restrictions, and tool category access.
             </p>
 
@@ -1522,7 +1522,7 @@ export default function Settings() {
 
           <Section title="Shell Command Allowlist">
             <p className="text-sm text-azure-text-secondary dark:text-matrix-secondary mb-4">
-              Restrict which shell commands Apoc and Keymaker can execute.
+              Restrict which shell commands Apoc can execute.
               Leave empty to allow all commands (default).
             </p>
 

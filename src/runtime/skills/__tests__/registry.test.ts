@@ -157,13 +157,12 @@ describe('SkillRegistry', () => {
   });
 
   describe('getSystemPromptSection()', () => {
-    it('should generate prompt section with sync skills', async () => {
+    it('should generate prompt section with skills', async () => {
       const skillDir = path.join(TEST_DIR, 'prompt-skill');
       fs.ensureDirSync(skillDir);
       createSkillMd(skillDir, {
         name: 'prompt-skill',
         description: 'A skill for prompts',
-        execution_mode: 'sync',
         examples: ['example usage'],
       }, 'Instructions for prompt skill');
 
@@ -171,30 +170,11 @@ describe('SkillRegistry', () => {
       await registry.load();
 
       const section = registry.getSystemPromptSection();
-      
+
       expect(section).toContain('Available Skills');
       expect(section).toContain('prompt-skill');
       expect(section).toContain('A skill for prompts');
-      expect(section).toContain('skill_execute');
-    });
-
-    it('should generate prompt section with async skills', async () => {
-      const skillDir = path.join(TEST_DIR, 'async-skill');
-      fs.ensureDirSync(skillDir);
-      createSkillMd(skillDir, {
-        name: 'async-skill',
-        description: 'An async skill',
-        execution_mode: 'async',
-      }, 'Instructions for async skill');
-
-      const registry = SkillRegistry.getInstance();
-      await registry.load();
-
-      const section = registry.getSystemPromptSection();
-      
-      expect(section).toContain('Async Skills');
-      expect(section).toContain('async-skill');
-      expect(section).toContain('skill_delegate');
+      expect(section).toContain('load_skill');
     });
 
     it('should return empty string when no skills', async () => {

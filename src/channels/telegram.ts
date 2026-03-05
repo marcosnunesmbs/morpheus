@@ -1182,10 +1182,9 @@ export class TelegramAdapter {
 
   private async handleSkillsReload(ctx: any) {
     try {
-      const { SkillRegistry, updateSkillDelegateDescription } = await import('../runtime/skills/index.js');
+      const { SkillRegistry } = await import('../runtime/skills/index.js');
       const registry = SkillRegistry.getInstance();
       const result = await registry.reload();
-      updateSkillDelegateDescription();
 
       const msg = result.errors.length > 0
         ? `Reloaded ${result.skills.length} skills with ${result.errors.length} error(s).`
@@ -1203,7 +1202,7 @@ export class TelegramAdapter {
       return;
     }
     try {
-      const { SkillRegistry, updateSkillDelegateDescription } = await import('../runtime/skills/index.js');
+      const { SkillRegistry } = await import('../runtime/skills/index.js');
       const registry = SkillRegistry.getInstance();
       const success = registry.enable(name);
 
@@ -1212,7 +1211,6 @@ export class TelegramAdapter {
         return;
       }
 
-      updateSkillDelegateDescription();
       await ctx.reply(`Skill \`${name}\` enabled.`, { parse_mode: 'Markdown' });
     } catch (err: any) {
       await ctx.reply(`Error: ${err.message}`);
@@ -1225,7 +1223,7 @@ export class TelegramAdapter {
       return;
     }
     try {
-      const { SkillRegistry, updateSkillDelegateDescription } = await import('../runtime/skills/index.js');
+      const { SkillRegistry } = await import('../runtime/skills/index.js');
       const registry = SkillRegistry.getInstance();
       const success = registry.disable(name);
 
@@ -1234,7 +1232,6 @@ export class TelegramAdapter {
         return;
       }
 
-      updateSkillDelegateDescription();
       await ctx.reply(`Skill \`${name}\` disabled.`, { parse_mode: 'Markdown' });
     } catch (err: any) {
       await ctx.reply(`Error: ${err.message}`);

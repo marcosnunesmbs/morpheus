@@ -4,7 +4,6 @@ import { Apoc } from '../apoc.js';
 import { Neo } from '../neo.js';
 import { Trinity } from '../trinity.js';
 import { Link } from '../link.js';
-import { executeKeymakerTask } from '../keymaker.js';
 import { SmithDelegator } from '../smiths/delegator.js';
 import { TaskRepository } from './repository.js';
 import { AuditRepository } from '../audit/repository.js';
@@ -102,26 +101,6 @@ export class TaskWorker {
           });
           break;
         }
-        case 'keymaker': {
-          // Parse skill name from context JSON
-          let skillName = 'unknown';
-          if (task.context) {
-            try {
-              const parsed = JSON.parse(task.context);
-              skillName = parsed.skill || 'unknown';
-            } catch {
-              // context is not JSON, use as skill name directly for backwards compat
-              skillName = task.context;
-            }
-          }
-          result = await executeKeymakerTask(skillName, task.input, {
-            origin_channel: task.origin_channel,
-            session_id: task.session_id,
-            origin_message_id: task.origin_message_id ?? undefined,
-            origin_user_id: task.origin_user_id ?? undefined,
-          });
-          break;
-        }
         case 'smith': {
           // Parse smith name from context JSON
           let smithName = 'unknown';
@@ -173,7 +152,7 @@ export class TaskWorker {
         status: 'success',
       });
 
-      // Emit llm_call audit event if usage data is present (not keymaker skills)
+      // Emit llm_call audit event if usage data is present
       if (result.usage && (result.usage.inputTokens > 0 || result.usage.outputTokens > 0)) {
         audit.insert({
           session_id: task.session_id,
@@ -187,23 +166,6 @@ export class TaskWorker {
           duration_ms: result.usage.durationMs,
           status: 'success',
           metadata: { step_count: result.usage.stepCount },
-        });
-      }
-
-      // Emit skill_executed for keymaker
-      if (task.agent === 'keymaker') {
-        let skillName = 'unknown';
-        if (task.context) {
-          try { skillName = JSON.parse(task.context).skill || task.context; } catch { skillName = task.context; }
-        }
-        audit.insert({
-          session_id: task.session_id,
-          task_id: task.id,
-          event_type: 'skill_executed',
-          agent: 'keymaker',
-          tool_name: skillName,
-          duration_ms: result.usage?.durationMs,
-          status: 'success',
         });
       }
 

@@ -22,11 +22,6 @@ export const SkillMetadataSchema = z.object({
     .min(1, 'Description is required')
     .max(500, 'Description must be at most 500 characters'),
 
-  execution_mode: z
-    .enum(['sync', 'async'])
-    .default('sync')
-    .describe('Execution mode: sync returns result inline, async creates background task'),
-
   version: z
     .string()
     .regex(/^\d+\.\d+\.\d+$/, 'Version must be semver format (e.g., 1.0.0)')

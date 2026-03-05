@@ -224,7 +224,7 @@ export class AuditRepository {
         SUM(CASE WHEN ae.event_type = 'llm_call'        THEN 1 ELSE 0 END) as llmCallCount,
         SUM(CASE WHEN ae.event_type = 'tool_call'       THEN 1 ELSE 0 END) as toolCallCount,
         SUM(CASE WHEN ae.event_type = 'mcp_tool'        THEN 1 ELSE 0 END) as mcpToolCount,
-        SUM(CASE WHEN ae.event_type = 'skill_executed'  THEN 1 ELSE 0 END) as skillCount,
+        SUM(CASE WHEN ae.event_type = 'skill_loaded'  THEN 1 ELSE 0 END) as skillCount,
         SUM(CASE WHEN ae.event_type = 'memory_recovery' THEN 1 ELSE 0 END) as memoryRecoveryCount,
         SUM(CASE WHEN ae.event_type = 'memory_persist'  THEN 1 ELSE 0 END) as memoryPersistCount,
         SUM(CASE WHEN ae.event_type = 'chronos_job'     THEN 1 ELSE 0 END) as chronosJobCount,

@@ -146,7 +146,7 @@ function Section({ title, icon, children }: { title: string; icon: React.ReactNo
 
 const AGENT_EMOJIS: Record<string, string> = {
   oracle: '🔮', apoc: '🧑‍🔬', neo: '🥷', trinity: '👩‍💻',
-  smith: '🕶️', keymaker: '🗝️', chronos: '⏰', sati: '🧠', telephonist: '📞', link: '🕵️‍♂️', unknown: '?',
+  smith: '🕶️', chronos: '⏰', sati: '🧠', telephonist: '📞', link: '🕵️‍♂️', unknown: '?',
 };
 const AGENT_COLORS: Record<string, string> = {
   oracle:      'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300',
@@ -154,7 +154,6 @@ const AGENT_COLORS: Record<string, string> = {
   neo:         'bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300',
   trinity:     'bg-teal-100 text-teal-700 dark:bg-teal-900/40 dark:text-teal-300',
   smith:       'bg-gray-200 text-gray-700 dark:bg-gray-700/60 dark:text-gray-300',
-  keymaker:    'bg-pink-100 text-pink-700 dark:bg-pink-900/40 dark:text-pink-300',
   chronos:     'bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300',
   sati:        'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300',
   telephonist: 'bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300',
@@ -202,7 +201,7 @@ const EVENT_ICONS: Record<string, React.ReactNode> = {
   memory_recovery: <Brain size={13} />,
   memory_persist:  <Brain size={13} />,
   telephonist:     <Mic size={13} />,
-  skill_executed:  <Bot size={13} />,
+  skill_loaded:  <Bot size={13} />,
   chronos_job:     <Clock size={13} />,
   task_created:    <Play size={13} />,
   task_completed:  <CheckCircle2 size={13} />,
@@ -214,7 +213,7 @@ const EVENT_COLORS: Record<string, string> = {
   memory_recovery: 'text-emerald-500 dark:text-emerald-400',
   memory_persist:  'text-violet-500 dark:text-violet-400',
   telephonist:     'text-rose-500 dark:text-rose-400',
-  skill_executed:  'text-teal-500 dark:text-teal-400',
+  skill_loaded:  'text-teal-500 dark:text-teal-400',
   chronos_job:     'text-orange-500 dark:text-orange-400',
   task_created:    'text-gray-500 dark:text-matrix-secondary',
   task_completed:  'text-green-600 dark:text-matrix-highlight',
@@ -240,7 +239,7 @@ const EVENT_BAR_COLORS: Record<string, string> = {
   memory_recovery: 'bg-emerald-400 dark:bg-emerald-500',
   memory_persist:  'bg-violet-400 dark:bg-violet-500',
   telephonist:     'bg-rose-400 dark:bg-rose-500',
-  skill_executed:  'bg-teal-400 dark:bg-teal-500',
+  skill_loaded:  'bg-teal-400 dark:bg-teal-500',
   chronos_job:     'bg-orange-400 dark:bg-orange-500',
   task_created:    'bg-gray-300 dark:bg-matrix-secondary/50',
   task_completed:  'bg-green-400 dark:bg-matrix-highlight/70',
@@ -282,7 +281,7 @@ export const AuditDashboard: React.FC = () => {
     ['memory_recovery', totals.memoryRecoveryCount],
     ['memory_persist',  totals.memoryPersistCount],
     ['telephonist',     totals.telephonistCount],
-    ['skill_executed',  totals.skillCount],
+    ['skill_loaded',  totals.skillCount],
     ['chronos_job',     totals.chronosJobCount],
     ['task_created',    totals.taskCreatedCount],
     ['task_completed',  totals.taskCompletedCount],

@@ -54,10 +54,6 @@ export const LinkConfigSchema = LLMConfigSchema.extend({
     bm25_weight: z.number().min(0).max(1).default(0.2),
 });
 
-export const KeymakerConfigSchema = LLMConfigSchema.extend({
-    skills_dir: z.string().optional(),
-});
-
 export const WebhookConfigSchema = z.object({
   telegram_notify_all: z.boolean().optional(),
 }).optional();
@@ -113,7 +109,6 @@ export const ConfigSchema = z.object({
   apoc: ApocConfigSchema.optional(),
   trinity: TrinityConfigSchema.optional(),
   link: LinkConfigSchema.optional(),
-  keymaker: KeymakerConfigSchema.optional(),
   webhooks: WebhookConfigSchema,
   audio: AudioConfigSchema.default(DEFAULT_CONFIG.audio),
   memory: z.object({

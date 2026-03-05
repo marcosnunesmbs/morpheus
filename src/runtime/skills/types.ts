@@ -6,13 +6,6 @@
  */
 
 /**
- * Execution mode for a skill
- * - sync: Execute inline, result returned immediately to Oracle
- * - async: Execute as background task, result delivered via notification
- */
-export type SkillExecutionMode = 'sync' | 'async';
-
-/**
  * Metadata parsed from SKILL.md frontmatter
  */
 export interface SkillMetadata {
@@ -21,9 +14,6 @@ export interface SkillMetadata {
 
   /** Short description for LLM context (max 500 chars) */
   description: string;
-
-  /** Execution mode: sync (default) or async */
-  execution_mode?: SkillExecutionMode;
 
   /** Semantic version (optional) */
   version?: string;
@@ -56,9 +46,6 @@ export interface Skill extends SkillMetadata {
 
   /** Resolved enabled state (default: true) */
   enabled: boolean;
-
-  /** Resolved execution mode (default: sync) */
-  execution_mode: SkillExecutionMode;
 }
 
 /**

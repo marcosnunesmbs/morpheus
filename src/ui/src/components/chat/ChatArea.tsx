@@ -29,7 +29,6 @@ interface AgentInfo {
 
 const STATIC_AGENTS: AgentInfo[] = [
   { name: 'apoc',      emoji: '🧑‍🔬', description: 'Filesystem, shell & browser',  color: 'amber'  },
-  { name: 'keymaker',  emoji: '🗝️',  description: 'Invoke skills - full tools',       color: 'purple' },
   { name: 'neo',       emoji: '🥷',  description: 'MCP tool orchestration',   color: 'violet' },
   { name: 'trinity',   emoji: '👩‍💻', description: 'Database specialist',      color: 'teal'   },
   { name: 'link',      emoji: '🕵️‍♂️', description: 'Document search & RAG',   color: 'gray'   },

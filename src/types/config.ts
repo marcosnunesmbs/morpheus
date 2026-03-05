@@ -127,11 +127,6 @@ export interface LinkConfig extends LLMConfig {
   bm25_weight: number;
 }
 
-export interface KeymakerConfig extends LLMConfig {
-  personality?: string;
-  skills_dir?: string;
-}
-
 export interface WebhookConfig {
   /** If true, all webhook notifications are also sent to Telegram by default */
   telegram_notify_all?: boolean;
@@ -204,7 +199,6 @@ export interface MorpheusConfig {
   apoc?: ApocConfig;
   trinity?: TrinityConfig;
   link?: LinkConfig;
-  keymaker?: KeymakerConfig;
   devkit?: DevKitConfig;
   smiths?: SmithsConfig;
   setup?: SetupConfig;

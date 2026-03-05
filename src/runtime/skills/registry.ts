@@ -125,31 +125,15 @@ export class SkillRegistry {
       return '';
     }
 
-    const syncSkills = enabled.filter((s) => s.execution_mode === 'sync');
-    const asyncSkills = enabled.filter((s) => s.execution_mode === 'async');
+    const skillList = enabled
+      .map(s => `- **${s.name}**: ${s.description}`)
+      .join('\n');
 
-    const lines: string[] = ['## Available Skills', ''];
+    return `## Available Skills
 
-    if (syncSkills.length > 0) {
-      lines.push('### Sync Skills (immediate result via skill_execute)');
-      for (const s of syncSkills) {
-        lines.push(`- **${s.name}**: ${s.description}`);
-      }
-      lines.push('');
-    }
+${skillList}
 
-    if (asyncSkills.length > 0) {
-      lines.push('### Async Skills (background task via skill_delegate)');
-      for (const s of asyncSkills) {
-        lines.push(`- **${s.name}**: ${s.description}`);
-      }
-      lines.push('');
-    }
-
-    lines.push('Use `skill_execute(skillName, objective)` for sync skills — result returned immediately.');
-    lines.push('Use `skill_delegate(skillName, objective)` for async skills — runs in background, notifies when done.');
-
-    return lines.join('\n');
+Use the \`load_skill\` tool when you need detailed instructions for handling a specific type of request.`;
   }
 
   /**

@@ -60,7 +60,6 @@ describe('SkillLoader', () => {
         version: '1.0.0',
         author: 'Test Author',
         enabled: true,
-        execution_mode: 'sync',
         tags: ['test', 'unit'],
         examples: ['do something', 'do another thing'],
       }, '# Test Skill\n\nInstructions here.');
@@ -76,7 +75,6 @@ describe('SkillLoader', () => {
       expect(skill.version).toBe('1.0.0');
       expect(skill.author).toBe('Test Author');
       expect(skill.enabled).toBe(true);
-      expect(skill.execution_mode).toBe('sync');
       expect(skill.tags).toEqual(['test', 'unit']);
       expect(skill.examples).toEqual(['do something', 'do another thing']);
       expect(skill.content).toBe('# Test Skill\n\nInstructions here.');
@@ -99,7 +97,6 @@ describe('SkillLoader', () => {
       const skill = result.skills[0];
       expect(skill.name).toBe('minimal-skill');
       expect(skill.enabled).toBe(true); // default
-      expect(skill.execution_mode).toBe('sync'); // default
     });
 
     it('should report error for missing SKILL.md', async () => {
@@ -193,20 +190,20 @@ describe('SkillLoader', () => {
       expect(result.errors).toHaveLength(0);
     });
 
-    it('should load async skill correctly', async () => {
-      const skillDir = path.join(testDir, 'async-skill');
+    it('should load skill with tags correctly', async () => {
+      const skillDir = path.join(testDir, 'tagged-skill');
       fs.ensureDirSync(skillDir);
-      
+
       createSkillMd(skillDir, {
-        name: 'async-skill',
-        description: 'An async skill',
-        execution_mode: 'async',
-      }, 'Long-running task instructions');
+        name: 'tagged-skill',
+        description: 'A tagged skill',
+        tags: ['ops', 'deploy'],
+      }, 'Tagged task instructions');
 
       const result = await loader.scan();
-      
+
       expect(result.skills).toHaveLength(1);
-      expect(result.skills[0].execution_mode).toBe('async');
+      expect(result.skills[0].tags).toEqual(['ops', 'deploy']);
     });
   });
 

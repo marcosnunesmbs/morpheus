@@ -1,7 +1,7 @@
 ﻿export type TaskStatus = 'pending' | 'running' | 'completed' | 'failed' | 'cancelled';
 export type TaskNotifyStatus = 'pending' | 'sending' | 'sent' | 'failed';
 
-export type TaskAgent = 'apoc' | 'neo' | 'trinit' | 'keymaker' | 'smith' | 'link';
+export type TaskAgent = 'apoc' | 'neo' | 'trinit' | 'smith' | 'link';
 export type OriginChannel = 'telegram' | 'discord' | 'ui' | 'api' | 'webhook' | 'cli' | 'chronos';
 
 export interface TaskCreateInput {

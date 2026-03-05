@@ -6,7 +6,6 @@
  * ---
  * name: my-skill
  * description: What this skill does
- * execution_mode: sync
  * ---
  * 
  * # Skill Instructions...
@@ -222,7 +221,6 @@ export class SkillLoader {
       dirName,
       content: content.trim(),
       enabled: metadata.enabled ?? true,
-      execution_mode: metadata.execution_mode ?? 'sync',
     };
 
     return { skill };

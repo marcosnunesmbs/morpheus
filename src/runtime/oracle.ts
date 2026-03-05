@@ -22,7 +22,7 @@ import { SmithDelegateTool } from "./tools/smith-tool.js";
 import { TaskQueryTool, chronosTools, timeVerifierTool } from "./tools/index.js";
 import { Construtor } from "./tools/factory.js";
 import { MCPManager } from "../config/mcp-manager.js";
-import { SkillRegistry, SkillExecuteTool, SkillDelegateTool, updateSkillToolDescriptions } from "./skills/index.js";
+import { SkillRegistry, createLoadSkillTool } from "./skills/index.js";
 import { SmithRegistry } from "./smiths/registry.js";
 import { AuditRepository } from "./audit/repository.js";import { SetupRepository } from './setup/repository.js';
 import { buildSetupTool } from './tools/setup-tool.js';import { emitToolAuditEvents } from "./subagent-utils.js";
@@ -32,7 +32,6 @@ import { writeFileSync } from "fs";
 
 const ORACLE_DELEGATION_TOOLS = new Set([
   'apoc_delegate', 'neo_delegate', 'trinity_delegate', 'smith_delegate', 'link_delegate',
-  'skill_delegate', 'skill_execute',
 ]);
 
 type AckGenerationResult = {
@@ -198,7 +197,6 @@ export class Oracle implements IOracle {
       await Neo.refreshDelegateCatalog().catch(() => {});
       await Trinity.refreshDelegateCatalog().catch(() => {});
       await Link.refreshDelegateCatalog().catch(() => {});
-      updateSkillToolDescriptions();
 
       // Build tool list — conditionally include SmithDelegateTool based on config
       // Initialize setup repository (creates table if needed)
@@ -211,8 +209,7 @@ export class Oracle implements IOracle {
         Apoc.getInstance().createDelegateTool(),
         Trinity.getInstance().createDelegateTool(),
         Link.getInstance().createDelegateTool(),
-        SkillExecuteTool,
-        SkillDelegateTool,
+        createLoadSkillTool(),
         timeVerifierTool,
         ...chronosTools,
       ];
@@ -789,7 +786,6 @@ Use it to inform your response and tool selection (if needed), but do not assume
     await Neo.refreshDelegateCatalog().catch(() => {});
     await Trinity.refreshDelegateCatalog().catch(() => {});
     await Link.refreshDelegateCatalog().catch(() => {});
-    updateSkillToolDescriptions();
     this.provider = await ProviderFactory.create(this.config.llm, [
       buildSetupTool(),
       TaskQueryTool,
@@ -797,8 +793,7 @@ Use it to inform your response and tool selection (if needed), but do not assume
       Apoc.getInstance().createDelegateTool(),
       Trinity.getInstance().createDelegateTool(),
       Link.getInstance().createDelegateTool(),
-      SkillExecuteTool,
-      SkillDelegateTool,
+      createLoadSkillTool(),
       timeVerifierTool,
       ...chronosTools,
     ]);

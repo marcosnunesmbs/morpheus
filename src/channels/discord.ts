@@ -889,10 +889,9 @@ export class DiscordAdapter {
 
   private async cmdSkillReload(interaction: ChatInputCommandInteraction): Promise<void> {
     try {
-      const { SkillRegistry, updateSkillDelegateDescription } = await import('../runtime/skills/index.js');
+      const { SkillRegistry } = await import('../runtime/skills/index.js');
       const registry = SkillRegistry.getInstance();
       const result = await registry.reload();
-      updateSkillDelegateDescription();
 
       const msg = result.errors.length > 0
         ? `Reloaded ${result.skills.length} skills with ${result.errors.length} error(s).`
@@ -907,7 +906,7 @@ export class DiscordAdapter {
   private async cmdSkillEnable(interaction: ChatInputCommandInteraction): Promise<void> {
     const name = interaction.options.getString('name', true);
     try {
-      const { SkillRegistry, updateSkillDelegateDescription } = await import('../runtime/skills/index.js');
+      const { SkillRegistry } = await import('../runtime/skills/index.js');
       const registry = SkillRegistry.getInstance();
       const success = registry.enable(name);
 
@@ -916,7 +915,6 @@ export class DiscordAdapter {
         return;
       }
 
-      updateSkillDelegateDescription();
       await interaction.reply({ content: `Skill \`${name}\` enabled.` });
     } catch (err: any) {
       await interaction.reply({ content: `Error: ${err.message}` });
@@ -926,7 +924,7 @@ export class DiscordAdapter {
   private async cmdSkillDisable(interaction: ChatInputCommandInteraction): Promise<void> {
     const name = interaction.options.getString('name', true);
     try {
-      const { SkillRegistry, updateSkillDelegateDescription } = await import('../runtime/skills/index.js');
+      const { SkillRegistry } = await import('../runtime/skills/index.js');
       const registry = SkillRegistry.getInstance();
       const success = registry.disable(name);
 
@@ -935,7 +933,6 @@ export class DiscordAdapter {
         return;
       }
 
-      updateSkillDelegateDescription();
       await interaction.reply({ content: `Skill \`${name}\` disabled.` });
     } catch (err: any) {
       await interaction.reply({ content: `Error: ${err.message}` });
