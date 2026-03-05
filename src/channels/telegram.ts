@@ -166,8 +166,8 @@ export class TelegramAdapter {
   private telephonistProvider: string | null = null;
   private telephonistModel: string | null = null;
   private history = new SQLiteChatMessageHistory({ sessionId: '' });
-  /** Per-channel session tracking — which session this Telegram adapter is currently using */
-  private currentSessionId: string | null = null;
+  /** Per-user session tracking — maps userId to sessionId */
+  private userSessions = new Map<string, string>();
 
   private readonly RATE_LIMIT_MS = 3000; // minimum ms between requests per user
   private rateLimiter = new Map<string, number>(); // userId -> last request timestamp
@@ -275,8 +275,7 @@ export class TelegramAdapter {
           // Send "typing" status
           await ctx.sendChatAction('typing');
 
-          const sessionId = this.currentSessionId ?? await this.history.getCurrentSessionOrCreate();
-          this.currentSessionId = sessionId;
+          const sessionId = await this.getSessionForUser(userId);
 
           // Process with Agent
           const response = await this.oracle.chat(text, undefined, false, {
@@ -375,7 +374,7 @@ export class TelegramAdapter {
 
           // Audit: record telephonist execution
           try {
-            const auditSessionId = this.currentSessionId ?? await this.history.getCurrentSessionOrCreate();
+            const auditSessionId = await this.getSessionForUser(userId);
             AuditRepository.getInstance().insert({
               session_id: auditSessionId,
               event_type: 'telephonist',
@@ -405,8 +404,7 @@ export class TelegramAdapter {
           await ctx.reply(`🎤 Transcription: "${text}"`);
           await ctx.sendChatAction('typing');
 
-          const sessionId = this.currentSessionId ?? await this.history.getCurrentSessionOrCreate();
-          this.currentSessionId = sessionId;
+          const sessionId = await this.getSessionForUser(userId);
 
           // Process with Agent
           const response = await this.oracle.chat(text, usage, true, {
@@ -441,7 +439,7 @@ export class TelegramAdapter {
           const detail = error?.cause?.message || error?.response?.data?.error?.message || error.message;
           this.display.log(`Audio processing error for @${user}: ${detail}`, { source: 'Telephonist', level: 'error' });
           try {
-            const auditSessionId = this.currentSessionId ?? 'default';
+            const auditSessionId = await this.getSessionForUser(userId);
             AuditRepository.getInstance().insert({
               session_id: auditSessionId,
               event_type: 'telephonist',
@@ -485,6 +483,7 @@ export class TelegramAdapter {
         const callbackQuery = ctx.callbackQuery;
         const data = callbackQuery && 'data' in callbackQuery ? callbackQuery.data : undefined;
         const sessionId = typeof data === 'string' ? data.replace('switch_session_', '') : '';
+        const userId = ctx.from.id.toString();
 
         if (!sessionId || sessionId === '') {
           await ctx.answerCbQuery('Invalid session ID');
@@ -497,8 +496,9 @@ export class TelegramAdapter {
           await history.switchSession(sessionId);
           history.close();
 
-          // Track this session as the current one for this Telegram channel
-          this.currentSessionId = sessionId;
+          // Update user-channel session mapping
+          await this.history.setUserChannelSession(this.channel, userId, sessionId);
+          this.userSessions.set(userId, sessionId);
           await ctx.answerCbQuery();
 
           // Remove the previous message and send confirmation
@@ -535,10 +535,19 @@ export class TelegramAdapter {
       this.bot.action(/^confirm_archive_session_/, async (ctx) => {
         const data = (ctx.callbackQuery as any).data;
         const sessionId = data.replace('confirm_archive_session_', '');
+        const userId = ctx.from.id.toString();
 
         try {
           const history = new SQLiteChatMessageHistory({ sessionId: "" });
           await history.archiveSession(sessionId);
+          
+          // Remove user-channel session mapping if this was their current session
+          const currentSession = this.userSessions.get(userId);
+          if (currentSession === sessionId) {
+            await this.history.deleteUserChannelSession(this.channel, userId);
+            this.userSessions.delete(userId);
+          }
+          
           await ctx.answerCbQuery('Session archived successfully');
 
           if (ctx.updateType === 'callback_query') {
@@ -572,10 +581,19 @@ export class TelegramAdapter {
       this.bot.action(/^confirm_delete_session_/, async (ctx) => {
         const data = (ctx.callbackQuery as any).data;
         const sessionId = data.replace('confirm_delete_session_', '');
+        const userId = ctx.from.id.toString();
 
         try {
           const history = new SQLiteChatMessageHistory({ sessionId: "" });
           await history.deleteSession(sessionId);
+          
+          // Remove user-channel session mapping if this was their current session
+          const currentSession = this.userSessions.get(userId);
+          if (currentSession === sessionId) {
+            await this.history.deleteUserChannelSession(this.channel, userId);
+            this.userSessions.delete(userId);
+          }
+          
           await ctx.answerCbQuery('Session deleted successfully');
 
           if (ctx.updateType === 'callback_query') {
@@ -754,6 +772,46 @@ export class TelegramAdapter {
 
   private isAuthorized(userId: string, allowedUsers: string[]): boolean {
     return allowedUsers.includes(userId);
+  }
+
+  /**
+   * Gets or creates a session for a specific user.
+   * Uses triple fallback: memory → DB → global session.
+   */
+  async getSessionForUser(userId: string): Promise<string> {
+    // 1. Try memory
+    const fromMemory = this.userSessions.get(userId);
+    if (fromMemory) return fromMemory;
+
+    // 2. Try DB
+    const fromDb = await this.history.getUserChannelSession(this.channel, userId);
+    if (fromDb !== null) {
+      this.userSessions.set(userId, fromDb);
+      return fromDb;
+    }
+
+    // 3. Create/use global session
+    const newSessionId = await this.history.getCurrentSessionOrCreate();
+    await this.history.setUserChannelSession(this.channel, userId, newSessionId);
+    this.userSessions.set(userId, newSessionId);
+    return newSessionId;
+  }
+
+  /**
+   * Restores user sessions from DB on startup.
+   * Reads user_channel_sessions table and populates userSessions Map.
+   */
+  async restoreUserSessions(): Promise<void> {
+    const rows = await this.history.listUserChannelSessions(this.channel);
+    for (const row of rows) {
+      this.userSessions.set(row.userId, row.sessionId);
+    }
+    if (rows.length > 0) {
+      this.display.log(
+        `✓ Restored ${rows.length} user session(s) from database`,
+        { source: 'Telegram', level: 'info' },
+      );
+    }
   }
 
   private async downloadToTemp(url: URL, extension: string = '.ogg'): Promise<string> {
@@ -1258,8 +1316,10 @@ export class TelegramAdapter {
       const history = new SQLiteChatMessageHistory({ sessionId: "" });
       const newSessionId = await history.createNewSession();
       history.close();
-      // Track the new session as the current one for this Telegram channel
-      this.currentSessionId = newSessionId;
+      // Track the new session as the current one for this user
+      const userId = ctx.from.id.toString();
+      await this.history.setUserChannelSession(this.channel, userId, newSessionId);
+      this.userSessions.set(userId, newSessionId);
     } catch (e: any) {
       await ctx.reply(`Error creating new session: ${e.message}`);
     }
@@ -1269,6 +1329,15 @@ export class TelegramAdapter {
   private async handleSessionStatusCommand(ctx: any, user: string) {
     try {
       const history = new SQLiteChatMessageHistory({ sessionId: "" });
+      const userId = ctx.from.id.toString();
+
+      // Get user's current session (string | undefined)
+      let userCurrentSession: string | undefined = this.userSessions.get(userId) || undefined;
+      if (userCurrentSession === undefined) {
+        const fromDb = await this.history.getUserChannelSession(this.channel, userId);
+        userCurrentSession = fromDb ?? undefined;
+      }
+
       // Exclude automated Chronos sessions — their IDs exceed Telegram's 64-byte
       // callback_data limit and they are not user-managed sessions.
       const sessions = (await history.listSessions()).filter(
@@ -1285,7 +1354,7 @@ export class TelegramAdapter {
 
       for (const session of sessions) {
         const title = session.title || 'Untitled Session';
-        const isCurrent = session.id === this.currentSessionId;
+        const isCurrent = session.id === userCurrentSession;
         const statusEmoji = isCurrent ? '🟢' : '⚪';
         response += `${statusEmoji} *${escMdRaw(title)}*\n`;
         response += `\\- ID: \`${escMdRaw(session.id)}\`\n`;

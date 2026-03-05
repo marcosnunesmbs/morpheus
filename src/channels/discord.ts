@@ -176,8 +176,8 @@ export class DiscordAdapter {
   private display = DisplayManager.getInstance();
   private config = ConfigManager.getInstance();
   private history = new SQLiteChatMessageHistory({ sessionId: '' });
-  /** Per-channel session tracking — which session this Discord adapter is currently using */
-  private currentSessionId: string | null = null;
+  /** Per-user session tracking — maps userId to sessionId */
+  private userSessions = new Map<string, string>();
 
   private telephonist: ITelephonist | null = null;
   private telephonistProvider: string | null = null;
@@ -283,8 +283,7 @@ export class DiscordAdapter {
       this.display.log(`${message.author.tag}: ${text}`, { source: 'Discord' });
 
       try {
-        const sessionId = this.currentSessionId ?? await this.history.getCurrentSessionOrCreate();
-        this.currentSessionId = sessionId;
+        const sessionId = await this.getSessionForUser(userId);
 
         const response = await this.oracle.chat(text, undefined, false, {
           origin_channel: 'discord',
@@ -432,8 +431,7 @@ export class DiscordAdapter {
       await channel.send(`🎤 "${text}"`);
 
       // Process with Oracle
-      const sessionId = this.currentSessionId ?? await this.history.getCurrentSessionOrCreate();
-      this.currentSessionId = sessionId;
+      const sessionId = await this.getSessionForUser(userId);
 
       const response = await this.oracle.chat(text, usage, true, {
         origin_channel: 'discord',
@@ -596,8 +594,10 @@ export class DiscordAdapter {
       const history = new SQLiteChatMessageHistory({ sessionId: '' });
       const newSessionId = await history.createNewSession();
       history.close();
-      // Track the new session as the current one for this Discord channel
-      this.currentSessionId = newSessionId;
+      // Track the new session as the current one for this user
+      const userId = interaction.user.id;
+      await this.history.setUserChannelSession(this.channel, userId, newSessionId);
+      this.userSessions.set(userId, newSessionId);
       await interaction.reply({ content: '✅ New session started.' });
     } catch (err: any) {
       await interaction.reply({ content: `Error: ${err.message}` });
@@ -607,6 +607,15 @@ export class DiscordAdapter {
   private async cmdSessions(interaction: ChatInputCommandInteraction): Promise<void> {
     try {
       const history = new SQLiteChatMessageHistory({ sessionId: '' });
+      const userId = interaction.user.id;
+
+      // Get user's current session (string | undefined)
+      let userCurrentSession: string | undefined = this.userSessions.get(userId) || undefined;
+      if (userCurrentSession === undefined) {
+        const fromDb = await this.history.getUserChannelSession(this.channel, userId);
+        userCurrentSession = fromDb ?? undefined;
+      }
+
       const sessions = (await history.listSessions()).filter(
         (s) => !s.id.startsWith('chronos-job-') && !s.id.startsWith('sati-evaluation')
       );
@@ -622,7 +631,7 @@ export class DiscordAdapter {
 
       for (const session of sessions) {
         const title = session.title || 'Untitled Session';
-        const isCurrent = session.id === this.currentSessionId;
+        const isCurrent = session.id === userCurrentSession;
         const icon = isCurrent ? '🟢' : '⚪';
         const started = new Date(session.started_at).toLocaleString();
         lines.push(`${icon} **${title}**`);
@@ -670,26 +679,38 @@ export class DiscordAdapter {
 
       collector.on('collect', async (btn: ButtonInteraction) => {
         try {
+          const uid = btn.user.id;
           if (btn.customId.startsWith('session_switch_')) {
             const sid = btn.customId.replace('session_switch_', '');
             const h = new SQLiteChatMessageHistory({ sessionId: '' });
             await h.switchSession(sid);
             h.close();
-            this.currentSessionId = sid;
+            await this.history.setUserChannelSession(this.channel, uid, sid);
+            this.userSessions.set(uid, sid);
             await btn.reply({ content: `✅ Switched to session \`${sid}\`.`, ephemeral: true });
           } else if (btn.customId.startsWith('session_archive_')) {
             const sid = btn.customId.replace('session_archive_', '');
             const h = new SQLiteChatMessageHistory({ sessionId: '' });
             await h.archiveSession(sid);
             h.close();
-            if (this.currentSessionId === sid) this.currentSessionId = null;
+            // Remove user-channel mapping if this was their current session
+            const current = this.userSessions.get(uid);
+            if (current === sid) {
+              await this.history.deleteUserChannelSession(this.channel, uid);
+              this.userSessions.delete(uid);
+            }
             await btn.reply({ content: `📂 Session \`${sid}\` archived.`, ephemeral: true });
           } else if (btn.customId.startsWith('session_delete_')) {
             const sid = btn.customId.replace('session_delete_', '');
             const h = new SQLiteChatMessageHistory({ sessionId: '' });
             await h.deleteSession(sid);
             h.close();
-            if (this.currentSessionId === sid) this.currentSessionId = null;
+            // Remove user-channel mapping if this was their current session
+            const current = this.userSessions.get(uid);
+            if (current === sid) {
+              await this.history.deleteUserChannelSession(this.channel, uid);
+              this.userSessions.delete(uid);
+            }
             await btn.reply({ content: `🗑️ Session \`${sid}\` deleted.`, ephemeral: true });
           }
         } catch (err: any) {
@@ -713,7 +734,9 @@ export class DiscordAdapter {
       const history = new SQLiteChatMessageHistory({ sessionId: '' });
       await history.switchSession(sessionId);
       history.close();
-      this.currentSessionId = sessionId;
+      const userId = interaction.user.id;
+      await this.history.setUserChannelSession(this.channel, userId, sessionId);
+      this.userSessions.set(userId, sessionId);
       await interaction.reply({ content: `✅ Switched to session \`${sessionId}\`.` });
     } catch (err: any) {
       await interaction.reply({ content: `Error: ${err.message}` });
@@ -1024,6 +1047,46 @@ export class DiscordAdapter {
 
   private isAuthorized(userId: string): boolean {
     return this.allowedUsers.includes(userId);
+  }
+
+  /**
+   * Gets or creates a session for a specific user.
+   * Uses triple fallback: memory → DB → global session.
+   */
+  async getSessionForUser(userId: string): Promise<string> {
+    // 1. Try memory
+    const fromMemory = this.userSessions.get(userId);
+    if (fromMemory) return fromMemory;
+
+    // 2. Try DB
+    const fromDb = await this.history.getUserChannelSession(this.channel, userId);
+    if (fromDb !== null) {
+      this.userSessions.set(userId, fromDb);
+      return fromDb;
+    }
+
+    // 3. Create/use global session
+    const newSessionId = await this.history.getCurrentSessionOrCreate();
+    await this.history.setUserChannelSession(this.channel, userId, newSessionId);
+    this.userSessions.set(userId, newSessionId);
+    return newSessionId;
+  }
+
+  /**
+   * Restores user sessions from DB on startup.
+   * Reads user_channel_sessions table and populates userSessions Map.
+   */
+  async restoreUserSessions(): Promise<void> {
+    const rows = await this.history.listUserChannelSessions(this.channel);
+    for (const row of rows) {
+      this.userSessions.set(row.userId, row.sessionId);
+    }
+    if (rows.length > 0) {
+      this.display.log(
+        `✓ Restored ${rows.length} user session(s) from database`,
+        { source: 'Discord', level: 'info' },
+      );
+    }
   }
 
   private isRateLimited(userId: string): boolean {

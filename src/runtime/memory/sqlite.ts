@@ -164,6 +164,14 @@ export class SQLiteChatMessageHistory extends BaseListChatMessageHistory {
           embedding_status TEXT CHECK (embedding_status IN ('none', 'pending', 'embedded', 'failed')) NOT NULL DEFAULT 'none'
         );
 
+        CREATE TABLE IF NOT EXISTS user_channel_sessions (
+          channel TEXT NOT NULL,
+          user_id TEXT NOT NULL,
+          session_id TEXT NOT NULL,
+          updated_at INTEGER NOT NULL,
+          PRIMARY KEY (channel, user_id)
+        );
+
         CREATE TABLE IF NOT EXISTS model_pricing (
           provider TEXT NOT NULL,
           model TEXT NOT NULL,
@@ -1147,6 +1155,56 @@ export class SQLiteChatMessageHistory extends BaseListChatMessageHistory {
     `).all() as Array<{ id: string, title: string | null, status: string, started_at: number }>;
 
     return sessions;
+  }
+
+  /**
+   * Gets the session ID for a specific channel+user combination.
+   * Returns null if not found.
+   */
+  public async getUserChannelSession(channel: string, userId: string): Promise<string | null> {
+    const result = this.db.prepare(`
+      SELECT session_id FROM user_channel_sessions
+      WHERE channel = ? AND user_id = ?
+    `).get(channel, userId) as { session_id: string } | undefined;
+
+    return result ? result.session_id : null;
+  }
+
+  /**
+   * Sets or updates the session ID for a specific channel+user.
+   * Uses INSERT ... ON CONFLICT for upsert behavior.
+   */
+  public async setUserChannelSession(channel: string, userId: string, sessionId: string): Promise<void> {
+    this.db.prepare(`
+      INSERT INTO user_channel_sessions (channel, user_id, session_id, updated_at)
+      VALUES (?, ?, ?, ?)
+      ON CONFLICT(channel, user_id) DO UPDATE SET
+        session_id = excluded.session_id,
+        updated_at = excluded.updated_at
+    `).run(channel, userId, sessionId, Date.now());
+  }
+
+  /**
+   * Lists all user sessions for a channel.
+   * Returns an array of {userId, sessionId} objects.
+   */
+  public async listUserChannelSessions(channel: string): Promise<Array<{ userId: string, sessionId: string }>> {
+    const rows = this.db.prepare(`
+      SELECT user_id, session_id FROM user_channel_sessions
+      WHERE channel = ?
+    `).all(channel) as Array<{ user_id: string, session_id: string }>;
+
+    return rows.map(row => ({ userId: row.user_id, sessionId: row.session_id }));
+  }
+
+  /**
+   * Removes the session mapping for a channel+user.
+   */
+  public async deleteUserChannelSession(channel: string, userId: string): Promise<void> {
+    this.db.prepare(`
+      DELETE FROM user_channel_sessions
+      WHERE channel = ? AND user_id = ?
+    `).run(channel, userId);
   }
 
   /**

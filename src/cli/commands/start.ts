@@ -257,6 +257,7 @@ export const startCommand = new Command('start')
               config.channels.telegram.token,
               config.channels.telegram.allowedUsers || []
             );
+            await telegram.restoreUserSessions();
             ChannelRegistry.register(telegram);
             adapters.push(telegram);
           } catch (e) {
@@ -276,6 +277,7 @@ export const startCommand = new Command('start')
               config.channels.discord.token,
               config.channels.discord.allowedUsers || []
             );
+            await discord.restoreUserSessions();
             ChannelRegistry.register(discord);
             adapters.push(discord);
           } catch (e: any) {
