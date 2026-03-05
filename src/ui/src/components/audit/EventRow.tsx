@@ -56,11 +56,12 @@ const AGENT_EMOJIS: Record<string, string> = {
   apoc: '🧑‍🔬',
   neo: '🥷',
   trinity: '👩‍💻',
-  smith: '🤖',
+  smith: '🕶️',
   keymaker: '🗝️',
   chronos: '⏰',
   sati: '🧠',
   telephonist: '📞',
+  link: '🕵️‍♂️',
 };
 
 const AGENT_BADGES: Record<string, string> = {
@@ -73,6 +74,7 @@ const AGENT_BADGES: Record<string, string> = {
   chronos: 'bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300',
   sati: 'bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300',
   telephonist: 'bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300',
+  link: 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300',
 };
 
 function fmtMs(ms: number | null): string {

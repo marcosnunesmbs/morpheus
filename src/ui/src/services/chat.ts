@@ -36,7 +36,7 @@ export interface GroupedMessage {
 }
 
 const DELEGATION_TOOLS = new Set([
-    'apoc_delegate', 'neo_delegate', 'trinity_delegate', 'smith_delegate',
+    'apoc_delegate', 'neo_delegate', 'trinity_delegate', 'smith_delegate', 'link_delegate',
 ]);
 
 export function isDelegationCall(toolName: string): boolean {

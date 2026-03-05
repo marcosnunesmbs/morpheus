@@ -12,6 +12,7 @@ const AGENT_META: Record<string, { label: string; emoji: string; colorClass: str
   neo_delegate:     { label: 'Neo',     emoji: '🥷',   colorClass: 'text-violet-600 dark:text-violet-400', bgClass: 'bg-violet-50 dark:bg-violet-900/10' },
   trinity_delegate: { label: 'Trinity', emoji: '👩‍💻',  colorClass: 'text-teal-600  dark:text-teal-400',   bgClass: 'bg-teal-50   dark:bg-teal-900/10'   },
   smith_delegate:   { label: 'Smith',   emoji: '🕶️',   colorClass: 'text-gray-500  dark:text-gray-400',   bgClass: 'bg-gray-50   dark:bg-zinc-900'       },
+  link_delegate:    { label: 'Link',    emoji: '🕵️‍♂️',   colorClass: 'text-indigo-600 dark:text-indigo-400', bgClass: 'bg-indigo-50 dark:bg-indigo-900/10' },
 };
 
 function getTask(args: any): string {

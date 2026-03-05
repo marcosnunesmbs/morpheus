@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { FileText, RefreshCw } from 'lucide-react';
 import { useLinkDocuments, uploadDocument, deleteDocument, reindexDocument, triggerScan } from '../services/link';
 import { DocumentTable } from '../components/link/DocumentTable';
 import { UploadButton } from '../components/link/UploadButton';
@@ -64,37 +65,28 @@ export function Documents() {
   };
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between px-6 py-4 border-b border-matrix-primary/30 dark:border-gray-700">
-        <div>
-          <h1 className="text-2xl font-bold text-matrix-highlight dark:text-white">Documents</h1>
-          <p className="text-sm text-matrix-secondary dark:text-gray-400 mt-1">
-            Manage your document library for Link agent
-          </p>
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-lg bg-azure-primary/10 dark:bg-matrix-highlight/10 border border-azure-primary/20 dark:border-matrix-highlight/30 flex items-center justify-center">
+            <FileText className="w-5 h-5 text-azure-primary dark:text-matrix-highlight" />
+          </div>
+          <div>
+            <h1 className="text-xl font-bold text-azure-text dark:text-matrix-highlight">Documents</h1>
+            <p className="text-sm text-azure-text-secondary dark:text-matrix-tertiary mt-0.5">
+              Manage your document library for Link agent
+            </p>
+          </div>
         </div>
         <div className="flex items-center gap-3">
           <button
             onClick={handleScan}
             disabled={scanning}
-            className="inline-flex items-center px-3 py-2 text-sm border border-matrix-primary dark:border-gray-600 rounded-md text-matrix-secondary dark:text-gray-300 hover:bg-matrix-primary/10 dark:hover:bg-gray-700 transition-colors disabled:opacity-50"
+            className="flex items-center gap-2 px-4 py-2 rounded-lg border border-azure-primary/20 dark:border-matrix-highlight/30 text-azure-text-secondary dark:text-matrix-secondary text-sm font-medium hover:opacity-90 transition-opacity disabled:opacity-50"
           >
-            {scanning ? (
-              <>
-                <svg className="animate-spin -ml-1 mr-2 h-4 w-4" fill="none" viewBox="0 0 24 24">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-                </svg>
-                Scanning...
-              </>
-            ) : (
-              <>
-                <svg className="mr-2 h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                </svg>
-                Scan Now
-              </>
-            )}
+            <RefreshCw className={`w-4 h-4 ${scanning ? 'animate-spin' : ''}`} />
+            {scanning ? 'Scanning...' : 'Scan Now'}
           </button>
           <UploadButton onUpload={handleUpload} isUploading={uploading} />
         </div>
@@ -102,53 +94,47 @@ export function Documents() {
 
       {/* Messages */}
       {error && (
-        <div className="mx-6 mt-4 p-3 bg-red-500/10 border border-red-500/30 rounded-md text-red-500 text-sm">
+        <div className="p-3 bg-red-500/10 border border-red-500/30 rounded-md text-red-500 text-sm">
           {error}
         </div>
       )}
       {success && (
-        <div className="mx-6 mt-4 p-3 bg-green-500/10 border border-green-500/30 rounded-md text-green-500 text-sm">
+        <div className="p-3 bg-green-500/10 border border-green-500/30 rounded-md text-green-500 text-sm">
           {success}
         </div>
       )}
 
       {/* Stats */}
       {stats && (
-        <div className="mx-6 mt-4 grid grid-cols-3 gap-4">
-          <div className="p-4 bg-matrix-base/50 dark:bg-gray-800/50 border border-matrix-primary/30 dark:border-gray-700 rounded-lg">
-            <div className="text-2xl font-bold text-matrix-highlight dark:text-white">{stats.documents_total}</div>
-            <div className="text-sm text-matrix-secondary dark:text-gray-400">Total Documents</div>
+        <div className="grid grid-cols-3 gap-4">
+          <div className="p-4 bg-azure-primary/5 dark:bg-matrix-highlight/5 border border-azure-primary/20 dark:border-matrix-highlight/30 rounded-lg">
+            <div className="text-2xl font-bold text-azure-text dark:text-matrix-highlight">{stats.documents_total}</div>
+            <div className="text-sm text-azure-text-secondary dark:text-matrix-tertiary">Total Documents</div>
           </div>
-          <div className="p-4 bg-matrix-base/50 dark:bg-gray-800/50 border border-matrix-primary/30 dark:border-gray-700 rounded-lg">
-            <div className="text-2xl font-bold text-green-400">{stats.documents_indexed}</div>
-            <div className="text-sm text-matrix-secondary dark:text-gray-400">Indexed</div>
+          <div className="p-4 bg-azure-primary/5 dark:bg-matrix-highlight/5 border border-azure-primary/20 dark:border-matrix-highlight/30 rounded-lg">
+            <div className="text-2xl font-bold text-green-600 dark:text-green-400">{stats.documents_indexed}</div>
+            <div className="text-sm text-azure-text-secondary dark:text-matrix-tertiary">Indexed</div>
           </div>
-          <div className="p-4 bg-matrix-base/50 dark:bg-gray-800/50 border border-matrix-primary/30 dark:border-gray-700 rounded-lg">
-            <div className="text-2xl font-bold text-matrix-highlight dark:text-white">{stats.chunks_total}</div>
-            <div className="text-sm text-matrix-secondary dark:text-gray-400">Total Chunks</div>
+          <div className="p-4 bg-azure-primary/5 dark:bg-matrix-highlight/5 border border-azure-primary/20 dark:border-matrix-highlight/30 rounded-lg">
+            <div className="text-2xl font-bold text-azure-text dark:text-matrix-highlight">{stats.chunks_total}</div>
+            <div className="text-sm text-azure-text-secondary dark:text-matrix-tertiary">Total Chunks</div>
           </div>
         </div>
       )}
 
       {/* Document List */}
-      <div className="flex-1 overflow-auto px-6 py-4">
-        <div className="bg-matrix-base/30 dark:bg-gray-800/30 border border-matrix-primary/30 dark:border-gray-700 rounded-lg overflow-hidden">
-          <DocumentTable
-            documents={documents}
-            onDelete={handleDelete}
-            onReindex={handleReindex}
-            isLoading={isLoading}
-          />
-        </div>
-      </div>
+      <DocumentTable
+        documents={documents}
+        onDelete={handleDelete}
+        onReindex={handleReindex}
+        isLoading={isLoading}
+      />
 
       {/* Help */}
-      <div className="px-6 py-4 border-t border-matrix-primary/30 dark:border-gray-700">
-        <p className="text-xs text-matrix-tertiary dark:text-gray-500">
-          Supported formats: PDF, TXT, Markdown, DOCX. Documents are stored in ~/.morpheus/docs.
-          Ask Oracle questions about your documents using natural language.
-        </p>
-      </div>
+      <p className="text-xs text-azure-text-secondary dark:text-matrix-tertiary">
+        Supported formats: PDF, TXT, Markdown, DOCX. Documents are stored in ~/.morpheus/docs.
+        Ask Oracle questions about your documents using natural language.
+      </p>
     </div>
   );
 }
