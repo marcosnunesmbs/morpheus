@@ -68,6 +68,7 @@ export const DevKitConfigSchema = z.object({
   sandbox_dir: z.string().optional(),
   readonly_mode: z.boolean().default(false),
   allowed_shell_commands: z.array(z.string()).default([]),
+  allowed_paths: z.array(z.string()).default([]),
   enable_filesystem: z.boolean().default(true),
   enable_shell: z.boolean().default(true),
   enable_git: z.boolean().default(true),

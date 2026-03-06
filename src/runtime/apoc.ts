@@ -67,6 +67,7 @@ export class Apoc implements ISubagent {
     const rawTools = buildDevKit({
       working_dir: devkit.sandbox_dir || process.cwd(),
       allowed_commands: devkit.allowed_shell_commands || [],
+      allowed_paths: devkit.allowed_paths || [],
       timeout_ms,
       sandbox_dir: devkit.sandbox_dir,
       readonly_mode: devkit.readonly_mode,
@@ -286,7 +287,7 @@ ${context ? `CONTEXT FROM ORACLE:\n${context}` : ""}
     try {
       const inputCount = messages.length;
       const startMs = Date.now();
-      const response = await this.agent!.invoke({ messages }, { recursionLimit: 10 });
+      const response = await this.agent!.invoke({ messages }, { recursionLimit: 100 });
       const durationMs = Date.now() - startMs;
 
       const apocConfig = this.config.apoc || this.config.llm;

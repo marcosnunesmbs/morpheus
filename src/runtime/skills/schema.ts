@@ -19,8 +19,7 @@ export const SkillMetadataSchema = z.object({
 
   description: z
     .string()
-    .min(1, 'Description is required')
-    .max(500, 'Description must be at most 500 characters'),
+    .min(1, 'Description is required'),
 
   version: z
     .string()

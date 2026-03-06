@@ -3,6 +3,7 @@ import useSWR, { mutate } from 'swr';
 import { useChronosConfig, chronosService, type ChronosConfig } from '../services/chronos';
 import { Section } from '../components/forms/Section';
 import { TextInput } from '../components/forms/TextInput';
+import { TextAreaInput } from '../components/forms/TextAreaInput';
 import { SelectInput } from '../components/forms/SelectInput';
 import { NumberInput } from '../components/forms/NumberInput';
 import { Switch } from '../components/forms/Switch';
@@ -540,13 +541,14 @@ export default function Settings() {
               onChange={(e) => handleUpdate(['agent', 'name'], e.target.value)}
               error={errors['agent.name']}
             />
-            <TextInput
+            <TextAreaInput
               label="Personality"
               value={localConfig.agent.personality}
               onChange={(e) =>
                 handleUpdate(['agent', 'personality'], e.target.value)
               }
               error={errors['agent.personality']}
+              placeholder="Describe the agent's personality or description..."
             />
             <SelectInput
               label="Verbose Mode"
@@ -1456,6 +1458,20 @@ export default function Settings() {
               placeholder={typeof window !== 'undefined' ? '(defaults to process.cwd())' : ''}
               helperText="Root directory for all DevKit operations. All file, shell, and git paths are confined here."
               disabled={isEnvOverridden('devkit.sandbox_dir')}
+            />
+
+            <TextAreaInput
+              label="Allowed Paths"
+              value={localConfig.devkit?.allowed_paths?.join('\n') || ''}
+              onChange={(e) =>
+                handleUpdate(
+                  ['devkit', 'allowed_paths'],
+                  e.target.value.split('\n').map((p) => p.trim()).filter(Boolean)
+                )
+              }
+              placeholder="~/.morpheus/docs"
+              helperText="Additional paths outside sandbox_dir that DevKit can access (one per line)."
+              rows={4}
             />
 
             <SelectInput

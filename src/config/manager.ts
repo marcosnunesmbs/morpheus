@@ -397,6 +397,9 @@ export class ConfigManager {
       allowed_shell_commands: process.env.MORPHEUS_DEVKIT_ALLOWED_SHELL_COMMANDS
         ? process.env.MORPHEUS_DEVKIT_ALLOWED_SHELL_COMMANDS.split(',').map(s => s.trim()).filter(Boolean)
         : (rawDevKit.allowed_shell_commands ?? []),
+      allowed_paths: process.env.MORPHEUS_DEVKIT_ALLOWED_PATHS
+        ? process.env.MORPHEUS_DEVKIT_ALLOWED_PATHS.split(',').map(s => s.trim()).filter(Boolean)
+        : (rawDevKit.allowed_paths?.length ? rawDevKit.allowed_paths : [PATHS.docs, PATHS.skills]),
       enable_filesystem: resolveBoolean('MORPHEUS_DEVKIT_ENABLE_FILESYSTEM', rawDevKit.enable_filesystem, true),
       enable_shell: resolveBoolean('MORPHEUS_DEVKIT_ENABLE_SHELL', rawDevKit.enable_shell, true),
       enable_git: resolveBoolean('MORPHEUS_DEVKIT_ENABLE_GIT', rawDevKit.enable_git, true),
@@ -585,6 +588,7 @@ export class ConfigManager {
       sandbox_dir: process.cwd(),
       readonly_mode: false,
       allowed_shell_commands: [],
+      allowed_paths: [PATHS.docs, PATHS.skills],
       enable_filesystem: true,
       enable_shell: true,
       enable_git: true,
@@ -592,7 +596,12 @@ export class ConfigManager {
       timeout_ms: 30_000,
     };
     if (this.config.devkit) {
-      return { ...defaults, ...this.config.devkit };
+      const merged = { ...defaults, ...this.config.devkit };
+      // Ensure allowed_paths has default if empty or undefined
+      if (!merged.allowed_paths?.length) {
+        merged.allowed_paths = [PATHS.docs, PATHS.skills];
+      }
+      return merged;
     }
     return defaults;
   }

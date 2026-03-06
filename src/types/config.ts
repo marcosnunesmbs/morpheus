@@ -72,6 +72,8 @@ export interface DevKitConfig {
   readonly_mode?: boolean;
   /** Shell command allowlist. Empty array = no restriction. When populated, only listed binaries can run. */
   allowed_shell_commands?: string[];
+  /** Additional paths outside sandbox_dir that DevKit can access. */
+  allowed_paths?: string[];
   /** Enable filesystem tools (read, write, list, copy, move, delete). Default: true. */
   enable_filesystem?: boolean;
   /** Enable shell tools (run_command, run_script, which). Default: true. */
@@ -266,6 +268,7 @@ export const DEFAULT_CONFIG: MorpheusConfig = {
     sandbox_dir: '',
     readonly_mode: false,
     allowed_shell_commands: [],
+    allowed_paths: [],
     enable_filesystem: true,
     enable_shell: true,
     enable_git: true,
