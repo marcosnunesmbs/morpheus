@@ -21,7 +21,7 @@ function formatDate(dateString: string): string {
 export function DocumentTable({ documents, onDelete, onReindex, isLoading }: DocumentTableProps) {
   if (isLoading) {
     return (
-      <div className="text-center py-8 text-matrix-secondary dark:text-gray-500">
+      <div className="text-center py-8 text-azure-text-secondary dark:text-matrix-tertiary">
         Loading documents...
       </div>
     );
@@ -29,42 +29,42 @@ export function DocumentTable({ documents, onDelete, onReindex, isLoading }: Doc
 
   if (documents.length === 0) {
     return (
-      <div className="text-center py-8 text-matrix-secondary dark:text-gray-500">
+      <div className="text-center py-8 text-azure-text-secondary dark:text-matrix-tertiary">
         No documents found. Upload a document to get started.
       </div>
     );
   }
 
   return (
-    <div className="overflow-x-auto">
-      <table className="min-w-full divide-y divide-matrix-primary/30 dark:divide-gray-700">
-        <thead>
+    <div className="overflow-x-auto rounded-lg border border-azure-border dark:border-matrix-primary">
+      <table className="min-w-full">
+        <thead className="bg-azure-primary/5 dark:bg-matrix-highlight/5">
           <tr>
-            <th className="px-4 py-3 text-left text-xs font-medium text-matrix-secondary dark:text-gray-400 uppercase tracking-wider">
+            <th className="px-4 py-3 text-left text-xs font-medium text-azure-text-secondary dark:text-matrix-secondary uppercase tracking-wider">
               Filename
             </th>
-            <th className="px-4 py-3 text-left text-xs font-medium text-matrix-secondary dark:text-gray-400 uppercase tracking-wider">
+            <th className="px-4 py-3 text-left text-xs font-medium text-azure-text-secondary dark:text-matrix-secondary uppercase tracking-wider">
               Status
             </th>
-            <th className="px-4 py-3 text-left text-xs font-medium text-matrix-secondary dark:text-gray-400 uppercase tracking-wider">
+            <th className="px-4 py-3 text-left text-xs font-medium text-azure-text-secondary dark:text-matrix-secondary uppercase tracking-wider">
               Size
             </th>
-            <th className="px-4 py-3 text-left text-xs font-medium text-matrix-secondary dark:text-gray-400 uppercase tracking-wider">
+            <th className="px-4 py-3 text-left text-xs font-medium text-azure-text-secondary dark:text-matrix-secondary uppercase tracking-wider">
               Chunks
             </th>
-            <th className="px-4 py-3 text-left text-xs font-medium text-matrix-secondary dark:text-gray-400 uppercase tracking-wider">
+            <th className="px-4 py-3 text-left text-xs font-medium text-azure-text-secondary dark:text-matrix-secondary uppercase tracking-wider">
               Updated
             </th>
-            <th className="px-4 py-3 text-right text-xs font-medium text-matrix-secondary dark:text-gray-400 uppercase tracking-wider">
+            <th className="px-4 py-3 text-right text-xs font-medium text-azure-text-secondary dark:text-matrix-secondary uppercase tracking-wider">
               Actions
             </th>
           </tr>
         </thead>
-        <tbody className="divide-y divide-matrix-primary/30 dark:divide-gray-700">
+        <tbody className="divide-y divide-azure-border dark:divide-matrix-primary bg-azure-surface dark:bg-black">
           {documents.map((doc) => (
-            <tr key={doc.id} className="hover:bg-matrix-base/50 dark:hover:bg-gray-800/50">
+            <tr key={doc.id} className="hover:bg-azure-primary/5 dark:hover:bg-matrix-highlight/5">
               <td className="px-4 py-3">
-                <div className="text-sm font-medium text-matrix-highlight dark:text-white">
+                <div className="text-sm font-medium text-azure-text dark:text-matrix-highlight">
                   {doc.filename}
                 </div>
                 {doc.error_message && (
@@ -74,19 +74,19 @@ export function DocumentTable({ documents, onDelete, onReindex, isLoading }: Doc
               <td className="px-4 py-3">
                 <StatusBadge status={doc.status} />
               </td>
-              <td className="px-4 py-3 text-sm text-matrix-secondary dark:text-gray-300">
+              <td className="px-4 py-3 text-sm text-azure-text-secondary dark:text-matrix-secondary">
                 {formatFileSize(doc.file_size)}
               </td>
-              <td className="px-4 py-3 text-sm text-matrix-secondary dark:text-gray-300">
+              <td className="px-4 py-3 text-sm text-azure-text-secondary dark:text-matrix-secondary">
                 {doc.chunk_count}
               </td>
-              <td className="px-4 py-3 text-sm text-matrix-secondary dark:text-gray-300">
+              <td className="px-4 py-3 text-sm text-azure-text-secondary dark:text-matrix-secondary">
                 {formatDate(doc.updated_at)}
               </td>
-              <td className="px-4 py-3 text-right space-x-2">
+              <td className="px-4 py-3 text-right space-x-3">
                 <button
                   onClick={() => onReindex(doc.id)}
-                  className="text-xs text-matrix-secondary dark:text-gray-400 hover:text-matrix-highlight dark:hover:text-white transition-colors"
+                  className="text-xs text-azure-primary dark:text-matrix-secondary hover:text-azure-primary/80 dark:hover:text-matrix-highlight transition-colors"
                   title="Reindex document"
                 >
                   Reindex
