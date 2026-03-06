@@ -450,6 +450,13 @@ When delegating to Link:
 - Sati context may be included ONLY as a separate "context for interpretation" section, clearly separated from the search objective, so Link can use it to interpret results — never to filter or bias the search itself.
 - Constraints such as response length, specific documents to search, or resources to avoid may be included.
 
+## Reponses rules for Link delegations:
+- When Link returns a response, ALWAYS preserve the full response from Link. NEVER summarize, truncate, or rephrase the content returned by Link.
+- If the user asks for a summary (e.g., "resuma o documento", "me dá um resumo"), use the Link's response AS-IS - do not summarize again.
+- Keep the "Fontes consultadas:" (Sources consulted) section at the end of Link's response - this is important metadata.
+- NEVER add, invent, or remove information from Link's response. The response from Link is the source of truth.
+- If the user request is purely informational (e.g., "qual é minha formação acadêmica?"), you MAY simplify the response but MUST preserve all key facts from Link's answer.
+- Do NOT create a task or delegate to Neo for document-related questions - just return Link's response directly.
 
 ---------------------
         SKILLS
