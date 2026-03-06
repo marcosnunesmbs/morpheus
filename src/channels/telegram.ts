@@ -24,6 +24,37 @@ function escapeHtml(text: string): string {
     .replace(/>/g, '&gt;');
 }
 
+/** Telegram callback_data has a 64-byte limit. Truncate if needed. */
+function safeCallbackData(data: string, prefix: string): string {
+  const MAX_CALLBACK_DATA = 64;
+  const full = `${prefix}${data}`;
+  if (full.length > MAX_CALLBACK_DATA) {
+    // Truncate and add hash suffix to identify original
+    const hash = data.slice(-8);
+    return `${prefix}${data.slice(0, MAX_CALLBACK_DATA - prefix.length - 8)}${hash}`;
+  }
+  return full;
+}
+
+/** Safely reply to a message, handling Telegram API errors gracefully. */
+async function safeReply(ctx: any, text: string, options?: any): Promise<void> {
+  try {
+    await ctx.reply(text, options);
+  } catch (error: any) {
+    // Common errors: message not found, chat not found, bot blocked, etc.
+    const msg = error?.description || error?.message || 'Unknown error';
+    if (msg.includes('message to reply not found') || 
+        msg.includes('chat not found') || 
+        msg.includes('bot was blocked') ||
+        msg.includes('user is deactivated')) {
+      // Silently ignore - user may have blocked bot or message expired
+      return;
+    }
+    // Log other errors but don't crash
+    console.error('[Telegram] Reply error:', msg);
+  }
+}
+
 /** Strips HTML tags and unescapes entities for plain-text Telegram fallback. */
 function stripHtmlTags(html: string): string {
   return html
@@ -463,20 +494,30 @@ export class TelegramAdapter {
       });
 
       this.bot.action('confirm_new_session', async (ctx) => {
-        await this.handleApproveNewSessionCommand(ctx, ctx.from.username || ctx.from.first_name);
-        if (ctx.updateType === 'callback_query') {
-          ctx.answerCbQuery();
-          ctx.deleteMessage().catch(() => { });
+        try {
+          await this.handleApproveNewSessionCommand(ctx, ctx.from.username || ctx.from.first_name);
+          if (ctx.updateType === 'callback_query') {
+            ctx.answerCbQuery().catch(() => {});
+            ctx.deleteMessage().catch(() => { });
+          }
+          await safeReply(ctx, "New session created.");
+        } catch (error: any) {
+          console.error('[Telegram] confirm_new_session error:', error.message);
+          ctx.answerCbQuery(`Error: ${error.message}`).catch(() => {});
         }
-        ctx.reply("New session created.");
       });
 
       this.bot.action('cancel_new_session', async (ctx) => {
-        if (ctx.updateType === 'callback_query') {
-          ctx.answerCbQuery();
-          ctx.deleteMessage().catch(() => { });
+        try {
+          if (ctx.updateType === 'callback_query') {
+            ctx.answerCbQuery().catch(() => {});
+            ctx.deleteMessage().catch(() => { });
+          }
+          await safeReply(ctx, "New session cancelled.");
+        } catch (error: any) {
+          console.error('[Telegram] cancel_new_session error:', error.message);
+          ctx.answerCbQuery(`Error: ${error.message}`).catch(() => {});
         }
-        ctx.reply("New session cancelled.");
       });
 
       this.bot.action(/^switch_session_/, async (ctx) => {
@@ -486,7 +527,7 @@ export class TelegramAdapter {
         const userId = ctx.from.id.toString();
 
         if (!sessionId || sessionId === '') {
-          await ctx.answerCbQuery('Invalid session ID');
+          await ctx.answerCbQuery('Invalid session ID').catch(() => {});
           return;
         }
 
@@ -499,37 +540,42 @@ export class TelegramAdapter {
           // Update user-channel session mapping
           await this.history.setUserChannelSession(this.channel, userId, sessionId);
           this.userSessions.set(userId, sessionId);
-          await ctx.answerCbQuery();
+          await ctx.answerCbQuery().catch(() => {});
 
           // Remove the previous message and send confirmation
           if (ctx.updateType === 'callback_query') {
             ctx.deleteMessage().catch(() => { });
           }
 
-          ctx.reply(`✅ Switched to session ID: ${sessionId}`);
+          await safeReply(ctx, `✅ Switched to session ID: ${sessionId}`);
         } catch (error: any) {
-          await ctx.answerCbQuery(`Error switching session: ${error.message}`, { show_alert: true });
+          await ctx.answerCbQuery(`Error switching session: ${error.message}`, { show_alert: true }).catch(() => {});
         }
       });
 
       // --- Archive Flow ---
       this.bot.action(/^ask_archive_session_/, async (ctx) => {
-        const data = (ctx.callbackQuery as any).data;
-        const sessionId = data.replace('ask_archive_session_', '');
-        // Fetch session title for better UX (optional, but nice) - for now just use ID
+        try {
+          const data = (ctx.callbackQuery as any).data;
+          const sessionId = data.replace('ask_archive_session_', '');
+          // Fetch session title for better UX (optional, but nice) - for now just use ID
 
-        await ctx.reply(`⚠️ *ARCHIVE SESSION?*\n\nAre you sure you want to archive session \`${escMd(sessionId)}\`?\n\nIt will be moved to long\\-term memory \\(SATI\\) and removed from the active list\\. This action cannot be easily undone via Telegram\\.`, {
-          parse_mode: 'MarkdownV2',
-          reply_markup: {
-            inline_keyboard: [
-              [
-                { text: '✅ Yes, Archive', callback_data: `confirm_archive_session_${sessionId}` },
-                { text: '❌ Cancel', callback_data: 'cancel_session_action' }
+          await ctx.reply(`⚠️ *ARCHIVE SESSION?*\n\nAre you sure you want to archive session \`${escMd(sessionId)}\`?\n\nIt will be moved to long\\-term memory \\(SATI\\) and removed from the active list\\. This action cannot be easily undone via Telegram\\.`, {
+            parse_mode: 'MarkdownV2',
+            reply_markup: {
+              inline_keyboard: [
+                [
+                  { text: '✅ Yes, Archive', callback_data: safeCallbackData(sessionId, 'confirm_archive_session_') },
+                  { text: '❌ Cancel', callback_data: 'cancel_session_action' }
+                ]
               ]
-            ]
-          }
-        });
-        await ctx.answerCbQuery();
+            }
+          });
+          await ctx.answerCbQuery().catch(() => {});
+        } catch (error: any) {
+          console.error('[Telegram] ask_archive_session error:', error.message);
+          ctx.answerCbQuery(`Error: ${error.message}`).catch(() => {});
+        }
       });
 
       this.bot.action(/^confirm_archive_session_/, async (ctx) => {
@@ -540,42 +586,47 @@ export class TelegramAdapter {
         try {
           const history = new SQLiteChatMessageHistory({ sessionId: "" });
           await history.archiveSession(sessionId);
-          
+
           // Remove user-channel session mapping if this was their current session
           const currentSession = this.userSessions.get(userId);
           if (currentSession === sessionId) {
             await this.history.deleteUserChannelSession(this.channel, userId);
             this.userSessions.delete(userId);
           }
-          
-          await ctx.answerCbQuery('Session archived successfully');
+
+          await ctx.answerCbQuery('Session archived successfully').catch(() => {});
 
           if (ctx.updateType === 'callback_query') {
             ctx.deleteMessage().catch(() => { });
           }
-          await ctx.reply(`✅ Session \`${escMd(sessionId)}\` has been archived and moved to long\\-term memory\\.`, { parse_mode: 'MarkdownV2' });
+          await safeReply(ctx, `✅ Session \`${escMd(sessionId)}\` has been archived and moved to long\\-term memory\\.`, { parse_mode: 'MarkdownV2' });
         } catch (error: any) {
-          await ctx.answerCbQuery(`Error archiving: ${error.message}`, { show_alert: true });
+          await ctx.answerCbQuery(`Error archiving: ${error.message}`, { show_alert: true }).catch(() => {});
         }
       });
 
       // --- Delete Flow ---
       this.bot.action(/^ask_delete_session_/, async (ctx) => {
-        const data = (ctx.callbackQuery as any).data;
-        const sessionId = data.replace('ask_delete_session_', '');
+        try {
+          const data = (ctx.callbackQuery as any).data;
+          const sessionId = data.replace('ask_delete_session_', '');
 
-        await ctx.reply(`🚫 *DELETE SESSION?*\n\nAre you sure you want to PERMANENTLY DELETE session \`${escMd(sessionId)}\`?\n\nThis action is *IRREVERSIBLE*\\. All data will be lost\\.`, {
-          parse_mode: 'MarkdownV2',
-          reply_markup: {
-            inline_keyboard: [
-              [
-                { text: '🗑️ Yes, DELETE PERMANENTLY', callback_data: `confirm_delete_session_${sessionId}` },
-                { text: '❌ Cancel', callback_data: 'cancel_session_action' }
+          await ctx.reply(`🚫 *DELETE SESSION?*\n\nAre you sure you want to PERMANENTLY DELETE session \`${escMd(sessionId)}\`?\n\nThis action is *IRREVERSIBLE*\\. All data will be lost\\.`, {
+            parse_mode: 'MarkdownV2',
+            reply_markup: {
+              inline_keyboard: [
+                [
+                  { text: '🗑️ Yes, DELETE PERMANENTLY', callback_data: safeCallbackData(sessionId, 'confirm_delete_session_') },
+                  { text: '❌ Cancel', callback_data: 'cancel_session_action' }
+                ]
               ]
-            ]
-          }
-        });
-        await ctx.answerCbQuery();
+            }
+          });
+          await ctx.answerCbQuery().catch(() => {});
+        } catch (error: any) {
+          console.error('[Telegram] ask_delete_session error:', error.message);
+          ctx.answerCbQuery(`Error: ${error.message}`).catch(() => {});
+        }
       });
 
       this.bot.action(/^confirm_delete_session_/, async (ctx) => {
@@ -586,32 +637,37 @@ export class TelegramAdapter {
         try {
           const history = new SQLiteChatMessageHistory({ sessionId: "" });
           await history.deleteSession(sessionId);
-          
+
           // Remove user-channel session mapping if this was their current session
           const currentSession = this.userSessions.get(userId);
           if (currentSession === sessionId) {
             await this.history.deleteUserChannelSession(this.channel, userId);
             this.userSessions.delete(userId);
           }
-          
-          await ctx.answerCbQuery('Session deleted successfully');
+
+          await ctx.answerCbQuery('Session deleted successfully').catch(() => {});
 
           if (ctx.updateType === 'callback_query') {
             ctx.deleteMessage().catch(() => { });
           }
-          await ctx.reply(`🗑️ Session \`${escMd(sessionId)}\` has been permanently deleted\\.`, { parse_mode: 'MarkdownV2' });
+          await safeReply(ctx, `🗑️ Session \`${escMd(sessionId)}\` has been permanently deleted\\.`, { parse_mode: 'MarkdownV2' });
         } catch (error: any) {
-          await ctx.answerCbQuery(`Error deleting: ${error.message}`, { show_alert: true });
+          await ctx.answerCbQuery(`Error deleting: ${error.message}`, { show_alert: true }).catch(() => {});
         }
       });
 
       // --- Cancel Action ---
       this.bot.action('cancel_session_action', async (ctx) => {
-        await ctx.answerCbQuery('Action cancelled');
-        if (ctx.updateType === 'callback_query') {
-          ctx.deleteMessage().catch(() => { });
+        try {
+          await ctx.answerCbQuery('Action cancelled').catch(() => {});
+          if (ctx.updateType === 'callback_query') {
+            ctx.deleteMessage().catch(() => { });
+          }
+          await safeReply(ctx, 'Action cancelled.');
+        } catch (error: any) {
+          console.error('[Telegram] cancel_session_action error:', error.message);
+          ctx.answerCbQuery(`Error: ${error.message}`).catch(() => {});
         }
-        await ctx.reply('Action cancelled.');
       });
 
       this.bot.action(/^toggle_mcp_/, async (ctx) => {
@@ -619,131 +675,156 @@ export class TelegramAdapter {
         // format: toggle_mcp_enable_<name> or toggle_mcp_disable_<name>
         const match = data.match(/^toggle_mcp_(enable|disable)_(.+)$/);
         if (!match) {
-          await ctx.answerCbQuery('Invalid action');
+          await ctx.answerCbQuery('Invalid action').catch(() => {});
           return;
         }
         const [, action, serverName] = match;
         const enable = action === 'enable';
         try {
           await MCPManager.setServerEnabled(serverName, enable);
-          await ctx.answerCbQuery(`${enable ? '✅ Enabled' : '❌ Disabled'}: ${serverName}`);
+          await ctx.answerCbQuery(`${enable ? '✅ Enabled' : '❌ Disabled'}: ${serverName}`).catch(() => {});
           if (ctx.updateType === 'callback_query') {
             ctx.deleteMessage().catch(() => { });
           }
           const user = ctx.from?.username || ctx.from?.first_name || 'unknown';
           this.display.log(`MCP '${serverName}' ${enable ? 'enabled' : 'disabled'} by @${user}`, { source: 'Telegram', level: 'info' });
           await this.handleMcpListCommand(ctx, user);
-          await ctx.reply(`⚠️ Use /mcpreload for the changes to take effect.`);
+          await safeReply(ctx, `⚠️ Use /mcpreload for the changes to take effect.`);
         } catch (error: any) {
-          await ctx.answerCbQuery('Failed to update MCP');
-          await ctx.reply(`❌ Failed to ${enable ? 'enable' : 'disable'} MCP '${serverName}': ${error.message}`);
+          await ctx.answerCbQuery('Failed to update MCP').catch(() => {});
+          await safeReply(ctx, `❌ Failed to ${enable ? 'enable' : 'disable'} MCP '${serverName}': ${error.message}`);
         }
       });
 
       // --- Trinity DB Test Connection ---
       this.bot.action(/^test_trinity_db_/, async (ctx) => {
-        const data = (ctx.callbackQuery as any).data as string;
-        const id = parseInt(data.replace('test_trinity_db_', ''), 10);
-        if (isNaN(id)) { await ctx.answerCbQuery('Invalid ID'); return; }
-        await ctx.answerCbQuery('Testing connection…');
         try {
-          const { DatabaseRegistry } = await import('../runtime/memory/trinity-db.js');
-          const { testConnection } = await import('../runtime/trinity-connector.js');
-          const db = DatabaseRegistry.getInstance().getDatabase(id);
-          if (!db) { await ctx.reply('❌ Database not found.'); return; }
-          const ok = await testConnection(db);
-          await ctx.reply(
-            ok
-              ? `✅ <b>${escapeHtml(db.name)}</b>: connection successful.`
-              : `❌ <b>${escapeHtml(db.name)}</b>: connection failed.`,
-            { parse_mode: 'HTML' }
-          );
-        } catch (e: any) {
-          await ctx.reply(`❌ Error testing connection: ${escapeHtml(e.message)}`, { parse_mode: 'HTML' });
+          const data = (ctx.callbackQuery as any).data as string;
+          const id = parseInt(data.replace('test_trinity_db_', ''), 10);
+          if (isNaN(id)) { await ctx.answerCbQuery('Invalid ID').catch(() => {}); return; }
+          await ctx.answerCbQuery('Testing connection…').catch(() => {});
+          try {
+            const { DatabaseRegistry } = await import('../runtime/memory/trinity-db.js');
+            const { testConnection } = await import('../runtime/trinity-connector.js');
+            const db = DatabaseRegistry.getInstance().getDatabase(id);
+            if (!db) { await safeReply(ctx, '❌ Database not found.'); return; }
+            const ok = await testConnection(db);
+            await safeReply(ctx,
+              ok
+                ? `✅ <b>${escapeHtml(db.name)}</b>: connection successful.`
+                : `❌ <b>${escapeHtml(db.name)}</b>: connection failed.`,
+              { parse_mode: 'HTML' }
+            );
+          } catch (e: any) {
+            await safeReply(ctx, `❌ Error testing connection: ${escapeHtml(e.message)}`, { parse_mode: 'HTML' });
+          }
+        } catch (error: any) {
+          console.error('[Telegram] test_trinity_db error:', error.message);
+          ctx.answerCbQuery(`Error: ${error.message}`).catch(() => {});
         }
       });
 
       // --- Trinity DB Refresh Schema ---
       this.bot.action(/^refresh_trinity_db_schema_/, async (ctx) => {
-        const data = (ctx.callbackQuery as any).data as string;
-        const id = parseInt(data.replace('refresh_trinity_db_schema_', ''), 10);
-        if (isNaN(id)) { await ctx.answerCbQuery('Invalid ID'); return; }
-        await ctx.answerCbQuery('Refreshing schema…');
         try {
-          const { DatabaseRegistry } = await import('../runtime/memory/trinity-db.js');
-          const { introspectSchema } = await import('../runtime/trinity-connector.js');
-          const { Trinity } = await import('../runtime/trinity.js');
-          const registry = DatabaseRegistry.getInstance();
-          const db = registry.getDatabase(id);
-          if (!db) { await ctx.reply('❌ Database not found.'); return; }
-          const schema = await introspectSchema(db);
-          registry.updateSchema(id, JSON.stringify(schema, null, 2));
-          await Trinity.refreshDelegateCatalog().catch(() => {});
-          const tableNames = schema.databases
-            ? schema.databases.flatMap((d: any) => d.tables.map((t: any) => `${d.name}.${t.name}`))
-            : schema.tables.map((t: any) => t.name);
-          const count = tableNames.length;
-          await ctx.reply(
-            `🔄 <b>${escapeHtml(db.name)}</b>: schema refreshed — ${count} ${count === 1 ? 'table' : 'tables'}.`,
-            { parse_mode: 'HTML' }
-          );
-        } catch (e: any) {
-          await ctx.reply(`❌ Error refreshing schema: ${escapeHtml(e.message)}`, { parse_mode: 'HTML' });
+          const data = (ctx.callbackQuery as any).data as string;
+          const id = parseInt(data.replace('refresh_trinity_db_schema_', ''), 10);
+          if (isNaN(id)) { await ctx.answerCbQuery('Invalid ID').catch(() => {}); return; }
+          await ctx.answerCbQuery('Refreshing schema…').catch(() => {});
+          try {
+            const { DatabaseRegistry } = await import('../runtime/memory/trinity-db.js');
+            const { introspectSchema } = await import('../runtime/trinity-connector.js');
+            const { Trinity } = await import('../runtime/trinity.js');
+            const registry = DatabaseRegistry.getInstance();
+            const db = registry.getDatabase(id);
+            if (!db) { await safeReply(ctx, '❌ Database not found.'); return; }
+            const schema = await introspectSchema(db);
+            registry.updateSchema(id, JSON.stringify(schema, null, 2));
+            await Trinity.refreshDelegateCatalog().catch(() => {});
+            const tableNames = schema.databases
+              ? schema.databases.flatMap((d: any) => d.tables.map((t: any) => `${d.name}.${t.name}`))
+              : schema.tables.map((t: any) => t.name);
+            const count = tableNames.length;
+            await safeReply(ctx,
+              `🔄 <b>${escapeHtml(db.name)}</b>: schema refreshed — ${count} ${count === 1 ? 'table' : 'tables'}.`,
+              { parse_mode: 'HTML' }
+            );
+          } catch (e: any) {
+            await safeReply(ctx, `❌ Error refreshing schema: ${escapeHtml(e.message)}`, { parse_mode: 'HTML' });
+          }
+        } catch (error: any) {
+          console.error('[Telegram] refresh_trinity_db_schema error:', error.message);
+          ctx.answerCbQuery(`Error: ${error.message}`).catch(() => {});
         }
       });
 
       // --- Trinity DB Delete Flow ---
       this.bot.action(/^ask_trinity_db_delete_/, async (ctx) => {
-        const data = (ctx.callbackQuery as any).data as string;
-        const id = parseInt(data.replace('ask_trinity_db_delete_', ''), 10);
-        if (isNaN(id)) { await ctx.answerCbQuery('Invalid ID'); return; }
         try {
-          const { DatabaseRegistry } = await import('../runtime/memory/trinity-db.js');
-          const db = DatabaseRegistry.getInstance().getDatabase(id);
-          if (!db) { await ctx.answerCbQuery('Database not found'); return; }
-          await ctx.answerCbQuery();
-          await ctx.reply(
-            `⚠️ Delete <b>${escapeHtml(db.name)}</b> (${escapeHtml(db.type)}) from Trinity?\n\nThe actual database won't be affected — only this registration will be removed.`,
-            {
-              parse_mode: 'HTML',
-              reply_markup: {
-                inline_keyboard: [
-                  [
-                    { text: '🗑️ Yes, delete', callback_data: `confirm_trinity_db_delete_${id}` },
-                    { text: 'Cancel', callback_data: 'cancel_trinity_db_delete' },
+          const data = (ctx.callbackQuery as any).data as string;
+          const id = parseInt(data.replace('ask_trinity_db_delete_', ''), 10);
+          if (isNaN(id)) { await ctx.answerCbQuery('Invalid ID').catch(() => {}); return; }
+          try {
+            const { DatabaseRegistry } = await import('../runtime/memory/trinity-db.js');
+            const db = DatabaseRegistry.getInstance().getDatabase(id);
+            if (!db) { await ctx.answerCbQuery('Database not found').catch(() => {}); return; }
+            await ctx.answerCbQuery().catch(() => {});
+            await ctx.reply(
+              `⚠️ Delete <b>${escapeHtml(db.name)}</b> (${escapeHtml(db.type)}) from Trinity?\n\nThe actual database won't be affected — only this registration will be removed.`,
+              {
+                parse_mode: 'HTML',
+                reply_markup: {
+                  inline_keyboard: [
+                    [
+                      { text: '🗑️ Yes, delete', callback_data: `confirm_trinity_db_delete_${id}` },
+                      { text: 'Cancel', callback_data: 'cancel_trinity_db_delete' },
+                    ],
                   ],
-                ],
-              },
-            }
-          );
-        } catch (e: any) {
-          await ctx.answerCbQuery(`Error: ${e.message}`, { show_alert: true });
+                },
+              }
+            );
+          } catch (e: any) {
+            await ctx.answerCbQuery(`Error: ${e.message}`, { show_alert: true }).catch(() => {});
+          }
+        } catch (error: any) {
+          console.error('[Telegram] ask_trinity_db_delete error:', error.message);
+          ctx.answerCbQuery(`Error: ${error.message}`).catch(() => {});
         }
       });
 
       this.bot.action(/^confirm_trinity_db_delete_/, async (ctx) => {
-        const data = (ctx.callbackQuery as any).data as string;
-        const id = parseInt(data.replace('confirm_trinity_db_delete_', ''), 10);
-        if (isNaN(id)) { await ctx.answerCbQuery('Invalid ID'); return; }
         try {
-          const { DatabaseRegistry } = await import('../runtime/memory/trinity-db.js');
-          const registry = DatabaseRegistry.getInstance();
-          const db = registry.getDatabase(id);
-          const name = db?.name ?? `#${id}`;
-          const deleted = registry.deleteDatabase(id);
-          await ctx.answerCbQuery(deleted ? '🗑️ Deleted' : 'Not found');
-          if (ctx.updateType === 'callback_query') ctx.deleteMessage().catch(() => { });
-          const user = ctx.from?.username || ctx.from?.first_name || 'unknown';
-          this.display.log(`Trinity DB '${name}' deleted by @${user}`, { source: 'Telegram', level: 'info' });
-          await ctx.reply(deleted ? `🗑️ <b>${escapeHtml(name)}</b> removed from Trinity.` : `❌ Database #${id} not found.`, { parse_mode: 'HTML' });
-        } catch (e: any) {
-          await ctx.answerCbQuery(`Error: ${e.message}`, { show_alert: true });
+          const data = (ctx.callbackQuery as any).data as string;
+          const id = parseInt(data.replace('confirm_trinity_db_delete_', ''), 10);
+          if (isNaN(id)) { await ctx.answerCbQuery('Invalid ID').catch(() => {}); return; }
+          try {
+            const { DatabaseRegistry } = await import('../runtime/memory/trinity-db.js');
+            const registry = DatabaseRegistry.getInstance();
+            const db = registry.getDatabase(id);
+            const name = db?.name ?? `#${id}`;
+            const deleted = registry.deleteDatabase(id);
+            await ctx.answerCbQuery(deleted ? '🗑️ Deleted' : 'Not found').catch(() => {});
+            if (ctx.updateType === 'callback_query') ctx.deleteMessage().catch(() => { });
+            const user = ctx.from?.username || ctx.from?.first_name || 'unknown';
+            this.display.log(`Trinity DB '${name}' deleted by @${user}`, { source: 'Telegram', level: 'info' });
+            await safeReply(ctx, deleted ? `🗑️ <b>${escapeHtml(name)}</b> removed from Trinity.` : `❌ Database #${id} not found.`, { parse_mode: 'HTML' });
+          } catch (e: any) {
+            await ctx.answerCbQuery(`Error: ${e.message}`, { show_alert: true }).catch(() => {});
+          }
+        } catch (error: any) {
+          console.error('[Telegram] confirm_trinity_db_delete error:', error.message);
+          ctx.answerCbQuery(`Error: ${error.message}`).catch(() => {});
         }
       });
 
       this.bot.action('cancel_trinity_db_delete', async (ctx) => {
-        await ctx.answerCbQuery('Cancelled');
-        if (ctx.updateType === 'callback_query') ctx.deleteMessage().catch(() => { });
+        try {
+          await ctx.answerCbQuery('Cancelled').catch(() => {});
+          if (ctx.updateType === 'callback_query') ctx.deleteMessage().catch(() => { });
+        } catch (error: any) {
+          console.error('[Telegram] cancel_trinity_db_delete error:', error.message);
+          ctx.answerCbQuery(`Error: ${error.message}`).catch(() => {});
+        }
       });
 
       this.bot.launch().catch((err) => {
@@ -1365,18 +1446,18 @@ export class TelegramAdapter {
         if (!isCurrent) {
           sessionButtons.push({
             text: `➡️ Switch`,
-            callback_data: `switch_session_${session.id}`
+            callback_data: safeCallbackData(session.id, 'switch_session_')
           });
         }
 
         sessionButtons.push({
           text: `📂 Archive`,
-          callback_data: `ask_archive_session_${session.id}`
+          callback_data: safeCallbackData(session.id, 'ask_archive_session_')
         });
 
         sessionButtons.push({
           text: `🗑️ Delete`,
-          callback_data: `ask_delete_session_${session.id}`
+          callback_data: safeCallbackData(session.id, 'ask_delete_session_')
         });
 
         keyboard.push(sessionButtons);
