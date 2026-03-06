@@ -266,6 +266,57 @@ export class SQLiteChatMessageHistory extends BaseListChatMessageHistory {
   }
 
   /**
+   * Removes orphaned ToolMessages and incomplete tool-call groups that can
+   * appear when the LIMIT clause truncates the message window mid-sequence.
+   *
+   * Messages arrive in DESC order (newest first). An orphaned ToolMessage at
+   * the end of this array means its parent AIMessage (with tool_calls) was
+   * outside the window. We also strip AIMessages whose tool_calls have no
+   * corresponding ToolMessage responses in the window.
+   */
+  private sanitizeMessageWindow(messages: BaseMessage[]): BaseMessage[] {
+    if (messages.length === 0) return messages;
+
+    // Work in chronological order (reverse of DESC) for easier reasoning.
+    const chrono = [...messages].reverse();
+
+    // Drop leading ToolMessages that have no preceding AIMessage with matching tool_calls.
+    let startIdx = 0;
+    while (startIdx < chrono.length && chrono[startIdx] instanceof ToolMessage) {
+      startIdx++;
+    }
+
+    // Also drop a leading AIMessage that has tool_calls but whose ToolMessage
+    // responses were trimmed (they would have been before it in the DB).
+    if (startIdx < chrono.length && chrono[startIdx] instanceof AIMessage) {
+      const ai = chrono[startIdx] as AIMessage;
+      if (ai.tool_calls && ai.tool_calls.length > 0) {
+        // Check if ALL tool_call responses exist after this AIMessage
+        const toolCallIds = ai.tool_calls.map((tc: any) => tc.id).filter(Boolean);
+        const remaining = chrono.slice(startIdx + 1);
+        let allFound = true;
+        for (let i = 0; i < toolCallIds.length; i++) {
+          const hasResponse = remaining.some(
+            (m) => m instanceof ToolMessage && (m as ToolMessage).tool_call_id === toolCallIds[i]
+          );
+          if (!hasResponse) { allFound = false; break; }
+        }
+        if (!allFound) startIdx++;
+      }
+    }
+
+    if (startIdx === 0) {
+      // No sanitization needed — return original DESC order.
+      return messages;
+    }
+
+    // Return in the original DESC order (newest first), excluding trimmed messages.
+    const sanitized = chrono.slice(startIdx);
+    sanitized.reverse();
+    return sanitized;
+  }
+
+  /**
    * Retrieves all messages for the current session from the database.
    * @returns Promise resolving to an array of BaseMessage objects
    */
@@ -291,7 +342,7 @@ export class SQLiteChatMessageHistory extends BaseListChatMessageHistory {
         model?: string;
       }>;
 
-      return rows.map((row) => {
+      const mapped = rows.map((row) => {
         let msg: BaseMessage;
 
         // Reconstruct usage metadata if present
@@ -358,6 +409,14 @@ export class SQLiteChatMessageHistory extends BaseListChatMessageHistory {
 
         return msg;
       });
+
+      // Sanitize: the LIMIT clause may cut in the middle of a tool_calls/ToolMessage
+      // sequence, leaving orphaned ToolMessages without a preceding AIMessage that
+      // contains the corresponding tool_calls. LLM providers reject this.
+      // Messages are in DESC order (newest first) here — orphans appear at the tail.
+      // Remove trailing ToolMessages and AIMessages with tool_calls that have no
+      // matching ToolMessage response (i.e. incomplete tool-call groups at the boundary).
+      return this.sanitizeMessageWindow(mapped);
     } catch (error) {
       // Check if it's a database lock error
       if (error instanceof Error && error.message.includes('SQLITE_BUSY')) {
