@@ -1,6 +1,7 @@
 import { homedir } from 'os';
 import path from 'path';
 import fs from 'fs-extra';
+import fsSync from 'fs';
 import { LinkRepository } from './link-repository.js';
 import { LinkSearch } from './link-search.js';
 import { hashFile, processDocument, isSupportedFormat } from './link-chunker.js';
@@ -182,10 +183,61 @@ export class LinkWorker {
   }
 
   /**
+   * Validate file integrity by checking magic bytes.
+   */
+  async validateFileIntegrity(filePath: string): Promise<{ valid: boolean; error?: string }> {
+    const ext = path.extname(filePath).toLowerCase();
+    
+    try {
+      // Read first 8 bytes using synchronous fs (fs-extra doesn't support position option)
+      const buffer = Buffer.alloc(8);
+      const fd = fsSync.openSync(filePath, 'r');
+      fsSync.readSync(fd, buffer, 0, 8, 0);
+      fsSync.closeSync(fd);
+      
+      if (buffer.length === 0) {
+        return { valid: false, error: 'Empty file' };
+      }
+
+      // Check magic bytes based on file type
+      if (ext === '.pdf') {
+        // PDF magic bytes: %PDF (25 50 44 46)
+        if (buffer[0] !== 0x25 || buffer[1] !== 0x50 || buffer[2] !== 0x44 || buffer[3] !== 0x46) {
+          return { valid: false, error: 'Invalid PDF file: missing magic bytes' };
+        }
+      } else if (ext === '.docx') {
+        // DOCX is a ZIP file, check PK (50 4B)
+        if (buffer[0] !== 0x50 || buffer[1] !== 0x4B) {
+          return { valid: false, error: 'Invalid DOCX file: missing ZIP magic bytes' };
+        }
+      } else if (ext === '.txt' || ext === '.md') {
+        // Text files - just check it's readable (first bytes should be valid UTF-8)
+        // Allow any bytes for text files, just check not empty
+        if (buffer.length === 0) {
+          return { valid: false, error: 'Empty file' };
+        }
+      }
+
+      return { valid: true };
+    } catch (err) {
+      return { valid: false, error: `Failed to read file: ${(err as Error).message}` };
+    }
+  }
+
+  /**
    * Process a single document: check hash, parse, chunk, embed.
    */
   async processDocument(filePath: string): Promise<'indexed' | 'skipped' | 'error'> {
     const existingDoc = this.repository.getDocumentByPath(filePath);
+
+    // Validate file integrity first
+    const integrity = await this.validateFileIntegrity(filePath);
+    if (!integrity.valid) {
+      if (existingDoc) {
+        this.repository.updateDocumentStatus(existingDoc.id, 'error', integrity.error);
+      }
+      return 'error';
+    }
 
     // Calculate file hash
     let fileHash: string;

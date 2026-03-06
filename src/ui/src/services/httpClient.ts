@@ -99,9 +99,13 @@ export class HttpClient {
     const formData = new FormData();
     formData.append(fieldName, file);
 
+    const headers = this.getHeaders();
+    // Add expected size header for validation
+    headers['X-Expected-Size'] = String(file.size);
+
     const response = await fetch(`${API_BASE}${path}`, {
       method: 'POST',
-      headers: this.getHeaders(), // No Content-Type - browser sets it with boundary
+      headers, // No Content-Type - browser sets it with boundary
       body: formData,
     });
     return this.handleResponse(response);
@@ -152,6 +156,8 @@ export class HttpClient {
 
       xhr.open('POST', `${API_BASE}${path}`);
       const headers = this.getHeaders();
+      // Add expected size header for validation
+      headers['X-Expected-Size'] = String(file.size);
       for (const [key, value] of Object.entries(headers)) {
         xhr.setRequestHeader(key, value);
       }

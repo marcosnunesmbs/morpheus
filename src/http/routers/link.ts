@@ -88,6 +88,11 @@ export function createLinkRouter(): Router {
       const config = ConfigManager.getInstance().getLinkConfig();
       const maxSizeMB = config.max_file_size_mb;
 
+      // Get expected size from header for validation
+      const expectedSize = req.headers['x-expected-size'] 
+        ? parseInt(req.headers['x-expected-size'] as string, 10) 
+        : null;
+
       // Configure multer with config max size
       const uploadWithConfig = multer({
         storage,
@@ -116,14 +121,33 @@ export function createLinkRouter(): Router {
         return res.status(400).json({ error: 'No file uploaded' });
       }
 
-      // Trigger immediate scan
-      const result = await worker.tick();
+      // Validate file size if expected size was provided
+      if (expectedSize !== null) {
+        const actualSize = req.file.size;
+        const sizeDiff = Math.abs(actualSize - expectedSize);
+        const tolerance = expectedSize * 0.01; // 1% tolerance
+        
+        if (sizeDiff > tolerance) {
+          // Delete the uploaded file
+          await fs.unlink(req.file.path).catch(() => {});
+          return res.status(400).json({ 
+            error: 'File size mismatch',
+            expected: expectedSize,
+            actual: actualSize,
+          });
+        }
+      }
+
+      // Process the document immediately (validates integrity + indexes)
+      const linkWorker = LinkWorker.getInstance();
+      const result = await linkWorker.processDocument(req.file.path);
 
       res.json({
-        message: 'File uploaded successfully',
+        message: 'File uploaded and processed',
         filename: Buffer.from(req.file.originalname, 'latin1').toString('utf-8'),
         path: req.file.path,
-        indexed: result.indexed,
+        indexed: result === 'indexed',
+        status: result,
       });
     } catch (err: any) {
       res.status(500).json({ error: err.message });
