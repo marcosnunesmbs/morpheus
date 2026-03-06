@@ -3,6 +3,7 @@ import { FileText, RefreshCw } from 'lucide-react';
 import { useLinkDocuments, uploadDocument, deleteDocument, reindexDocument, triggerScan } from '../services/link';
 import { DocumentTable } from '../components/link/DocumentTable';
 import { UploadButton } from '../components/link/UploadButton';
+import { ConfirmationModal } from '../components/ConfirmationModal';
 
 export function Documents() {
   const { documents, stats, isLoading, mutate } = useLinkDocuments();
@@ -12,6 +13,8 @@ export function Documents() {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [polling, setPolling] = useState(false);
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false);
+  const [documentToDelete, setDocumentToDelete] = useState<{ id: string; filename: string } | null>(null);
 
   // Auto-poll when documents are in pending/indexing status
   const hasActiveDocuments = documents.some(d => d.status === 'pending' || d.status === 'indexing');
@@ -53,17 +56,24 @@ export function Documents() {
     }
   }, [mutate]);
 
-  const handleDelete = async (id: string) => {
-    if (!confirm('Are you sure you want to delete this document?')) return;
+  const handleDelete = async () => {
+    if (!documentToDelete) return;
 
     setError(null);
     try {
-      await deleteDocument(id);
+      await deleteDocument(documentToDelete.id);
       setSuccess('Document deleted');
       await mutate();
     } catch (err: any) {
       setError(err.message || 'Failed to delete document');
+    } finally {
+      setDocumentToDelete(null);
     }
+  };
+
+  const openDeleteModal = (id: string, filename: string) => {
+    setDocumentToDelete({ id, filename });
+    setDeleteModalOpen(true);
   };
 
   const handleReindex = async (id: string) => {
@@ -153,9 +163,23 @@ export function Documents() {
       {/* Document List */}
       <DocumentTable
         documents={documents}
-        onDelete={handleDelete}
+        onDelete={openDeleteModal}
         onReindex={handleReindex}
         isLoading={isLoading}
+      />
+
+      {/* Delete Confirmation Modal */}
+      <ConfirmationModal
+        isOpen={deleteModalOpen}
+        onClose={() => {
+          setDeleteModalOpen(false);
+          setDocumentToDelete(null);
+        }}
+        onConfirm={handleDelete}
+        title="Delete Document"
+        description={`Are you sure you want to delete "${documentToDelete?.filename}"? This action cannot be undone and the document will be removed from the index.`}
+        confirmJson="Delete"
+        variant="destructive"
       />
 
       {/* Help */}

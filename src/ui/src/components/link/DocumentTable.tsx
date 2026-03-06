@@ -3,7 +3,7 @@ import { StatusBadge } from './StatusBadge';
 
 interface DocumentTableProps {
   documents: LinkDocument[];
-  onDelete: (id: string) => void;
+  onDelete: (id: string, filename: string) => void;
   onReindex: (id: string) => void;
   isLoading?: boolean;
 }
@@ -92,7 +92,7 @@ export function DocumentTable({ documents, onDelete, onReindex, isLoading }: Doc
                   Reindex
                 </button>
                 <button
-                  onClick={() => onDelete(doc.id)}
+                  onClick={() => onDelete(doc.id, doc.filename)}
                   className="text-xs text-red-500 hover:text-red-400 transition-colors"
                   title="Delete document"
                 >
