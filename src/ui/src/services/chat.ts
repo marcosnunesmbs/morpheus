@@ -22,6 +22,7 @@ export interface Message {
     model?: string | null;
     sati_memories_count?: number | null;
     audio_duration_seconds?: number | null;
+    source?: 'user' | 'webhook' | 'chronos' | null;
 }
 
 export interface ToolGroupItem {

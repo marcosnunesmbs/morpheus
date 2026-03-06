@@ -228,6 +228,7 @@ export class SQLiteChatMessageHistory extends BaseListChatMessageHistory {
         'audio_duration_seconds',
         'agent',
         'duration_ms',
+        'source',
       ];
 
       const integerColumns = new Set(['input_tokens', 'output_tokens', 'total_tokens', 'cache_read_tokens', 'duration_ms']);
@@ -448,6 +449,7 @@ export class SQLiteChatMessageHistory extends BaseListChatMessageHistory {
     agent?: string;
     duration_ms?: number | null;
     audio_duration_seconds?: number | null;
+    source?: string | null;
   }>> {
     if (sessionIds.length === 0) {
       return [];
@@ -456,7 +458,7 @@ export class SQLiteChatMessageHistory extends BaseListChatMessageHistory {
     try {
       const placeholders = sessionIds.map(() => '?').join(', ');
       const stmt = this.db.prepare(
-        `SELECT id, session_id, type, content, created_at, input_tokens, output_tokens, total_tokens, cache_read_tokens, provider, model, agent, duration_ms, audio_duration_seconds
+        `SELECT id, session_id, type, content, created_at, input_tokens, output_tokens, total_tokens, cache_read_tokens, provider, model, agent, duration_ms, audio_duration_seconds, source
          FROM messages
          WHERE session_id IN (${placeholders})
          ORDER BY id DESC
@@ -478,6 +480,7 @@ export class SQLiteChatMessageHistory extends BaseListChatMessageHistory {
         agent?: string;
         duration_ms?: number;
         audio_duration_seconds?: number | null;
+        source?: string | null;
       }>;
     } catch (error) {
       if (error instanceof Error && error.message.includes('SQLITE_BUSY')) {
@@ -530,6 +533,7 @@ export class SQLiteChatMessageHistory extends BaseListChatMessageHistory {
       const audioDurationSeconds = usage?.audio_duration_seconds ?? null;
       const agent = anyMsg.agent_metadata?.agent ?? 'oracle';
       const durationMs = anyMsg.duration_ms ?? null;
+      const source = anyMsg.source_metadata?.source ?? null;
 
       // Handle special content serialization for Tools
       let finalContent = "";
@@ -554,9 +558,9 @@ export class SQLiteChatMessageHistory extends BaseListChatMessageHistory {
       }
 
       const stmt = this.db.prepare(
-        "INSERT INTO messages (session_id, type, content, created_at, input_tokens, output_tokens, total_tokens, cache_read_tokens, provider, model, audio_duration_seconds, agent, duration_ms) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+        "INSERT INTO messages (session_id, type, content, created_at, input_tokens, output_tokens, total_tokens, cache_read_tokens, provider, model, audio_duration_seconds, agent, duration_ms, source) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
       );
-      stmt.run(this.sessionId, type, finalContent, Date.now(), inputTokens, outputTokens, totalTokens, cacheReadTokens, provider, model, audioDurationSeconds, agent, durationMs);
+      stmt.run(this.sessionId, type, finalContent, Date.now(), inputTokens, outputTokens, totalTokens, cacheReadTokens, provider, model, audioDurationSeconds, agent, durationMs, source);
 
       // Verificar se a sessão tem título e definir automaticamente se necessário
       await this.setSessionTitleIfNeeded();
@@ -585,7 +589,7 @@ export class SQLiteChatMessageHistory extends BaseListChatMessageHistory {
     if (messages.length === 0) return;
 
     const stmt = this.db.prepare(
-      "INSERT INTO messages (session_id, type, content, created_at, input_tokens, output_tokens, total_tokens, cache_read_tokens, provider, model, audio_duration_seconds, agent, duration_ms) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+      "INSERT INTO messages (session_id, type, content, created_at, input_tokens, output_tokens, total_tokens, cache_read_tokens, provider, model, audio_duration_seconds, agent, duration_ms, source) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
     );
 
     const insertAll = this.db.transaction((msgs: BaseMessage[]) => {
@@ -624,6 +628,7 @@ export class SQLiteChatMessageHistory extends BaseListChatMessageHistory {
           usage?.audio_duration_seconds ?? null,
           anyMsg.agent_metadata?.agent ?? 'oracle',
           anyMsg.duration_ms ?? null,
+          anyMsg.source_metadata?.source ?? null,
         );
       }
     });
@@ -1264,6 +1269,33 @@ export class SQLiteChatMessageHistory extends BaseListChatMessageHistory {
       DELETE FROM user_channel_sessions
       WHERE channel = ? AND user_id = ?
     `).run(channel, userId);
+  }
+
+  /**
+   * Returns the session_id from user_channel_sessions with the most recent updated_at
+   * among the given channel names.
+   */
+  public getMostRecentChannelSession(channels: string[]): string | null {
+    if (channels.length === 0) return null;
+    const placeholders = channels.map(() => '?').join(', ');
+    const result = this.db.prepare(`
+      SELECT session_id FROM user_channel_sessions
+      WHERE channel IN (${placeholders})
+      ORDER BY updated_at DESC LIMIT 1
+    `).get(...channels) as { session_id: string } | undefined;
+    return result ? result.session_id : null;
+  }
+
+  /**
+   * Returns the most recent active/paused session, or null if none exists.
+   */
+  public getMostRecentSession(): string | null {
+    const session = this.db.prepare(`
+      SELECT id FROM sessions
+      WHERE status IN ('active', 'paused')
+      ORDER BY started_at DESC LIMIT 1
+    `).get() as { id: string } | undefined;
+    return session ? session.id : null;
   }
 
   /**

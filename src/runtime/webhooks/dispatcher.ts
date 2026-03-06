@@ -4,6 +4,7 @@ import { DisplayManager } from '../display.js';
 import type { IOracle } from '../types.js';
 import type { Webhook } from './types.js';
 import { ChannelRegistry } from '../../channels/registry.js';
+import { SQLiteChatMessageHistory } from '../memory/sqlite.js';
 
 const STALE_NOTIFICATION_THRESHOLD_MS = 2 * 60 * 1000; // 2 minutes
 
@@ -41,11 +42,12 @@ export class WebhookDispatcher {
     }
 
     const message = this.buildPrompt(webhook.prompt, payload);
+    const sessionId = this.resolveSessionId(webhook);
 
     try {
       const response = await oracle.chat(message, undefined, false, {
         origin_channel: 'webhook',
-        session_id: `webhook-${webhook.id}`,
+        session_id: sessionId,
         origin_message_id: notificationId,
       });
 
@@ -77,6 +79,26 @@ export class WebhookDispatcher {
       );
       repo.updateNotificationResult(notificationId, 'failed', result);
       await this.notifyChannels(webhook, result, 'failed');
+    }
+  }
+
+  /**
+   * Resolves the session ID for webhook execution.
+   * 1. Most recent channel session from webhook's notification_channels
+   * 2. Most recent active/paused session
+   * 3. Fallback to webhook-<id>
+   */
+  private resolveSessionId(webhook: Webhook): string {
+    const history = new SQLiteChatMessageHistory({ sessionId: 'tmp' });
+    try {
+      const channels = webhook.notification_channels.filter(ch => ch !== 'ui');
+      if (channels.length > 0) {
+        const channelSession = history.getMostRecentChannelSession(channels);
+        if (channelSession) return channelSession;
+      }
+      return history.getMostRecentSession() ?? `webhook-${webhook.id}`;
+    } finally {
+      history.close();
     }
   }
 

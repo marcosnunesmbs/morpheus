@@ -1,7 +1,7 @@
 import React, { useRef, useEffect, useState } from 'react';
 import type { Message, Session } from '../../services/chat';
 import { groupMessages, isDelegationCall } from '../../services/chat';
-import { Send, Bot, User, Menu, ChevronDown, Mic, X } from 'lucide-react';
+import { Send, Bot, User, Menu, ChevronDown, Mic, X, Webhook, Clock } from 'lucide-react';
 import Markdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { ToolCallBlock } from './ToolCallBlock';
@@ -308,16 +308,18 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
               }
 
               const isHuman = msg.type === 'human';
+              const isAutomated = msg.source === 'webhook' || msg.source === 'chronos';
+              const isUserMessage = isHuman && !isAutomated;
 
               return (
                 <div
                   key={grouped.index}
-                  className={`flex items-end gap-2.5 ${isHuman ? 'justify-end' : 'justify-start'}`}
+                  className={`flex items-end gap-2.5 ${isUserMessage ? 'justify-end' : 'justify-start'}`}
                 >
-                  {/* AI avatar */}
-                  {!isHuman && (
+                  {/* AI / automated avatar */}
+                  {!isUserMessage && (
                     <div className="w-7 h-7 rounded-full flex-shrink-0 flex items-center justify-center bg-azure-primary/10 text-azure-primary dark:bg-matrix-primary/20 dark:text-matrix-highlight mb-0.5">
-                      <Bot size={14} />
+                      {isAutomated && msg.source === 'webhook' ? <Webhook size={14} /> : isAutomated && msg.source === 'chronos' ? <Clock size={14} /> : <Bot size={14} />}
                     </div>
                   )}
 
@@ -325,12 +327,21 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
                   <div
                     className={`
                       max-w-[85%] md:max-w-[72%] min-w-0
-                      ${isHuman
+                      ${isUserMessage
                         ? 'bg-azure-primary text-white dark:text-white/80 dark:bg-matrix-primary rounded-2xl rounded-br-sm px-4 py-2.5'
                         : 'bg-gray-50 dark:bg-zinc-900 border border-gray-300 dark:border-matrix-primary/60 text-gray-800 dark:text-matrix-secondary rounded-2xl rounded-bl-sm px-4 py-3'
                       }
                     `}
                   >
+                    {/* Automated source badge */}
+                    {isAutomated && (
+                      <div className="flex items-center gap-1.5 mb-1.5">
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wider border bg-amber-50 text-amber-700 border-amber-300 dark:bg-amber-900/30 dark:text-amber-300 dark:border-amber-700/60">
+                          {msg.source === 'webhook' ? 'Webhook' : 'Chronos'}
+                        </span>
+                      </div>
+                    )}
+
                     {/* Human text */}
                     {isHuman && (
                       <>
@@ -393,7 +404,7 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
                   </div>
 
                   {/* Human avatar */}
-                  {isHuman && (
+                  {isUserMessage && (
                     <div className="w-7 h-7 rounded-full flex-shrink-0 flex items-center justify-center bg-gray-200 dark:bg-matrix-primary/30 text-gray-500 dark:text-matrix-secondary mb-0.5">
                       <User size={14} />
                     </div>
