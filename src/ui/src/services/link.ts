@@ -93,7 +93,15 @@ export function useLinkWorkerStatus() {
 
 // API Actions
 
-export async function uploadDocument(file: File): Promise<{ message: string; filename: string; indexed: number }> {
+export async function uploadDocument(
+  file: File,
+  onProgress?: (percent: number) => void
+): Promise<{ message: string; filename: string; indexed: number }> {
+  if (onProgress) {
+    return httpClient.uploadFileWithProgress<{ message: string; filename: string; indexed: number }>(
+      '/link/documents/upload', file, onProgress
+    );
+  }
   return httpClient.uploadFile<{ message: string; filename: string; indexed: number }>('/link/documents/upload', file);
 }
 

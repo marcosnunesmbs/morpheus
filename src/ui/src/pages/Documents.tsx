@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { FileText, RefreshCw } from 'lucide-react';
 import { useLinkDocuments, uploadDocument, deleteDocument, reindexDocument, triggerScan } from '../services/link';
 import { DocumentTable } from '../components/link/DocumentTable';
@@ -7,24 +7,51 @@ import { UploadButton } from '../components/link/UploadButton';
 export function Documents() {
   const { documents, stats, isLoading, mutate } = useLinkDocuments();
   const [uploading, setUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState<number | null>(null);
   const [scanning, setScanning] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const [polling, setPolling] = useState(false);
 
-  const handleUpload = async (file: File) => {
+  // Auto-poll when documents are in pending/indexing status
+  const hasActiveDocuments = documents.some(d => d.status === 'pending' || d.status === 'indexing');
+
+  useEffect(() => {
+    if (!polling && !hasActiveDocuments) return;
+
+    if (hasActiveDocuments || polling) {
+      const interval = setInterval(() => {
+        mutate();
+      }, 2000);
+
+      // Stop polling once all documents are settled
+      if (!hasActiveDocuments && polling) {
+        setPolling(false);
+      }
+
+      return () => clearInterval(interval);
+    }
+  }, [hasActiveDocuments, polling, mutate]);
+
+  const handleUpload = useCallback(async (file: File) => {
     setUploading(true);
+    setUploadProgress(0);
     setError(null);
     setSuccess(null);
     try {
-      const result = await uploadDocument(file);
+      const result = await uploadDocument(file, (percent) => {
+        setUploadProgress(percent);
+      });
       setSuccess(`Uploaded "${result.filename}" - indexed ${result.indexed} document(s)`);
+      setPolling(true);
       await mutate();
     } catch (err: any) {
       setError(err.message || 'Failed to upload document');
     } finally {
       setUploading(false);
+      setUploadProgress(null);
     }
-  };
+  }, [mutate]);
 
   const handleDelete = async (id: string) => {
     if (!confirm('Are you sure you want to delete this document?')) return;
@@ -44,6 +71,7 @@ export function Documents() {
     try {
       await reindexDocument(id);
       setSuccess('Document reindexed');
+      setPolling(true);
       await mutate();
     } catch (err: any) {
       setError(err.message || 'Failed to reindex document');
@@ -88,7 +116,7 @@ export function Documents() {
             <RefreshCw className={`w-4 h-4 ${scanning ? 'animate-spin' : ''}`} />
             {scanning ? 'Scanning...' : 'Scan Now'}
           </button>
-          <UploadButton onUpload={handleUpload} isUploading={uploading} />
+          <UploadButton onUpload={handleUpload} isUploading={uploading} uploadProgress={uploadProgress} />
         </div>
       </div>
 

@@ -3,9 +3,10 @@ import React, { useRef, useState } from 'react';
 interface UploadButtonProps {
   onUpload: (file: File) => Promise<void>;
   isUploading?: boolean;
+  uploadProgress?: number | null;
 }
 
-export function UploadButton({ onUpload, isUploading }: UploadButtonProps) {
+export function UploadButton({ onUpload, isUploading, uploadProgress }: UploadButtonProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [dragOver, setDragOver] = useState(false);
 
@@ -46,8 +47,16 @@ export function UploadButton({ onUpload, isUploading }: UploadButtonProps) {
     }
   };
 
+  const showProgress = isUploading && uploadProgress != null;
+  const isIndexing = showProgress && uploadProgress >= 100;
+  const uploadLabel = isIndexing
+    ? 'Indexing...'
+    : showProgress
+      ? `Uploading... ${uploadProgress}%`
+      : 'Uploading...';
+
   return (
-    <>
+    <div className="inline-flex flex-col items-end gap-1">
       <input
         ref={fileInputRef}
         type="file"
@@ -94,7 +103,7 @@ export function UploadButton({ onUpload, isUploading }: UploadButtonProps) {
                 d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
               />
             </svg>
-            Uploading...
+            {uploadLabel}
           </>
         ) : (
           <>
@@ -115,6 +124,14 @@ export function UploadButton({ onUpload, isUploading }: UploadButtonProps) {
           </>
         )}
       </button>
-    </>
+      {showProgress && !isIndexing && (
+        <div className="w-full h-1.5 bg-gray-200 dark:bg-zinc-700 rounded-full overflow-hidden">
+          <div
+            className="h-full bg-azure-primary dark:bg-matrix-highlight rounded-full transition-all duration-300"
+            style={{ width: `${uploadProgress}%` }}
+          />
+        </div>
+      )}
+    </div>
   );
 }

@@ -106,6 +106,58 @@ export class HttpClient {
     });
     return this.handleResponse(response);
   }
+
+  public uploadFileWithProgress<T>(
+    path: string,
+    file: File,
+    onProgress: (percent: number) => void,
+    fieldName = 'file'
+  ): Promise<T> {
+    return new Promise((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      const formData = new FormData();
+      formData.append(fieldName, file);
+
+      xhr.upload.onprogress = (e) => {
+        if (e.lengthComputable) {
+          onProgress(Math.round((e.loaded / e.total) * 100));
+        }
+      };
+
+      xhr.onload = () => {
+        if (xhr.status === 401) {
+          localStorage.removeItem('morpheus.auth.token');
+          if (!window.location.pathname.endsWith('/login')) {
+            window.location.href = '/login';
+          }
+          reject(new Error('Unauthorized'));
+          return;
+        }
+        try {
+          const data = JSON.parse(xhr.responseText);
+          if (xhr.status >= 200 && xhr.status < 300) {
+            resolve(data as T);
+          } else {
+            const e = new Error(data.error || `HTTP error! status: ${xhr.status}`);
+            // @ts-ignore
+            e.details = data.details;
+            reject(e);
+          }
+        } catch {
+          reject(new Error(`HTTP error! status: ${xhr.status}`));
+        }
+      };
+
+      xhr.onerror = () => reject(new Error('Network error'));
+
+      xhr.open('POST', `${API_BASE}${path}`);
+      const headers = this.getHeaders();
+      for (const [key, value] of Object.entries(headers)) {
+        xhr.setRequestHeader(key, value);
+      }
+      xhr.send(formData);
+    });
+  }
 }
 
 export const httpClient = HttpClient.getInstance();

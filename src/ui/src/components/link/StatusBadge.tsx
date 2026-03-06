@@ -27,10 +27,11 @@ export function StatusBadge({ status }: StatusBadgeProps) {
   };
 
   const config = statusConfig[status];
+  const isActive = status === 'pending' || status === 'indexing';
 
   return (
     <span
-      className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${config.bg} ${config.text}`}
+      className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${config.bg} ${config.text} ${isActive ? 'animate-pulse' : ''}`}
     >
       {config.label}
     </span>
