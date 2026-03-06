@@ -5,7 +5,11 @@ All notable changes to Morpheus will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.9.10] - 2026-02-29
+
+### Fixed
+
+- **Orphaned ToolMessage in chat history**: Context window truncation (`LIMIT` clause) could cut in the middle of a tool_calls/ToolMessage sequence, leaving orphaned `ToolMessage` entries without a preceding `AIMessage` with `tool_calls`. This caused LLM providers (especially OpenRouter) to reject the request with `messages with role "tool" must be a response to a preceding message with "tool_calls"`. Added `sanitizeMessageWindow()` to `SQLiteChatMessageHistory` that strips incomplete tool-call groups from the window boundary before sending history to the LLM.
 
 ### Added
 
