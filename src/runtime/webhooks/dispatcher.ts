@@ -208,6 +208,10 @@ Analyze the payload above and follow the instructions provided. Be concise and a
     const message = `${icon} Webhook: ${webhook.name}\n\n${truncated}`;
 
     for (const ch of webhook.notification_channels) {
+      // 'ui' has no adapter — it works by polling session messages from the DB.
+      // The response is already persisted via oracle.chat(), so skip silently.
+      if (ch === 'ui') continue;
+
       const adapter = ChannelRegistry.get(ch);
       if (adapter) {
         await adapter.sendMessage(message).catch((err: any) => {

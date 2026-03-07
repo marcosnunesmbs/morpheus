@@ -45,6 +45,7 @@ export const ChronosScheduleTool = tool(
         cron_normalized: parsed.cron_normalized,
         created_by: 'oracle',
         notify_channels: channels,
+        origin_session_id: TaskRequestContext.get()?.session_id,
       });
 
       return JSON.stringify({

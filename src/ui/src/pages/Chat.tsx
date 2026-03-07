@@ -47,6 +47,12 @@ export const ChatPage: React.FC = () => {
     return () => clearInterval(poll);
   }, [activeSessionId]);
 
+  // Background poll — refresh session list to pick up Chronos/Webhook activity
+  useEffect(() => {
+    const poll = setInterval(() => { refreshSessions(); }, 10000);
+    return () => clearInterval(poll);
+  }, []);
+
   const [confirmationModal, setConfirmationModal] = useState<{
     isOpen: boolean;
     title: string;

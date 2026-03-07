@@ -5,6 +5,7 @@ export interface Session {
     title: string | null;
     status: 'active' | 'paused' | 'archived' | 'deleted';
     started_at: number;
+    last_message_at?: number | null;
 }
 
 export interface Message {

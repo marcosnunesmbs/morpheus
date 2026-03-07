@@ -7,6 +7,7 @@ import { ChronosRepository, type ChronosJob } from './repository.js';
 import { parseNextRun } from './parser.js';
 import { ChannelRegistry } from '../../channels/registry.js';
 import { AuditRepository } from '../audit/repository.js';
+import { SQLiteChatMessageHistory } from '../memory/sqlite.js';
 
 export class ChronosWorker {
   private static instance: ChronosWorker | null = null;
@@ -85,9 +86,24 @@ export class ChronosWorker {
 
     display.log(`Job ${job.id} triggered — "${job.prompt.slice(0, 60)}"`, { source: 'Chronos' });
 
-    // Use the currently active Oracle session so Chronos executes in the
-    // user's conversation context — no session switching or isolation needed.
-    const activeSessionId = this.oracle.getCurrentSessionId() ?? 'default';
+    // Resolve session: prefer the session where the job was originally created,
+    // fall back to Oracle's current session, then to most recent active session.
+    const tmpHistory = new SQLiteChatMessageHistory({ sessionId: 'tmp' });
+    let activeSessionId: string;
+    try {
+      if (job.origin_session_id && tmpHistory.isSessionUsable(job.origin_session_id)) {
+        activeSessionId = job.origin_session_id;
+      } else {
+        const oracleSession = this.oracle.getCurrentSessionId();
+        if (oracleSession && tmpHistory.isSessionUsable(oracleSession)) {
+          activeSessionId = oracleSession;
+        } else {
+          activeSessionId = tmpHistory.getMostRecentSession() ?? 'default';
+        }
+      }
+    } finally {
+      tmpHistory.close();
+    }
 
     this.repo.insertExecution({
       id: execId,
@@ -172,6 +188,10 @@ export class ChronosWorker {
       await ChannelRegistry.broadcast(text);
     } else {
       for (const ch of job.notify_channels) {
+        // 'ui' has no adapter — it works by polling session messages from the DB.
+        // The response is already persisted via oracle.chat(), so skip silently.
+        if (ch === 'ui') continue;
+
         const adapter = ChannelRegistry.get(ch);
         if (adapter) {
           await adapter.sendMessage(text).catch((err: any) => {

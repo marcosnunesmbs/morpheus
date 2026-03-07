@@ -1016,6 +1016,11 @@ export class SQLiteChatMessageHistory extends BaseListChatMessageHistory {
         WHERE id = ?
       `).run(now, now, sessionId);
 
+      // Remove channel/user bindings so channels don't route to an archived session
+      this.db.prepare(`
+        DELETE FROM user_channel_sessions WHERE session_id = ?
+      `).run(sessionId);
+
       // Exportar mensagens → texto
       const messages = this.db.prepare(`
         SELECT type, content
@@ -1116,6 +1121,11 @@ export class SQLiteChatMessageHistory extends BaseListChatMessageHistory {
             deleted_at = ?
         WHERE id = ?
       `).run(now, sessionId);
+
+      // Remove channel/user bindings so channels don't route to a deleted session
+      this.db.prepare(`
+        DELETE FROM user_channel_sessions WHERE session_id = ?
+      `).run(sessionId);
     });
 
     tx(); // Executar a transação
@@ -1169,6 +1179,17 @@ export class SQLiteChatMessageHistory extends BaseListChatMessageHistory {
   }
 
   /**
+   * Checks whether a session exists and is usable (active or paused).
+   * Returns false for deleted, archived, or non-existent sessions.
+   */
+  public isSessionUsable(sessionId: string): boolean {
+    const row = this.db.prepare(
+      "SELECT status FROM sessions WHERE id = ?"
+    ).get(sessionId) as { status: string } | undefined;
+    return !!row && (row.status === 'active' || row.status === 'paused');
+  }
+
+  /**
    * Validates that the target session exists and is usable (not archived/deleted).
    * No longer swaps active↔paused — sessions are independently usable from any channel.
    */
@@ -1210,13 +1231,14 @@ export class SQLiteChatMessageHistory extends BaseListChatMessageHistory {
    * Lists all active and paused sessions with their basic information.
    * Returns an array of session objects containing id, title, status, and started_at.
    */
-  public async listSessions(): Promise<Array<{ id: string, title: string | null, status: string, started_at: number }>> {
+  public async listSessions(): Promise<Array<{ id: string, title: string | null, status: string, started_at: number, last_message_at: number | null }>> {
     const sessions = this.db.prepare(`
-      SELECT id, title, status, started_at
-      FROM sessions
-      WHERE status IN ('active', 'paused')
-      ORDER BY started_at DESC
-    `).all() as Array<{ id: string, title: string | null, status: string, started_at: number }>;
+      SELECT s.id, s.title, s.status, s.started_at,
+             (SELECT MAX(m.created_at) FROM messages m WHERE m.session_id = s.id) AS last_message_at
+      FROM sessions s
+      WHERE s.status IN ('active', 'paused')
+      ORDER BY COALESCE(last_message_at, s.started_at) DESC
+    `).all() as Array<{ id: string, title: string | null, status: string, started_at: number, last_message_at: number | null }>;
 
     return sessions;
   }
@@ -1227,8 +1249,11 @@ export class SQLiteChatMessageHistory extends BaseListChatMessageHistory {
    */
   public async getUserChannelSession(channel: string, userId: string): Promise<string | null> {
     const result = this.db.prepare(`
-      SELECT session_id FROM user_channel_sessions
-      WHERE channel = ? AND user_id = ?
+      SELECT ucs.session_id
+      FROM user_channel_sessions ucs
+      JOIN sessions s ON s.id = ucs.session_id
+      WHERE ucs.channel = ? AND ucs.user_id = ?
+        AND s.status IN ('active', 'paused')
     `).get(channel, userId) as { session_id: string } | undefined;
 
     return result ? result.session_id : null;
@@ -1254,8 +1279,11 @@ export class SQLiteChatMessageHistory extends BaseListChatMessageHistory {
    */
   public async listUserChannelSessions(channel: string): Promise<Array<{ userId: string, sessionId: string }>> {
     const rows = this.db.prepare(`
-      SELECT user_id, session_id FROM user_channel_sessions
-      WHERE channel = ?
+      SELECT ucs.user_id, ucs.session_id
+      FROM user_channel_sessions ucs
+      JOIN sessions s ON s.id = ucs.session_id
+      WHERE ucs.channel = ?
+        AND s.status IN ('active', 'paused')
     `).all(channel) as Array<{ user_id: string, session_id: string }>;
 
     return rows.map(row => ({ userId: row.user_id, sessionId: row.session_id }));
@@ -1279,9 +1307,12 @@ export class SQLiteChatMessageHistory extends BaseListChatMessageHistory {
     if (channels.length === 0) return null;
     const placeholders = channels.map(() => '?').join(', ');
     const result = this.db.prepare(`
-      SELECT session_id FROM user_channel_sessions
-      WHERE channel IN (${placeholders})
-      ORDER BY updated_at DESC LIMIT 1
+      SELECT ucs.session_id
+      FROM user_channel_sessions ucs
+      JOIN sessions s ON s.id = ucs.session_id
+      WHERE ucs.channel IN (${placeholders})
+        AND s.status IN ('active', 'paused')
+      ORDER BY ucs.updated_at DESC LIMIT 1
     `).get(...channels) as { session_id: string } | undefined;
     return result ? result.session_id : null;
   }

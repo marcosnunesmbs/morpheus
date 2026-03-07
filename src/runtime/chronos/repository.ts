@@ -25,6 +25,8 @@ export interface ChronosJob {
   created_by: CreatedBy;
   /** Channels to notify on execution. Empty array = broadcast to all registered adapters. */
   notify_channels: string[];
+  /** Session where the job was created — used to persist Chronos responses in the originating conversation. */
+  origin_session_id: string | null;
 }
 
 export interface ChronosExecution {
@@ -47,6 +49,8 @@ export interface CreateJobInput {
   created_by: CreatedBy;
   /** Channels to notify. Empty = broadcast to all. */
   notify_channels?: string[];
+  /** Session where the job was created. */
+  origin_session_id?: string;
 }
 
 export interface JobFilters {
@@ -130,6 +134,7 @@ export class ChronosRepository {
     addJobCol(`ALTER TABLE chronos_jobs ADD COLUMN updated_at INTEGER NOT NULL DEFAULT 0`, 'updated_at');
     addJobCol(`ALTER TABLE chronos_jobs ADD COLUMN created_by TEXT NOT NULL DEFAULT 'api'`, 'created_by');
     addJobCol(`ALTER TABLE chronos_jobs ADD COLUMN notify_channels TEXT NOT NULL DEFAULT '[]'`, 'notify_channels');
+    addJobCol(`ALTER TABLE chronos_jobs ADD COLUMN origin_session_id TEXT`, 'origin_session_id');
 
     const execInfo = this.db.pragma('table_info(chronos_executions)') as Array<{ name: string }>;
     const execCols = new Set(execInfo.map((c) => c.name));
@@ -175,6 +180,7 @@ export class ChronosRepository {
       updated_at: row.updated_at,
       created_by: row.created_by as CreatedBy,
       notify_channels,
+      origin_session_id: row.origin_session_id ?? null,
     };
   }
 
@@ -206,8 +212,8 @@ export class ChronosRepository {
     this.db.prepare(`
       INSERT INTO chronos_jobs (
         id, prompt, schedule_type, schedule_expression, cron_normalized,
-        timezone, next_run_at, last_run_at, enabled, created_at, updated_at, created_by, notify_channels
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, NULL, 1, ?, ?, ?, ?)
+        timezone, next_run_at, last_run_at, enabled, created_at, updated_at, created_by, notify_channels, origin_session_id
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, NULL, 1, ?, ?, ?, ?, ?)
     `).run(
       id,
       input.prompt,
@@ -220,6 +226,7 @@ export class ChronosRepository {
       now,
       input.created_by,
       JSON.stringify(input.notify_channels ?? []),
+      input.origin_session_id ?? null,
     );
     return this.getJob(id)!;
   }

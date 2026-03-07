@@ -161,7 +161,7 @@ export const SessionList: React.FC<SessionListProps> = ({
                       {session.title || 'Untitled Session'}
                     </div>
                     <div className="text-xs text-gray-400 dark:text-matrix-secondary/50 mt-0.5">
-                      {relativeTime(session.started_at)}
+                      {relativeTime(session.last_message_at ?? session.started_at)}
                     </div>
                   </>
                 )}
