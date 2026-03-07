@@ -17,9 +17,7 @@ coverage/
 # Documentation and Specs
 .specify/
 specs/
-openspec/
 plans/
 QWEN.md
 GEMINI.md
-CLAUDE.md
 .qwenignore
