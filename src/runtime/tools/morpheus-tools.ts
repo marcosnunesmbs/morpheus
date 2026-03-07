@@ -856,7 +856,7 @@ export const TrinityDbManageTool = tool(
           const dbId = resolveId();
           const db = registry.getDatabase(dbId);
           if (!db) return JSON.stringify({ error: `Database "${name}" not found` });
-          const { testConnection } = await import("../trinity-connector.js");
+          const { testConnection } = await import("../subagents/trinity/connector.js");
           const ok = await testConnection(db);
           return JSON.stringify({ status: ok ? "connected" : "failed", database: db.name });
         }
@@ -864,10 +864,10 @@ export const TrinityDbManageTool = tool(
           const dbId = resolveId();
           const db = registry.getDatabase(dbId);
           if (!db) return JSON.stringify({ error: `Database "${name}" not found` });
-          const { introspectSchema } = await import("../trinity-connector.js");
+          const { introspectSchema } = await import("../subagents/trinity/connector.js");
           const schema = await introspectSchema(db);
           registry.updateSchema(dbId, JSON.stringify(schema));
-          const { Trinity } = await import("../trinity.js");
+          const { Trinity } = await import("../subagents/trinity/trinity.js");
           await Trinity.refreshDelegateCatalog();
           return JSON.stringify({ success: true, message: `Schema refreshed for "${db.name}"` });
         }

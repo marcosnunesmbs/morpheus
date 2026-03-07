@@ -2,8 +2,8 @@
 import type { PaginatedResponse } from '../components/Pagination';
 
 export type TaskStatus = 'pending' | 'running' | 'completed' | 'failed' | 'cancelled';
-export type TaskAgent = 'apoc' | 'neo' | 'trinit';
-export type OriginChannel = 'telegram' | 'discord' | 'ui' | 'api' | 'webhook' | 'cli';
+export type TaskAgent = 'apoc' | 'neo' | 'trinit' | 'smith' | 'link';
+export type OriginChannel = 'telegram' | 'discord' | 'ui' | 'api' | 'webhook' | 'cli' | 'chronos';
 
 export interface TaskRecord {
   id: string;

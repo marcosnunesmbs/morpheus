@@ -1,17 +1,18 @@
 import { HumanMessage, SystemMessage, BaseMessage, AIMessage } from "@langchain/core/messages";
 import type { StructuredTool } from "@langchain/core/tools";
-import { MorpheusConfig } from "../types/config.js";
-import { ConfigManager } from "../config/manager.js";
-import { ProviderFactory } from "./providers/factory.js";
+import { MorpheusConfig } from "../../types/config.js";
+import { ConfigManager } from "../../config/manager.js";
+import { ProviderFactory } from "../providers/factory.js";
 import { ReactAgent } from "langchain";
-import { ProviderError } from "./errors.js";
-import { DisplayManager } from "./display.js";
+import { ProviderError } from "../errors.js";
+import { DisplayManager } from "../display.js";
 import { buildDevKit } from "morpheus-devkit";
 import { instrumentDevKitTools } from "./devkit-instrument.js";
-import type { OracleTaskContext, AgentResult } from "./tasks/types.js";
+import type { OracleTaskContext, AgentResult } from "../tasks/types.js";
 import type { ISubagent } from "./ISubagent.js";
-import { extractRawUsage, persistAgentMessage, buildAgentResult, emitToolAuditEvents } from "./subagent-utils.js";
-import { buildDelegationTool } from "./tools/delegation-utils.js";
+import { extractRawUsage, persistAgentMessage, buildAgentResult, emitToolAuditEvents } from "./utils.js";
+import { buildDelegationTool } from "../tools/delegation-utils.js";
+import { SubagentRegistry } from "./registry.js";
 
 /**
  * Apoc is a subagent of Oracle specialized in devtools operations.
@@ -46,6 +47,18 @@ export class Apoc implements ISubagent {
   public static getInstance(config?: MorpheusConfig): Apoc {
     if (!Apoc.instance) {
       Apoc.instance = new Apoc(config);
+      SubagentRegistry.register({
+        agentKey: 'apoc', auditAgent: 'apoc', label: 'Apoc',
+        delegateToolName: 'apoc_delegate', emoji: '🧑‍🔬', color: 'amber',
+        description: 'Filesystem, shell & browser',
+        colorClass: 'text-amber-600 dark:text-amber-400',
+        bgClass: 'bg-amber-50 dark:bg-amber-900/10',
+        badgeClass: 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300',
+        instance: Apoc.instance,
+        hasDynamicDescription: false,
+        isMultiInstance: false,
+        setSessionId: (id) => Apoc.setSessionId(id),
+      });
     }
     return Apoc.instance;
   }

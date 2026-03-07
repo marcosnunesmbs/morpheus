@@ -2,19 +2,20 @@ import { HumanMessage, SystemMessage, BaseMessage, AIMessage } from "@langchain/
 import type { StructuredTool } from "@langchain/core/tools";
 import { z } from "zod";
 import { DynamicStructuredTool } from "@langchain/core/tools";
-import type { ISubagent } from './ISubagent.js';
-import { ConfigManager } from '../config/manager.js';
-import type { LinkConfig, MorpheusConfig } from '../types/config.js';
-import { LinkRepository } from './link-repository.js';
-import { LinkSearch } from './link-search.js';
-import { ProviderFactory } from './providers/factory.js';
+import type { ISubagent } from '../ISubagent.js';
+import { ConfigManager } from '../../../config/manager.js';
+import type { LinkConfig, MorpheusConfig } from '../../../types/config.js';
+import { LinkRepository } from './repository.js';
+import { LinkSearch } from './search.js';
+import { ProviderFactory } from '../../providers/factory.js';
 import { ReactAgent } from 'langchain';
-import { ProviderError } from './errors.js';
-import { DisplayManager } from './display.js';
-import { TaskRequestContext } from './tasks/context.js';
-import type { OracleTaskContext, AgentResult } from './tasks/types.js';
-import { extractRawUsage, persistAgentMessage, buildAgentResult, emitToolAuditEvents } from './subagent-utils.js';
-import { buildDelegationTool } from './tools/delegation-utils.js';
+import { ProviderError } from '../../errors.js';
+import { DisplayManager } from '../../display.js';
+import { TaskRequestContext } from '../../tasks/context.js';
+import type { OracleTaskContext, AgentResult } from '../../tasks/types.js';
+import { extractRawUsage, persistAgentMessage, buildAgentResult, emitToolAuditEvents } from '../utils.js';
+import { buildDelegationTool } from '../../tools/delegation-utils.js';
+import { SubagentRegistry } from '../registry.js';
 
 const LINK_BASE_DESCRIPTION = `Delegate to Link, the documentation specialist subagent.
 
@@ -68,6 +69,19 @@ export class Link implements ISubagent {
         config = ConfigManager.getInstance().get();
       }
       Link.instance = new Link(config);
+      SubagentRegistry.register({
+        agentKey: 'link', auditAgent: 'link', label: 'Link',
+        delegateToolName: 'link_delegate', emoji: '🕵️‍♂️', color: 'indigo',
+        description: 'Document search & RAG',
+        colorClass: 'text-indigo-600 dark:text-indigo-400',
+        bgClass: 'bg-indigo-50 dark:bg-indigo-900/10',
+        badgeClass: 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300',
+        instance: Link.instance,
+        hasDynamicDescription: true,
+        isMultiInstance: false,
+        setSessionId: (id) => Link.setSessionId(id),
+        refreshCatalog: () => Link.refreshDelegateCatalog(),
+      });
     }
     return Link.instance;
   }

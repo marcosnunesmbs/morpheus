@@ -11,28 +11,22 @@ import { SQLiteChatMessageHistory } from "./memory/sqlite.js";
 import { ReactAgent } from "langchain";
 import { UsageMetadata } from "../types/usage.js";
 import { SatiMemoryMiddleware } from "./memory/sati/index.js";
-import { Apoc } from "./apoc.js";
+import { Apoc, Neo, Trinity, Link, SubagentRegistry, emitToolAuditEvents } from "./subagents/index.js";
 import { TaskRequestContext } from "./tasks/context.js";
 import type { OracleTaskContext } from "./tasks/types.js";
 import { TaskRepository } from "./tasks/repository.js";
-import { Neo } from "./neo.js";
-import { Trinity } from "./trinity.js";
-import { Link } from "./link.js";
 import { SmithDelegateTool } from "./tools/smith-tool.js";
 import { TaskQueryTool, chronosTools, timeVerifierTool } from "./tools/index.js";
 import { Construtor } from "./tools/factory.js";
 import { MCPManager } from "../config/mcp-manager.js";
 import { SkillRegistry, createLoadSkillTool } from "./skills/index.js";
 import { SmithRegistry } from "./smiths/registry.js";
-import { AuditRepository } from "./audit/repository.js";import { SetupRepository } from './setup/repository.js';
-import { buildSetupTool } from './tools/setup-tool.js';import { emitToolAuditEvents } from "./subagent-utils.js";
-import { text } from "stream/consumers";
+import { AuditRepository } from "./audit/repository.js";
+import { SetupRepository } from './setup/repository.js';
+import { buildSetupTool } from './tools/setup-tool.js';
+import { SmithDelegator } from "./smiths/delegator.js";
 import { PATHS } from "../config/paths.js";
 import { writeFileSync } from "fs";
-
-const ORACLE_DELEGATION_TOOLS = new Set([
-  'apoc_delegate', 'neo_delegate', 'trinity_delegate', 'smith_delegate', 'link_delegate',
-]);
 
 type AckGenerationResult = {
   content: string;
@@ -53,6 +47,47 @@ export class Oracle implements IOracle {
   constructor(config?: MorpheusConfig, overrides?: { databasePath?: string }) {
     this.config = config || ConfigManager.getInstance().get();
     this.databasePath = overrides?.databasePath;
+  }
+
+  /**
+   * Registers Smith in the SubagentRegistry if Smiths are configured and enabled.
+   * Smith is special — it uses a standalone tool (SmithDelegateTool) and SmithDelegator
+   * rather than implementing ISubagent, so we create a minimal registration.
+   */
+  private registerSmithIfEnabled(): void {
+    const smithsConfig = ConfigManager.getInstance().getSmithsConfig();
+    if (!smithsConfig.enabled || smithsConfig.entries.length === 0) return;
+    if (SubagentRegistry.get('smith')) return; // already registered
+
+    const delegator = SmithDelegator.getInstance();
+    SubagentRegistry.register({
+      agentKey: 'smith', auditAgent: 'smith', label: 'Smith',
+      delegateToolName: 'smith_delegate', emoji: '🕶️', color: 'gray',
+      description: 'Remote DevKit execution',
+      colorClass: 'text-gray-500 dark:text-gray-400',
+      bgClass: 'bg-gray-50 dark:bg-zinc-900',
+      badgeClass: 'bg-gray-200 text-gray-700 dark:bg-gray-700/60 dark:text-gray-300',
+      instance: {
+        initialize: async () => {},
+        execute: async (task, context) => delegator.delegate('unknown', task, context),
+        reload: async () => {},
+        createDelegateTool: () => SmithDelegateTool,
+      },
+      hasDynamicDescription: false,
+      isMultiInstance: true,
+      executeTask: async (task) => {
+        let smithName = 'unknown';
+        if (task.context) {
+          try {
+            const parsed = JSON.parse(task.context);
+            smithName = parsed.smith_name || parsed.smith || 'unknown';
+          } catch {
+            smithName = task.context;
+          }
+        }
+        return delegator.delegate(smithName, task.input, task.context ?? undefined);
+      },
+    });
   }
 
   private buildDelegationFailureResponse(): string {
@@ -154,11 +189,14 @@ export class Oracle implements IOracle {
   }
 
   private hasDelegationToolCall(messages: BaseMessage[]): boolean {
+    const delegationTools = SubagentRegistry.getDelegationToolNames();
+    // Also include smith_delegate which may not be in registry if smiths are disabled
+    delegationTools.add('smith_delegate');
     for (const msg of messages) {
       if (!(msg instanceof AIMessage)) continue;
       const toolCalls = (msg as any).tool_calls ?? [];
       if (!Array.isArray(toolCalls)) continue;
-      if (toolCalls.some((tc: any) => tc?.name === "apoc_delegate" || tc?.name === "neo_delegate" || tc?.name === "trinity_delegate" || tc?.name === "smith_delegate" || tc?.name === "link_delegate")) {
+      if (toolCalls.some((tc: any) => delegationTools.has(tc?.name))) {
         return true;
       }
     }
@@ -192,23 +230,25 @@ export class Oracle implements IOracle {
     // to allow for Environment Variable fallback supported by LangChain.
 
     try {
-      // Refresh Neo and Trinity tool catalogs so delegate descriptions contain runtime info.
-      // Fail-open: Oracle can still initialize even if catalog refresh fails.
-      await Neo.refreshDelegateCatalog().catch(() => {});
-      await Trinity.refreshDelegateCatalog().catch(() => {});
-      await Link.refreshDelegateCatalog().catch(() => {});
+      // Ensure subagents are instantiated and self-registered before using the registry.
+      Apoc.getInstance();
+      Neo.getInstance();
+      Trinity.getInstance();
+      Link.getInstance();
 
-      // Build tool list — conditionally include SmithDelegateTool based on config
+      // Register Smith in the registry if configured
+      this.registerSmithIfEnabled();
+
+      // Refresh dynamic tool catalogs so delegate descriptions contain runtime info.
+      await SubagentRegistry.refreshAllCatalogs();
+
       // Initialize setup repository (creates table if needed)
       SetupRepository.getInstance();
 
       const coreTools: any[] = [
         buildSetupTool(),
         TaskQueryTool,
-        Neo.getInstance().createDelegateTool(),
-        Apoc.getInstance().createDelegateTool(),
-        Trinity.getInstance().createDelegateTool(),
-        Link.getInstance().createDelegateTool(),
+        ...SubagentRegistry.getDelegationTools(),
         createLoadSkillTool(),
         timeVerifierTool,
         ...chronosTools,
@@ -533,10 +573,7 @@ Use it to inform your response and tool selection (if needed), but do not assume
       messages.push(...previousMessages);
       messages.push(userMessage);
 
-      Apoc.setSessionId(currentSessionId);
-      Neo.setSessionId(currentSessionId);
-      Trinity.setSessionId(currentSessionId);
-      Link.setSessionId(currentSessionId);
+      SubagentRegistry.setAllSessionIds(currentSessionId);
 
       const invokeContext: OracleTaskContext = {
         origin_channel: taskContext?.origin_channel ?? "api",
@@ -585,8 +622,10 @@ Use it to inform your response and tool selection (if needed), but do not assume
       // Emit tool_call audit events for Oracle's independent tool calls.
       // Delegation tools (apoc/neo/trinity/smith/skill/link) are already audited
       // inside buildDelegationTool or the task system — skip them here.
+      const delegationToolNames = SubagentRegistry.getDelegationToolNames();
+      delegationToolNames.add('smith_delegate');
       emitToolAuditEvents(newGeneratedMessages, currentSessionId ?? 'default', 'oracle', {
-        skipTools: ORACLE_DELEGATION_TOOLS,
+        skipTools: delegationToolNames,
       });
 
       // Inject provider/model metadata and duration into all new AI messages
@@ -797,25 +836,17 @@ Use it to inform your response and tool selection (if needed), but do not assume
     // Reload MCP tool cache from servers (slow path)
     await Construtor.reload();
 
-    await Neo.refreshDelegateCatalog().catch(() => {});
-    await Trinity.refreshDelegateCatalog().catch(() => {});
-    await Link.refreshDelegateCatalog().catch(() => {});
+    await SubagentRegistry.refreshAllCatalogs();
     this.provider = await ProviderFactory.create(this.config.llm, [
       buildSetupTool(),
       TaskQueryTool,
-      Neo.getInstance().createDelegateTool(),
-      Apoc.getInstance().createDelegateTool(),
-      Trinity.getInstance().createDelegateTool(),
-      Link.getInstance().createDelegateTool(),
+      ...SubagentRegistry.getDelegationTools(),
       createLoadSkillTool(),
       timeVerifierTool,
       ...chronosTools,
     ]);
-    await Neo.getInstance().reload();
-    await Apoc.getInstance().reload();
-    await Trinity.getInstance().reload();
-    await Link.getInstance().reload();
-    this.display.log(`Oracle and Neo tools reloaded`, { source: 'Oracle' });
+    await SubagentRegistry.reloadAll();
+    this.display.log(`Oracle and subagent tools reloaded`, { source: 'Oracle' });
   }
 }
 

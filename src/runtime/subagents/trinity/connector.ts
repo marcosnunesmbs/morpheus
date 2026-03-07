@@ -1,4 +1,4 @@
-import { DatabaseRecord, DatabaseType } from './memory/trinity-db.js';
+import { DatabaseRecord, DatabaseType } from '../../memory/trinity-db.js';
 
 export interface ColumnInfo {
   name: string;

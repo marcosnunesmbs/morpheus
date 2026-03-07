@@ -1,7 +1,7 @@
 import Database from 'better-sqlite3';
-import { LinkRepository } from './link-repository.js';
-import { ConfigManager } from '../config/manager.js';
-import { EmbeddingService } from './memory/embedding.service.js';
+import { LinkRepository } from './repository.js';
+import { ConfigManager } from '../../../config/manager.js';
+import { EmbeddingService } from '../../memory/embedding.service.js';
 
 /**
  * LinkSearch - Hybrid search for Link documents

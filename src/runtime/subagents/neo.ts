@@ -1,18 +1,19 @@
 import { HumanMessage, SystemMessage, BaseMessage, AIMessage } from "@langchain/core/messages";
 import type { StructuredTool } from "@langchain/core/tools";
-import { MorpheusConfig } from "../types/config.js";
-import { ConfigManager } from "../config/manager.js";
-import { ProviderFactory } from "./providers/factory.js";
+import { MorpheusConfig } from "../../types/config.js";
+import { ConfigManager } from "../../config/manager.js";
+import { ProviderFactory } from "../providers/factory.js";
 import { ReactAgent } from "langchain";
-import { ProviderError } from "./errors.js";
-import { DisplayManager } from "./display.js";
-import { Construtor } from "./tools/factory.js";
-import { morpheusTools } from "./tools/index.js";
-import { TaskRequestContext } from "./tasks/context.js";
-import type { OracleTaskContext, AgentResult } from "./tasks/types.js";
+import { ProviderError } from "../errors.js";
+import { DisplayManager } from "../display.js";
+import { Construtor } from "../tools/factory.js";
+import { morpheusTools } from "../tools/index.js";
+import { TaskRequestContext } from "../tasks/context.js";
+import type { OracleTaskContext, AgentResult } from "../tasks/types.js";
 import type { ISubagent } from "./ISubagent.js";
-import { extractRawUsage, persistAgentMessage, buildAgentResult, emitToolAuditEvents } from "./subagent-utils.js";
-import { buildDelegationTool } from "./tools/delegation-utils.js";
+import { extractRawUsage, persistAgentMessage, buildAgentResult, emitToolAuditEvents } from "./utils.js";
+import { buildDelegationTool } from "../tools/delegation-utils.js";
+import { SubagentRegistry } from "./registry.js";
 
 // Internal Morpheus tools get 'tool_call' event type; MCP tools get 'mcp_tool'
 const MORPHEUS_TOOL_NAMES = new Set(morpheusTools.map((t) => t.name));
@@ -77,6 +78,19 @@ export class Neo implements ISubagent {
   public static getInstance(config?: MorpheusConfig): Neo {
     if (!Neo.instance) {
       Neo.instance = new Neo(config);
+      SubagentRegistry.register({
+        agentKey: 'neo', auditAgent: 'neo', label: 'Neo',
+        delegateToolName: 'neo_delegate', emoji: '🥷', color: 'violet',
+        description: 'MCP tool orchestration',
+        colorClass: 'text-violet-600 dark:text-violet-400',
+        bgClass: 'bg-violet-50 dark:bg-violet-900/10',
+        badgeClass: 'bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300',
+        instance: Neo.instance,
+        hasDynamicDescription: true,
+        isMultiInstance: false,
+        setSessionId: (id) => Neo.setSessionId(id),
+        refreshCatalog: () => Neo.refreshDelegateCatalog(),
+      });
     }
     return Neo.instance;
   }

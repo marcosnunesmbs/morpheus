@@ -3,8 +3,8 @@ import multer from 'multer';
 import path from 'path';
 import fs from 'fs-extra';
 import { homedir } from 'os';
-import { LinkRepository, Document } from '../../runtime/link-repository.js';
-import { LinkWorker } from '../../runtime/link-worker.js';
+import { LinkRepository, Document } from '../../runtime/subagents/link/repository.js';
+import { LinkWorker } from '../../runtime/subagents/link/worker.js';
 import { ConfigManager } from '../../config/manager.js';
 import type { LinkConfig } from '../../types/config.js';
 

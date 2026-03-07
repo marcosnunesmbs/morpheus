@@ -26,8 +26,8 @@ import { ChronosRepository } from '../../runtime/chronos/repository.js';
 import { SkillRegistry } from '../../runtime/skills/index.js';
 import { MCPToolCache } from '../../runtime/tools/cache.js';
 import { SmithRegistry } from '../../runtime/smiths/registry.js';
-import { Link } from '../../runtime/link.js';
-import { LinkWorker } from '../../runtime/link-worker.js';
+import { Link } from '../../runtime/subagents/link/link.js';
+import { LinkWorker } from '../../runtime/subagents/link/worker.js';
 
 // Load .env file explicitly in start command
 const envPath = path.join(process.cwd(), '.env');

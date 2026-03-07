@@ -1,5 +1,5 @@
 import type { StructuredTool } from '@langchain/core/tools';
-import { AuditRepository } from './audit/repository.js';
+import { AuditRepository } from '../audit/repository.js';
 
 /**
  * Wraps a StructuredTool to record audit events on each invocation.

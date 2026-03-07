@@ -705,7 +705,7 @@ export class TelegramAdapter {
           await ctx.answerCbQuery('Testing connection…').catch(() => {});
           try {
             const { DatabaseRegistry } = await import('../runtime/memory/trinity-db.js');
-            const { testConnection } = await import('../runtime/trinity-connector.js');
+            const { testConnection } = await import('../runtime/subagents/trinity/connector.js');
             const db = DatabaseRegistry.getInstance().getDatabase(id);
             if (!db) { await safeReply(ctx, '❌ Database not found.'); return; }
             const ok = await testConnection(db);
@@ -733,8 +733,8 @@ export class TelegramAdapter {
           await ctx.answerCbQuery('Refreshing schema…').catch(() => {});
           try {
             const { DatabaseRegistry } = await import('../runtime/memory/trinity-db.js');
-            const { introspectSchema } = await import('../runtime/trinity-connector.js');
-            const { Trinity } = await import('../runtime/trinity.js');
+            const { introspectSchema } = await import('../runtime/subagents/trinity/connector.js');
+            const { Trinity } = await import('../runtime/subagents/trinity/trinity.js');
             const registry = DatabaseRegistry.getInstance();
             const db = registry.getDatabase(id);
             if (!db) { await safeReply(ctx, '❌ Database not found.'); return; }

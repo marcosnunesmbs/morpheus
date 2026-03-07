@@ -3,8 +3,8 @@ import fs from 'fs-extra';
 import path from 'path';
 import { homedir } from 'os';
 import { randomUUID } from 'crypto';
-import loadVecExtension from './memory/sqlite-vec.js';
-import { DisplayManager } from './display.js';
+import loadVecExtension from '../../memory/sqlite-vec.js';
+import { DisplayManager } from '../../display.js';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 

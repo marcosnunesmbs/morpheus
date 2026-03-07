@@ -1,13 +1,9 @@
 import { randomUUID } from 'crypto';
 import { DisplayManager } from '../display.js';
-import { Apoc } from '../apoc.js';
-import { Neo } from '../neo.js';
-import { Trinity } from '../trinity.js';
-import { Link } from '../link.js';
-import { SmithDelegator } from '../smiths/delegator.js';
+import { SubagentRegistry } from '../subagents/registry.js';
 import { TaskRepository } from './repository.js';
 import { AuditRepository } from '../audit/repository.js';
-import type { TaskRecord, AgentResult } from './types.js';
+import type { TaskRecord } from './types.js';
 
 export class TaskWorker {
   private readonly workerId: string;
@@ -59,77 +55,18 @@ export class TaskWorker {
 
   private async executeTask(task: TaskRecord): Promise<void> {
     const audit = AuditRepository.getInstance();
+    const auditAgent = SubagentRegistry.resolveAuditAgent(task.agent);
     audit.insert({
       session_id: task.session_id,
       task_id: task.id,
       event_type: 'task_created',
-      agent: task.agent === 'trinit' ? 'trinity' : task.agent as any,
+      agent: auditAgent,
       status: 'success',
       metadata: { agent: task.agent, input_preview: task.input.slice(0, 200) },
     });
 
     try {
-      let result: AgentResult;
-      switch (task.agent) {
-        case 'apoc': {
-          const apoc = Apoc.getInstance();
-          result = await apoc.execute(task.input, task.context ?? undefined, task.session_id, {
-            origin_channel: task.origin_channel,
-            session_id: task.session_id,
-            origin_message_id: task.origin_message_id ?? undefined,
-            origin_user_id: task.origin_user_id ?? undefined,
-          });
-          break;
-        }
-        case 'neo': {
-          const neo = Neo.getInstance();
-          result = await neo.execute(task.input, task.context ?? undefined, task.session_id, {
-            origin_channel: task.origin_channel,
-            session_id: task.session_id,
-            origin_message_id: task.origin_message_id ?? undefined,
-            origin_user_id: task.origin_user_id ?? undefined,
-          });
-          break;
-        }
-        case 'trinit': {
-          const trinity = Trinity.getInstance();
-          result = await trinity.execute(task.input, task.context ?? undefined, task.session_id, {
-            origin_channel: task.origin_channel,
-            session_id: task.session_id,
-            origin_message_id: task.origin_message_id ?? undefined,
-            origin_user_id: task.origin_user_id ?? undefined,
-          });
-          break;
-        }
-        case 'smith': {
-          // Parse smith name from context JSON
-          let smithName = 'unknown';
-          if (task.context) {
-            try {
-              const parsed = JSON.parse(task.context);
-              smithName = parsed.smith_name || parsed.smith || 'unknown';
-            } catch {
-              smithName = task.context;
-            }
-          }
-          const delegator = SmithDelegator.getInstance();
-          result = await delegator.delegate(smithName, task.input, task.context ?? undefined);
-          break;
-        }
-        case 'link': {
-          const link = Link.getInstance();
-          result = await link.execute(task.input, task.context ?? undefined, task.session_id, {
-            origin_channel: task.origin_channel,
-            session_id: task.session_id,
-            origin_message_id: task.origin_message_id ?? undefined,
-            origin_user_id: task.origin_user_id ?? undefined,
-          });
-          break;
-        }
-        default: {
-          throw new Error(`Unknown task agent: ${task.agent}`);
-        }
-      }
+      const result = await SubagentRegistry.executeTask(task);
 
       this.repository.markCompleted(task.id, result.output, result.usage ? {
         provider: result.usage.provider,
@@ -140,7 +77,7 @@ export class TaskWorker {
         stepCount: result.usage.stepCount,
       } : undefined);
 
-      const agentName = (task.agent === 'trinit' ? 'trinity' : task.agent) as any;
+      const agentName = auditAgent;
 
       // Emit task_completed audit event
       audit.insert({
@@ -188,7 +125,7 @@ export class TaskWorker {
         session_id: task.session_id,
         task_id: task.id,
         event_type: 'task_completed',
-        agent: (task.agent === 'trinit' ? 'trinity' : task.agent) as any,
+        agent: auditAgent,
         status: 'error',
         metadata: { error: errorMessage },
       });

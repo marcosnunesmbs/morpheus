@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Zap, Wrench, CheckCircle, XCircle, Clock, Bot, Play, Brain, Mic, ChevronRight, ChevronDown, Plus, Pencil, Archive } from 'lucide-react';
 import type { AuditEvent } from '../../services/audit';
+import { useAgentMetadata } from '../../services/agents';
 
 interface EventRowProps {
   event: AuditEvent;
@@ -51,29 +52,6 @@ const META_BORDER_COLORS: Record<string, string> = {
   telephonist: 'border-rose-300 dark:border-rose-500/40',
 };
 
-const AGENT_EMOJIS: Record<string, string> = {
-  oracle: '🔮',
-  apoc: '🧑‍🔬',
-  neo: '🥷',
-  trinity: '👩‍💻',
-  smith: '🕶️',
-  chronos: '⏰',
-  sati: '🧠',
-  telephonist: '📞',
-  link: '🕵️‍♂️',
-};
-
-const AGENT_BADGES: Record<string, string> = {
-  oracle: 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300',
-  apoc: 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300',
-  neo: 'bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300',
-  trinity: 'bg-teal-100 text-teal-700 dark:bg-teal-900/40 dark:text-teal-300',
-  smith: 'bg-gray-200 text-gray-700 dark:bg-gray-700/60 dark:text-gray-300',
-  chronos: 'bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300',
-  sati: 'bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300',
-  telephonist: 'bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300',
-  link: 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300',
-};
 
 function fmtMs(ms: number | null): string {
   if (ms == null) return '—';
@@ -217,13 +195,14 @@ function MetaPanel({ parsedMeta, eventType }: { parsedMeta: Record<string, unkno
 
 export const EventRow: React.FC<EventRowProps> = ({ event }) => {
   const [open, setOpen] = useState(false);
+  const { getByKey } = useAgentMetadata();
 
   const icon = EVENT_ICONS[event.event_type] ?? <Wrench size={14} />;
   const colorClass = EVENT_COLORS[event.event_type] ?? 'text-gray-500';
   const metaBorderClass = META_BORDER_COLORS[event.event_type] ?? 'border-gray-300 dark:border-matrix-primary/40';
-  const agentBadge = event.agent ? (AGENT_BADGES[event.agent] ?? 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300') : null;
-  const agentEmoji = event.agent ? AGENT_EMOJIS[event.agent] : undefined;
-  const agentLabel = agentEmoji ? `${event.agent?.toUpperCase()} ${agentEmoji}` : event.agent?.toUpperCase() || null;
+  const agentMeta = event.agent ? getByKey(event.agent) : null;
+  const agentBadge = agentMeta?.badgeClass ?? null;
+  const agentLabel = agentMeta ? `${event.agent?.toUpperCase()} ${agentMeta.emoji}` : event.agent?.toUpperCase() || null;
 
   const parsedMeta: Record<string, unknown> | null = (() => {
     try {

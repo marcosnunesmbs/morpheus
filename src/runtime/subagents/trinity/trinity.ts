@@ -2,18 +2,19 @@ import { HumanMessage, SystemMessage, BaseMessage, AIMessage } from "@langchain/
 import { tool } from "@langchain/core/tools";
 import type { StructuredTool } from "@langchain/core/tools";
 import { z } from "zod";
-import { MorpheusConfig } from "../types/config.js";
-import { ConfigManager } from "../config/manager.js";
-import { ProviderFactory } from "./providers/factory.js";
+import { MorpheusConfig } from "../../../types/config.js";
+import { ConfigManager } from "../../../config/manager.js";
+import { ProviderFactory } from "../../providers/factory.js";
 import { ReactAgent } from "langchain";
-import { ProviderError } from "./errors.js";
-import { DisplayManager } from "./display.js";
-import { DatabaseRegistry } from "./memory/trinity-db.js";
-import { testConnection, introspectSchema, executeQuery } from "./trinity-connector.js";
-import type { OracleTaskContext, AgentResult } from "./tasks/types.js";
-import type { ISubagent } from "./ISubagent.js";
-import { extractRawUsage, persistAgentMessage, buildAgentResult, emitToolAuditEvents } from "./subagent-utils.js";
-import { buildDelegationTool } from "./tools/delegation-utils.js";
+import { ProviderError } from "../../errors.js";
+import { DisplayManager } from "../../display.js";
+import { DatabaseRegistry } from "../../memory/trinity-db.js";
+import { testConnection, introspectSchema, executeQuery } from "./connector.js";
+import type { OracleTaskContext, AgentResult } from "../../tasks/types.js";
+import type { ISubagent } from "../ISubagent.js";
+import { extractRawUsage, persistAgentMessage, buildAgentResult, emitToolAuditEvents } from "../utils.js";
+import { buildDelegationTool } from "../../tools/delegation-utils.js";
+import { SubagentRegistry } from "../registry.js";
 
 const TRINITY_BASE_DESCRIPTION = `Delegate a database task to Trinity, the specialized database subagent, asynchronously.
 
@@ -66,6 +67,19 @@ export class Trinity implements ISubagent {
   public static getInstance(config?: MorpheusConfig): Trinity {
     if (!Trinity.instance) {
       Trinity.instance = new Trinity(config);
+      SubagentRegistry.register({
+        agentKey: 'trinit', auditAgent: 'trinity', label: 'Trinity',
+        delegateToolName: 'trinity_delegate', emoji: '👩‍💻', color: 'teal',
+        description: 'Database specialist',
+        colorClass: 'text-teal-600 dark:text-teal-400',
+        bgClass: 'bg-teal-50 dark:bg-teal-900/10',
+        badgeClass: 'bg-teal-100 text-teal-700 dark:bg-teal-900/40 dark:text-teal-300',
+        instance: Trinity.instance,
+        hasDynamicDescription: true,
+        isMultiInstance: false,
+        setSessionId: (id) => Trinity.setSessionId(id),
+        refreshCatalog: () => Trinity.refreshDelegateCatalog(),
+      });
     }
     return Trinity.instance;
   }

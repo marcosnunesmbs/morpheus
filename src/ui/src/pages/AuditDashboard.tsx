@@ -21,6 +21,7 @@ import {
 } from 'lucide-react';
 import { useGlobalAudit } from '../services/audit';
 import type { GlobalAuditDailyActivity } from '../services/audit';
+import { useAgentMetadata } from '../services/agents';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -144,28 +145,12 @@ function Section({ title, icon, children }: { title: string; icon: React.ReactNo
 
 // ─── Agent badge ──────────────────────────────────────────────────────────────
 
-const AGENT_EMOJIS: Record<string, string> = {
-  oracle: '🔮', apoc: '🧑‍🔬', neo: '🥷', trinity: '👩‍💻',
-  smith: '🕶️', chronos: '⏰', sati: '🧠', telephonist: '📞', link: '🕵️‍♂️', unknown: '?',
-};
-const AGENT_COLORS: Record<string, string> = {
-  oracle:      'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300',
-  apoc:        'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300',
-  neo:         'bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300',
-  trinity:     'bg-teal-100 text-teal-700 dark:bg-teal-900/40 dark:text-teal-300',
-  smith:       'bg-gray-200 text-gray-700 dark:bg-gray-700/60 dark:text-gray-300',
-  chronos:     'bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300',
-  sati:        'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300',
-  telephonist: 'bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300',
-  link:        'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300',
-  unknown:     'bg-gray-100 text-gray-500 dark:bg-zinc-800 dark:text-matrix-secondary/60',
-};
-
 function AgentBadge({ agent }: { agent: string }) {
-  const cls = AGENT_COLORS[agent] ?? AGENT_COLORS.unknown;
+  const { getByKey } = useAgentMetadata();
+  const meta = getByKey(agent);
   return (
-    <span className={`inline-flex items-center gap-1 text-[11px] font-semibold px-1.5 py-0.5 rounded ${cls}`}>
-      {AGENT_EMOJIS[agent] ?? '?'} {agent.toUpperCase()}
+    <span className={`inline-flex items-center gap-1 text-[11px] font-semibold px-1.5 py-0.5 rounded ${meta.badgeClass}`}>
+      {meta.emoji} {agent.toUpperCase()}
     </span>
   );
 }

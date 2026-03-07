@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import { taskService, type OriginChannel, type TaskAgent, type TaskRecord, type TaskStatus } from '../services/tasks';
 import { Pagination, type PaginatedResponse } from '../components/Pagination';
+import { useAgentMetadata } from '../services/agents';
 
 const container = { hidden: { opacity: 0 }, show: { opacity: 1, transition: { staggerChildren: 0.05 } } };
 const item = { hidden: { opacity: 0, y: 8 }, show: { opacity: 1, y: 0 } };
@@ -213,7 +214,8 @@ function StatCard({ label, value }: { label: string; value: number }) {
 
 export function TasksPage() {
   const [status, setStatus] = useState<TaskStatus | ''>('');
-  const [agent, setAgent] = useState<TaskAgent | ''>('');
+  const [agent, setAgent] = useState<string>('');
+  const { getSubagents } = useAgentMetadata();
   const [originChannel, setOriginChannel] = useState<OriginChannel | ''>('');
   const [sessionFilter, setSessionFilter] = useState('');
   const [detail, setDetail] = useState<TaskRecord | null>(null);
@@ -222,7 +224,7 @@ export function TasksPage() {
 
   const filters = useMemo(() => ({
     status: status || undefined,
-    agent: agent || undefined,
+    agent: (agent || undefined) as TaskAgent | undefined,
     origin_channel: originChannel || undefined,
     session_id: sessionFilter.trim() || undefined,
     page,
@@ -271,12 +273,11 @@ export function TasksPage() {
           <option value="">All status</option>
           {Object.entries(statusLabel).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
         </select>
-        <select className={selectCls} value={agent} onChange={(e) => { setAgent((e.target.value || '') as TaskAgent | ''); resetPage(); }}>
+        <select className={selectCls} value={agent} onChange={(e) => { setAgent(e.target.value || ''); resetPage(); }}>
           <option value="">All agents</option>
-          <option value="apoc">Apoc</option>
-          <option value="neo">Neo</option>
-          <option value="smith">Smith</option>
-          <option value="trinit">Trinity</option>
+          {getSubagents().map(a => (
+            <option key={a.agentKey} value={a.agentKey}>{a.label}</option>
+          ))}
         </select>
         <select className={selectCls} value={originChannel} onChange={(e) => { setOriginChannel((e.target.value || '') as OriginChannel | ''); resetPage(); }}>
           <option value="">All channels</option>

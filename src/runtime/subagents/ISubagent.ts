@@ -1,5 +1,5 @@
 import type { StructuredTool } from "@langchain/core/tools";
-import type { OracleTaskContext, AgentResult } from "./tasks/types.js";
+import type { OracleTaskContext, AgentResult } from "../tasks/types.js";
 
 /**
  * Shared interface for all singleton subagents (Apoc, Neo, Trinity).

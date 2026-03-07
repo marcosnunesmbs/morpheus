@@ -8,6 +8,7 @@ import { ToolCallBlock } from './ToolCallBlock';
 import { AgentBlock } from './AgentBlock';
 import { MessageMeta } from './MessageMeta';
 import { httpClient } from '../../services/httpClient';
+import { useAgentMetadata } from '../../services/agents';
 
 interface ChatAreaProps {
   messages: Message[];
@@ -18,21 +19,7 @@ interface ChatAreaProps {
   onToggleSidebar?: () => void;
 }
 
-/* ─── Agent mention types ────────────────────────────────────────── */
-
-interface AgentInfo {
-  name: string;
-  emoji: string;
-  description: string;
-  color: string; // tailwind text + bg classes for the badge
-}
-
-const STATIC_AGENTS: AgentInfo[] = [
-  { name: 'apoc',      emoji: '🧑‍🔬', description: 'Filesystem, shell & browser',  color: 'amber'  },
-  { name: 'neo',       emoji: '🥷',  description: 'MCP tool orchestration',   color: 'violet' },
-  { name: 'trinity',   emoji: '👩‍💻', description: 'Database specialist',      color: 'teal'   },
-  { name: 'link',      emoji: '🕵️‍♂️', description: 'Document search & RAG',   color: 'gray'   },
-];
+/* ─── Agent mention badge color mapping ──────────────────────────── */
 
 const AGENT_BADGE_CLASSES: Record<string, string> = {
   amber:  'bg-amber-100  text-amber-800  border-amber-300  dark:bg-amber-900/30  dark:text-amber-300  dark:border-amber-700/60',
@@ -40,6 +27,7 @@ const AGENT_BADGE_CLASSES: Record<string, string> = {
   violet: 'bg-violet-100 text-violet-800 border-violet-300 dark:bg-violet-900/30 dark:text-violet-300 dark:border-violet-700/60',
   teal:   'bg-teal-100   text-teal-800   border-teal-300   dark:bg-teal-900/30   dark:text-teal-300   dark:border-teal-700/60',
   gray:   'bg-zinc-100   text-zinc-700   border-zinc-300   dark:bg-zinc-800      dark:text-zinc-300   dark:border-zinc-600',
+  indigo: 'bg-indigo-100 text-indigo-800 border-indigo-300 dark:bg-indigo-900/30 dark:text-indigo-300 dark:border-indigo-700/60',
 };
 
 /* ─── Helpers ────────────────────────────────────────────────────── */
@@ -135,7 +123,8 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
   const [mentionedAgents, setMentionedAgents] = useState<string[]>([]);
   const [mentionState, setMentionState] = useState<{ query: string; startIdx: number } | null>(null);
   const [mentionSelectedIdx, setMentionSelectedIdx] = useState(0);
-  const [smithAgents, setSmithAgents] = useState<AgentInfo[]>([]);
+  const [smithAgents, setSmithAgents] = useState<{ name: string; emoji: string; description: string; color: string }[]>([]);
+  const { getSubagents } = useAgentMetadata();
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -169,7 +158,10 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
       .catch(() => {});
   }, []);
 
-  const allAgents: AgentInfo[] = [...STATIC_AGENTS, ...smithAgents];
+  const registryAgents = getSubagents().map(a => ({
+    name: a.auditAgent, emoji: a.emoji, description: a.description, color: a.color,
+  }));
+  const allAgents = [...registryAgents, ...smithAgents.filter(s => !registryAgents.some(r => r.name === s.name))];
 
   const filteredAgents = mentionState
     ? allAgents.filter(a => a.name.toLowerCase().startsWith(mentionState.query.toLowerCase()))
@@ -254,7 +246,7 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
 
   /* ── Agent badge helper ────────────────────────────────────────── */
 
-  const getAgentInfo = (name: string): AgentInfo =>
+  const getAgentInfo = (name: string) =>
     allAgents.find(a => a.name === name) ?? { name, emoji: '🤖', description: '', color: 'gray' };
 
   return (

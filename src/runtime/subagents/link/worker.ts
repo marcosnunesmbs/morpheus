@@ -2,12 +2,12 @@ import { homedir } from 'os';
 import path from 'path';
 import fs from 'fs-extra';
 import fsSync from 'fs';
-import { LinkRepository } from './link-repository.js';
-import { LinkSearch } from './link-search.js';
-import { hashFile, processDocument, isSupportedFormat } from './link-chunker.js';
-import { EmbeddingService } from './memory/embedding.service.js';
-import { ConfigManager } from '../config/manager.js';
-import { DisplayManager } from './display.js';
+import { LinkRepository } from './repository.js';
+import { LinkSearch } from './search.js';
+import { hashFile, processDocument, isSupportedFormat } from './chunker.js';
+import { EmbeddingService } from '../../memory/embedding.service.js';
+import { ConfigManager } from '../../../config/manager.js';
+import { DisplayManager } from '../../display.js';
 
 /**
  * LinkWorker - Background worker for document indexing

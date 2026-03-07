@@ -16,8 +16,8 @@ import { getVersion } from '../utils/version.js';
 import { TaskWorker } from '../../runtime/tasks/worker.js';
 import { TaskNotifier } from '../../runtime/tasks/notifier.js';
 import { WebhookDispatcher } from '../../runtime/webhooks/dispatcher.js';
-import { Link } from '../../runtime/link.js';
-import { LinkWorker } from '../../runtime/link-worker.js';
+import { Link } from '../../runtime/subagents/link/link.js';
+import { LinkWorker } from '../../runtime/subagents/link/worker.js';
 
 export const restartCommand = new Command('restart')
   .description('Restart the Morpheus agent')

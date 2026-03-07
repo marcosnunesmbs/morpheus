@@ -8,9 +8,9 @@
 
 import { ConfigManager } from '../config/manager.js';
 import { DisplayManager } from './display.js';
-import { Apoc } from './apoc.js';
-import { Neo } from './neo.js';
-import { Trinity } from './trinity.js';
+import { Apoc } from './subagents/apoc.js';
+import { Neo } from './subagents/neo.js';
+import { Trinity } from './subagents/trinity/trinity.js';
 import { IOracle } from './types.js';
 
 let currentOracle: IOracle | null = null;

@@ -2,18 +2,11 @@ import React, { useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { ChevronDown, CheckCircle, XCircle, Loader2 } from 'lucide-react';
 import type { ToolGroupItem } from '../../services/chat';
+import { useAgentMetadata } from '../../services/agents';
 
 interface AgentBlockProps {
   group: ToolGroupItem;
 }
-
-const AGENT_META: Record<string, { label: string; emoji: string; colorClass: string; bgClass: string }> = {
-  apoc_delegate:    { label: 'Apoc',    emoji: '🧑‍🔬', colorClass: 'text-amber-600 dark:text-amber-400',   bgClass: 'bg-amber-50  dark:bg-amber-900/10'  },
-  neo_delegate:     { label: 'Neo',     emoji: '🥷',   colorClass: 'text-violet-600 dark:text-violet-400', bgClass: 'bg-violet-50 dark:bg-violet-900/10' },
-  trinity_delegate: { label: 'Trinity', emoji: '👩‍💻',  colorClass: 'text-teal-600  dark:text-teal-400',   bgClass: 'bg-teal-50   dark:bg-teal-900/10'   },
-  smith_delegate:   { label: 'Smith',   emoji: '🕶️',   colorClass: 'text-gray-500  dark:text-gray-400',   bgClass: 'bg-gray-50   dark:bg-zinc-900'       },
-  link_delegate:    { label: 'Link',    emoji: '🕵️‍♂️',   colorClass: 'text-indigo-600 dark:text-indigo-400', bgClass: 'bg-indigo-50 dark:bg-indigo-900/10' },
-};
 
 function getTask(args: any): string {
   return args?.task ?? args?.prompt ?? '';
@@ -26,8 +19,10 @@ function formatOutput(content: string): string {
 
 export const AgentBlock: React.FC<AgentBlockProps> = ({ group }) => {
   const [open, setOpen] = useState(false);
+  const { getByToolName } = useAgentMetadata();
 
-  const meta = AGENT_META[group.call.name] ?? { label: group.call.name, emoji: '🤖', colorClass: 'text-gray-500', bgClass: 'bg-gray-50 dark:bg-zinc-900' };
+  const agentMeta = getByToolName(group.call.name);
+  const meta = { label: agentMeta.label, emoji: agentMeta.emoji, colorClass: agentMeta.colorClass, bgClass: agentMeta.bgClass };
   const hasResult = group.result !== null;
   const resultContent = group.result?.content ?? '';
   const isError = resultContent.startsWith('❌') || resultContent.toLowerCase().startsWith('error');

@@ -45,6 +45,10 @@ const AGENT_TABS = [
   { id: 'trinity', label: 'Trinity' },
   { id: 'link', label: 'Link' },
 ];
+// NOTE: AGENT_TABS is kept static here because each tab renders a specific
+// config form. Dynamic generation from SubagentRegistry would require
+// dynamic config forms which is out of scope. New subagents must add their
+// tab entry here manually.
 
 const PROVIDER_OPTIONS = [
   { label: 'OpenAI', value: 'openai' },

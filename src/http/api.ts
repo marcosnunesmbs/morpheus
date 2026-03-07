@@ -17,8 +17,8 @@ import { Construtor } from '../runtime/tools/factory.js';
 import { TaskRepository } from '../runtime/tasks/repository.js';
 import type { OriginChannel, TaskAgent, TaskStatus } from '../runtime/tasks/types.js';
 import { DatabaseRegistry } from '../runtime/memory/trinity-db.js';
-import { testConnection, introspectSchema } from '../runtime/trinity-connector.js';
-import { Trinity } from '../runtime/trinity.js';
+import { testConnection, introspectSchema } from '../runtime/subagents/trinity/connector.js';
+import { Trinity } from '../runtime/subagents/trinity/trinity.js';
 import { ChronosRepository } from '../runtime/chronos/repository.js';
 import { ChronosWorker } from '../runtime/chronos/worker.js';
 import { createChronosJobRouter, createChronosConfigRouter } from './routers/chronos.js';
@@ -26,6 +26,7 @@ import { createSkillsRouter } from './routers/skills.js';
 import { createSmithsRouter } from './routers/smiths.js';
 import { createDangerRouter } from './routers/danger.js';
 import { createLinkRouter } from './routers/link.js';
+import { createAgentsRouter } from './routers/agents.js';
 import { getActiveEnvOverrides } from '../config/precedence.js';
 import { hotReloadConfig, getRestartRequiredChanges } from '../runtime/hot-reload.js';
 import { AuditRepository } from '../runtime/audit/repository.js';
@@ -65,6 +66,9 @@ export function createApiRouter(oracle: IOracle, chronosWorker?: ChronosWorker) 
 
   // Mount Link router (Documentation management)
   router.use('/link', createLinkRouter());
+
+  // Mount Agents metadata router
+  router.use('/agents', createAgentsRouter());
 
   // --- Session Management ---
 
