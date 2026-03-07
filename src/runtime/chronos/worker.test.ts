@@ -102,7 +102,12 @@ describe('ChronosWorker.tick()', () => {
     await worker.tick();
     // Wait for fire-and-forget
     await new Promise((r) => setTimeout(r, 50));
-    expect(oracle.chat).toHaveBeenCalledWith(expect.stringContaining(job.prompt));
+    expect(oracle.chat).toHaveBeenCalledWith(
+      expect.stringContaining(job.prompt),
+      undefined,
+      false,
+      expect.objectContaining({ source: 'chronos' }),
+    );
     expect(repo.disableJob).toHaveBeenCalledWith(job.id);
     expect(repo.updateJob).not.toHaveBeenCalled();
   });
@@ -114,7 +119,12 @@ describe('ChronosWorker.tick()', () => {
     const worker = new ChronosWorker(repo, oracle);
     await worker.tick();
     await new Promise((r) => setTimeout(r, 50));
-    expect(oracle.chat).toHaveBeenCalledWith(expect.stringContaining(job.prompt));
+    expect(oracle.chat).toHaveBeenCalledWith(
+      expect.stringContaining(job.prompt),
+      undefined,
+      false,
+      expect.objectContaining({ source: 'chronos' }),
+    );
     expect(repo.disableJob).not.toHaveBeenCalled();
     expect(repo.updateJob).toHaveBeenCalledWith(
       job.id,

@@ -111,7 +111,7 @@ export class ChronosWorker {
         job.notify_channels.length === 1
           ? (job.notify_channels[0] as OracleTaskContext['origin_channel'])
           : 'chronos';
-      const taskContext: OracleTaskContext = { origin_channel: taskOriginChannel, session_id: activeSessionId };
+      const taskContext: OracleTaskContext = { origin_channel: taskOriginChannel, session_id: activeSessionId, source: 'chronos' };
 
       // Hard-block Chronos management tools during execution.
       ChronosWorker.isExecuting = true;

@@ -328,11 +328,16 @@ export class Oracle implements IOracle {
         model: isTelephonist ? this.config.audio?.model : this.config.llm.model
       };
 
-      // Inject source metadata for automated origins (webhook, chronos)
-      if (taskContext?.origin_channel === 'webhook') {
-        (userMessage as any).source_metadata = { source: 'webhook' };
-      } else if (taskContext?.origin_channel === 'chronos') {
-        (userMessage as any).source_metadata = { source: 'chronos' };
+      // Inject source metadata for automated origins (webhook, chronos).
+      // Prefer explicit taskContext.source (set by Chronos even when origin_channel
+      // points to a specific notification channel like 'telegram').
+      const messageSource = taskContext?.source ?? (
+        taskContext?.origin_channel === 'webhook' ? 'webhook'
+        : taskContext?.origin_channel === 'chronos' ? 'chronos'
+        : null
+      );
+      if (messageSource) {
+        (userMessage as any).source_metadata = { source: messageSource };
       }
 
       // Attach extra usage (e.g. from Audio) to the user message to be persisted
