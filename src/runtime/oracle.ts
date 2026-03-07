@@ -253,8 +253,11 @@ export class Oracle implements IOracle {
         timeVerifierTool,
         ...chronosTools,
       ];
+      // Smith's tool is already included via SubagentRegistry.getDelegationTools()
+      // if registerSmithIfEnabled() registered it. Only add it if Smith is enabled
+      // but NOT yet in the registry (shouldn't happen, but defensive).
       const smithsConfig = ConfigManager.getInstance().getSmithsConfig();
-      if (smithsConfig.enabled && smithsConfig.entries.length > 0) {
+      if (smithsConfig.enabled && smithsConfig.entries.length > 0 && !SubagentRegistry.get('smith')) {
         coreTools.push(SmithDelegateTool);
       }
 
