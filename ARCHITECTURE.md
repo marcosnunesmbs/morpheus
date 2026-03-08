@@ -12,7 +12,7 @@ The runtime is a modular monolith built on Node.js + TypeScript, with SQLite as 
 ## 2. Core Architecture
 
 ### 2.1 Runtime Core (`src/runtime`)
-- `oracle.ts`: orchestration brain. Routes requests, decides whether to answer directly or enqueue delegated work.
+- `oracle.ts`: orchestration brain. Routes requests, decides whether to answer directly or enqueue delegated work. Depends on `IOracle` interface (see 2.2), not concrete implementations.
 - `subagents/registry.ts`: `SubagentRegistry` singleton — single source of truth for delegation tools, display metadata, session propagation, and task routing. All subagents self-register during `getInstance()`.
 - `subagents/neo.ts`: execution subagent for MCP + Morpheus internal tools (config, diagnostics, analytics).
 - `subagents/apoc.ts`: execution subagent for DevKit operations (filesystem, shell, git, network, processes, packages, system).
@@ -22,17 +22,52 @@ The runtime is a modular monolith built on Node.js + TypeScript, with SQLite as 
 - `memory/sati/*`: long-term memory pipeline (retrieval + post-response memory evaluation).
 - `tasks/*`: async task queue repository, worker, notifier, dispatcher, and request context. `TaskWorker` delegates to `SubagentRegistry.executeTask()` instead of per-agent switch/case.
 - `chronos/*`: temporal scheduler — job store, polling worker, natural-language schedule parser. Jobs store `origin_session_id` for session continuity.
+- `ports/*`: port interfaces for dependency inversion (see 2.2).
+- `adapters/*`: concrete adapter implementations for ports (see 2.2).
+- `container.ts`: `ServiceContainer` — lightweight DI container for port resolution at runtime.
 
-### 2.2 Interfaces
+### 2.2 Interfaces & Ports
+
+#### Channel Interfaces
 - `src/channels/registry.ts`: `ChannelRegistry` singleton — central router for all channel adapters.
-- `src/channels/telegram.ts`: Telegram adapter (commands, voice transcription, inline buttons, proactive task notifications).
-- `src/channels/discord.ts`: Discord adapter (slash commands, voice/audio transcription, DM-only routing).
+- `src/channels/telegram.ts`: Telegram adapter (commands, voice transcription, inline buttons, proactive task notifications). Depends on `IOracle` interface, not concrete Oracle class.
+- `src/channels/discord.ts`: Discord adapter (slash commands, voice/audio transcription, DM-only routing). Depends on `IOracle` interface, not concrete Oracle class.
 - `src/http/*`: Express API + UI hosting + webhooks.
 - `src/ui/*`: React dashboard for chat, tasks, settings, logs, stats, MCP, webhooks, Chronos.
 
+#### Port Interfaces (`src/runtime/ports/`)
+Dependency-inversion boundaries that decouple runtime components from concrete implementations:
+
+| Port | Purpose | Adapter |
+|---|---|---|
+| `INotifier` | Channel-agnostic message delivery (`sendToUser`, `broadcast`) | `ChannelNotifierAdapter` → `ChannelRegistry` |
+| `ITaskEnqueuer` | Task creation abstraction (`enqueue`) | `SQLiteTaskEnqueuerAdapter` → `TaskRepository` |
+| `IChatHistory` | Session message storage (`getMessages`, `addMessage`, `clear`) | `SQLiteChatHistoryAdapter` → `SQLiteChatMessageHistory` |
+| `ILLMProviderFactory` | LLM agent creation (`create`, `createBare`) | `LangChainProviderAdapter` → `ProviderFactory` |
+| `IAuditEmitter` | Audit event recording (`emit`) | `AuditRepositoryAdapter` → `AuditRepository` |
+| `IOracle` | Oracle contract for channel adapters (`chat`, `injectAIMessage`, etc.) | `Oracle` class implements directly |
+
+Consumers (delegation tools, subagents, channel adapters) depend on ports, not concrete singletons. Resolved at runtime via `ServiceContainer`.
+
 ### 2.3 Infrastructure
 - `src/config/*`: zod-validated config + env precedence.
+- `src/config/paths.ts`: centralized `PATHS` constants for all filesystem paths (`root`, `config`, `memory`, `logs`, `docs`, `shortMemoryDb`, `trinityDb`, `satiDb`, `linkDb`). All consumers use `PATHS.*` instead of `path.join(homedir(), '.morpheus', ...)`.
+- `src/runtime/providers/strategies.ts`: `IProviderStrategy` interface + strategy implementations for each LLM provider (OpenAI, Anthropic, OpenRouter, Ollama, Gemini). New providers are added by implementing `IProviderStrategy` and calling `registerStrategy()`.
+- `src/runtime/providers/factory.ts`: `ProviderFactory` — uses strategy lookup instead of switch/case. `create()` is an alias for `createBare()`.
 - `src/cli/commands/*`: lifecycle control (`start`, `stop`, `restart`, `status`, `doctor`).
+
+### 2.4 ServiceContainer (`src/runtime/container.ts`)
+Lightweight dependency injection container that acts as the composition root. All port adapters are registered during startup in `start.ts`:
+
+```typescript
+ServiceContainer.register(SERVICE_KEYS.notifier, new ChannelNotifierAdapter());
+ServiceContainer.register(SERVICE_KEYS.taskEnqueuer, new SQLiteTaskEnqueuerAdapter());
+ServiceContainer.register(SERVICE_KEYS.chatHistory, new SQLiteChatHistoryAdapter());
+ServiceContainer.register(SERVICE_KEYS.providerFactory, new LangChainProviderAdapter());
+ServiceContainer.register(SERVICE_KEYS.auditEmitter, new AuditRepositoryAdapter());
+```
+
+Consumers resolve dependencies via `ServiceContainer.get<T>(SERVICE_KEYS.*)` at call time, not at import time. This enables testing with mock implementations and supports future adapter swaps without changing consumer code.
 
 ## 3. Multi-Agent Model
 
@@ -391,15 +426,18 @@ Link tasks are stored in the `tasks` table with `agent = 'link'`.
 At daemon boot (`start` / `restart` commands):
 - load config and initialize Oracle
 - load skills via `SkillRegistry`
+- **register port adapters in `ServiceContainer`** (composition root — all 5 adapters wired here)
 - start HTTP server (optional)
 - register channel adapters via `ChannelRegistry`:
-  - `TelegramAdapter` (if enabled)
-  - `DiscordAdapter` (if enabled)
+  - `TelegramAdapter` (if enabled) — receives `IOracle`, not concrete `Oracle`
+  - `DiscordAdapter` (if enabled) — receives `IOracle`, not concrete `Oracle`
 - connect `SmithRegistry` to remote Smith instances (non-blocking, fire-and-forget)
 - start background workers when `runtime.async_tasks.enabled != false`:
   - `TaskWorker`
   - `TaskNotifier`
   - `LinkWorker` (document indexing and embedding generation)
 - start `ChronosWorker` (polls for due scheduled jobs)
+
+**Hot-reload:** `SubagentRegistry.reloadAll()` re-initializes all registered subagents when config changes. Individual `resetInstance()` calls are no longer needed.
 
 Graceful shutdown stops HTTP, adapters, workers, and clears PID state.

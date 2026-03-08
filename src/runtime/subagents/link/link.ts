@@ -7,7 +7,8 @@ import { ConfigManager } from '../../../config/manager.js';
 import type { LinkConfig, MorpheusConfig } from '../../../types/config.js';
 import { LinkRepository } from './repository.js';
 import { LinkSearch } from './search.js';
-import { ProviderFactory } from '../../providers/factory.js';
+import { ServiceContainer, SERVICE_KEYS } from '../../container.js';
+import type { ILLMProviderFactory } from '../../ports/ILLMProviderFactory.js';
 import { ReactAgent } from 'langchain';
 import { ProviderError } from '../../errors.js';
 import { DisplayManager } from '../../display.js';
@@ -318,7 +319,7 @@ export class Link implements ISubagent {
     this.display.log(`Link initialized with personality: ${personality}.`, { source: 'Link' });
 
     try {
-      this.agent = await ProviderFactory.create(linkConfig, tools);
+      this.agent = await ServiceContainer.get<ILLMProviderFactory>(SERVICE_KEYS.providerFactory).create(linkConfig, tools);
     } catch (err) {
       throw new ProviderError(
         linkConfig.provider,

@@ -21,7 +21,7 @@ import chalk from 'chalk';
 import fs from 'fs-extra';
 import path from 'path';
 import os from 'os';
-import { Oracle } from '../runtime/oracle.js';
+import type { IOracle } from '../runtime/types.js';
 import { SQLiteChatMessageHistory } from '../runtime/memory/sqlite.js';
 import { DisplayManager } from '../runtime/display.js';
 import { ConfigManager } from '../config/manager.js';
@@ -170,7 +170,7 @@ const SLASH_COMMANDS = [
 export class DiscordAdapter {
   readonly channel = 'discord' as const;
   private client: Client | null = null;
-  private oracle: Oracle;
+  private oracle: IOracle;
   private allowedUsers: string[] = [];
   private rateLimitMap = new Map<string, number>();
   private display = DisplayManager.getInstance();
@@ -185,7 +185,7 @@ export class DiscordAdapter {
 
   private readonly RATE_LIMIT_MS = 3000;
 
-  constructor(oracle: Oracle) {
+  constructor(oracle: IOracle) {
     this.oracle = oracle;
   }
 

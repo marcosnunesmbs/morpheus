@@ -1,12 +1,13 @@
 import { tool } from "@langchain/core/tools";
 import type { StructuredTool } from "@langchain/core/tools";
 import { z } from "zod";
-import { TaskRepository } from "../tasks/repository.js";
 import { TaskRequestContext } from "../tasks/context.js";
 import { compositeDelegationError, isLikelyCompositeDelegationTask } from "./delegation-guard.js";
 import { DisplayManager } from "../display.js";
-import { ChannelRegistry } from "../../channels/registry.js";
-import { AuditRepository } from "../audit/repository.js";
+import { ServiceContainer, SERVICE_KEYS } from "../container.js";
+import type { INotifier } from "../ports/INotifier.js";
+import type { ITaskEnqueuer } from "../ports/ITaskEnqueuer.js";
+import type { IAuditEmitter } from "../ports/IAuditEmitter.js";
 import type { TaskAgent } from "../tasks/types.js";
 import type { AuditAgent } from "../audit/types.js";
 import type { AgentResult } from "../tasks/types.js";
@@ -70,7 +71,8 @@ export function buildDelegationTool(opts: DelegationToolOptions): StructuredTool
           const sessionId = ctx?.session_id ?? "default";
 
           if (ctx?.origin_channel && ctx.origin_user_id && ctx.origin_channel !== 'api' && ctx.origin_channel !== 'ui') {
-            ChannelRegistry.sendToUser(ctx.origin_channel, ctx.origin_user_id, notifyText)
+            ServiceContainer.get<INotifier>(SERVICE_KEYS.notifier)
+              .sendToUser(ctx.origin_channel, ctx.origin_user_id, notifyText)
               .catch(() => {});
           }
 
@@ -82,7 +84,7 @@ export function buildDelegationTool(opts: DelegationToolOptions): StructuredTool
             display.log(`${agentLabel} sync execution completed.`, { source, level: "info" });
 
             if (result.usage) {
-              AuditRepository.getInstance().insert({
+              ServiceContainer.get<IAuditEmitter>(SERVICE_KEYS.auditEmitter).emit({
                 session_id: sessionId,
                 event_type: 'llm_call',
                 agent: auditAgent,
@@ -120,8 +122,7 @@ export function buildDelegationTool(opts: DelegationToolOptions): StructuredTool
         }
 
         const ctx = TaskRequestContext.get();
-        const repository = TaskRepository.getInstance();
-        const created = repository.createTask({
+        const created = ServiceContainer.get<ITaskEnqueuer>(SERVICE_KEYS.taskEnqueuer).enqueue({
           agent: agentKey,
           input: task,
           context: context ?? null,

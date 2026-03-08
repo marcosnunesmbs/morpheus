@@ -61,9 +61,10 @@ When adding new config keys: define the Zod schema in `src/config/schemas.ts` (c
 bin/morpheus.js             # Shebang entry: loads .env, dynamic import
   → src/cli/index.ts        # Commander.js program, calls scaffold() preAction
   → src/runtime/scaffold.ts # Ensures ~/.morpheus/ dirs + zaion.yaml exist
-  → src/cli/commands/start.ts  # Instantiates all services:
+  → src/cli/commands/start.ts  # Composition Root — instantiates all services:
+      ServiceContainer (registers port adapters),
       Oracle, HttpServer, ChronosRepository, ChronosWorker,
-      TaskRepository, TaskWorker, TaskNotifier, TelegramAdapter,
+      TaskWorker, TaskNotifier, TelegramAdapter, DiscordAdapter,
       SmithRegistry (connects to remote Smiths)
 ```
 
@@ -81,6 +82,34 @@ Oracle is the root orchestrator. It delegates to specialized subagents via tools
 All subagents self-register with `SubagentRegistry` (in `src/runtime/subagents/registry.ts`) during `getInstance()`. The registry is the single source of truth for delegation tool names, display metadata (emoji, color, Tailwind classes), session propagation, and task routing.
 
 Oracle never executes DevKit/MCP tools directly — it routes through subagents.
+
+### Ports & Adapters (Hexagonal Architecture)
+
+The codebase uses a Ports & Adapters pattern to decouple domain logic from infrastructure.
+
+**Ports** (`src/runtime/ports/`) — interfaces that define contracts:
+- `INotifier` — `sendToUser()` / `broadcast()` (replaces direct `ChannelRegistry` calls)
+- `ITaskEnqueuer` — `enqueue()` (replaces direct `TaskRepository` calls)
+- `IChatHistory` — `getMessages()` / `addMessage()` / `clear()`
+- `ILLMProviderFactory` — `create()` / `createBare()` (replaces direct `ProviderFactory` calls)
+- `IAuditEmitter` — `emit()` (replaces direct `AuditRepository` calls)
+
+**Adapters** (`src/runtime/adapters/`) — implementations that wrap existing infra:
+- `ChannelNotifierAdapter` → `ChannelRegistry`
+- `SQLiteTaskEnqueuerAdapter` → `TaskRepository`
+- `SQLiteChatHistoryAdapter` → `SQLiteChatMessageHistory`
+- `LangChainProviderAdapter` → `ProviderFactory`
+- `AuditRepositoryAdapter` → `AuditRepository`
+
+**ServiceContainer** (`src/runtime/container.ts`) — simple typed registry:
+- Configured in `start.ts` (composition root) before any service starts
+- Well-known keys in `SERVICE_KEYS` constant (e.g. `'notifier'`, `'taskEnqueuer'`)
+- Usage: `ServiceContainer.get<INotifier>(SERVICE_KEYS.notifier)`
+
+**Currently migrated consumers:**
+- `delegation-utils.ts`, `smith-tool.ts` — use `INotifier`, `ITaskEnqueuer`, `IAuditEmitter`
+- All subagents (Apoc, Neo, Trinity, Link) — use `ILLMProviderFactory`
+- Channel adapters (Telegram, Discord) — depend on `IOracle` interface, not `Oracle` class
 
 ### Creating a New Subagent
 
@@ -204,9 +233,9 @@ MyAgent.getInstance(this.config);
 export { MyAgent } from './myagent.js';
 ```
 
-#### 6. Update hot-reload (`src/runtime/hot-reload.ts`)
+#### 6. Hot-reload (automatic)
 
-Add `MyAgent.resetInstance()` to the hot-reload function.
+Hot-reload uses `SubagentRegistry.reloadAll()` — no manual changes needed. As long as your agent is registered in the `SubagentRegistry` (step 1), it will be reloaded automatically.
 
 #### Out of scope for this pattern
 
@@ -377,8 +406,8 @@ In `tasks` table, Trinity agent rows use `agent = 'trinit'` (not `'trinity'`). S
 | CLI entry | `src/cli/index.ts` | Commander.js |
 | Start command | `src/cli/commands/start.ts` | Wires all services, registers channel adapters |
 | Channel registry | `src/channels/registry.ts` | `IChannelAdapter` + `ChannelRegistry` singleton |
-| Telegram adapter | `src/channels/telegram.ts` | `channel = 'telegram'`, implements `IChannelAdapter` |
-| Discord adapter | `src/channels/discord.ts` | `channel = 'discord'`, implements `IChannelAdapter` |
+| Telegram adapter | `src/channels/telegram.ts` | `channel = 'telegram'`, implements `IChannelAdapter`, depends on `IOracle` |
+| Discord adapter | `src/channels/discord.ts` | `channel = 'discord'`, implements `IChannelAdapter`, depends on `IOracle` |
 | Oracle agent | `src/runtime/oracle.ts` | LangChain ReactAgent |
 | Subagent registry | `src/runtime/subagents/registry.ts` | `SubagentRegistry` singleton — single source of truth |
 | Subagent barrel | `src/runtime/subagents/index.ts` | Re-exports all subagents, registry, utils |
@@ -405,11 +434,15 @@ In `tasks` table, Trinity agent rows use `agent = 'trinit'` (not `'trinity'`). S
 | Link API router | `src/http/routers/link.ts` | Document upload, list, delete, reindex |
 | MCP Tool Cache | `src/runtime/tools/cache.ts` | Singleton cache for MCP tools |
 | MCP Factory | `src/runtime/tools/factory.ts` | `Construtor.create()` / `reload()` / `getStats()` |
-| Provider factory | `src/runtime/providers/factory.ts` | `create()` / `createBare()` |
+| Provider factory | `src/runtime/providers/factory.ts` | `create()` / `createBare()` via Strategy Pattern |
+| Provider strategies | `src/runtime/providers/strategies.ts` | `IProviderStrategy` + per-provider strategies |
+| Ports (interfaces) | `src/runtime/ports/` | `INotifier`, `ITaskEnqueuer`, `IChatHistory`, `ILLMProviderFactory`, `IAuditEmitter` |
+| Adapters (impls) | `src/runtime/adapters/` | Wraps existing infra behind port interfaces |
+| Service container | `src/runtime/container.ts` | `ServiceContainer` + `SERVICE_KEYS` — composition root |
 | HTTP API | `src/http/api.ts` | Express, mounted at `/api` |
 | Config manager | `src/config/manager.ts` | Singleton, `getInstance().get()` |
 | Config schemas | `src/config/schemas.ts` | Zod schemas |
-| Paths constants | `src/config/paths.ts` | `PATHS.root`, `PATHS.config`, etc. |
+| Paths constants | `src/config/paths.ts` | `PATHS.root`, `PATHS.config`, `PATHS.shortMemoryDb`, `PATHS.trinityDb`, `PATHS.satiDb`, `PATHS.linkDb`, etc. |
 | Frontend | `src/ui/src/` | React 19 + Vite |
 | Chronos scheduler | `src/runtime/chronos/` | parser, worker, repository |
 | Memory DB | `~/.morpheus/memory/short-memory.db` | sessions, messages, tasks, chronos, audit |

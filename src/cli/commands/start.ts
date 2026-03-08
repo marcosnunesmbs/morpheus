@@ -28,6 +28,12 @@ import { MCPToolCache } from '../../runtime/tools/cache.js';
 import { SmithRegistry } from '../../runtime/smiths/registry.js';
 import { Link } from '../../runtime/subagents/link/link.js';
 import { LinkWorker } from '../../runtime/subagents/link/worker.js';
+import { ServiceContainer, SERVICE_KEYS } from '../../runtime/container.js';
+import { ChannelNotifierAdapter } from '../../runtime/adapters/ChannelNotifierAdapter.js';
+import { SQLiteTaskEnqueuerAdapter } from '../../runtime/adapters/SQLiteTaskEnqueuerAdapter.js';
+import { SQLiteChatHistoryAdapter } from '../../runtime/adapters/SQLiteChatHistoryAdapter.js';
+import { LangChainProviderAdapter } from '../../runtime/adapters/LangChainProviderAdapter.js';
+import { AuditRepositoryAdapter } from '../../runtime/adapters/AuditRepositoryAdapter.js';
 
 // Load .env file explicitly in start command
 const envPath = path.join(process.cwd(), '.env');
@@ -226,6 +232,16 @@ export const startCommand = new Command('start')
         await clearPid();
         process.exit(1);
       }
+
+      // ── Composition Root ─────────────────────────────────────────────────────
+      // Register port adapters in the ServiceContainer so consumers can
+      // depend on interfaces instead of concrete implementations.
+      ServiceContainer.register(SERVICE_KEYS.notifier, new ChannelNotifierAdapter());
+      ServiceContainer.register(SERVICE_KEYS.taskEnqueuer, new SQLiteTaskEnqueuerAdapter());
+      ServiceContainer.register(SERVICE_KEYS.chatHistory, new SQLiteChatHistoryAdapter());
+      ServiceContainer.register(SERVICE_KEYS.providerFactory, new LangChainProviderAdapter());
+      ServiceContainer.register(SERVICE_KEYS.auditEmitter, new AuditRepositoryAdapter());
+      // ─────────────────────────────────────────────────────────────────────────
 
       const adapters: any[] = [];
       let httpServer: HttpServer | undefined;

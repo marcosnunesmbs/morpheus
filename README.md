@@ -780,24 +780,34 @@ src/
     discord.ts           # Discord adapter (slash commands, voice, DM-only)
     registry.ts          # ChannelRegistry — central adapter router
   cli/         # start/stop/restart/status/doctor
-  config/      # config loading, precedence, schemas
+  config/
+    paths.ts             # Centralized PATHS constants (all DB/dir paths)
+    schemas.ts           # Zod validation schemas
+    manager.ts           # Config loading + env precedence
   devkit/      # Apoc tool factories
   http/        # API, auth, webhooks, server
   runtime/
-    apoc.ts
-    neo.ts
-    oracle.ts
-    trinity.ts
-    trinity-connector.ts  # PostgreSQL/MySQL/SQLite/MongoDB drivers
-    trinity-crypto.ts     # AES-256-GCM encryption for DB passwords
+    container.ts         # ServiceContainer — DI composition root
+    oracle.ts            # Orchestration brain
+    ports/               # Port interfaces (INotifier, ITaskEnqueuer, IChatHistory, ILLMProviderFactory, IAuditEmitter)
+    adapters/            # Concrete adapter implementations for ports
+    providers/
+      factory.ts         # ProviderFactory — strategy-based LLM creation
+      strategies.ts      # IProviderStrategy + per-provider implementations
+    subagents/
+      registry.ts        # SubagentRegistry — single source of truth
+      apoc.ts            # DevKit execution subagent
+      neo.ts             # MCP tool orchestration subagent
+      trinity/           # Database specialist subagent
+      link/              # Document RAG subagent
     chronos/
-      worker.ts           # polling timer and job execution
-      repository.ts       # SQLite-backed job and execution store
-      parser.ts           # natural-language schedule parser
+      worker.ts          # polling timer and job execution
+      repository.ts      # SQLite-backed job and execution store
+      parser.ts          # natural-language schedule parser
     smiths/
-      registry.ts         # SmithRegistry — manages all connections
-      connection.ts       # WebSocket client per Smith instance
-      delegator.ts        # LLM agent with proxy tools for remote execution
+      registry.ts        # SmithRegistry — manages all connections
+      connection.ts      # WebSocket client per Smith instance
+      delegator.ts       # LLM agent with proxy tools for remote execution
     memory/
     tasks/
     tools/

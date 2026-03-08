@@ -7,7 +7,7 @@ import os from 'os';
 import { spawn } from 'child_process';
 import { ConfigManager } from '../config/manager.js';
 import { DisplayManager } from '../runtime/display.js';
-import { Oracle } from '../runtime/oracle.js';
+import type { IOracle } from '../runtime/types.js';
 import { createTelephonist, ITelephonist } from '../runtime/telephonist.js';
 import { getUsableApiKey } from '../runtime/trinity-crypto.js';
 import { readPid, isProcessRunning, checkStalePid } from '../runtime/lifecycle.js';
@@ -192,7 +192,7 @@ export class TelegramAdapter {
   private isConnected = false;
   private display = DisplayManager.getInstance();
   private config = ConfigManager.getInstance();
-  private oracle: Oracle;
+  private oracle: IOracle;
   private telephonist: ITelephonist | null = null;
   private telephonistProvider: string | null = null;
   private telephonistModel: string | null = null;
@@ -241,7 +241,7 @@ export class TelegramAdapter {
 /chronos\\_enable <id\\> \\- Enable a Chronos job
 /chronos\\_delete <id\\> \\- Delete a Chronos job`;
 
-  constructor(oracle: Oracle) {
+  constructor(oracle: IOracle) {
     this.oracle = oracle;
   }
 

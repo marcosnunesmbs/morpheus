@@ -1,13 +1,14 @@
 import { tool } from "@langchain/core/tools";
 import { z } from "zod";
-import { TaskRepository } from "../tasks/repository.js";
 import { TaskRequestContext } from "../tasks/context.js";
 import { DisplayManager } from "../display.js";
 import { ConfigManager } from "../../config/manager.js";
 import { SmithDelegator } from "../smiths/delegator.js";
 import { SmithRegistry } from "../smiths/registry.js";
-import { ChannelRegistry } from "../../channels/registry.js";
-import { AuditRepository } from "../audit/repository.js";
+import { ServiceContainer, SERVICE_KEYS } from "../container.js";
+import type { INotifier } from "../ports/INotifier.js";
+import type { ITaskEnqueuer } from "../ports/ITaskEnqueuer.js";
+import type { IAuditEmitter } from "../ports/IAuditEmitter.js";
 
 /**
  * Returns true when Smiths are configured in sync mode (inline execution).
@@ -51,7 +52,8 @@ export const SmithDelegateTool = tool(
 
         // Notify originating channel
         if (ctx?.origin_channel && ctx.origin_user_id && ctx.origin_channel !== 'api' && ctx.origin_channel !== 'ui') {
-          ChannelRegistry.sendToUser(ctx.origin_channel, ctx.origin_user_id, `🕶️ Smith '${smith}' is executing your request...`)
+          ServiceContainer.get<INotifier>(SERVICE_KEYS.notifier)
+            .sendToUser(ctx.origin_channel, ctx.origin_user_id, `🕶️ Smith '${smith}' is executing your request...`)
             .catch(() => {});
         }
 
@@ -67,7 +69,7 @@ export const SmithDelegateTool = tool(
           });
 
           if (result.usage) {
-            AuditRepository.getInstance().insert({
+            ServiceContainer.get<IAuditEmitter>(SERVICE_KEYS.auditEmitter).emit({
               session_id: sessionId,
               event_type: 'llm_call',
               agent: 'smith',
@@ -111,8 +113,7 @@ export const SmithDelegateTool = tool(
       }
 
       const ctx = TaskRequestContext.get();
-      const repository = TaskRepository.getInstance();
-      const created = repository.createTask({
+      const created = ServiceContainer.get<ITaskEnqueuer>(SERVICE_KEYS.taskEnqueuer).enqueue({
         agent: "smith",
         input: task,
         context: context ? JSON.stringify({ smith_name: smith, context }) : JSON.stringify({ smith_name: smith }),

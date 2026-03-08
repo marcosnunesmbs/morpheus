@@ -110,7 +110,7 @@ User asks "status/consultou?" and Oracle uses direct task query (no delegation r
 - Security: channel allowlists, API auth (`x-architect-pass`), webhook key auth (`x-api-key`).
 - Reliability: persisted queue with retry and stale-recovery logic.
 - Cost tracking: token usage persisted per message/provider/model for analytics.
-- Extensibility: new channels implement `IChannelAdapter` and register with `ChannelRegistry`.
+- Extensibility: new channels implement `IChannelAdapter` and register with `ChannelRegistry`. Runtime services are decoupled via Ports & Adapters (dependency inversion), enabling adapter swaps and mock-based testing without changing consumer code. New LLM providers are added via the `IProviderStrategy` interface.
 - Remote execution: Smith agents extend DevKit reach to isolated machines via WebSocket (TLS supported).
 - Auditability: comprehensive execution audit trail with tool call tracking and cost breakdowns.
 

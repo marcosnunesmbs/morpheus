@@ -2,7 +2,8 @@ import { HumanMessage, SystemMessage, BaseMessage, AIMessage } from "@langchain/
 import type { StructuredTool } from "@langchain/core/tools";
 import { MorpheusConfig } from "../../types/config.js";
 import { ConfigManager } from "../../config/manager.js";
-import { ProviderFactory } from "../providers/factory.js";
+import { ServiceContainer, SERVICE_KEYS } from "../container.js";
+import type { ILLMProviderFactory } from "../ports/ILLMProviderFactory.js";
 import { ReactAgent } from "langchain";
 import { ProviderError } from "../errors.js";
 import { DisplayManager } from "../display.js";
@@ -97,7 +98,7 @@ export class Apoc implements ISubagent {
     );
 
     try {
-      this.agent = await ProviderFactory.createBare(apocConfig, tools);
+      this.agent = await ServiceContainer.get<ILLMProviderFactory>(SERVICE_KEYS.providerFactory).createBare(apocConfig, tools);
     } catch (err) {
       throw new ProviderError(
         apocConfig.provider,
