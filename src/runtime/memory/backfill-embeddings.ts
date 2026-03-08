@@ -1,10 +1,9 @@
 import Database from 'better-sqlite3';
 import { EmbeddingService } from './embedding.service.js';
-import path from 'path';
-import { homedir } from 'os';
 import loadVecExtension from './sqlite-vec.js';
+import { PATHS } from '../../config/paths.js';
 
-const db = new Database(path.join(homedir(), '.morpheus', 'memory', 'sati-memory.db'));
+const db = new Database(PATHS.satiDb);
 db.pragma('journal_mode = WAL');
 
 // 🔥 ISSO AQUI É O QUE ESTÁ FALTANDO

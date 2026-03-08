@@ -1,8 +1,8 @@
 import Database from 'better-sqlite3';
 import fs from 'fs-extra';
 import path from 'path';
-import { homedir } from 'os';
 import { encrypt, decrypt, canEncrypt } from '../trinity-crypto.js';
+import { PATHS } from '../../config/paths.js';
 
 export type DatabaseType = 'postgresql' | 'mysql' | 'sqlite' | 'mongodb';
 
@@ -107,7 +107,7 @@ export class DatabaseRegistry {
   private db: Database.Database;
 
   private constructor() {
-    const dbPath = path.join(homedir(), '.morpheus', 'memory', 'trinity.db');
+    const dbPath = PATHS.trinityDb;
     fs.ensureDirSync(path.dirname(dbPath));
     this.db = new Database(dbPath, { timeout: 5000 });
     this.db.pragma('journal_mode = WAL');

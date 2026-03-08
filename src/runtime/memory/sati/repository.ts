@@ -1,12 +1,12 @@
 import Database from 'better-sqlite3';
-import path from 'path';
-import { homedir } from 'os';
 import fs from 'fs-extra';
+import path from 'path';
 import { randomUUID } from 'crypto';
 import { IMemoryRecord, MemoryCategory, MemoryImportance } from './types.js';
 import loadVecExtension from '../sqlite-vec.js';
 import { DisplayManager } from '../../display.js';
 import { ConfigManager } from '../../../config/manager.js';
+import { PATHS } from '../../../config/paths.js';
 import type { PaginatedResponse } from '../../../types/pagination.js';
 
 export interface SatiMemoryFilters {
@@ -27,7 +27,7 @@ export class SatiRepository {
 
   private constructor(dbPath?: string) {
     this.dbPath =
-      dbPath || path.join(homedir(), '.morpheus', 'memory', 'sati-memory.db');
+      dbPath || PATHS.satiDb;
   }
 
   public static getInstance(dbPath?: string): SatiRepository {

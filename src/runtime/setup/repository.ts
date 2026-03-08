@@ -1,15 +1,15 @@
 import Database from 'better-sqlite3';
 import fs from 'fs-extra';
 import path from 'path';
-import { homedir } from 'os';
 import { ConfigManager } from '../../config/manager.js';
+import { PATHS } from '../../config/paths.js';
 
 export class SetupRepository {
   private static instance: SetupRepository | null = null;
   private db: Database.Database;
 
   private constructor(dbPath?: string) {
-    const resolvedPath = dbPath ?? path.join(homedir(), '.morpheus', 'memory', 'short-memory.db');
+    const resolvedPath = dbPath ?? PATHS.shortMemoryDb;
     fs.ensureDirSync(path.dirname(resolvedPath));
     this.db = new Database(resolvedPath, { timeout: 5000 });
     this.db.pragma('journal_mode = WAL');

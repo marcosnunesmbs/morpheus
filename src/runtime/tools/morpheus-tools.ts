@@ -2,9 +2,8 @@ import { tool } from "@langchain/core/tools";
 import { z } from "zod";
 import { ConfigManager } from "../../config/manager.js";
 import { promises as fsPromises } from "fs";
-import path from "path";
-import { homedir } from "os";
 import Database from "better-sqlite3";
+import { PATHS } from "../../config/paths.js";
 import { TaskRepository } from "../tasks/repository.js";
 import { TaskRequestContext } from "../tasks/context.js";
 import type { TaskRecord } from "../tasks/types.js";
@@ -12,7 +11,7 @@ import { isEnvVarSet } from "../../config/precedence.js";
 
 // ─── Shared ───────────────────────────────────────────────────────────────────
 
-const shortMemoryDbPath = path.join(homedir(), ".morpheus", "memory", "short-memory.db");
+const shortMemoryDbPath = PATHS.shortMemoryDb;
 
 /**
  * Map of config paths to their corresponding environment variable names.
@@ -169,7 +168,7 @@ export const DiagnosticTool = tool(
     try {
       const timestamp = new Date().toISOString();
       const components: Record<string, any> = {};
-      const morpheusRoot = path.join(homedir(), ".morpheus");
+      const morpheusRoot = PATHS.root;
 
       // Configuration
       try {
@@ -225,7 +224,7 @@ export const DiagnosticTool = tool(
 
       // Short-term memory DB
       try {
-        const dbPath = path.join(morpheusRoot, "memory", "short-memory.db");
+        const dbPath = PATHS.shortMemoryDb;
         await fsPromises.access(dbPath);
         const stat = await fsPromises.stat(dbPath);
         components.shortMemoryDb = {
@@ -243,7 +242,7 @@ export const DiagnosticTool = tool(
 
       // Sati long-term memory DB
       try {
-        const satiDbPath = path.join(morpheusRoot, "memory", "sati-memory.db");
+        const satiDbPath = PATHS.satiDb;
         await fsPromises.access(satiDbPath);
         const stat = await fsPromises.stat(satiDbPath);
         components.satiMemoryDb = {
@@ -293,7 +292,7 @@ export const DiagnosticTool = tool(
 
       // Logs directory
       try {
-        const logsDir = path.join(morpheusRoot, "logs");
+        const logsDir = PATHS.logs;
         await fsPromises.access(logsDir);
         components.logs = {
           status: "healthy",

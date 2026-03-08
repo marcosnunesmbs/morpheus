@@ -2,13 +2,13 @@ import { Router, Request, Response } from 'express';
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs-extra';
-import { homedir } from 'os';
 import { LinkRepository, Document } from '../../runtime/subagents/link/repository.js';
 import { LinkWorker } from '../../runtime/subagents/link/worker.js';
 import { ConfigManager } from '../../config/manager.js';
 import type { LinkConfig } from '../../types/config.js';
+import { PATHS } from '../../config/paths.js';
 
-const DOCS_PATH = path.join(homedir(), '.morpheus', 'docs');
+const DOCS_PATH = PATHS.docs;
 
 // Configure multer for file uploads
 const storage = multer.diskStorage({

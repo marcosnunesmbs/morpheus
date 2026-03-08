@@ -1,23 +1,18 @@
-import { BaseChatModel } from "@langchain/core/language_models/chat_models";
-import { ChatOpenAI } from "@langchain/openai";
-import { ChatAnthropic } from "@langchain/anthropic";
-import { ChatOllama } from "@langchain/ollama";
-import { ChatGoogle } from "@langchain/google";
-import { ChatGoogleGenerativeAI } from "@langchain/google-genai";
 import { LLMConfig } from "../../types/config.js";
 import { ProviderError } from "../errors.js";
-import { createAgent, createMiddleware, ReactAgent, toolCallLimitMiddleware } from "langchain";
-// import { MultiServerMCPClient, } from "@langchain/mcp-adapters"; // REMOVED
-import { z } from "zod";
+import { createAgent, createMiddleware, ReactAgent } from "langchain";
 import { DisplayManager } from "../display.js";
 import { StructuredTool } from "@langchain/core/tools";
-import { getUsableApiKey } from "../trinity-crypto.js";
 import { ConfigManager } from "../../config/manager.js";
 import { TaskRequestContext } from "../tasks/context.js";
 import { ChannelRegistry } from "../../channels/registry.js";
+import { getStrategy, registerStrategy } from "./strategies.js";
+import type { IProviderStrategy } from "./strategies.js";
 
 /** Channels that should NOT receive verbose tool notifications */
 const SILENT_CHANNELS = new Set(['api', 'ui']);
+
+export { registerStrategy, type IProviderStrategy };
 
 export class ProviderFactory {
   private static buildMonitoringMiddleware() {
@@ -50,46 +45,12 @@ export class ProviderFactory {
     });
   }
 
-  private static buildModel(config: LLMConfig): BaseChatModel {
-    const usableApiKey = getUsableApiKey(config.api_key);
-    
-    switch (config.provider) {
-      case 'openai':
-        return new ChatOpenAI({
-          modelName: config.model,
-          temperature: config.temperature,
-          apiKey: process.env.OPENAI_API_KEY || usableApiKey,
-        });
-      case 'anthropic':
-        return new ChatAnthropic({
-          modelName: config.model,
-          temperature: config.temperature,
-          apiKey: process.env.ANTHROPIC_API_KEY || usableApiKey,
-        });
-      case 'openrouter':
-        return new ChatOpenAI({
-          modelName: config.model,
-          temperature: config.temperature,
-          apiKey: process.env.OPENROUTER_API_KEY || usableApiKey,
-          configuration: {
-            baseURL: config.base_url || 'https://openrouter.ai/api/v1'
-          }
-        });
-      case 'ollama':
-        return new ChatOllama({
-          model: config.model,
-          temperature: config.temperature,
-          baseUrl: config.base_url || usableApiKey,
-        });
-      case 'gemini':
-        return new ChatGoogleGenerativeAI({
-          model: config.model,
-          temperature: config.temperature,
-          apiKey: process.env.GOOGLE_API_KEY || usableApiKey
-        });
-      default:
-        throw new Error(`Unsupported provider: ${config.provider}`);
+  private static buildModel(config: LLMConfig) {
+    const strategy = getStrategy(config.provider);
+    if (!strategy) {
+      throw new Error(`Unsupported provider: ${config.provider}`);
     }
+    return strategy.build(config);
   }
 
   private static handleProviderError(config: LLMConfig, error: any): never {
@@ -125,13 +86,6 @@ export class ProviderFactory {
     }
   }
 
-  static async create(config: LLMConfig, tools: StructuredTool[] = []): Promise<ReactAgent> {
-    try {
-      const model = ProviderFactory.buildModel(config);
-      const middleware = ProviderFactory.buildMonitoringMiddleware();
-      return createAgent({ model, tools, middleware: [middleware] });
-    } catch (error: any) {
-      ProviderFactory.handleProviderError(config, error);
-    }
-  }
+  /** Alias for createBare — both methods are identical. */
+  static create = ProviderFactory.createBare;
 }

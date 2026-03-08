@@ -3,8 +3,8 @@ import { BaseMessage, HumanMessage, AIMessage, SystemMessage, ToolMessage } from
 import Database from "better-sqlite3";
 import fs from "fs-extra";
 import * as path from "path";
-import { homedir } from "os";
 import type { ProviderModelUsageStats, ModelPricingEntry } from "../../types/stats.js";
+import { PATHS } from "../../config/paths.js";
 import { randomUUID } from 'crypto';
 import { DisplayManager } from "../display.js";
 
@@ -47,7 +47,7 @@ export class SQLiteChatMessageHistory extends BaseListChatMessageHistory {
     this.limit = fields.limit ? fields.limit : 20;
 
     // Default path: ~/.morpheus/memory/short-memory.db
-    const dbPath = fields.databasePath || path.join(homedir(), ".morpheus", "memory", "short-memory.db");
+    const dbPath = fields.databasePath || PATHS.shortMemoryDb;
 
     // Ensure the directory exists
     this.ensureDirectory(dbPath);
@@ -1049,7 +1049,7 @@ export class SQLiteChatMessageHistory extends BaseListChatMessageHistory {
 
     // Criar chunks no banco Sati — conexão aberta localmente e fechada ao fim
     if (sessionText) {
-      const dbSatiPath = path.join(homedir(), '.morpheus', 'memory', 'sati-memory.db');
+      const dbSatiPath = PATHS.satiDb;
       this.ensureDirectory(dbSatiPath);
       const dbSati = new Database(dbSatiPath, { timeout: 5000 });
       dbSati.pragma('journal_mode = WAL');

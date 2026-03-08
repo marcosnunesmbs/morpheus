@@ -1,13 +1,13 @@
-import { homedir } from 'os';
-import path from 'path';
 import fs from 'fs-extra';
 import fsSync from 'fs';
+import path from 'path';
 import { LinkRepository } from './repository.js';
 import { LinkSearch } from './search.js';
 import { hashFile, processDocument, isSupportedFormat } from './chunker.js';
 import { EmbeddingService } from '../../memory/embedding.service.js';
 import { ConfigManager } from '../../../config/manager.js';
 import { DisplayManager } from '../../display.js';
+import { PATHS } from '../../../config/paths.js';
 
 /**
  * LinkWorker - Background worker for document indexing
@@ -30,7 +30,7 @@ export class LinkWorker {
   private constructor() {
     this.repository = LinkRepository.getInstance();
     this.search = LinkSearch.getInstance();
-    this.docsPath = path.join(homedir(), '.morpheus', 'docs');
+    this.docsPath = PATHS.docs;
   }
 
   public static getInstance(): LinkWorker {

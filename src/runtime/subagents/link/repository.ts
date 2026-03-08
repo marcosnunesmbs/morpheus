@@ -1,10 +1,10 @@
 import Database from 'better-sqlite3';
 import fs from 'fs-extra';
 import path from 'path';
-import { homedir } from 'os';
 import { randomUUID } from 'crypto';
 import loadVecExtension from '../../memory/sqlite-vec.js';
 import { DisplayManager } from '../../display.js';
+import { PATHS } from '../../../config/paths.js';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -70,7 +70,7 @@ export class LinkRepository {
   private display = DisplayManager.getInstance();
 
   private constructor(dbPath?: string) {
-    this.dbPath = dbPath || path.join(homedir(), '.morpheus', 'memory', 'link.db');
+    this.dbPath = dbPath || PATHS.linkDb;
   }
 
   public static getInstance(dbPath?: string): LinkRepository {

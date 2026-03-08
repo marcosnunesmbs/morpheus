@@ -1,8 +1,8 @@
 import Database from 'better-sqlite3';
 import path from 'path';
-import { homedir } from 'os';
 import fs from 'fs-extra';
 import { randomUUID } from 'crypto';
+import { PATHS } from '../../config/paths.js';
 import type {
   Webhook,
   WebhookNotification,
@@ -25,7 +25,7 @@ export class WebhookRepository {
   private db: Database.Database;
 
   private constructor() {
-    const dbPath = path.join(homedir(), '.morpheus', 'memory', 'short-memory.db');
+    const dbPath = PATHS.shortMemoryDb;
     fs.ensureDirSync(path.dirname(dbPath));
     this.db = new Database(dbPath, { timeout: 5000 });
     this.db.pragma('journal_mode = WAL');

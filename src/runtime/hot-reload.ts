@@ -8,9 +8,7 @@
 
 import { ConfigManager } from '../config/manager.js';
 import { DisplayManager } from './display.js';
-import { Apoc } from './subagents/apoc.js';
-import { Neo } from './subagents/neo.js';
-import { Trinity } from './subagents/trinity/trinity.js';
+import { SubagentRegistry } from './subagents/registry.js';
 import { IOracle } from './types.js';
 
 let currentOracle: IOracle | null = null;
@@ -56,12 +54,11 @@ export async function hotReloadConfig(): Promise<{
       display.log('Oracle reinitialized with new config', { source: 'HotReload', level: 'info' });
     }
 
-    // 3. Reset subagent singletons - they will reinitialize with new config on next use
-    Apoc.resetInstance();
-    Neo.resetInstance();
-    Trinity.resetInstance();
-    reinitialized.push('Apoc', 'Neo', 'Trinity');
-    display.log('Subagent singletons reset (will reinitialize on next use)', { source: 'HotReload', level: 'info' });
+    // 3. Reload all registered subagents via SubagentRegistry
+    await SubagentRegistry.reloadAll();
+    const agentNames = SubagentRegistry.getAll().map(r => r.label);
+    reinitialized.push(...agentNames);
+    display.log(`Subagents reloaded: ${agentNames.join(', ')}`, { source: 'HotReload', level: 'info' });
 
     return {
       success: true,

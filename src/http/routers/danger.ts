@@ -1,8 +1,7 @@
 import { Router } from 'express';
 import Database from 'better-sqlite3';
-import path from 'path';
-import { homedir } from 'os';
 import fs from 'fs-extra';
+import { PATHS } from '../../config/paths.js';
 import { z } from 'zod';
 import { SatiRepository } from '../../runtime/memory/sati/repository.js';
 import { SetupRepository } from '../../runtime/setup/repository.js';
@@ -61,9 +60,9 @@ export function createDangerRouter(): Router {
     const { categories } = parsed.data;
 
     try {
-      const memoryDir = path.join(homedir(), '.morpheus', 'memory');
-      const shortMemoryPath = path.join(memoryDir, 'short-memory.db');
-      const satiMemoryPath = path.join(memoryDir, 'sati-memory.db');
+      const memoryDir = PATHS.memory;
+      const shortMemoryPath = PATHS.shortMemoryDb;
+      const satiMemoryPath = PATHS.satiDb;
 
       const counts: Record<string, number> = {};
 
