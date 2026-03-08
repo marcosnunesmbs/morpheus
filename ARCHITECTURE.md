@@ -13,13 +13,15 @@ The runtime is a modular monolith built on Node.js + TypeScript, with SQLite as 
 
 ### 2.1 Runtime Core (`src/runtime`)
 - `oracle.ts`: orchestration brain. Routes requests, decides whether to answer directly or enqueue delegated work.
-- `neo.ts`: execution subagent for MCP + Morpheus internal tools (config, diagnostics, analytics).
-- `apoc.ts`: execution subagent for DevKit operations (filesystem, shell, git, network, processes, packages, system).
-- `trinity.ts`: database specialist subagent for SQL/NoSQL query execution.
+- `subagents/registry.ts`: `SubagentRegistry` singleton — single source of truth for delegation tools, display metadata, session propagation, and task routing. All subagents self-register during `getInstance()`.
+- `subagents/neo.ts`: execution subagent for MCP + Morpheus internal tools (config, diagnostics, analytics).
+- `subagents/apoc.ts`: execution subagent for DevKit operations (filesystem, shell, git, network, processes, packages, system).
+- `subagents/trinity/trinity.ts`: database specialist subagent for SQL/NoSQL query execution.
+- `subagents/link/link.ts`: documentation specialist subagent for RAG over indexed documents.
 - `smiths/*`: remote DevKit execution via WebSocket — registry, connection, delegator.
 - `memory/sati/*`: long-term memory pipeline (retrieval + post-response memory evaluation).
-- `tasks/*`: async task queue repository, worker, notifier, dispatcher, and request context.
-- `chronos/*`: temporal scheduler — job store, polling worker, natural-language schedule parser.
+- `tasks/*`: async task queue repository, worker, notifier, dispatcher, and request context. `TaskWorker` delegates to `SubagentRegistry.executeTask()` instead of per-agent switch/case.
+- `chronos/*`: temporal scheduler — job store, polling worker, natural-language schedule parser. Jobs store `origin_session_id` for session continuity.
 
 ### 2.2 Interfaces
 - `src/channels/registry.ts`: `ChannelRegistry` singleton — central router for all channel adapters.
@@ -46,6 +48,23 @@ The runtime is a modular monolith built on Node.js + TypeScript, with SQLite as 
 
 Key design choice: Oracle no longer carries MCP tool load directly. It delegates execution asynchronously and stays responsive.
 
+### 3.1 SubagentRegistry (`src/runtime/subagents/registry.ts`)
+
+Central singleton that manages all subagent registrations. Subagents self-register during `getInstance()`.
+
+**Key API:**
+- `register(reg)` — subagents self-register with display metadata, instance, and callbacks
+- `get(agentKey)` / `getAll()` / `getByToolName(toolName)` — lookup methods
+- `getDelegationTools()` — returns all delegation tools for Oracle (replaces manual tool wiring)
+- `setAllSessionIds(sessionId)` — propagates session context to all subagents at once
+- `refreshAllCatalogs()` — refreshes dynamic descriptions (Neo's MCP catalog, etc.)
+- `executeTask(task)` — routes tasks to the correct subagent (replaces TaskWorker switch/case)
+- `resolveAuditAgent(taskAgent)` — maps task agent key to audit agent name (e.g., `'trinit'` -> `'trinity'`)
+- `getDisplayMetadata()` — returns metadata for all agents (subagents + system agents) for UI/audit
+- `reloadAll()` — hot-reloads all subagents
+
+**Display metadata** includes: `agentKey`, `auditAgent`, `label`, `delegateToolName`, `emoji`, `color`, `description`, `colorClass`, `bgClass`, `badgeClass`. The `/api/agents/metadata` endpoint exposes this for the frontend.
+
 ## 4. Async Task Orchestration
 
 ### 4.1 Delegation Lifecycle
@@ -58,9 +77,10 @@ Key design choice: Oracle no longer carries MCP tool load directly. It delegates
    - `session_id`
    - `origin_message_id`
    - `origin_user_id`
-   - `agent` column: `neo`, `apoc`, `trinit` (Trinity), or `smith`
+   - `agent` column: `neo`, `apoc`, `trinit` (Trinity), `link`, or `smith`
+   - `source` metadata: `'webhook'`, `'chronos'`, or null (for origin tracking in audit)
 4. Oracle returns an acknowledgement (no execution output) and remains available.
-5. `TaskWorker` claims pending tasks and executes subagent work.
+5. `TaskWorker` claims pending tasks and routes to the correct subagent via `SubagentRegistry.executeTask()`.
 6. Worker marks task `completed` or `failed`.
 7. `TaskNotifier` picks finished tasks awaiting notification.
 8. `TaskDispatcher` delivers result via `ChannelRegistry`:
@@ -92,6 +112,13 @@ Implemented in `src/runtime/tasks/repository.ts`:
 - token columns: `input_tokens`, `output_tokens`, `total_tokens`, `cache_read_tokens`
 - model provenance: `provider`, `model`
 - `audio_duration_seconds` when applicable
+- `source` — origin metadata (`'webhook'`, `'chronos'`, or null) for audit/analytics
+
+### 5.1b Persistent Channel Sessions (`user_channel_sessions` table)
+Multi-channel session continuity. Each channel+user pair is bound to a persistent session:
+- `channel`, `user_id`, `session_id`, `updated_at` (PRIMARY KEY: channel+user_id)
+- Methods: `getUserChannelSession()`, `setUserChannelSession()`, `listUserChannelSessions()`, `deleteUserChannelSession()`, `getMostRecentChannelSession()`
+- Auto-cleanup: when a session is archived or deleted, all channel bindings to that session are removed
 
 ### 5.2 Long-Term Memory (`sati-memory.db`)
 Sati retrieval enriches Oracle context before execution. Sati post-processing extracts durable memory facts after non-delegation turns.
@@ -112,6 +139,8 @@ Main API router (`src/http/api.ts`) provides:
 - MCP management and reload (`/mcp/servers`, `/mcp/reload`, `/mcp/status`)
 - Trinity database registry (`/trinity/databases` CRUD + test + refresh-schema)
 - Chronos scheduler (`/chronos` CRUD + enable/disable + executions + preview)
+- agents metadata (`/agents/metadata` — SubagentRegistry display data for UI)
+- Link document management (`/link/documents` CRUD + upload + reindex)
 - logs
 
 Webhooks router (`src/http/webhooks-router.ts`) provides:
@@ -174,9 +203,9 @@ To add a new channel:
 ## 8. Trinity — Database Subsystem
 
 ### 8.1 Components
-- `src/runtime/trinity.ts`: Trinity subagent (ReactAgent). Executes SQL/NoSQL queries and introspects schemas.
+- `src/runtime/subagents/trinity/trinity.ts`: Trinity subagent (ReactAgent). Executes SQL/NoSQL queries and introspects schemas.
 - `src/runtime/memory/trinity-db.ts`: `DatabaseRegistry` — CRUD for registered databases, backed by `trinity.db` (SQLite).
-- `src/runtime/trinity-connector.ts`: driver adapters for PostgreSQL (`pg`), MySQL (`mysql2`), SQLite (`better-sqlite3`), MongoDB (`mongodb`).
+- `src/runtime/subagents/trinity/connector.ts`: driver adapters for PostgreSQL (`pg`), MySQL (`mysql2`), SQLite (`better-sqlite3`), MongoDB (`mongodb`).
 - `src/runtime/trinity-crypto.ts`: AES-256-GCM encryption/decryption of database passwords using `MORPHEUS_SECRET`.
 
 ### 8.2 Database Registry
@@ -200,7 +229,8 @@ Trinity tasks are stored in the `tasks` table with `agent = 'trinit'` (not `'tri
 
 ### 9.2 Execution Model
 - `ChronosWorker` polls the job store at a configurable interval (default 60 s, minimum 60 s).
-- Due jobs are executed by calling `oracle.injectAIMessage(context)` then `oracle.chat(job.prompt)` against the currently active Oracle session — no dedicated session is created per job.
+- Each job stores an `origin_session_id`. When the job executes, the worker reuses this session if it is still usable, preserving chat context across runs.
+- Due jobs are executed by calling `oracle.injectAIMessage(context)` then `oracle.chat(job.prompt)` against the session (origin session or fallback).
 - The injected AI message provides job metadata (job ID, execution guard instructions) without incurring an extra LLM call.
 - `ChronosWorker.isExecuting` static flag prevents management tools (`chronos_schedule`, `chronos_cancel`) from operating during an active execution to avoid self-deletion or re-scheduling races.
 - Each job has a `notify_channels` field:
@@ -301,11 +331,11 @@ Smith tasks are stored in the `tasks` table with `agent = 'smith'`.
 ## 12. Link — Documentation Specialist
 
 ### 12.1 Components
-- `src/runtime/link.ts`: `Link` singleton subagent with `link_delegate` tool for Oracle delegation.
-- `src/runtime/link-repository.ts`: `LinkRepository` — SQLite-backed document and chunk storage (`~/.morpheus/memory/link.db`).
-- `src/runtime/link-search.ts`: `LinkSearch` — hybrid vector + keyword search using sqlite-vec for embeddings.
-- `src/runtime/link-chunker.ts`: Document chunking with configurable chunk size and overlap.
-- `src/runtime/link-worker.ts`: `LinkWorker` — background processor for document indexing and embedding generation.
+- `src/runtime/subagents/link/link.ts`: `Link` singleton subagent with `link_delegate` tool for Oracle delegation.
+- `src/runtime/subagents/link/repository.ts`: `LinkRepository` — SQLite-backed document and chunk storage (`~/.morpheus/memory/link.db`).
+- `src/runtime/subagents/link/search.ts`: `LinkSearch` — hybrid vector + keyword search using sqlite-vec for embeddings.
+- `src/runtime/subagents/link/chunker.ts`: Document chunking with configurable chunk size and overlap.
+- `src/runtime/subagents/link/worker.ts`: `LinkWorker` — background processor for document indexing and embedding generation.
 - `src/http/routers/link.ts`: REST API for document upload, listing, deletion, and reindexing.
 
 ### 12.2 Document Storage

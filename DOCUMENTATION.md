@@ -21,12 +21,14 @@ This document reflects the current runtime behavior and API contracts.
 | Agent | Role | Main Tool Scope | Personality |
 |---|---|---|---|
 | Oracle (`src/runtime/oracle.ts`) | Orchestrator and router | `task_query`, `neo_delegate`, `apoc_delegate`, `trinity_delegate`, `smith_delegate`, `link_delegate`, `load_skill` | `agent.personality` (default: `helpful_dev`) |
-| Neo (`src/runtime/neo.ts`) | MCP + internal operational execution | MCP tools + config/diagnostic/analytics tools | `neo.personality` (default: `analytical_engineer`) |
-| Apoc (`src/runtime/apoc.ts`) | DevTools and browser executor | DevKit tools | `apoc.personality` (default: `pragmatic_dev`) |
-| Trinity (`src/runtime/trinity.ts`) | Database specialist | PostgreSQL/MySQL/SQLite/MongoDB execution + schema introspection | `trinity.personality` (default: `data_specialist`) |
-| Link (`src/runtime/link.ts`) | Documentation specialist | Document search and RAG over indexed files | `link.personality` (default: `documentation_specialist`) |
+| Neo (`src/runtime/subagents/neo.ts`) | MCP + internal operational execution | MCP tools + config/diagnostic/analytics tools | `neo.personality` (default: `analytical_engineer`) |
+| Apoc (`src/runtime/subagents/apoc.ts`) | DevTools and browser executor | DevKit tools | `apoc.personality` (default: `pragmatic_dev`) |
+| Trinity (`src/runtime/subagents/trinity/trinity.ts`) | Database specialist | PostgreSQL/MySQL/SQLite/MongoDB execution + schema introspection | `trinity.personality` (default: `data_specialist`) |
+| Link (`src/runtime/subagents/link/link.ts`) | Documentation specialist | Document search and RAG over indexed files | `link.personality` (default: `documentation_specialist`) |
 | Smith (`src/runtime/smiths/delegator.ts`) | Remote DevKit executor | Proxy DevKit tools forwarded via WebSocket | N/A (uses Oracle's LLM) |
 | Sati (`src/runtime/memory/sati/*`) | Long-term memory retrieval/evaluation | Memory-only reasoning | uses Oracle personality |
+
+All subagents self-register with `SubagentRegistry` (`src/runtime/subagents/registry.ts`) during `getInstance()`. The registry is the single source of truth for delegation tools, display metadata, session propagation, and task routing.
 
 ### 2.2 Subagent Execution Mode
 
@@ -51,7 +53,7 @@ When `verbose_mode` is `true` (default), every tool execution by any agent sends
 
 ### 2.2c DevKit Security
 
-DevKit tools are shared by both Apoc and Keymaker. Security is configured via a **shared** `devkit` section in `zaion.yaml`:
+DevKit tools are used by Apoc. Security is configured via a **shared** `devkit` section in `zaion.yaml`:
 
 ```yaml
 devkit:

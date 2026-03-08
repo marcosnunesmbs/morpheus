@@ -1,4 +1,4 @@
-# CLAUDE.md
+﻿# CLAUDE.md
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
@@ -72,11 +72,13 @@ Oracle is the root orchestrator. It delegates to specialized subagents via tools
 
 | Tool | Subagent | File | Domain |
 |---|---|---|---|
-| `apoc_delegate` | Apoc | `src/runtime/apoc.ts` | Filesystem, shell, git, browser via DevKit |
-| `trinity_delegate` | Trinity | `src/runtime/trinity.ts` | PostgreSQL, MySQL, SQLite, MongoDB |
-| `neo_delegate` | Neo | `src/runtime/neo.ts` | MCP tool orchestration |
-| `link_delegate` | Link | `src/runtime/link.ts` | Document search and RAG over indexed files |
+| `apoc_delegate` | Apoc | `src/runtime/subagents/apoc.ts` | Filesystem, shell, git, browser via DevKit |
+| `trinity_delegate` | Trinity | `src/runtime/subagents/trinity/trinity.ts` | PostgreSQL, MySQL, SQLite, MongoDB |
+| `neo_delegate` | Neo | `src/runtime/subagents/neo.ts` | MCP tool orchestration |
+| `link_delegate` | Link | `src/runtime/subagents/link/link.ts` | Document search and RAG over indexed files |
 | `smith_delegate` | Smith (remote) | `src/runtime/smiths/delegator.ts` | Remote DevKit execution via WebSocket |
+
+All subagents self-register with `SubagentRegistry` (in `src/runtime/subagents/registry.ts`) during `getInstance()`. The registry is the single source of truth for delegation tool names, display metadata (emoji, color, Tailwind classes), session propagation, and task routing.
 
 Oracle never executes DevKit/MCP tools directly — it routes through subagents.
 
@@ -87,28 +89,48 @@ All subagents (Apoc, Neo, Trinity) follow a strict pattern. Follow these steps e
 #### Shared utilities — always use, never duplicate
 
 ```typescript
-// src/runtime/subagent-utils.ts
+// src/runtime/subagents/utils.ts
 extractRawUsage(lastMessage)           // 4-fallback chain for token usage
 persistAgentMessage(name, content, config, sessionId, rawUsage, durationMs)
 buildAgentResult(content, config, rawUsage, durationMs, stepCount)
 
 // src/runtime/tools/delegation-utils.ts
 buildDelegationTool(opts)              // builds Oracle's StructuredTool for sync/async delegation
+
+// src/runtime/subagents/registry.ts
+SubagentRegistry.register(reg)         // self-register in getInstance()
 ```
 
-#### 1. Create `src/runtime/<name>.ts`
+#### 1. Create `src/runtime/subagents/<name>.ts`
 
 ```typescript
 import type { ISubagent } from "./ISubagent.js";
-import { extractRawUsage, persistAgentMessage, buildAgentResult } from "./subagent-utils.js";
-import { buildDelegationTool } from "./tools/delegation-utils.js";
+import { extractRawUsage, persistAgentMessage, buildAgentResult } from "./utils.js";
+import { buildDelegationTool } from "../tools/delegation-utils.js";
+import { SubagentRegistry } from "./registry.js";
 
 export class MyAgent implements ISubagent {
   private static instance: MyAgent | null = null;
   private static currentSessionId: string | undefined = undefined;
   private static _delegateTool: StructuredTool | null = null;
 
-  static getInstance(config?: MorpheusConfig): MyAgent { ... }
+  static getInstance(config?: MorpheusConfig): MyAgent {
+    if (!MyAgent.instance) {
+      MyAgent.instance = new MyAgent(config ?? ConfigManager.getInstance().get());
+      // Self-register with SubagentRegistry
+      SubagentRegistry.register({
+        agentKey: 'myagent', auditAgent: 'myagent', label: 'MyAgent',
+        delegateToolName: 'myagent_delegate', emoji: '🤖', color: 'blue',
+        description: 'What this agent does',
+        colorClass: 'text-blue-600 dark:text-blue-400',
+        bgClass: 'bg-blue-50 dark:bg-blue-900/10',
+        badgeClass: 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300',
+        instance: MyAgent.instance, hasDynamicDescription: false, isMultiInstance: false,
+        setSessionId: (id) => MyAgent.setSessionId(id),
+      });
+    }
+    return MyAgent.instance;
+  }
   static resetInstance(): void { MyAgent.instance = null; MyAgent._delegateTool = null; }
   static setSessionId(id: string | undefined): void { MyAgent.currentSessionId = id; }
 
@@ -161,37 +183,35 @@ export class MyAgent implements ISubagent {
 
 #### 4. Wire into Oracle (`src/runtime/oracle.ts`)
 
-```typescript
-import { MyAgent } from './myagent.js';
-
-// In initialize() and reloadTools() — add to coreTools array:
-MyAgent.getInstance().createDelegateTool()
-
-// In chat() — propagate session:
-MyAgent.setSessionId(currentSessionId);
-
-// In initialize() + reloadTools() — if description is dynamic:
-await MyAgent.refreshDelegateCatalog().catch(() => {});
-```
-
-#### 5. Wire into TaskWorker (`src/runtime/tasks/worker.ts`)
+Oracle now uses `SubagentRegistry` for most wiring. You just need to ensure your agent is instantiated before Oracle initializes (so it self-registers):
 
 ```typescript
-case 'myagent': {
-  const agent = MyAgent.getInstance();
-  result = await agent.execute(task.input, task.context ?? undefined, task.session_id, {
-    origin_channel: task.origin_channel,
-    session_id: task.session_id,
-    origin_message_id: task.origin_message_id ?? undefined,
-    origin_user_id: task.origin_user_id ?? undefined,
-  });
-  break;
-}
+import { MyAgent } from './subagents/myagent.js';
+
+// In initialize() — instantiate so it self-registers:
+MyAgent.getInstance(this.config);
+
+// Everything else is automatic:
+// - SubagentRegistry.getDelegationTools() includes your agent's tool
+// - SubagentRegistry.setAllSessionIds() propagates sessions
+// - SubagentRegistry.refreshAllCatalogs() refreshes dynamic descriptions
+// - SubagentRegistry.executeTask() routes tasks to your agent
 ```
+
+#### 5. Add to barrel export (`src/runtime/subagents/index.ts`)
+
+```typescript
+export { MyAgent } from './myagent.js';
+```
+
+#### 6. Update hot-reload (`src/runtime/hot-reload.ts`)
+
+Add `MyAgent.resetInstance()` to the hot-reload function.
 
 #### Out of scope for this pattern
 
-- **Smith** — multi-instance registry, different delegation architecture; has its own `smith-tool.ts`.
+- **Smith** — multi-instance registry, different delegation architecture; has its own `smith-tool.ts`. Registered from Oracle via `registerSmithIfEnabled()`.
+- **TaskWorker** — no longer needs per-agent switch/case. `SubagentRegistry.executeTask()` handles routing automatically.
 
 **Subagent Execution Mode** (`execution_mode: 'sync' | 'async'`):
 
@@ -211,6 +231,7 @@ src/http/
   ├─ server.ts         # Express wrapper: middleware, routes, start/stop
   ├─ api.ts            # createApiRouter(oracle, chronosWorker) — all endpoints
   ├─ routers/
+  │   ├─ agents.ts     # GET /api/agents/metadata — SubagentRegistry display data
   │   ├─ chronos.ts    # createChronosJobRouter() + createChronosConfigRouter()
   │   └─ smiths.ts     # Smith management, config, ping, delegation
   ├─ webhooks-router.ts
@@ -359,19 +380,27 @@ In `tasks` table, Trinity agent rows use `agent = 'trinit'` (not `'trinity'`). S
 | Telegram adapter | `src/channels/telegram.ts` | `channel = 'telegram'`, implements `IChannelAdapter` |
 | Discord adapter | `src/channels/discord.ts` | `channel = 'discord'`, implements `IChannelAdapter` |
 | Oracle agent | `src/runtime/oracle.ts` | LangChain ReactAgent |
-| Apoc subagent | `src/runtime/apoc.ts` | DevKit, `apoc_delegate` |
+| Subagent registry | `src/runtime/subagents/registry.ts` | `SubagentRegistry` singleton — single source of truth |
+| Subagent barrel | `src/runtime/subagents/index.ts` | Re-exports all subagents, registry, utils |
+| Subagent interface | `src/runtime/subagents/ISubagent.ts` | `ISubagent` contract |
+| Subagent utils | `src/runtime/subagents/utils.ts` | `extractRawUsage`, `persistAgentMessage`, `buildAgentResult` |
+| Apoc subagent | `src/runtime/subagents/apoc.ts` | DevKit, `apoc_delegate` |
+| DevKit instrument | `src/runtime/subagents/devkit-instrument.ts` | Wraps DevKit tools with audit events |
 | DevKit config | `src/devkit/registry.ts` | Shared security: sandbox, readonly, category toggles |
 | DevKit library | `morpheus-devkit` | External npm package (filesystem, shell, git, network, packages, processes, system, browser) |
-| Trinity subagent | `src/runtime/trinity.ts` | DB specialist, `trinity_delegate` |
-| Neo subagent | `src/runtime/neo.ts` | MCP tools, `neo_delegate` |
-| Link subagent | `src/runtime/link.ts` | Document RAG, `link_delegate` |
-| Link repository | `src/runtime/link-repository.ts` | Document and chunk storage |
-| Link search | `src/runtime/link-search.ts` | Hybrid vector + keyword search |
-| Link worker | `src/runtime/link-worker.ts` | Background indexing and embedding |
+| Trinity subagent | `src/runtime/subagents/trinity/trinity.ts` | DB specialist, `trinity_delegate` |
+| Trinity connector | `src/runtime/subagents/trinity/connector.ts` | PostgreSQL, MySQL, SQLite, MongoDB connections |
+| Neo subagent | `src/runtime/subagents/neo.ts` | MCP tools, `neo_delegate` |
+| Link subagent | `src/runtime/subagents/link/link.ts` | Document RAG, `link_delegate` |
+| Link repository | `src/runtime/subagents/link/repository.ts` | Document and chunk storage |
+| Link search | `src/runtime/subagents/link/search.ts` | Hybrid vector + keyword search |
+| Link worker | `src/runtime/subagents/link/worker.ts` | Background indexing and embedding |
+| Link chunker | `src/runtime/subagents/link/chunker.ts` | Document splitting for embeddings |
 | Smith delegator | `src/runtime/smiths/delegator.ts` | Remote DevKit via WebSocket, `smith_delegate` |
 | Smith registry | `src/runtime/smiths/registry.ts` | Singleton managing Smith connections |
 | Smith connection | `src/runtime/smiths/connection.ts` | WebSocket client per Smith instance |
 | Smith tool | `src/runtime/tools/smith-tool.ts` | Oracle tool for `smith_delegate` |
+| Agents API router | `src/http/routers/agents.ts` | `GET /api/agents/metadata` — display metadata |
 | Smiths API router | `src/http/routers/smiths.ts` | Smith management + config + ping |
 | Link API router | `src/http/routers/link.ts` | Document upload, list, delete, reindex |
 | MCP Tool Cache | `src/runtime/tools/cache.ts` | Singleton cache for MCP tools |

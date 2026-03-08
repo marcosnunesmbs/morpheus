@@ -9,7 +9,7 @@ It runs as a daemon and orchestrates LLMs, MCP tools, DevKit tools, memory, and 
 
 ## Why Morpheus
 - Local-first persistence (sessions, messages, usage, tasks).
-- Multi-agent architecture (Oracle, Neo, Apoc, Sati, Trinity, Smith).
+- Multi-agent architecture (Oracle, Neo, Apoc, Sati, Trinity, Link, Smith) with centralized SubagentRegistry.
 - Async task execution with queue + worker + notifier.
 - Chronos temporal scheduler for recurring and one-time Oracle executions.
 - Smith remote agent system for DevKit execution on isolated machines via WebSocket.

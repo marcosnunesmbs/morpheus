@@ -5,6 +5,54 @@ All notable changes to Morpheus will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.12] - 2026-03-07
+
+### Added
+
+- **SubagentRegistry**: Centralized singleton registry (`src/runtime/subagents/registry.ts`) — single source of truth for delegation tools, display metadata (emoji, color, Tailwind classes), session propagation, and task routing. All subagents self-register during `getInstance()`. Eliminates manual wiring in Oracle and TaskWorker.
+  - `getDelegationTools()` — Oracle gets all delegation tools from registry
+  - `setAllSessionIds()` — propagates session context to all subagents
+  - `executeTask()` — routes tasks to correct subagent (replaces TaskWorker switch/case)
+  - `getDisplayMetadata()` — returns agent metadata for UI/audit (subagents + system agents)
+
+- **Subagent reorganization**: All subagents moved from `src/runtime/` to `src/runtime/subagents/`:
+  - `apoc.ts` → `subagents/apoc.ts`
+  - `neo.ts` → `subagents/neo.ts`
+  - `trinity.ts` → `subagents/trinity/trinity.ts`
+  - `trinity-connector.ts` → `subagents/trinity/connector.ts`
+  - `link.ts` → `subagents/link/link.ts`
+  - `link-repository.ts` → `subagents/link/repository.ts`
+  - `link-search.ts` → `subagents/link/search.ts`
+  - `link-worker.ts` → `subagents/link/worker.ts`
+  - `link-chunker.ts` → `subagents/link/chunker.ts`
+  - `subagent-utils.ts` → `subagents/utils.ts`
+  - `ISubagent.ts` → `subagents/ISubagent.ts`
+  - `devkit-instrument.ts` → `subagents/devkit-instrument.ts`
+  - New barrel export: `subagents/index.ts`
+
+- **Agents API endpoint**: `GET /api/agents/metadata` — returns display metadata for all agents (SubagentRegistry data) for the frontend. New router: `src/http/routers/agents.ts`.
+
+- **Frontend agents service**: `src/ui/src/services/agents.ts` — SWR hook `useAgentMetadata()` with helpers `getByKey()`, `getByToolName()`, `getEmoji()`, `getBadgeClass()`, `getSubagents()`. UI components now dynamically discover agent metadata instead of hardcoding.
+
+- **Persistent user channel sessions**: New `user_channel_sessions` table in `short-memory.db` (PRIMARY KEY: channel+user_id). Telegram/Discord users stay in the same chat session across daemon restarts. Auto-cleanup when sessions are archived or deleted.
+
+- **Chronos session continuity**: `origin_session_id` field on `ChronosJob`. Jobs remember which session created them and reuse it on execution if still usable.
+
+- **Source metadata tracking**: New `source` column in `messages` table (`'webhook'`, `'chronos'`, or null). `OracleTaskContext.source` enables explicit origin tagging for automated messages, orthogonal to `origin_channel`.
+
+- **Session audit observability**: Audit dashboard and event timeline updated to display source metadata, persistent session bindings, and agent display metadata from SubagentRegistry.
+
+### Fixed
+
+- **Duplicate smith_delegate tool**: Prevented `smith_delegate` from being registered twice when Smith is registered in SubagentRegistry alongside its dedicated tool builder.
+
+## [0.9.11] - 2026-03-05
+
+### Changed
+
+- Updated version to 0.9.11
+- Enhanced Telegram callback handling with safe methods for improved reliability
+
 ## [0.9.10] - 2026-02-29
 
 ### Fixed
