@@ -185,8 +185,26 @@ Telegram outbound messages use HTML parse mode with conversion layer:
 - inline and fenced code support
 - UUID auto-wrapped in `<code>` for easier copy
 
-### Voice Messages
+### Voice Messages (STT)
 Telegram voice messages are automatically transcribed (Gemini / Whisper / OpenRouter) and processed as text through the Oracle.
+
+### Audio Responses (TTS)
+When `audio.tts.enabled: true`, Oracle's text reply is synthesized to audio and sent back to the user:
+- **Google Gemini**: uses `generateContent` with `AUDIO` modality; raw PCM is wrapped into WAV via `pcmToWav()` helper
+- **OpenAI**: uses `audio.speech.create({ response_format: 'mp3' })`
+- OGG/Opus files are sent via `replyWithVoice`; MP3/WAV via `replyWithAudio`
+- On synthesis failure, Morpheus falls back to plain text and logs a `telephonist` audit error event
+
+**Config:**
+```yaml
+audio:
+  tts:
+    enabled: true
+    provider: google           # openai | google
+    model: gemini-2.5-flash-preview-tts
+    voice: Kore                # provider-specific voice name
+    style_prompt: "Friendly"   # optional — prepended before text on Gemini
+```
 
 ### Proactive Task Notifications
 Task completion/failure notifications include:
@@ -256,7 +274,7 @@ Registered automatically on startup:
 | `/skills_reload` | Reload skills from disk |
 
 ### Voice Messages
-Discord voice messages and audio file attachments are transcribed and processed identically to Telegram.
+Discord voice messages and audio file attachments are transcribed and processed identically to Telegram. TTS audio responses are also supported when `audio.tts.enabled: true`, with automatic text fallback on failure.
 
 ### Setup
 1. Create an application at [discord.com/developers](https://discord.com/developers/applications).
@@ -335,11 +353,12 @@ Dedicated agent tabs:
 ### 6.9 Audit Dashboard
 - Session audit view with comprehensive event timeline
 - Global totals and per-agent breakdowns
-- Cost summary panel with model-level details
-- Tool call tracking for all subagents (Oracle, Neo, Apoc, Trinity, Smith, Link)
-- Audio duration tracking in session summaries
+- Cost summary panel with model-level details (in configured display currency)
+- Tool call tracking for all subagents (Oracle, Neo, Apoc, Trinity, Smith, Link, Telephonist)
+- Audio duration tracking in session summaries (STT transcription + TTS synthesis)
 - Expandable metadata panel for event details
 - Memory recovery event logging
+- Accurate event pagination via `countBySession()` (includes telephonist, Chronos, and memory events)
 
 ### 6.10 Danger Zone (Settings)
 - Reset all sessions and messages
@@ -449,9 +468,20 @@ ui:
 
 audio:
   enabled: true
-  provider: google
+  provider: google               # google | openai | openrouter | ollama
   model: gemini-2.5-flash-lite
   maxDurationSeconds: 300
+  tts:
+    enabled: false               # set to true to reply with synthesized audio
+    provider: google             # openai | google
+    model: gemini-2.5-flash-preview-tts
+    voice: Kore                  # provider-specific voice name
+    style_prompt: ""             # optional tone prefix (Gemini only)
+
+currency:
+  code: USD                      # ISO 4217 code shown in cost displays
+  symbol: $                      # symbol prefix (e.g. R$, €)
+  rate: 1.0                      # multiplier from USD (1.0 = no conversion)
 
 logging:
   enabled: true

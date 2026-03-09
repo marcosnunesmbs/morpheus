@@ -46,6 +46,7 @@ Users can inspect:
 - Markdown-like rendering converted to safe rich text
 - Copy-friendly IDs in code blocks
 - Voice message transcription (Gemini/Whisper/OpenRouter)
+- Optional TTS audio responses (Google Gemini / OpenAI) with text fallback on failure
 - Inline buttons for Trinity database actions
 - Session management commands (list, switch, rename)
 
@@ -54,6 +55,7 @@ Users can inspect:
 - Slash commands for all major operations
 - Session management commands (list, switch, rename)
 - Voice message and audio file transcription
+- Optional TTS audio responses with text fallback on failure
 - Automatic command registration on startup
 
 #### Web Chat
@@ -103,13 +105,15 @@ User asks "status/consultou?" and Oracle uses direct task query (no delegation r
 - Link document management: upload, delete, reindex via UI or API.
 - Sati memory configuration: evaluation interval, similarity threshold.
 - Audit dashboard: session audit, tool call tracking, cost breakdowns.
+- Display currency: Settings → Interface configures the currency used for cost displays across audit pages and model pricing (USD, BRL, EUR, CAD, JPY, GBP, AUD, CHF, ARS, or custom). Costs remain stored in USD; conversion is display-only.
 - Danger Zone: destructive data operations (reset sessions, tasks, jobs, audit, factory reset).
 
 ## 7. Non-Functional Requirements
 - Privacy: local-first by default; external API calls are explicit by chosen providers/tools.
 - Security: channel allowlists, API auth (`x-architect-pass`), webhook key auth (`x-api-key`).
 - Reliability: persisted queue with retry and stale-recovery logic.
-- Cost tracking: token usage persisted per message/provider/model for analytics.
+- Cost tracking: token usage persisted per message/provider/model for analytics. Display currency is configurable independently — costs are always stored in USD.
+- Audio responses: voice message transcription (STT) and optional text-to-speech replies (TTS) via Google Gemini or OpenAI, with automatic fallback to text.
 - Extensibility: new channels implement `IChannelAdapter` and register with `ChannelRegistry`. Runtime services are decoupled via Ports & Adapters (dependency inversion), enabling adapter swaps and mock-based testing without changing consumer code. New LLM providers are added via the `IProviderStrategy` interface.
 - Remote execution: Smith agents extend DevKit reach to isolated machines via WebSocket (TLS supported).
 - Auditability: comprehensive execution audit trail with tool call tracking and cost breakdowns.

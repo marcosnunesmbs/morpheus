@@ -5,6 +5,37 @@ All notable changes to Morpheus will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.13] - 2026-03-09
+
+### Added
+
+- **TTS — Audio Responses**: Channels (Telegram, Discord) can now respond with synthesized speech when the user sends a voice message.
+  - `ITelephonist` extended with optional `synthesize?(text, apiKey, voice?, stylePrompt?)` method
+  - `TtsConfig` nested under `audio.tts` in `zaion.yaml`: `enabled`, `provider` (`openai` | `google`), `model`, `voice`, `api_key`, `style_prompt`
+  - Default: `provider: google`, `model: gemini-2.5-flash-preview-tts`, `voice: Kore`
+  - `OpenAITtsTelephonist`: uses `audio.speech.create({ response_format: 'mp3' })` → `.mp3` file
+  - `GeminiTtsTelephonist`: uses `models.generateContent` with `AUDIO` modality; Gemini returns raw PCM, which is wrapped in a WAV container via pure-JS `pcmToWav()` helper
+  - `createTtsTelephonist(config)` factory function; `createTelephonist` unchanged for transcription
+  - `TTS_MAX_CHARS = 4096` constant; text is truncated with a console warning if exceeded
+  - **Style prompt**: prepended to TTS input as `"${style_prompt}: ${text}"` to influence Gemini voice tone/style without a custom voice model
+  - **Telegram**: sends OGG via `replyWithVoice` or MP3/WAV via `replyWithAudio` depending on `mimeType`
+  - **Discord**: sends file as `AttachmentBuilder` with `name: 'response.ogg'` or `name: 'response.mp3'`
+  - **Fallback**: if TTS synthesis fails for any reason, the channel replies with the original text response — no silent failures
+  - **Audit trail**: TTS events logged via `AuditRepository` with provider, model, input/output tokens, and duration; visible in Session Audit timeline
+  - **Env vars**: `MORPHEUS_AUDIO_TTS_ENABLED`, `MORPHEUS_AUDIO_TTS_PROVIDER`, `MORPHEUS_AUDIO_TTS_MODEL`, `MORPHEUS_AUDIO_TTS_VOICE`, `MORPHEUS_AUDIO_TTS_API_KEY`, `MORPHEUS_AUDIO_TTS_STYLE_PROMPT`
+  - **Settings UI**: Settings → Audio → "Audio Response (TTS)" section with enable toggle, provider select (Google by default), model input, voice select (30 Gemini voices with gender labels / 10 OpenAI voices, conditional on provider), style prompt input, and TTS API key
+
+- **Session Audit — total count fix**: `AuditRepository.countBySession()` added for accurate event pagination. `GET /api/sessions/:id/audit` now returns `total_count` from a dedicated `COUNT(*)` query. Previously, `total_count` was computed as `llmCallCount + toolCallCount`, excluding telephonist, Chronos, and memory events from pagination.
+
+- **Display Currency**: Costs shown across the dashboard can now be displayed in a currency other than USD.
+  - `CurrencyConfig` interface: `code` (ISO 4217), `symbol`, `rate` (multiplier from USD)
+  - `currency?` field added to `MorpheusConfig`; `CurrencyConfigSchema` declared before `ConfigSchema` (forward-reference rule)
+  - Default: `{ code: 'USD', symbol: '$', rate: 1.0 }` (no conversion)
+  - **Env vars**: `MORPHEUS_CURRENCY_CODE`, `MORPHEUS_CURRENCY_SYMBOL`, `MORPHEUS_CURRENCY_RATE`
+  - **`useCurrency` hook** (`src/ui/src/hooks/useCurrency.ts`): reads config via SWR, exposes `fmtCost(usdValue)` and `fmtPrice(usdPer1m)`. When currency is non-USD, renders `$0.1000 / R$0.5250` (USD + converted side-by-side)
+  - Applied to: `EventRow.tsx` (audit timeline), `CostSummaryPanel.tsx` (session audit), `AuditDashboard.tsx` (global audit), `ModelPricing.tsx` (input/output columns + header labels)
+  - **Settings UI**: Settings → Interface → "Display Currency" section with a select dropdown of 9 preset currencies (USD, BRL, CAD, EUR, JPY, GBP, AUD, CHF, ARS) plus "Other…" (reveals code + symbol text inputs) and a conversion rate number input
+
 ## [0.9.12] - 2026-03-07
 
 ### Added

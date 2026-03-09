@@ -401,16 +401,63 @@ link:
 ### 12.5 Task Agent Name
 Link tasks are stored in the `tasks` table with `agent = 'link'`.
 
-## 13. Audit System
+## 13. Telephonist — Audio Pipeline
+
+`src/runtime/telephonist.ts` handles both STT (speech-to-text) and TTS (text-to-speech) for channel adapters.
+
+### 13.1 Transcription (STT)
+`ITelephonist.transcribe(filePath, mimeType, apiKey)` — three implementations:
+- `GeminiTelephonist`: uploads via `ai.files.upload()` then generates with the audio file URI
+- `WhisperTelephonist`: uses OpenAI `/audio/transcriptions` endpoint (also supports Ollama local Whisper via `baseURL` override)
+- `OpenRouterTelephonist`: encodes audio as base64 and sends as `input_audio` content type
+
+Factory: `createTelephonist(config: AudioConfig)` — selects implementation based on `audio.provider` (`google` | `openai` | `openrouter` | `ollama`).
+
+### 13.2 Synthesis (TTS)
+`ITelephonist.synthesize?(text, apiKey, voice?, stylePrompt?)` — two implementations:
+- `OpenAITtsTelephonist`: `client.audio.speech.create({ response_format: 'mp3' })` → `.mp3` temp file (`audio/mpeg`)
+- `GeminiTtsTelephonist`: `models.generateContent` with `responseModalities: ['AUDIO']`; Gemini returns raw PCM — wrapped in WAV container via `pcmToWav()` (pure JS, no external deps) → `.wav` temp file (`audio/wav`)
+
+Style prompt: when `style_prompt` is configured, it is prepended as `"${style_prompt}: ${text}"` before synthesis, influencing tone/style on Gemini models.
+
+Factory: `createTtsTelephonist(config: TtsConfig)` — selects implementation based on `audio.tts.provider` (`openai` | `google`).
+
+### 13.3 Channel Integration
+- **Telegram**: if TTS enabled and synthesis succeeds → `replyWithVoice` (OGG) or `replyWithAudio` (MP3/WAV); on failure → logs error + replies with plain text
+- **Discord**: sends `AttachmentBuilder` with the audio temp file; on failure → plain text fallback
+- Temp files are cleaned up in `finally` blocks after send
+
+### 13.4 Audit
+TTS events are written to `AuditRepository` with `event_type: 'telephonist'`, provider, model, input/output tokens, and duration. Visible in the Session Audit timeline alongside LLM and tool call events.
+
+## 14. Currency Display
+
+`CurrencyConfig` (`src/types/config.ts`) stores a display currency preference:
+- `code`: ISO 4217 code (e.g. `'BRL'`)
+- `symbol`: display symbol (e.g. `'R$'`)
+- `rate`: multiplier from USD (e.g. `5.25`)
+
+Costs are **always stored in USD** in the database. The currency config is display-only.
+
+**Frontend hook** `useCurrency` (`src/ui/src/hooks/useCurrency.ts`):
+- Reads config via SWR with 60-second deduplication
+- `fmtCost(usdValue)` → `"$0.1000"` (USD) or `"$0.1000 / R$0.5250"` (non-USD)
+- `fmtPrice(usdPer1m)` → same pattern for per-1M token model prices
+- Used in: `EventRow`, `CostSummaryPanel`, `AuditDashboard`, `ModelPricing`
+
+**Settings UI**: Settings → Interface → "Display Currency" — select from 9 presets or "Other…" (custom code/symbol) plus a conversion rate field. Multiple currency fields are updated atomically via `handleCurrencySelect()` (single `setLocalConfig` call to avoid React stale-state race).
+
+## 15. Audit System
 - `src/runtime/audit/`: Agent execution audit trail with tool call tracking.
-- **Event trail:** All agent executions (Oracle, Neo, Apoc, Trinity, Smith, Link, Sati) logged with timestamps, duration, and token usage.
+- **Event trail:** All agent executions (Oracle, Neo, Apoc, Trinity, Smith, Link, Sati, Telephonist) logged with timestamps, duration, and token usage.
 - **Tool call tracking:** Individual tool invocations recorded with arguments and results.
-- **Audio tracking:** Voice message transcription duration aggregated in session summaries.
-- **Cost breakdown:** Per-model usage statistics for budget monitoring.
+- **Audio tracking:** Voice message transcription and TTS synthesis events tracked; audio duration aggregated in session summaries.
+- **Cost breakdown:** Per-model usage statistics for budget monitoring, displayed in configured currency.
 - **Memory recovery logging:** Sati memory retrieval events tracked for observability.
+- **Pagination:** `AuditRepository.countBySession()` provides accurate total event count independent of summary aggregates.
 - **UI dashboard:** Session audit view (`/audit/:sessionId`) with event timeline, global totals, expandable metadata, and cost breakdowns by model.
 
-## 14. Security Model
+## 17. Security Model
 - Local-first storage by default.
 - `x-architect-pass` protects `/api/*` management routes.
 - webhook trigger uses per-webhook `x-api-key`.
@@ -422,7 +469,7 @@ Link tasks are stored in the `tasks` table with `agent = 'link'`.
 - Per-database permission flags (`allow_read`, `allow_insert`, `allow_update`, `allow_delete`, `allow_ddl`) gate Trinity query execution.
 - **Danger Zone:** Settings UI section for destructive data operations (reset sessions, tasks, jobs, audit, or factory reset) with explicit confirmation dialogs.
 
-## 15. Runtime Lifecycle
+## 18. Runtime Lifecycle
 At daemon boot (`start` / `restart` commands):
 - load config and initialize Oracle
 - load skills via `SkillRegistry`

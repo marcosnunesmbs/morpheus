@@ -273,7 +273,7 @@ Task results are delivered proactively with metadata (task id, agent, status) an
 - `/session switch <id>` — Switch to existing session
 - `/session rename <name>` — Rename current session
 
-**Voice messages:** Telegram voice messages are automatically transcribed (Gemini / Whisper / OpenRouter) and processed as text through the Oracle.
+**Voice messages:** Telegram voice messages are automatically transcribed (Gemini / Whisper / OpenRouter) and processed as text through the Oracle. If **TTS** is enabled (`audio.tts.enabled: true`), Oracle's response is synthesized back to audio and sent as a voice message. Falls back to text if synthesis fails.
 
 ## Discord Experience
 
@@ -302,7 +302,7 @@ Discord bot responds to **DMs only** from authorized user IDs (`allowedUsers`).
 | `/chronos_enable id:` | Enable a job |
 | `/chronos_delete id:` | Delete a job |
 
-**Voice messages:** Discord voice messages and audio file attachments are transcribed and processed identically to Telegram.
+**Voice messages:** Discord voice messages and audio file attachments are transcribed and processed identically to Telegram. TTS audio responses are also supported when enabled.
 
 **Setup:**
 1. Create an application at [discord.com/developers](https://discord.com/developers/applications).
@@ -330,14 +330,15 @@ The dashboard includes:
 - Agent settings (Oracle/Sati/Neo/Apoc/Trinity/Smiths)
 - MCP manager (add/edit/delete/toggle/reload)
 - Sati memories (search, bulk delete, pagination)
-- Usage stats and model pricing
+- Usage stats and model pricing (with optional currency conversion)
 - Trinity databases (register/test/refresh schema)
 - Chronos scheduler (create/edit/delete jobs, execution history)
 - Smiths management (add/edit/delete, real-time status, ping)
-- Audit dashboard (session audit, tool call tracking, cost breakdowns)
+- Audit dashboard (session audit, tool call tracking, cost breakdowns with currency conversion)
 - Webhooks and notification inbox
 - Logs viewer
 - Danger Zone (Settings → reset sessions, tasks, jobs, audit, or factory reset)
+- Display currency setting (Settings → Interface): converts USD costs to BRL, EUR, CAD, JPY, GBP, AUD, CHF, ARS, or any custom currency
 
 Chat-specific rendering:
 - AI messages rendered as markdown
@@ -422,6 +423,17 @@ audio:
   provider: google
   model: gemini-2.5-flash-lite
   maxDurationSeconds: 300
+  tts:
+    enabled: false           # set to true to respond with audio
+    provider: google         # openai | google
+    model: gemini-2.5-flash-preview-tts
+    voice: Kore              # voice name (provider-specific)
+    style_prompt: ""         # optional tone/style prefix (Gemini only)
+
+currency:                    # display currency for cost dashboards
+  code: USD                  # ISO 4217 code (e.g. BRL, EUR)
+  symbol: $                  # symbol shown in UI
+  rate: 1.0                  # conversion rate from USD
 
 logging:
   enabled: true
@@ -490,6 +502,15 @@ Generic Morpheus overrides (selected):
 | `MORPHEUS_AUDIO_ENABLED` | `audio.enabled` |
 | `MORPHEUS_AUDIO_API_KEY` | `audio.apiKey` |
 | `MORPHEUS_AUDIO_MAX_DURATION` | `audio.maxDurationSeconds` |
+| `MORPHEUS_AUDIO_TTS_ENABLED` | `audio.tts.enabled` |
+| `MORPHEUS_AUDIO_TTS_PROVIDER` | `audio.tts.provider` |
+| `MORPHEUS_AUDIO_TTS_MODEL` | `audio.tts.model` |
+| `MORPHEUS_AUDIO_TTS_VOICE` | `audio.tts.voice` |
+| `MORPHEUS_AUDIO_TTS_API_KEY` | `audio.tts.apiKey` |
+| `MORPHEUS_AUDIO_TTS_STYLE_PROMPT` | `audio.tts.style_prompt` |
+| `MORPHEUS_CURRENCY_CODE` | `currency.code` |
+| `MORPHEUS_CURRENCY_SYMBOL` | `currency.symbol` |
+| `MORPHEUS_CURRENCY_RATE` | `currency.rate` |
 | `MORPHEUS_TELEGRAM_ENABLED` | `channels.telegram.enabled` |
 | `MORPHEUS_TELEGRAM_TOKEN` | `channels.telegram.token` |
 | `MORPHEUS_TELEGRAM_ALLOWED_USERS` | `channels.telegram.allowedUsers` |

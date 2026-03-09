@@ -52,6 +52,10 @@ npm install <pkg> --legacy-peer-deps
 
 When adding new config keys: define the Zod schema in `src/config/schemas.ts` (child schemas must be declared BEFORE `ConfigSchema` to avoid forward-reference TS errors), add to `src/types/config.ts`, and handle env var override in `src/config/manager.ts`.
 
+Key config sections added recently:
+- `audio.tts` — TTS config (`TtsConfig`): `enabled`, `provider`, `model`, `voice`, `apiKey`, `style_prompt`; env vars: `MORPHEUS_AUDIO_TTS_*`
+- `currency` — display currency (`CurrencyConfig`): `code`, `symbol`, `rate`; env vars: `MORPHEUS_CURRENCY_CODE/SYMBOL/RATE`
+
 ---
 
 ## Architecture
@@ -377,8 +381,9 @@ In `tasks` table, Trinity agent rows use `agent = 'trinit'` (not `'trinity'`). S
 | CLI entry | `src/cli/index.ts` | Commander.js |
 | Start command | `src/cli/commands/start.ts` | Wires all services, registers channel adapters |
 | Channel registry | `src/channels/registry.ts` | `IChannelAdapter` + `ChannelRegistry` singleton |
-| Telegram adapter | `src/channels/telegram.ts` | `channel = 'telegram'`, implements `IChannelAdapter` |
-| Discord adapter | `src/channels/discord.ts` | `channel = 'discord'`, implements `IChannelAdapter` |
+| Telegram adapter | `src/channels/telegram.ts` | `channel = 'telegram'`, implements `IChannelAdapter`, TTS audio responses |
+| Discord adapter | `src/channels/discord.ts` | `channel = 'discord'`, implements `IChannelAdapter`, TTS audio responses |
+| Telephonist | `src/runtime/telephonist.ts` | STT (`createTelephonist`) + TTS (`createTtsTelephonist`), Gemini/Whisper/OpenAI/OpenRouter |
 | Oracle agent | `src/runtime/oracle.ts` | LangChain ReactAgent |
 | Subagent registry | `src/runtime/subagents/registry.ts` | `SubagentRegistry` singleton — single source of truth |
 | Subagent barrel | `src/runtime/subagents/index.ts` | Re-exports all subagents, registry, utils |
@@ -409,7 +414,8 @@ In `tasks` table, Trinity agent rows use `agent = 'trinit'` (not `'trinity'`). S
 | HTTP API | `src/http/api.ts` | Express, mounted at `/api` |
 | Config manager | `src/config/manager.ts` | Singleton, `getInstance().get()` |
 | Config schemas | `src/config/schemas.ts` | Zod schemas |
-| Paths constants | `src/config/paths.ts` | `PATHS.root`, `PATHS.config`, etc. |
+| Paths constants | `src/config/paths.ts` | `PATHS.root`, `PATHS.config`, `PATHS.shortMemoryDb`, `PATHS.trinityDb`, `PATHS.satiDb`, `PATHS.linkDb`, etc. |
+| Currency hook | `src/ui/src/hooks/useCurrency.ts` | `fmtCost()` / `fmtPrice()` — reads `config.currency`, converts USD → display currency |
 | Frontend | `src/ui/src/` | React 19 + Vite |
 | Chronos scheduler | `src/runtime/chronos/` | parser, worker, repository |
 | Memory DB | `~/.morpheus/memory/short-memory.db` | sessions, messages, tasks, chronos, audit |
