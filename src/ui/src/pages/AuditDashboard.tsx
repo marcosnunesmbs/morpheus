@@ -54,7 +54,7 @@ function pct(a: number, b: number): string {
 
 // ─── Mini bar chart for daily activity ────────────────────────────────────────
 
-function ActivityBars({ data }: { data: GlobalAuditDailyActivity[] }) {
+function ActivityBars({ data, fmtCost }: { data: GlobalAuditDailyActivity[]; fmtCost: (v: number | null) => string }) {
   const [hovered, setHovered] = useState<number | null>(null);
   if (!data.length) return <p className="text-xs text-gray-400 dark:text-matrix-secondary/50 py-4">No activity in the last 30 days.</p>;
 
@@ -336,7 +336,7 @@ export const AuditDashboard: React.FC = () => {
 
         {/* Daily activity */}
         <Section title="Activity — Last 30 Days" icon={<BarChart3 size={14} />}>
-          <ActivityBars data={dailyActivity} />
+          <ActivityBars data={dailyActivity} fmtCost={fmtCost} />
           {dailyActivity.length > 0 && (
             <div className="flex gap-4 mt-2 text-[11px] text-gray-400 dark:text-matrix-secondary/50 font-mono">
               <span>{dailyActivity[0]?.date}</span>
