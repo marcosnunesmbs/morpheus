@@ -83,6 +83,13 @@ export class AuditRepository {
     }
   }
 
+  countBySession(sessionId: string): number {
+    const row = this.db.prepare(
+      `SELECT COUNT(*) as n FROM audit_events WHERE session_id = ?`
+    ).get(sessionId) as { n: number };
+    return row?.n ?? 0;
+  }
+
   getBySession(sessionId: string, opts?: { limit?: number; offset?: number }): AuditEvent[] {
     const limit = opts?.limit ?? 500;
     const offset = opts?.offset ?? 0;

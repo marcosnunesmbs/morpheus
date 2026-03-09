@@ -22,15 +22,9 @@ import {
 import { useGlobalAudit } from '../services/audit';
 import type { GlobalAuditDailyActivity } from '../services/audit';
 import { useAgentMetadata } from '../services/agents';
+import { useCurrency } from '../hooks/useCurrency';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
-
-function fmtCost(v: number): string {
-  if (v === 0) return '$0.00';
-  if (v < 0.0001) return '<$0.0001';
-  if (v < 0.01) return `$${v.toFixed(4)}`;
-  return `$${v.toFixed(2)}`;
-}
 
 function fmtTokens(n: number): string {
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
@@ -237,6 +231,7 @@ const item = { hidden: { opacity: 0, y: 12 }, show: { opacity: 1, y: 0 } };
 
 export const AuditDashboard: React.FC = () => {
   const { data, isLoading, mutate } = useGlobalAudit();
+  const { fmtCost } = useCurrency();
 
   if (isLoading) {
     return (

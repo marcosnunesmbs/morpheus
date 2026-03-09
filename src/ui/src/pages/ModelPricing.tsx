@@ -4,6 +4,7 @@ import { motion } from 'framer-motion';
 import { Plus, Pencil, Trash2, DollarSign } from 'lucide-react';
 import { modelPricingService, type ModelPricingEntry } from '../services/modelPricing';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../components/Dialog';
+import { useCurrency } from '../hooks/useCurrency';
 
 const container = { hidden: { opacity: 0 }, show: { opacity: 1, transition: { staggerChildren: 0.05 } } };
 const item = { hidden: { opacity: 0, y: 10 }, show: { opacity: 1, y: 0 } };
@@ -20,6 +21,7 @@ const emptyForm = (): ModelPricingEntry => ({
 
 export const ModelPricing = () => {
   const { data = [], mutate } = useSWR('/api/model-pricing', () => modelPricingService.list());
+  const { fmtPrice, isUSD, currency } = useCurrency();
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editTarget, setEditTarget] = useState<ModelPricingEntry | null>(null);
@@ -115,7 +117,14 @@ export const ModelPricing = () => {
         <table className="w-full text-sm">
           <thead className="bg-azure-surface dark:bg-zinc-900 border-b border-azure-border dark:border-matrix-primary">
             <tr>
-              {['Provider', 'Model', 'Input ($/1M tokens)', 'Output ($/1M tokens)', 'Audio ($/s)', 'Actions'].map((h) => (
+              {[
+                'Provider',
+                'Model',
+                isUSD ? 'Input ($/1M tokens)' : `Input ($/1M → ${currency.symbol})`,
+                isUSD ? 'Output ($/1M tokens)' : `Output ($/1M → ${currency.symbol})`,
+                'Audio ($/s)',
+                'Actions',
+              ].map((h) => (
                 <th key={h} className="px-4 py-3 text-left font-semibold text-azure-text-secondary dark:text-matrix-secondary">
                   {h}
                 </th>
@@ -137,8 +146,8 @@ export const ModelPricing = () => {
                 >
                   <td className="px-4 py-3 text-azure-text-primary dark:text-matrix-text capitalize">{entry.provider}</td>
                   <td className="px-4 py-3 font-mono text-azure-text-primary dark:text-matrix-highlight text-xs">{entry.model}</td>
-                  <td className="px-4 py-3 text-azure-text-primary dark:text-matrix-text">${entry.input_price_per_1m.toFixed(4)}</td>
-                  <td className="px-4 py-3 text-azure-text-primary dark:text-matrix-text">${entry.output_price_per_1m.toFixed(4)}</td>
+                  <td className="px-4 py-3 text-azure-text-primary dark:text-matrix-text font-mono text-xs">{fmtPrice(entry.input_price_per_1m)}</td>
+                  <td className="px-4 py-3 text-azure-text-primary dark:text-matrix-text font-mono text-xs">{fmtPrice(entry.output_price_per_1m)}</td>
                   <td className="px-4 py-3 text-azure-text-primary dark:text-matrix-text">
                     {entry.audio_cost_per_second != null
                       ? `$${entry.audio_cost_per_second.toFixed(6)}`

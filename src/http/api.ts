@@ -256,8 +256,9 @@ export function createApiRouter(oracle: IOracle, chronosWorker?: ChronosWorker) 
       const offset = parseInt(req.query.offset as string) || 0;
       const audit = AuditRepository.getInstance();
       const events = audit.getBySession(id, { limit, offset });
+      const total_count = audit.countBySession(id);
       const summary = audit.getSessionSummary(id);
-      res.json({ events, summary });
+      res.json({ events, summary, total_count });
     } catch (err: any) {
       res.status(500).json({ error: err.message });
     }

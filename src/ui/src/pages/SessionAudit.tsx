@@ -85,7 +85,7 @@ export const SessionAudit: React.FC = () => {
               events={data.events}
               page={page}
               pageSize={PAGE_SIZE}
-              totalCount={data.summary.llmCallCount + data.summary.toolCallCount}
+              totalCount={data.total_count}
               onPageChange={setPage}
             />
           )}

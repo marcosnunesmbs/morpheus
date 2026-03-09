@@ -1,6 +1,15 @@
 import { z } from 'zod';
 import { DEFAULT_CONFIG } from '../types/config.js';
 
+export const TtsConfigSchema = z.object({
+  enabled: z.boolean().default(false),
+  provider: z.enum(['openai', 'google']).default('google'),
+  model: z.string().min(1).default('gemini-2.5-flash-preview-tts'),
+  voice: z.string().min(1).default('Kore'),
+  apiKey: z.string().optional(),
+  style_prompt: z.string().optional(),
+});
+
 export const AudioConfigSchema = z.object({
   provider: z.enum(['google', 'openai', 'openrouter', 'ollama']).default(DEFAULT_CONFIG.audio.provider),
   model: z.string().min(1).default(DEFAULT_CONFIG.audio.model),
@@ -9,6 +18,7 @@ export const AudioConfigSchema = z.object({
   base_url: z.string().optional(),
   maxDurationSeconds: z.number().default(DEFAULT_CONFIG.audio.maxDurationSeconds),
   supportedMimeTypes: z.array(z.string()).default(DEFAULT_CONFIG.audio.supportedMimeTypes),
+  tts: TtsConfigSchema.optional(),
 });
 
 export const LLMConfigSchema = z.object({
@@ -98,6 +108,12 @@ export const SmithsConfigSchema = z.object({
   entries: z.array(SmithEntrySchema).default([]),
 });
 
+export const CurrencyConfigSchema = z.object({
+  code: z.string().min(1).default('USD'),
+  symbol: z.string().min(1).default('$'),
+  rate: z.number().positive().default(1.0),
+});
+
 // Zod Schema matching MorpheusConfig interface
 export const ConfigSchema = z.object({
   agent: z.object({
@@ -124,6 +140,7 @@ export const ConfigSchema = z.object({
   devkit: DevKitConfigSchema.optional(),
   smiths: SmithsConfigSchema.optional(),
   setup: SetupConfigSchema.optional(),
+  currency: CurrencyConfigSchema.optional(),
   verbose_mode: z.boolean().default(true),
   channels: z.object({
     telegram: z.object({

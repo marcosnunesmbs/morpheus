@@ -1,7 +1,7 @@
 import fs from 'fs-extra';
 import yaml from 'js-yaml';
 import { z } from 'zod';
-import { MorpheusConfig, DEFAULT_CONFIG, SatiConfig, ApocConfig, NeoConfig, TrinityConfig, LinkConfig, LLMProvider, ChronosConfig, SubAgentExecutionMode, DevKitConfig, SmithsConfig, SetupConfig } from '../types/config.js';
+import { MorpheusConfig, DEFAULT_CONFIG, SatiConfig, ApocConfig, NeoConfig, TrinityConfig, LinkConfig, LLMProvider, ChronosConfig, SubAgentExecutionMode, DevKitConfig, SmithsConfig, SetupConfig, CurrencyConfig } from '../types/config.js';
 import { PATHS } from './paths.js';
 import { setByPath } from './utils.js';
 import { ConfigSchema } from './schemas.js';
@@ -336,13 +336,29 @@ export class ConfigManager {
     const audioProvider = resolveString('MORPHEUS_AUDIO_PROVIDER', config.audio.provider, DEFAULT_CONFIG.audio.provider) as typeof config.audio.provider;
     // AudioProvider uses 'google' but resolveApiKey expects LLMProvider which uses 'gemini'
     const audioProviderForKey = (audioProvider === 'google' ? 'gemini' : audioProvider) as LLMProvider;
+
+    // TTS config
+    const ttsDefaults = DEFAULT_CONFIG.audio.tts!;
+    const ttsCfg = config.audio.tts;
+    const ttsProvider = resolveString('MORPHEUS_AUDIO_TTS_PROVIDER', ttsCfg?.provider, ttsDefaults.provider) as 'openai' | 'google';
+    const ttsProviderForKey = (ttsProvider === 'google' ? 'gemini' : ttsProvider) as LLMProvider;
+    const ttsConfig = {
+      enabled: resolveBoolean('MORPHEUS_AUDIO_TTS_ENABLED', ttsCfg?.enabled, ttsDefaults.enabled),
+      provider: ttsProvider,
+      model: resolveString('MORPHEUS_AUDIO_TTS_MODEL', ttsCfg?.model, ttsDefaults.model),
+      voice: resolveString('MORPHEUS_AUDIO_TTS_VOICE', ttsCfg?.voice, ttsDefaults.voice),
+      apiKey: resolveApiKey(ttsProviderForKey, 'MORPHEUS_AUDIO_TTS_API_KEY', ttsCfg?.apiKey),
+      style_prompt: resolveString('MORPHEUS_AUDIO_TTS_STYLE_PROMPT', ttsCfg?.style_prompt, ''),
+    };
+
     const audioConfig = {
       provider: audioProvider,
       model: resolveString('MORPHEUS_AUDIO_MODEL', config.audio.model, DEFAULT_CONFIG.audio.model),
       enabled: resolveBoolean('MORPHEUS_AUDIO_ENABLED', config.audio.enabled, DEFAULT_CONFIG.audio.enabled),
       apiKey: resolveApiKey(audioProviderForKey, 'MORPHEUS_AUDIO_API_KEY', config.audio.apiKey),
       maxDurationSeconds: resolveNumeric('MORPHEUS_AUDIO_MAX_DURATION', config.audio.maxDurationSeconds, DEFAULT_CONFIG.audio.maxDurationSeconds),
-      supportedMimeTypes: config.audio.supportedMimeTypes
+      supportedMimeTypes: config.audio.supportedMimeTypes,
+      tts: ttsConfig,
     };
 
     // Apply precedence to channel configs
@@ -435,6 +451,11 @@ export class ConfigManager {
         enabled: resolveBoolean('MORPHEUS_SETUP_ENABLED', config.setup?.enabled, true),
         fields: config.setup?.fields ?? ['name', 'timezone', 'preferred_language'],
       },
+      currency: {
+        code: resolveString('MORPHEUS_CURRENCY_CODE', config.currency?.code, 'USD'),
+        symbol: resolveString('MORPHEUS_CURRENCY_SYMBOL', config.currency?.symbol, '$'),
+        rate: resolveNumeric('MORPHEUS_CURRENCY_RATE', config.currency?.rate, 1.0),
+      } satisfies CurrencyConfig,
     };
   }
 

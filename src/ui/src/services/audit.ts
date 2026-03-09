@@ -49,6 +49,7 @@ export interface AuditSessionSummary {
 export interface SessionAuditResponse {
   events: AuditEvent[];
   summary: AuditSessionSummary;
+  total_count: number;
 }
 
 export interface GlobalAuditTotals {

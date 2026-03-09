@@ -45,6 +45,17 @@ export interface LogConfig {
 
 export type AudioProvider = 'google' | 'openai' | 'openrouter' | 'ollama';
 
+export type TtsProvider = 'openai' | 'google';
+
+export interface TtsConfig {
+  enabled: boolean;
+  provider: TtsProvider;
+  model: string;
+  voice: string;
+  apiKey?: string;
+  style_prompt?: string;
+}
+
 export interface AudioConfig {
   provider: AudioProvider;
   model: string;
@@ -53,6 +64,7 @@ export interface AudioConfig {
   base_url?: string;
   maxDurationSeconds: number;
   supportedMimeTypes: string[];
+  tts?: TtsConfig;
 }
 
 export interface SatiConfig extends LLMConfig {
@@ -193,6 +205,15 @@ export interface SetupConfig {
   fields: string[];
 }
 
+export interface CurrencyConfig {
+  /** ISO 4217 currency code (e.g. 'USD', 'BRL', 'EUR'). Default: 'USD'. */
+  code: string;
+  /** Currency symbol for display (e.g. '$', 'R$', '€'). Default: '$'. */
+  symbol: string;
+  /** Conversion rate from USD (e.g. 5.25 for BRL). Default: 1.0. */
+  rate: number;
+}
+
 export interface MorpheusConfig {
   agent: AgentConfig;
   llm: LLMConfig;
@@ -212,6 +233,7 @@ export interface MorpheusConfig {
   memory: MemoryConfig;
   runtime?: RuntimeConfig;
   chronos?: ChronosConfig;
+  currency?: CurrencyConfig;
   verbose_mode?: boolean;
 }
 
@@ -231,6 +253,12 @@ export const DEFAULT_CONFIG: MorpheusConfig = {
     enabled: true,
     maxDurationSeconds: 300,
     supportedMimeTypes: ['audio/ogg', 'audio/mp3', 'audio/mpeg', 'audio/wav'],
+    tts: {
+      enabled: false,
+      provider: 'google',
+      model: 'gemini-2.5-flash-preview-tts',
+      voice: 'Kore',
+    },
   },
   memory: {
     limit: 100

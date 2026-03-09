@@ -8,7 +8,7 @@ import { spawn } from 'child_process';
 import { ConfigManager } from '../config/manager.js';
 import { DisplayManager } from '../runtime/display.js';
 import type { IOracle } from '../runtime/types.js';
-import { createTelephonist, ITelephonist } from '../runtime/telephonist.js';
+import { createTelephonist, createTtsTelephonist, ITelephonist } from '../runtime/telephonist.js';
 import { getUsableApiKey } from '../runtime/trinity-crypto.js';
 import { readPid, isProcessRunning, checkStalePid } from '../runtime/lifecycle.js';
 import { SQLiteChatMessageHistory } from '../runtime/memory/sqlite.js';
@@ -196,6 +196,9 @@ export class TelegramAdapter {
   private telephonist: ITelephonist | null = null;
   private telephonistProvider: string | null = null;
   private telephonistModel: string | null = null;
+  private ttsTelephonist: ITelephonist | null = null;
+  private ttsProvider: string | null = null;
+  private ttsModel: string | null = null;
   private history = new SQLiteChatMessageHistory({ sessionId: '' });
   /** Per-user session tracking — maps userId to sessionId */
   private userSessions = new Map<string, string>();
@@ -375,6 +378,14 @@ export class TelegramAdapter {
           this.telephonistModel = config.audio.model;
         }
 
+        // Lazy-create TTS telephonist
+        const ttsConfig = config.audio.tts;
+        if (ttsConfig?.enabled && (!this.ttsTelephonist || this.ttsProvider !== ttsConfig.provider || this.ttsModel !== ttsConfig.model)) {
+          this.ttsTelephonist = createTtsTelephonist(ttsConfig);
+          this.ttsProvider = ttsConfig.provider;
+          this.ttsModel = ttsConfig.model;
+        }
+
         const duration = ctx.message.voice.duration;
         if (duration > config.audio.maxDurationSeconds) {
           await ctx.reply(`Voice message too long. Max duration is ${config.audio.maxDurationSeconds}s.`);
@@ -454,16 +465,103 @@ export class TelegramAdapter {
           // }
 
           if (response) {
-            const rich = await toTelegramRichText(response);
-            for (const chunk of rich.chunks) {
+            const ttsConfig = config.audio.tts;
+            if (ttsConfig?.enabled && this.ttsTelephonist?.synthesize) {
+              // TTS path: synthesize and send as voice message
+              let ttsFilePath: string | null = null;
+              const ttsStart = Date.now();
               try {
-                await ctx.reply(chunk, { parse_mode: rich.parse_mode });
-              } catch {
-                const plain = stripHtmlTags(chunk).slice(0, 4096);
-                if (plain) await ctx.reply(plain);
+                const ttsApiKey = getUsableApiKey(ttsConfig.apiKey) ||
+                  getUsableApiKey(config.audio.apiKey) ||
+                  (config.llm.provider === (ttsConfig.provider === 'google' ? 'gemini' : ttsConfig.provider)
+                    ? getUsableApiKey(config.llm.api_key) : undefined);
+
+                const ttsResult = await this.ttsTelephonist.synthesize(response, ttsApiKey || '', ttsConfig.voice, ttsConfig.style_prompt);
+                ttsFilePath = ttsResult.filePath;
+                const ttsDurationMs = Date.now() - ttsStart;
+
+                // OGG/Opus → replyWithVoice; everything else (mp3, wav) → replyWithAudio
+                const isOgg = ttsResult.mimeType.includes('ogg') || ttsResult.mimeType.includes('opus');
+                if (isOgg) {
+                  await ctx.replyWithVoice({ source: ttsFilePath });
+                } else {
+                  await ctx.replyWithAudio({ source: ttsFilePath });
+                }
+                this.display.log(`Responded to @${user} (TTS audio)`, { source: 'Telegram' });
+
+                // Audit TTS success
+                try {
+                  const auditSessionId = await this.getSessionForUser(userId);
+                  AuditRepository.getInstance().insert({
+                    session_id: auditSessionId,
+                    event_type: 'telephonist',
+                    agent: 'telephonist',
+                    provider: ttsConfig.provider,
+                    model: ttsConfig.model,
+                    input_tokens: ttsResult.usage.input_tokens || null,
+                    output_tokens: ttsResult.usage.output_tokens || null,
+                    duration_ms: ttsDurationMs,
+                    status: 'success',
+                    metadata: {
+                      operation: 'tts',
+                      characters: response.length,
+                      voice: ttsConfig.voice,
+                      user,
+                    },
+                  });
+                } catch {
+                  // Audit failure never breaks the main flow
+                }
+              } catch (ttsError: any) {
+                const ttsDetail = ttsError?.message || String(ttsError);
+                this.display.log(`TTS synthesis failed for @${user}: ${ttsDetail} — falling back to text`, { source: 'Telephonist', level: 'warning' });
+
+                // Audit TTS failure
+                try {
+                  const auditSessionId = await this.getSessionForUser(userId);
+                  AuditRepository.getInstance().insert({
+                    session_id: auditSessionId,
+                    event_type: 'telephonist',
+                    agent: 'telephonist',
+                    provider: ttsConfig.provider,
+                    model: ttsConfig.model,
+                    duration_ms: Date.now() - ttsStart,
+                    status: 'error',
+                    metadata: { operation: 'tts', error: ttsDetail, user },
+                  });
+                } catch {
+                  // Audit failure never breaks the main flow
+                }
+
+                // Fallback to text
+                const rich = await toTelegramRichText(response);
+                for (const chunk of rich.chunks) {
+                  try {
+                    await ctx.reply(chunk, { parse_mode: rich.parse_mode });
+                  } catch {
+                    const plain = stripHtmlTags(chunk).slice(0, 4096);
+                    if (plain) await ctx.reply(plain);
+                  }
+                }
+              } finally {
+                // Cleanup TTS temp file
+                if (ttsFilePath) {
+                  await fs.promises.unlink(ttsFilePath).catch(() => {});
+                }
               }
+            } else {
+              // Text path (TTS disabled)
+              const rich = await toTelegramRichText(response);
+              for (const chunk of rich.chunks) {
+                try {
+                  await ctx.reply(chunk, { parse_mode: rich.parse_mode });
+                } catch {
+                  const plain = stripHtmlTags(chunk).slice(0, 4096);
+                  if (plain) await ctx.reply(plain);
+                }
+              }
+              this.display.log(`Responded to @${user} (via audio)`, { source: 'Telegram' });
             }
-            this.display.log(`Responded to @${user} (via audio)`, { source: 'Telegram' });
           }
 
         } catch (error: any) {

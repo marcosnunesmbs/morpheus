@@ -11,6 +11,7 @@ import {
   ButtonInteraction,
   Message,
   Attachment,
+  AttachmentBuilder,
   DMChannel,
   ActionRowBuilder,
   ButtonBuilder,
@@ -25,7 +26,8 @@ import type { IOracle } from '../runtime/types.js';
 import { SQLiteChatMessageHistory } from '../runtime/memory/sqlite.js';
 import { DisplayManager } from '../runtime/display.js';
 import { ConfigManager } from '../config/manager.js';
-import { createTelephonist, ITelephonist } from '../runtime/telephonist.js';
+import { createTelephonist, createTtsTelephonist, ITelephonist } from '../runtime/telephonist.js';
+import { AuditRepository } from '../runtime/audit/repository.js';
 import { getUsableApiKey } from '../runtime/trinity-crypto.js';
 
 // ─── Slash Command Definitions ────────────────────────────────────────────────
@@ -182,6 +184,9 @@ export class DiscordAdapter {
   private telephonist: ITelephonist | null = null;
   private telephonistProvider: string | null = null;
   private telephonistModel: string | null = null;
+  private ttsTelephonist: ITelephonist | null = null;
+  private ttsProvider: string | null = null;
+  private ttsModel: string | null = null;
 
   private readonly RATE_LIMIT_MS = 3000;
 
@@ -397,6 +402,14 @@ export class DiscordAdapter {
       this.telephonistModel = config.audio.model;
     }
 
+    // Lazy-create TTS telephonist
+    const ttsConfig = config.audio.tts;
+    if (ttsConfig?.enabled && (!this.ttsTelephonist || this.ttsProvider !== ttsConfig.provider || this.ttsModel !== ttsConfig.model)) {
+      this.ttsTelephonist = createTtsTelephonist(ttsConfig);
+      this.ttsProvider = ttsConfig.provider;
+      this.ttsModel = ttsConfig.model;
+    }
+
     // Voice messages expose duration (in seconds); regular attachments don't
     const duration = (attachment as any).duration as number | null | undefined;
     if (duration && duration > config.audio.maxDurationSeconds) {
@@ -441,11 +454,87 @@ export class DiscordAdapter {
       });
 
       if (response) {
-        const chunks = this.chunkText(response);
-        for (const chunk of chunks) {
-          await channel.send(chunk);
+        if (ttsConfig?.enabled && this.ttsTelephonist?.synthesize) {
+          // TTS path: synthesize and send as voice attachment
+          let ttsFilePath: string | null = null;
+          const ttsStart = Date.now();
+          try {
+            const ttsApiKey = getUsableApiKey(ttsConfig.apiKey) ||
+              getUsableApiKey(config.audio.apiKey) ||
+              (config.llm.provider === (ttsConfig.provider === 'google' ? 'gemini' : ttsConfig.provider)
+                ? getUsableApiKey(config.llm.api_key) : undefined);
+
+            const ttsResult = await this.ttsTelephonist.synthesize(response, ttsApiKey || '', ttsConfig.voice, ttsConfig.style_prompt);
+            ttsFilePath = ttsResult.filePath;
+            const ttsDurationMs = Date.now() - ttsStart;
+
+            const attachment = new AttachmentBuilder(ttsFilePath, { name: 'response.ogg' });
+            await channel.send({ files: [attachment] });
+            this.display.log(`Responded to ${message.author.tag} (TTS audio)`, { source: 'Discord' });
+
+            // Audit TTS success
+            try {
+              const auditSessionId = await this.getSessionForUser(userId);
+              AuditRepository.getInstance().insert({
+                session_id: auditSessionId,
+                event_type: 'telephonist',
+                agent: 'telephonist',
+                provider: ttsConfig.provider,
+                model: ttsConfig.model,
+                input_tokens: ttsResult.usage.input_tokens || null,
+                output_tokens: ttsResult.usage.output_tokens || null,
+                duration_ms: ttsDurationMs,
+                status: 'success',
+                metadata: {
+                  operation: 'tts',
+                  characters: response.length,
+                  voice: ttsConfig.voice,
+                  user: message.author.tag,
+                },
+              });
+            } catch {
+              // Audit failure never breaks the main flow
+            }
+          } catch (ttsError: any) {
+            const ttsDetail = ttsError?.message || String(ttsError);
+            this.display.log(`TTS synthesis failed for ${message.author.tag}: ${ttsDetail} — falling back to text`, { source: 'Telephonist', level: 'warning' });
+
+            // Audit TTS failure
+            try {
+              const auditSessionId = await this.getSessionForUser(userId);
+              AuditRepository.getInstance().insert({
+                session_id: auditSessionId,
+                event_type: 'telephonist',
+                agent: 'telephonist',
+                provider: ttsConfig.provider,
+                model: ttsConfig.model,
+                duration_ms: Date.now() - ttsStart,
+                status: 'error',
+                metadata: { operation: 'tts', error: ttsDetail, user: message.author.tag },
+              });
+            } catch {
+              // Audit failure never breaks the main flow
+            }
+
+            // Fallback to text
+            const chunks = this.chunkText(response);
+            for (const chunk of chunks) {
+              await channel.send(chunk);
+            }
+          } finally {
+            // Cleanup TTS temp file
+            if (ttsFilePath) {
+              await fs.unlink(ttsFilePath).catch(() => {});
+            }
+          }
+        } else {
+          // Text path (TTS disabled)
+          const chunks = this.chunkText(response);
+          for (const chunk of chunks) {
+            await channel.send(chunk);
+          }
+          this.display.log(`Responded to ${message.author.tag} (via audio)`, { source: 'Discord' });
         }
-        this.display.log(`Responded to ${message.author.tag} (via audio)`, { source: 'Discord' });
       }
 
       processingMsg?.delete().catch(() => {});

@@ -1,15 +1,10 @@
 import React from 'react';
 import { DollarSign, Zap, Wrench, Clock, Mic } from 'lucide-react';
 import type { AuditSessionSummary } from '../../services/audit';
+import { useCurrency } from '../../hooks/useCurrency';
 
 interface CostSummaryPanelProps {
   summary: AuditSessionSummary;
-}
-
-function fmtCost(v: number): string {
-  if (v === 0) return '$0.00';
-  if (v < 0.0001) return '<$0.0001';
-  return `$${v.toFixed(4)}`;
 }
 
 function fmtMs(ms: number): string {
@@ -19,6 +14,8 @@ function fmtMs(ms: number): string {
 }
 
 export const CostSummaryPanel: React.FC<CostSummaryPanelProps> = ({ summary }) => {
+  const { fmtCost } = useCurrency();
+
   return (
     <div className="flex flex-col gap-4">
       {/* Totals */}

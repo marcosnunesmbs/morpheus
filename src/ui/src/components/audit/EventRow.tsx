@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Zap, Wrench, CheckCircle, XCircle, Clock, Bot, Play, Brain, Mic, ChevronRight, ChevronDown, Plus, Pencil, Archive } from 'lucide-react';
 import type { AuditEvent } from '../../services/audit';
 import { useAgentMetadata } from '../../services/agents';
+import { useCurrency } from '../../hooks/useCurrency';
 
 interface EventRowProps {
   event: AuditEvent;
@@ -59,11 +60,6 @@ function fmtMs(ms: number | null): string {
   return `${(ms / 1000).toFixed(1)}s`;
 }
 
-function fmtCost(cost: number | null): string {
-  if (cost == null || cost === 0) return '—';
-  if (cost < 0.0001) return '<$0.0001';
-  return `$${cost.toFixed(4)}`;
-}
 
 function fmtTokens(input: number | null, output: number | null): string {
   if (input == null && output == null) return '';
@@ -196,6 +192,7 @@ function MetaPanel({ parsedMeta, eventType }: { parsedMeta: Record<string, unkno
 export const EventRow: React.FC<EventRowProps> = ({ event }) => {
   const [open, setOpen] = useState(false);
   const { getByKey } = useAgentMetadata();
+  const { fmtCost } = useCurrency();
 
   const icon = EVENT_ICONS[event.event_type] ?? <Wrench size={14} />;
   const colorClass = EVENT_COLORS[event.event_type] ?? 'text-gray-500';

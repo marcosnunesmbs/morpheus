@@ -31,7 +31,7 @@ const TABS = [
   { id: 'devkit', label: 'DevKit' },
   { id: 'audio', label: 'Audio' },
   { id: 'channels', label: 'Channels' },
-  // { id: 'ui', label: 'Interface' },
+  { id: 'ui', label: 'Interface' },
   // { id: 'logging', label: 'Logging' },
   { id: 'chronos', label: 'Chronos' },
   { id: 'danger', label: 'Danger Zone' },
@@ -318,6 +318,29 @@ export default function Settings() {
         setErrors(fieldErrors);
       }
     }
+  };
+
+  const CURRENCIES = [
+    { code: 'USD', symbol: '$',   label: 'USD — US Dollar ($)' },
+    { code: 'BRL', symbol: 'R$',  label: 'BRL — Brazilian Real (R$)' },
+    { code: 'CAD', symbol: 'CA$', label: 'CAD — Canadian Dollar (CA$)' },
+    { code: 'EUR', symbol: '€',   label: 'EUR — Euro (€)' },
+    { code: 'JPY', symbol: '¥',   label: 'JPY — Japanese Yen (¥)' },
+    { code: 'GBP', symbol: '£',   label: 'GBP — British Pound (£)' },
+    { code: 'AUD', symbol: 'A$',  label: 'AUD — Australian Dollar (A$)' },
+    { code: 'CHF', symbol: 'CHF', label: 'CHF — Swiss Franc (CHF)' },
+    { code: 'ARS', symbol: '$',   label: 'ARS — Argentine Peso ($)' },
+    { code: 'OTHER', symbol: '',  label: 'Other…' },
+  ] as const;
+
+  const handleCurrencySelect = (code: string) => {
+    if (!localConfig) return;
+    const preset = CURRENCIES.find(c => c.code === code);
+    const newCurrency = preset && code !== 'OTHER'
+      ? { code: preset.code, symbol: preset.symbol, rate: code === 'USD' ? 1.0 : (localConfig.currency?.rate ?? 1.0) }
+      : { code: '', symbol: '', rate: localConfig.currency?.rate ?? 1.0 };
+    const newConfig = { ...localConfig, currency: newCurrency };
+    setLocalConfig(newConfig);
   };
 
   const handleSatiUpdate = (field: keyof SatiConfig, value: any) => {
@@ -1567,6 +1590,7 @@ export default function Settings() {
         )}
 
         {activeTab === 'audio' && (
+          <>
           <Section title="Audio Transcription">
             <Switch
               label="Enable Audio"
@@ -1683,6 +1707,170 @@ export default function Settings() {
               helperText="Comma separated list (e.g. audio/ogg, audio/mp3)"
             />
           </Section>
+
+          <Section title="Audio Response (TTS)">
+            <Switch
+              label="Enable Voice Responses"
+              checked={(localConfig.audio as any).tts?.enabled ?? false}
+              onChange={(checked: boolean) =>
+                handleUpdate(['audio', 'tts', 'enabled'], checked)
+              }
+            />
+
+            <div className="flex items-center justify-between">
+              <label className="block text-sm font-medium text-azure-text-primary dark:text-matrix-secondary">
+                TTS Provider
+              </label>
+              {renderEnvOverrideBadge('audio.tts.provider')}
+            </div>
+            <SelectInput
+              label=""
+              value={(localConfig.audio as any).tts?.provider || 'openai'}
+              onChange={(e: any) =>
+                handleUpdate(['audio', 'tts', 'provider'], e.target.value)
+              }
+              options={[
+                { label: 'Google Gemini', value: 'google' },
+              ]}
+              error={errors['audio.tts.provider']}
+              disabled={isEnvOverridden('audio.tts.provider')}
+            />
+
+            <div className="flex items-center justify-between">
+              <label className="block text-sm font-medium text-azure-text-primary dark:text-matrix-secondary">
+                TTS Model
+              </label>
+              {renderEnvOverrideBadge('audio.tts.model')}
+            </div>
+            <TextInput
+              label=""
+              value={(localConfig.audio as any).tts?.model || 'gemini-2.5-flash-preview-tts'}
+              onChange={(e: any) =>
+                handleUpdate(['audio', 'tts', 'model'], e.target.value)
+              }
+              placeholder="e.g. gemini-2.5-flash-preview-tts, tts-1..."
+              helperText="Google: gemini-2.5-flash-preview-tts. OpenAI: tts-1, tts-1-hd."
+              error={errors['audio.tts.model']}
+              disabled={isEnvOverridden('audio.tts.model')}
+            />
+
+            <div className="flex items-center justify-between">
+              <label className="block text-sm font-medium text-azure-text-primary dark:text-matrix-secondary">
+                Voice
+              </label>
+              {renderEnvOverrideBadge('audio.tts.voice')}
+            </div>
+            {(localConfig.audio as any).tts?.provider === 'openai' ? (
+              <SelectInput
+                label=""
+                value={(localConfig.audio as any).tts?.voice || 'alloy'}
+                onChange={(e: any) =>
+                  handleUpdate(['audio', 'tts', 'voice'], e.target.value)
+                }
+                options={[
+                  { label: 'Alloy', value: 'alloy' },
+                  { label: 'Echo', value: 'echo' },
+                  { label: 'Fable', value: 'fable' },
+                  { label: 'Onyx', value: 'onyx' },
+                  { label: 'Nova', value: 'nova' },
+                  { label: 'Shimmer', value: 'shimmer' },
+                  { label: 'Ash', value: 'ash' },
+                  { label: 'Ballad', value: 'ballad' },
+                  { label: 'Coral', value: 'coral' },
+                  { label: 'Sage', value: 'sage' },
+                ]}
+                error={errors['audio.tts.voice']}
+                disabled={isEnvOverridden('audio.tts.voice')}
+              />
+            ) : (
+              <>
+                <SelectInput
+                  label=""
+                  value={(localConfig.audio as any).tts?.voice || 'Kore'}
+                  onChange={(e: any) =>
+                    handleUpdate(['audio', 'tts', 'voice'], e.target.value)
+                  }
+                  options={[
+                    { label: 'Achernar (F)', value: 'Achernar' },
+                    { label: 'Achird (M)', value: 'Achird' },
+                    { label: 'Algenib (M)', value: 'Algenib' },
+                    { label: 'Algieba (M)', value: 'Algieba' },
+                    { label: 'Alnilam (M)', value: 'Alnilam' },
+                    { label: 'Aoede (F)', value: 'Aoede' },
+                    { label: 'Autonoe (F)', value: 'Autonoe' },
+                    { label: 'Callirrhoe (F)', value: 'Callirrhoe' },
+                    { label: 'Charon (M)', value: 'Charon' },
+                    { label: 'Despina (F)', value: 'Despina' },
+                    { label: 'Enceladus (M)', value: 'Enceladus' },
+                    { label: 'Erinome (F)', value: 'Erinome' },
+                    { label: 'Fenrir (M)', value: 'Fenrir' },
+                    { label: 'Gacrux (F)', value: 'Gacrux' },
+                    { label: 'Iapetus (M)', value: 'Iapetus' },
+                    { label: 'Kore (F)', value: 'Kore' },
+                    { label: 'Laomedeia (F)', value: 'Laomedeia' },
+                    { label: 'Leda (F)', value: 'Leda' },
+                    { label: 'Orus (M)', value: 'Orus' },
+                    { label: 'Pulcherrima (F)', value: 'Pulcherrima' },
+                    { label: 'Puck (M)', value: 'Puck' },
+                    { label: 'Rasalgethi (M)', value: 'Rasalgethi' },
+                    { label: 'Sadachbia (M)', value: 'Sadachbia' },
+                    { label: 'Sadaltager (M)', value: 'Sadaltager' },
+                    { label: 'Schedar (M)', value: 'Schedar' },
+                    { label: 'Sulafat (F)', value: 'Sulafat' },
+                    { label: 'Umbriel (M)', value: 'Umbriel' },
+                    { label: 'Vindemiatrix (F)', value: 'Vindemiatrix' },
+                    { label: 'Zephyr (F)', value: 'Zephyr' },
+                    { label: 'Zubenelgenubi (M)', value: 'Zubenelgenubi' },
+                  ]}
+                  error={errors['audio.tts.voice']}
+                  disabled={isEnvOverridden('audio.tts.voice')}
+                />
+                <p className="text-xs text-azure-text-secondary dark:text-matrix-tertiary mt-1">
+                  Listen examples in{' '}
+                  <a
+                    href="https://docs.cloud.google.com/text-to-speech/docs/gemini-tts#voice_options"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="underline hover:text-azure-text-primary dark:hover:text-matrix-secondary"
+                  >
+                    Google TTS Voice Options
+                  </a>
+                </p>
+              </>
+            )}
+
+            <TextInput
+              label="Style Prompt"
+              value={(localConfig.audio as any).tts?.style_prompt || ''}
+              onChange={(e: any) =>
+                handleUpdate(['audio', 'tts', 'style_prompt'], e.target.value)
+              }
+              placeholder="e.g. fale de forma calma e pausada"
+              helperText="Instrução de tom/estilo aplicada antes de cada resposta. Ex: fale animado, fale devagar, fale com entusiasmo."
+              disabled={isEnvOverridden('audio.tts.style_prompt')}
+            />
+
+            <div className="flex items-center justify-between">
+              <label className="block text-sm font-medium text-azure-text-primary dark:text-matrix-secondary">
+                TTS API Key
+              </label>
+              <div className="flex items-center gap-2">
+                {renderEnvOverrideBadge('audio.tts.apiKey')}
+              </div>
+            </div>
+            <TextInput
+              label=""
+              type="password"
+              value={(localConfig.audio as any).tts?.apiKey || ''}
+              onChange={(e: any) =>
+                handleUpdate(['audio', 'tts', 'apiKey'], e.target.value)
+              }
+              placeholder="If different from STT or LLM key..."
+              helperText="Leave empty to use the STT API key or LLM API key."
+              disabled={isEnvOverridden('audio.tts.apiKey')}
+            />
+          </Section>
+          </>
         )}
 
         {activeTab === 'channels' && (
@@ -1768,22 +1956,66 @@ export default function Settings() {
         )}
 
         {activeTab === 'ui' && (
-          <Section title="Dashboard">
-            <Switch
-              label="Enable Web UI"
-              checked={localConfig.ui.enabled}
-              onChange={(checked) => handleUpdate(['ui', 'enabled'], checked)}
-            />
-            <NumberInput
-              label="Port"
-              value={localConfig.ui.port}
-              onChange={(e) =>
-                handleUpdate(['ui', 'port'], parseInt(e.target.value))
-              }
-              disabled={true}
-              helperText="Port changes require daemon restart."
-            />
-          </Section>
+          <>
+            <Section title="Dashboard">
+              <Switch
+                label="Enable Web UI"
+                checked={localConfig.ui.enabled}
+                onChange={(checked) => handleUpdate(['ui', 'enabled'], checked)}
+              />
+              <NumberInput
+                label="Port"
+                value={localConfig.ui.port}
+                onChange={(e) =>
+                  handleUpdate(['ui', 'port'], parseInt(e.target.value))
+                }
+                disabled={true}
+                helperText="Port changes require daemon restart."
+              />
+            </Section>
+            <Section title="Display Currency">
+              {(() => {
+                const currentCode = localConfig.currency?.code ?? 'USD';
+                const isPreset = CURRENCIES.some(c => c.code === currentCode && c.code !== 'OTHER');
+                const selectValue = isPreset ? currentCode : 'OTHER';
+                return (
+                  <>
+                    <SelectInput
+                      label="Currency"
+                      value={selectValue}
+                      onChange={(e) => handleCurrencySelect(e.target.value)}
+                      options={CURRENCIES.map(c => ({ value: c.code, label: c.label }))}
+                      helperText="Costs are always stored in USD. The selected currency is used for display only."
+                    />
+                    {selectValue === 'OTHER' && (
+                      <>
+                        <TextInput
+                          label="Currency Code"
+                          value={currentCode}
+                          onChange={(e) => handleUpdate(['currency', 'code'], e.target.value.toUpperCase())}
+                          helperText="ISO 4217 code (e.g. MXN, CNY, INR)."
+                        />
+                        <TextInput
+                          label="Currency Symbol"
+                          value={localConfig.currency?.symbol ?? ''}
+                          onChange={(e) => handleUpdate(['currency', 'symbol'], e.target.value)}
+                          helperText="Symbol shown in cost displays (e.g. MX$, ¥, ₹)."
+                        />
+                      </>
+                    )}
+                    <NumberInput
+                      label="Conversion Rate (from USD)"
+                      value={localConfig.currency?.rate ?? 1.0}
+                      onChange={(e) => handleUpdate(['currency', 'rate'], parseFloat(e.target.value) || 1.0)}
+                      min={0.0001}
+                      step={0.01}
+                      helperText="Multiply USD values by this rate. Example: 5.25 for BRL. Use 1.0 for USD (no conversion)."
+                    />
+                  </>
+                );
+              })()}
+            </Section>
+          </>
         )}
 
         {activeTab === 'logging' && (
