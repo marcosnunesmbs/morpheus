@@ -29,18 +29,16 @@ const LINE_SEGMENTS = 24;
 export function SynapseLink({
   orbitRadius, orbitSpeed, orbitTiltX, orbitTiltZ, orbitPhase, agentKey, isActive
 }: SynapseLinkProps) {
-  const lineRef = useRef<THREE.Line>(null);
   const colorHex = AGENT_COLORS[agentKey.toLowerCase()] || '#a1a1aa';
   const color = new THREE.Color(colorHex);
 
-  const geometry = useRef(
-    new THREE.BufferGeometry().setFromPoints(
-      Array.from({ length: LINE_SEGMENTS + 1 }, () => new THREE.Vector3())
+  const lineObj = useRef(
+    new THREE.Line(
+      new THREE.BufferGeometry().setFromPoints(
+        Array.from({ length: LINE_SEGMENTS + 1 }, () => new THREE.Vector3())
+      ),
+      new THREE.LineBasicMaterial({ color, transparent: true, opacity: 0.2 })
     )
-  ).current;
-
-  const material = useRef(
-    new THREE.LineBasicMaterial({ color, transparent: true, opacity: 0.2 })
   ).current;
 
   useFrame((state) => {
@@ -53,7 +51,7 @@ export function SynapseLink({
     const adjustedZ = z * Math.cos(orbitTiltX);
     const adjustedX = x * Math.cos(orbitTiltZ);
 
-    const positions = geometry.attributes.position as THREE.BufferAttribute;
+    const positions = lineObj.geometry.attributes.position as THREE.BufferAttribute;
     for (let i = 0; i <= LINE_SEGMENTS; i++) {
       const frac = i / LINE_SEGMENTS;
       const arcY = Math.sin(frac * Math.PI) * 0.3;
@@ -61,12 +59,12 @@ export function SynapseLink({
     }
     positions.needsUpdate = true;
 
-    // Brighter when active with pulse, still visible when idle
+    const mat = lineObj.material as THREE.LineBasicMaterial;
     const targetOpacity = isActive
       ? 0.7 + Math.sin(t * 6) * 0.25
       : 0.15;
-    material.opacity += (targetOpacity - material.opacity) * 0.1;
+    mat.opacity += (targetOpacity - mat.opacity) * 0.1;
   });
 
-  return <line ref={lineRef} geometry={geometry} material={material} />;
+  return <primitive object={lineObj} />;
 }
