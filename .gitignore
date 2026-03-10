@@ -16,7 +16,7 @@ coverage/
 
 # Documentation and Specs
 .specify/
-specs/
+./specs
 plans/
 QWEN.md
 GEMINI.md

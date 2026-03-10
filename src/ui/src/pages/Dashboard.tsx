@@ -14,6 +14,7 @@ import { statsService } from '../services/stats';
 import { mcpService } from '../services/mcp';
 import { skillsService } from '../services/skills';
 import { httpClient } from '../services/httpClient';
+import { MorpheusVisualizer } from '../components/dashboard/visualizer/MorpheusVisualizer';
 
 const container = { hidden: { opacity: 0 }, show: { opacity: 1, transition: { staggerChildren: 0.07 } } };
 const item = { hidden: { opacity: 0, y: 12 }, show: { opacity: 1, y: 0 } };
@@ -164,25 +165,33 @@ export function Dashboard() {
       </motion.div>
 
       {/* ── System Status ───────────────────────────────── */}
-      <motion.div variants={item} className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <StatCard
-          title="Agent Status"
-          value={status?.status.toUpperCase() ?? 'CONNECTING...'}
-          icon={Activity}
-          subValue={status ? `PID: ${status.pid}` : ''}
-        />
-        <StatCard
-          title="Uptime"
-          value={status ? formatUptime(status.uptimeSeconds) : '-'}
-          icon={Clock}
-          subValue={status ? `${status.uptimeSeconds.toFixed(0)}s elapsed` : ''}
-        />
-        <StatCard
-          title="Version"
-          value={status?.projectVersion ?? '-'}
-          icon={Cpu}
-          subValue={`Node ${status?.nodeVersion ?? '-'}`}
-        />
+      <motion.div variants={item} className="grid grid-cols-1 lg:grid-cols-4 gap-4">
+        {/* Visualizer takes up the left 3 columns on large screens */}
+        <div className="lg:col-span-3 h-64 lg:h-auto rounded-lg border border-azure-border dark:border-matrix-primary bg-black overflow-hidden relative">
+          <MorpheusVisualizer />
+        </div>
+
+        {/* System Stats take the right column */}
+        <div className="flex flex-col gap-4">
+          <StatCard
+            title="Agent Status"
+            value={status?.status.toUpperCase() ?? 'CONNECTING...'}
+            icon={Activity}
+            subValue={status ? `PID: ${status.pid}` : ''}
+          />
+          <StatCard
+            title="Uptime"
+            value={status ? formatUptime(status.uptimeSeconds) : '-'}
+            icon={Clock}
+            subValue={status ? `${status.uptimeSeconds.toFixed(0)}s elapsed` : ''}
+          />
+          <StatCard
+            title="Version"
+            value={status?.projectVersion ?? '-'}
+            icon={Cpu}
+            subValue={`Node ${status?.nodeVersion ?? '-'}`}
+          />
+        </div>
       </motion.div>
 
       {/* ── LLM & Usage ─────────────────────────────────── */}

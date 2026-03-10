@@ -2,16 +2,18 @@ import ora, { Ora } from 'ora';
 import chalk from 'chalk';
 import winston from 'winston';
 import DailyRotateFile from 'winston-daily-rotate-file';
+import { EventEmitter } from 'events';
 import { IDisplayManager, LogOptions, LogLevel } from '../types/display.js';
 import { LogConfig } from '../types/config.js';
 import { LOGS_DIR } from '../config/paths.js';
 
-export class DisplayManager implements IDisplayManager {
+export class DisplayManager extends EventEmitter implements IDisplayManager {
   private static instance: DisplayManager;
   private spinner: Ora;
   private logger: winston.Logger | undefined;
 
   private constructor() {
+    super();
     this.spinner = ora();
   }
 
@@ -51,7 +53,10 @@ export class DisplayManager implements IDisplayManager {
     });
   }
 
-  public startSpinner(text?: string): void {
+  public startSpinner(text?: string, source?: string): void {
+    const defaultAgentKey = source ? source.toLowerCase() : 'oracle';
+    this.emit('activity_start', { agent: defaultAgentKey, message: text || 'processing...', timestamp: Date.now() });
+
     if (this.spinner.isSpinning) {
       if (text) {
         this.spinner.text = text;
@@ -68,6 +73,8 @@ export class DisplayManager implements IDisplayManager {
   }
 
   public stopSpinner(success?: boolean): void {
+    this.emit('activity_end', { timestamp: Date.now(), success });
+
     if (!this.spinner.isSpinning) return;
 
     if (success === true) {
@@ -154,6 +161,17 @@ export class DisplayManager implements IDisplayManager {
     // I'll leave console behavior as is (prints everything).
 
     console.log(`${prefix}${formattedMessage}`);
+    
+    // Emit purely for visualization (ignoring debug if needed to keep stream light)
+    if (options?.level !== 'debug') {
+        this.emit('message', { 
+            message, 
+            source: options?.source || 'system', 
+            level: options?.level || 'info', 
+            timestamp: Date.now(),
+            meta: options?.meta
+        });
+    }
 
     if (this.logger) {
       try {

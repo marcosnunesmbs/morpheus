@@ -1,4 +1,5 @@
 import { LogConfig } from './config.js';
+import { EventEmitter } from 'events';
 
 export type LogLevel = 'debug' | 'info' | 'success' | 'warning' | 'error';
 
@@ -8,9 +9,9 @@ export interface LogOptions {
   meta?: Record<string, any>;
 }
 
-export interface IDisplayManager {
+export interface IDisplayManager extends EventEmitter {
   log(message: string, options?: LogOptions): void;
-  startSpinner(text?: string): void;
+  startSpinner(text?: string, source?: string): void;
   updateSpinner(text: string): void;
   stopSpinner(success?: boolean): void;
   initialize(config: LogConfig): Promise<void>;

@@ -27,6 +27,7 @@ import { createSmithsRouter } from './routers/smiths.js';
 import { createDangerRouter } from './routers/danger.js';
 import { createLinkRouter } from './routers/link.js';
 import { createAgentsRouter } from './routers/agents.js';
+import { createDisplayRouter } from './routers/display.js';
 import { getActiveEnvOverrides } from '../config/precedence.js';
 import { hotReloadConfig, getRestartRequiredChanges } from '../runtime/hot-reload.js';
 import { AuditRepository } from '../runtime/audit/repository.js';
@@ -69,6 +70,9 @@ export function createApiRouter(oracle: IOracle, chronosWorker?: ChronosWorker) 
 
   // Mount Agents metadata router
   router.use('/agents', createAgentsRouter());
+
+  // Mount Display Stream router
+  router.use('/display', createDisplayRouter());
 
   // --- Session Management ---
 

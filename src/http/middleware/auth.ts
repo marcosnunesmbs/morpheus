@@ -16,7 +16,8 @@ export const authMiddleware = (req: Request, res: Response, next: NextFunction) 
     // display.log('Using default password for dashboard access. For security, set THE_ARCHITECT_PASS environment variable.', { source: 'http', level: 'warning' });
   }
 
-  const providedPass = req.headers[AUTH_HEADER];
+  // Fallback to query param 'token' for EventSource and WebSockets which can't easily set headers
+  const providedPass = req.headers[AUTH_HEADER] || req.query.token;
 
   if (providedPass === architectPass) {
     return next();
