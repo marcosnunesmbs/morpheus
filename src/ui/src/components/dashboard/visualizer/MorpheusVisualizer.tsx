@@ -332,20 +332,25 @@ function FeedRow({ entry }: { entry: FeedEntry }) {
   const color = AGENT_COLORS[entry.agent || ''] || MATRIX_GREEN;
   const label = entry.source || entry.agent || 'system';
 
-  // Fade in + slide from top
+  // Fade in + slide from top with small delay for sequential effect
   useEffect(() => {
-    requestAnimationFrame(() => {
-      setSlideIn(true);
-      setOpacity(1);
-    });
+    // Small delay based on position in feed (creates sequential effect)
+    const delayTimer = setTimeout(() => {
+      requestAnimationFrame(() => {
+        setSlideIn(true);
+        setOpacity(1);
+      });
+    }, 50); // 50ms delay between each message
+
+    return () => clearTimeout(delayTimer);
   }, []);
 
-  // Fade out before removal - longer duration (10s)
+  // Fade out before removal - longer duration (20s)
   useEffect(() => {
     const timer = setTimeout(() => {
       setOpacity(0);
       setSlideIn(false);
-    }, 10000);
+    }, 12000);
     return () => clearTimeout(timer);
   }, []);
 

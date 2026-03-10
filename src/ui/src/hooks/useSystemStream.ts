@@ -54,8 +54,10 @@ function resolveAgent(event: SystemActivityEvent): string | undefined {
 }
 
 let feedIdCounter = 0;
+let lastFeedAddTime = 0;
+const FEED_ENTRY_DELAY_MS = 150; // Delay between sequential messages
 
-const FEED_TTL_MS = 5000;
+const FEED_TTL_MS = 12000; // 12 seconds
 const MAX_FEED = 12;
 
 export function useSystemStream() {
@@ -83,7 +85,7 @@ export function useSystemStream() {
     timersRef.current.add(timer);
   }, []);
 
-  const addFeedEntry = useCallback((event: SystemActivityEvent) => {
+  const addFeedEntry = useCallback((event: SystemActivityEvent, forceDelay: number = -1) => {
     if (!event.message) return;
     const id = ++feedIdCounter;
     const entry: FeedEntry = {
@@ -96,7 +98,26 @@ export function useSystemStream() {
       type: event.type,
     };
 
-    setFeed(prev => [...prev.slice(-(MAX_FEED - 1)), entry]);
+    // Calculate delay based on time since last entry
+    const now = Date.now();
+    const timeSinceLastEntry = now - lastFeedAddTime;
+    const delayMs = forceDelay >= 0 
+      ? forceDelay 
+      : (timeSinceLastEntry < FEED_ENTRY_DELAY_MS ? FEED_ENTRY_DELAY_MS - timeSinceLastEntry : 0);
+    
+    lastFeedAddTime = now + delayMs;
+
+    // Add with delay for sequential effect
+    const addEntry = () => {
+      setFeed(prev => [...prev.slice(-(MAX_FEED - 1)), entry]);
+    };
+
+    if (delayMs > 0) {
+      const delayTimer = setTimeout(addEntry, delayMs);
+      timersRef.current.add(delayTimer);
+    } else {
+      addEntry();
+    }
 
     // Auto-remove after TTL
     const timer = setTimeout(() => {
