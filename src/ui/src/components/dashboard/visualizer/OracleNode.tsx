@@ -1,60 +1,162 @@
-import { useRef } from 'react';
+import { useRef, useMemo } from 'react';
 import { useFrame } from '@react-three/fiber';
-import { Sphere, Html } from '@react-three/drei';
+import { Sphere, Html, Ring } from '@react-three/drei';
 import * as THREE from 'three';
 
 interface OracleNodeProps {
   isActive: boolean;
+  activeCount: number;
 }
 
-export function OracleNode({ isActive }: OracleNodeProps) {
-  const meshRef = useRef<THREE.Mesh>(null);
-  const materialRef = useRef<THREE.MeshStandardMaterial>(null);
+// Universal palette: cool white-cyan — reads well on light and dark backgrounds
+const ORACLE_CORE = '#e0f2fe';    // soft ice-white (surface color)
+const ORACLE_GLOW = '#38bdf8';    // sky-400 cyan glow
+const ORACLE_DIM = '#1e3a5f';     // muted deep blue (idle emissive)
+const ORACLE_BRIGHT = '#7dd3fc';  // sky-300 (active emissive)
 
-  useFrame((state) => {
-    if (meshRef.current) {
-      // Gentle floating animation
-      meshRef.current.position.y = Math.sin(state.clock.elapsedTime) * 0.1;
-      
-      // Rotation
-      meshRef.current.rotation.y = state.clock.elapsedTime * 0.5;
-      meshRef.current.rotation.x = state.clock.elapsedTime * 0.2;
+export function OracleNode({ isActive, activeCount }: OracleNodeProps) {
+  const coreRef = useRef<THREE.Mesh>(null);
+  const coreMaterialRef = useRef<THREE.MeshStandardMaterial>(null);
+  const shellRef = useRef<THREE.Mesh>(null);
+  const innerRef = useRef<THREE.Mesh>(null);
+  const ring1Ref = useRef<THREE.Mesh>(null);
+  const ring2Ref = useRef<THREE.Mesh>(null);
+  const ring3Ref = useRef<THREE.Mesh>(null);
+  const activityRef = useRef({ wasActive: false, shockwave: 0, intensity: 0 });
+
+  const idleColor = useMemo(() => new THREE.Color(ORACLE_DIM), []);
+  const activeColor = useMemo(() => new THREE.Color(ORACLE_BRIGHT), []);
+
+  useFrame((state, delta) => {
+    const t = state.clock.elapsedTime;
+    const act = activityRef.current;
+
+    // Shockwave on activity start
+    if (isActive && !act.wasActive) {
+      act.shockwave = 1.0;
+    }
+    act.wasActive = isActive;
+    act.shockwave = Math.max(0, act.shockwave - delta * 1.5);
+
+    // Smooth intensity
+    const targetIntensity = isActive ? 0.6 + activeCount * 0.15 : 0;
+    act.intensity += (targetIntensity - act.intensity) * delta * 3;
+
+    // Core float + breathe
+    if (coreRef.current) {
+      coreRef.current.position.y = Math.sin(t * 0.8) * 0.15;
+      const breathe = 1.0 + Math.sin(t * 1.5) * 0.03 + act.intensity * 0.15;
+      coreRef.current.scale.setScalar(breathe);
     }
 
-    if (materialRef.current) {
-      // Pulse emission based on activity
-      const targetEmissive = isActive ? 0.8 : 0.2;
-      materialRef.current.emissiveIntensity += (targetEmissive - materialRef.current.emissiveIntensity) * 0.1;
+    // Core glow — lerps from dim to bright
+    if (coreMaterialRef.current) {
+      coreMaterialRef.current.emissiveIntensity = 0.4 + act.intensity * 1.5 + act.shockwave * 2.5;
+      coreMaterialRef.current.emissive.lerpColors(idleColor, activeColor, act.intensity);
+    }
+
+    // Inner icosahedron spins faster with activity
+    if (innerRef.current) {
+      const spinSpeed = 0.3 + act.intensity * 2.5;
+      innerRef.current.rotation.x += delta * spinSpeed;
+      innerRef.current.rotation.y += delta * spinSpeed * 1.3;
+      innerRef.current.rotation.z += delta * spinSpeed * 0.7;
+    }
+
+    // Wireframe shell — shockwave expansion
+    if (shellRef.current) {
+      const shellScale = 1.15 + act.shockwave * 0.6 + Math.sin(t * 2) * 0.02;
+      shellRef.current.scale.setScalar(shellScale);
+      shellRef.current.rotation.y = t * 0.2;
+      shellRef.current.rotation.x = t * 0.15;
+    }
+
+    // Rings
+    if (ring1Ref.current) {
+      ring1Ref.current.rotation.x = t * 0.6;
+      ring1Ref.current.rotation.z = t * 0.3;
+      ring1Ref.current.scale.setScalar(1.0 + act.shockwave * 0.5);
+    }
+    if (ring2Ref.current) {
+      ring2Ref.current.rotation.y = t * 0.5;
+      ring2Ref.current.rotation.x = Math.PI / 3 + t * 0.2;
+      ring2Ref.current.scale.setScalar(1.0 + act.shockwave * 0.3);
+    }
+    if (ring3Ref.current) {
+      ring3Ref.current.rotation.z = t * 0.4;
+      ring3Ref.current.rotation.y = Math.PI / 5 + t * 0.35;
+      ring3Ref.current.scale.setScalar(1.0 + act.shockwave * 0.4);
     }
   });
 
+  const ringColor = isActive ? ORACLE_GLOW : ORACLE_DIM;
+  const ringOpacity = isActive ? 0.6 : 0.2;
+
   return (
     <group>
-      {/* Central Core */}
-      <Sphere ref={meshRef} args={[1, 64, 64]}>
-        <meshStandardMaterial 
-          ref={materialRef}
-          color="#ffffff" 
-          emissive="#ffffff"
-          emissiveIntensity={0.2}
+      {/* Inner spinning icosahedron */}
+      <mesh ref={innerRef}>
+        <icosahedronGeometry args={[0.5, 0]} />
+        <meshStandardMaterial
+          color={ORACLE_GLOW}
+          emissive={ORACLE_GLOW}
+          emissiveIntensity={0.8}
+          wireframe
+        />
+      </mesh>
+
+      {/* Core sphere */}
+      <Sphere ref={coreRef} args={[0.8, 64, 64]}>
+        <meshStandardMaterial
+          ref={coreMaterialRef}
+          color={ORACLE_CORE}
+          emissive={ORACLE_GLOW}
+          emissiveIntensity={0.4}
           roughness={0.1}
-          metalness={1}
-          wireframe={false}
+          metalness={0.9}
         />
       </Sphere>
 
-      {/* Wireframe outer shell for "matrix" effect */}
-      <Sphere args={[1.1, 16, 16]}>
-        <meshBasicMaterial 
-          color={isActive ? "#3b82f6" : "#444444"} 
-          wireframe={true} 
-          transparent={true} 
-          opacity={0.3} 
+      {/* Wireframe shell */}
+      <Sphere ref={shellRef} args={[1.0, 20, 20]}>
+        <meshBasicMaterial
+          color={isActive ? ORACLE_GLOW : ORACLE_DIM}
+          wireframe
+          transparent
+          opacity={isActive ? 0.4 : 0.15}
         />
       </Sphere>
 
-      <Html position={[0, -1.8, 0]} center transform sprite zIndexRange={[100, 0]}>
-        <div className={`text-xs font-bold tracking-widest uppercase ${isActive ? 'text-blue-400 drop-shadow-[0_0_8px_rgba(59,130,246,0.8)]' : 'text-gray-500'}`}>
+      {/* Three orbital rings */}
+      <mesh ref={ring1Ref}>
+        <Ring args={[1.4, 1.45, 64]}>
+          <meshBasicMaterial color={ringColor} transparent opacity={ringOpacity} side={THREE.DoubleSide} />
+        </Ring>
+      </mesh>
+
+      <mesh ref={ring2Ref}>
+        <Ring args={[1.6, 1.64, 64]}>
+          <meshBasicMaterial color={ringColor} transparent opacity={ringOpacity * 0.7} side={THREE.DoubleSide} />
+        </Ring>
+      </mesh>
+
+      <mesh ref={ring3Ref}>
+        <Ring args={[1.8, 1.83, 64]}>
+          <meshBasicMaterial color={ringColor} transparent opacity={ringOpacity * 0.5} side={THREE.DoubleSide} />
+        </Ring>
+      </mesh>
+
+      {/* Label */}
+      <Html position={[0, -2.0, 0]} center transform sprite zIndexRange={[100, 0]}>
+        <div
+          className="text-[11px] font-bold tracking-[0.25em] uppercase transition-all duration-500"
+          style={{
+            color: isActive ? ORACLE_BRIGHT : ORACLE_GLOW,
+            textShadow: isActive
+              ? `0 0 10px ${ORACLE_GLOW}, 0 0 20px ${ORACLE_GLOW}`
+              : `0 0 4px ${ORACLE_DIM}`,
+          }}
+        >
           Oracle
         </div>
       </Html>

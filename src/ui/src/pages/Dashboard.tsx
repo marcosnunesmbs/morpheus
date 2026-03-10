@@ -164,34 +164,33 @@ export function Dashboard() {
         </div>
       </motion.div>
 
-      {/* ── System Status ───────────────────────────────── */}
-      <motion.div variants={item} className="grid grid-cols-1 lg:grid-cols-4 gap-4">
-        {/* Visualizer takes up the left 3 columns on large screens */}
-        <div className="lg:col-span-3 h-64 lg:h-auto rounded-lg border border-azure-border dark:border-matrix-primary bg-black overflow-hidden relative">
+      {/* ── Visualizer — full width ─────────────────────── */}
+      <motion.div variants={item}>
+        <div className="h-80 lg:h-[420px] rounded-lg border border-azure-border dark:border-matrix-primary overflow-hidden relative">
           <MorpheusVisualizer />
         </div>
+      </motion.div>
 
-        {/* System Stats take the right column */}
-        <div className="flex flex-col gap-4">
-          <StatCard
-            title="Agent Status"
-            value={status?.status.toUpperCase() ?? 'CONNECTING...'}
-            icon={Activity}
-            subValue={status ? `PID: ${status.pid}` : ''}
-          />
-          <StatCard
-            title="Uptime"
-            value={status ? formatUptime(status.uptimeSeconds) : '-'}
-            icon={Clock}
-            subValue={status ? `${status.uptimeSeconds.toFixed(0)}s elapsed` : ''}
-          />
-          <StatCard
-            title="Version"
-            value={status?.projectVersion ?? '-'}
-            icon={Cpu}
-            subValue={`Node ${status?.nodeVersion ?? '-'}`}
-          />
-        </div>
+      {/* ── System Status ───────────────────────────────── */}
+      <motion.div variants={item} className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <StatCard
+          title="Agent Status"
+          value={status?.status.toUpperCase() ?? 'CONNECTING...'}
+          icon={Activity}
+          subValue={status ? `PID: ${status.pid}` : ''}
+        />
+        <StatCard
+          title="Uptime"
+          value={status ? formatUptime(status.uptimeSeconds) : '-'}
+          icon={Clock}
+          subValue={status ? `${status.uptimeSeconds.toFixed(0)}s elapsed` : ''}
+        />
+        <StatCard
+          title="Version"
+          value={status?.projectVersion ?? '-'}
+          icon={Cpu}
+          subValue={`Node ${status?.nodeVersion ?? '-'}`}
+        />
       </motion.div>
 
       {/* ── LLM & Usage ─────────────────────────────────── */}

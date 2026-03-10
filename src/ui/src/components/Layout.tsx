@@ -371,7 +371,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
         </AnimatePresence>
         {/* Main Content */}
         <main className={`flex-1  relative flex flex-col ${location.pathname === '/chat' || /\/sessions\/[^/]+\/audit$/.test(location.pathname) ? 'overflow-hidden p-0 md:p-0' : 'overflow-auto p-4 md:p-8'}`}>
-          <div className={`w-full mx-auto flex-1 ${location.pathname === '/chat' || /\/sessions\/[^/]+\/audit$/.test(location.pathname) ? 'h-full' : 'max-w-6xl'}`}>{children}</div>
+          <div className={`w-full mx-auto flex-1 ${location.pathname === '/chat' || /\/sessions\/[^/]+\/audit$/.test(location.pathname) ? 'h-full' : location.pathname === '/' ? 'max-w-[1600px]' : 'max-w-6xl'}`}>{children}</div>
 
           {/* Scanline effect overlay (only in matrix theme) */}
           {theme === 'matrix' && (
