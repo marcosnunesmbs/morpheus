@@ -110,6 +110,17 @@ export class DisplayManager extends EventEmitter implements IDisplayManager {
     });
   }
 
+  /**
+   * Emit a message sent event - for visualizing outgoing messages (e.g., rocket launching).
+   * This is a transient event that appears briefly in the visualizer.
+   */
+  public emitMessageSent(agent: string = 'oracle'): void {
+    this.emit('message_sent', {
+      agent: agent.toLowerCase(),
+      timestamp: Date.now(),
+    });
+  }
+
   public log(message: string, options?: LogOptions): void {
     const wasSpinning = this.spinner.isSpinning;
     const previousText = this.spinner.text;

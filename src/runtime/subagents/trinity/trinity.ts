@@ -101,29 +101,35 @@ export class Trinity implements ISubagent {
 
   private buildTrinityTools() {
     const registry = DatabaseRegistry.getInstance();
+    const display = DisplayManager.getInstance();
 
     const listDatabases = tool(
       async () => {
-        const dbs = registry.listDatabases();
-        if (dbs.length === 0) return 'No databases registered.';
-        return dbs.map((db) => {
-          const schema = db.schema_json
-            ? JSON.parse(db.schema_json)
-            : null;
-          let schemaSummary = 'schema not loaded';
-          if (schema) {
-            if (schema.databases) {
-              const totalTables = schema.databases.reduce((acc: number, d: any) => acc + d.tables.length, 0);
-              schemaSummary = `${schema.databases.length} databases, ${totalTables} tables total`;
-            } else {
-              schemaSummary = schema.tables?.map((t: any) => t.name).join(', ') || 'no tables';
+        display.startActivity('trinit', 'Listing databases...');
+        try {
+          const dbs = registry.listDatabases();
+          if (dbs.length === 0) return 'No databases registered.';
+          return dbs.map((db) => {
+            const schema = db.schema_json
+              ? JSON.parse(db.schema_json)
+              : null;
+            let schemaSummary = 'schema not loaded';
+            if (schema) {
+              if (schema.databases) {
+                const totalTables = schema.databases.reduce((acc: number, d: any) => acc + d.tables.length, 0);
+                schemaSummary = `${schema.databases.length} databases, ${totalTables} tables total`;
+              } else {
+                schemaSummary = schema.tables?.map((t: any) => t.name).join(', ') || 'no tables';
+              }
             }
-          }
-          const updatedAt = db.schema_updated_at
-            ? new Date(db.schema_updated_at).toISOString()
-            : 'never';
-          return `[${db.id}] ${db.name} (${db.type}) — ${schemaSummary} — schema updated: ${updatedAt}`;
-        }).join('\n');
+            const updatedAt = db.schema_updated_at
+              ? new Date(db.schema_updated_at).toISOString()
+              : 'never';
+            return `[${db.id}] ${db.name} (${db.type}) — ${schemaSummary} — schema updated: ${updatedAt}`;
+          }).join('\n');
+        } finally {
+          display.endActivity('trinit', true);
+        }
       },
       {
         name: 'trinity_list_databases',
@@ -134,10 +140,15 @@ export class Trinity implements ISubagent {
 
     const getSchema = tool(
       async ({ database_id }: { database_id: number }) => {
-        const db = registry.getDatabase(database_id);
-        if (!db) return `Database with id ${database_id} not found.`;
-        if (!db.schema_json) return `No schema cached for database "${db.name}". Use trinity_refresh_schema first.`;
-        return `Schema for "${db.name}" (${db.type}):\n${db.schema_json}`;
+        display.startActivity('trinit', 'Getting database schema...');
+        try {
+          const db = registry.getDatabase(database_id);
+          if (!db) return `Database with id ${database_id} not found.`;
+          if (!db.schema_json) return `No schema cached for database "${db.name}". Use trinity_refresh_schema first.`;
+          return `Schema for "${db.name}" (${db.type}):\n${db.schema_json}`;
+        } finally {
+          display.endActivity('trinit', true);
+        }
       },
       {
         name: 'trinity_get_schema',
@@ -150,8 +161,12 @@ export class Trinity implements ISubagent {
 
     const refreshSchema = tool(
       async ({ database_id }: { database_id: number }) => {
+        display.startActivity('trinit', 'Refreshing database schema...');
         const db = registry.getDatabase(database_id);
-        if (!db) return `Database with id ${database_id} not found.`;
+        if (!db) {
+          display.endActivity('trinit', false);
+          return `Database with id ${database_id} not found.`;
+        }
         try {
           const schema = await introspectSchema(db);
           registry.updateSchema(database_id, JSON.stringify(schema, null, 2));
@@ -162,7 +177,10 @@ export class Trinity implements ISubagent {
           }
           return `Schema refreshed for "${db.name}". Tables: ${schema.tables.map((t) => t.name).join(', ')}`;
         } catch (err: any) {
+          display.endActivity('trinit', false);
           return `Failed to refresh schema for "${db.name}": ${err.message}`;
+        } finally {
+          display.endActivity('trinit', true);
         }
       },
       {
@@ -176,15 +194,19 @@ export class Trinity implements ISubagent {
 
     const testConnectionTool = tool(
       async ({ database_id }: { database_id: number }) => {
-        const db = registry.getDatabase(database_id);
-        if (!db) return `Database with id ${database_id} not found.`;
+        display.startActivity('trinit', 'Testing database connection...');
         try {
+          const db = registry.getDatabase(database_id);
+          if (!db) return `Database with id ${database_id} not found.`;
           const ok = await testConnection(db);
           return ok
             ? `Connection to "${db.name}" (${db.type}) successful.`
             : `Connection to "${db.name}" (${db.type}) failed.`;
         } catch (err: any) {
+          display.endActivity('trinit', false);
           return `Connection test failed: ${err.message}`;
+        } finally {
+          display.endActivity('trinit', true);
         }
       },
       {
@@ -206,9 +228,10 @@ export class Trinity implements ISubagent {
         query: string;
         params?: any[];
       }) => {
-        const db = registry.getDatabase(database_id);
-        if (!db) return `Database with id ${database_id} not found.`;
+        display.startActivity('trinit', 'Executing database query...');
         try {
+          const db = registry.getDatabase(database_id);
+          if (!db) return `Database with id ${database_id} not found.`;
           const result = await executeQuery(db, query, params);
           if (result.rows.length === 0) return `Query returned 0 rows. (rowCount: ${result.rowCount})`;
           const preview = result.rows.slice(0, 50);
@@ -216,7 +239,10 @@ export class Trinity implements ISubagent {
           const note = result.rowCount > 50 ? `\n... (${result.rowCount} total rows, showing first 50)` : '';
           return `Rows (${result.rowCount}):\n${json}${note}`;
         } catch (err: any) {
+          display.endActivity('trinit', false);
           return `Query execution failed: ${err.message}`;
+        } finally {
+          display.endActivity('trinit', true);
         }
       },
       {

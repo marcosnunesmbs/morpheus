@@ -426,6 +426,23 @@ display.endActivity('telephonist', true); // true = sucesso, false = erro
 | **DiscordAdapter** | Síntese TTS | `Synthesizing TTS...` |
 | **Construtor (MCP)** | Ferramenta MCP | `MCP tool: {name}` |
 | **devkit-instrument** | Ferramenta DevKit | `Executing tool: {name}` |
+| **ProviderFactory** | Qualquer ferramenta (middleware) | `Executing tool: {name}` |
+| **Trinity** | list_databases | `Listing databases...` |
+| **Trinity** | get_schema | `Getting database schema...` |
+| **Trinity** | refresh_schema | `Refreshing database schema...` |
+| **Trinity** | test_connection | `Testing database connection...` |
+| **Trinity** | execute_query | `Executing database query...` |
+| **Link** | search_documents | `Searching documents...` |
+| **Link** | list_documents | `Listing documents...` |
+| **Link** | search_in_document | `Searching in document...` |
+| **Link** | summarize_document | `Summarizing document...` |
+| **Link** | summarize_chunk | `Summarizing chunk...` |
+| **Link** | extract_key_points | `Extracting key points...` |
+| **Link** | find_differences | `Comparing documents...` |
+| **Sati** | recover | `Recovering memories...` |
+| **Sati** | evaluateAndPersist | `Evaluating and persisting memories...` |
+| **Chronos** | executeJob | `Running scheduled job...` |
+| **Smith** | delegate | `Delegating to Smith '{name}'...` |
 
 ### Exemplo de Uso
 

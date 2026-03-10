@@ -84,6 +84,7 @@ export class ChronosWorker {
     const display = DisplayManager.getInstance();
     const execId = randomUUID();
 
+    display.startActivity('chronos', 'Running scheduled job...');
     display.log(`Job ${job.id} triggered — "${job.prompt.slice(0, 60)}"`, { source: 'Chronos' });
 
     // Resolve session: prefer the session where the job was originally created,
@@ -165,6 +166,7 @@ export class ChronosWorker {
       });
     } finally {
       ChronosWorker.isExecuting = false;
+      display.endActivity('chronos', true);
 
       if (job.schedule_type === 'once') {
         this.repo.disableJob(job.id);

@@ -156,6 +156,8 @@ export class SmithDelegator {
       meta: { smith: smithName },
     });
 
+    this.display.startActivity('smith', `Delegating to Smith '${smithName}'...`);
+
     try {
       // Build proxy tools for this Smith's capabilities
       const proxyTools = this.buildProxyTools(smithName);
@@ -226,6 +228,7 @@ Respond in the same language as the task.`
         source: 'SmithDelegator',
         level: 'info',
       });
+      this.display.endActivity('smith', true);
 
       return {
         output: content,
@@ -243,6 +246,7 @@ Respond in the same language as the task.`
         source: 'SmithDelegator',
         level: 'error',
       });
+      this.display.endActivity('smith', false);
       return { output: `❌ Smith '${smithName}' delegation failed: ${err.message}` };
     }
   }

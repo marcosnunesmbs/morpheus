@@ -37,6 +37,7 @@ export class SatiService implements ISatiService {
     currentMessage: string,
     recentMessages: string[]
   ): Promise<ISatiRetrievalOutput> {
+    display.startActivity('sati', 'Recovering memories...');
 
     const satiConfig = ConfigManager.getInstance().getSatiConfig();
     const memoryLimit = satiConfig.memory_limit || 10;
@@ -69,6 +70,8 @@ export class SatiService implements ISatiService {
       queryEmbedding
     );
 
+    display.endActivity('sati', true);
+
     return {
       relevant_memories: memories.map(m => ({
         summary: m.summary,
@@ -80,6 +83,7 @@ export class SatiService implements ISatiService {
 
 
   public async evaluateAndPersist(conversation: { role: string; content: string }[], userSessionId?: string): Promise<void> {
+    display.startActivity('sati', 'Evaluating and persisting memories...');
     try {
       const satiConfig = ConfigManager.getInstance().getSatiConfig();
       if (!satiConfig) return;
@@ -278,7 +282,9 @@ export class SatiService implements ISatiService {
 
     } catch (error) {
       console.error('[SatiService] Evaluation failed:', error);
+      display.endActivity('sati', false);
     }
+    display.endActivity('sati', true);
   }
 
   private generateHash(content: string): string {

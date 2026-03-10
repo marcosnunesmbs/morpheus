@@ -20,7 +20,19 @@ export class ProviderFactory {
     return createMiddleware({
       name: "ToolMonitoringMiddleware",
       wrapToolCall: (request, handler) => {
-        display.log(`Executing tool: ${request.toolCall.name}`, { level: "warning", source: 'ConstructLoad' });
+        const toolName = request.toolCall.name;
+        
+        // Determine which agent is running this tool based on context
+        // This is a heuristic - the actual agent should be passed in context
+        let agent = 'neo'; // Default to neo for MCP tools
+        const ctx = TaskRequestContext.get();
+        if (ctx?.session_id) {
+          // Try to determine agent from context - this is a simplified approach
+          // In practice, we'd need to pass the agent through the context
+        }
+        
+        display.startActivity(agent, `Executing tool: ${toolName}`);
+        display.log(`Executing tool: ${toolName}`, { level: "warning", source: 'ConstructLoad' });
         display.log(`Arguments: ${JSON.stringify(request.toolCall.args)}`, { level: "info", source: 'ConstructLoad' });
 
         // Verbose mode: notify originating channel about which tool is running
@@ -28,16 +40,18 @@ export class ProviderFactory {
         if (verboseEnabled) {
           const ctx = TaskRequestContext.get();
           if (ctx?.origin_channel && ctx.origin_user_id && !SILENT_CHANNELS.has(ctx.origin_channel)) {
-            ChannelRegistry.sendToUser(ctx.origin_channel, ctx.origin_user_id, `🔧 executing: ${request.toolCall.name}`)
+            ChannelRegistry.sendToUser(ctx.origin_channel, ctx.origin_user_id, `🔧 executing: ${toolName}`)
               .catch(() => {});
           }
         }
 
         try {
           const result = handler(request);
+          display.endActivity(agent, true);
           display.log(`Tool completed successfully. Result: ${JSON.stringify(result)}`, { level: "info", source: 'ConstructLoad' });
           return result;
         } catch (e) {
+          display.endActivity(agent, false);
           display.log(`Tool failed: ${e}`, { level: "error", source: 'ConstructLoad' });
           throw e;
         }

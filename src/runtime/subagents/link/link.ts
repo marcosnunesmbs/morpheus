@@ -103,6 +103,7 @@ export class Link implements ISubagent {
     const search = this.search;
     const repository = this.repository;
     const agentConfig = this.agentConfig;
+    const display = DisplayManager.getInstance();
 
     const searchTool = new DynamicStructuredTool({
       name: 'link_search_documents',
@@ -112,19 +113,24 @@ export class Link implements ISubagent {
         limit: z.number().optional().describe('Maximum number of results to return (default: max_results from config)'),
       }),
       func: async ({ query, limit }) => {
-        const maxResults = limit ?? agentConfig.max_results;
-        const threshold = agentConfig.score_threshold;
-        const results = await search.search(query, maxResults, threshold);
+        display.startActivity('link', 'Searching documents...');
+        try {
+          const maxResults = limit ?? agentConfig.max_results;
+          const threshold = agentConfig.score_threshold;
+          const results = await search.search(query, maxResults, threshold);
 
-        if (results.length === 0) {
-          return `No relevant documents found for query: "${query}"`;
+          if (results.length === 0) {
+            return `No relevant documents found for query: "${query}"`;
+          }
+
+          const formatted = results
+            .map((r, i) => `[${i + 1}] Source: ${r.filename} (chunk ${r.position}, score: ${r.score.toFixed(3)})\n${r.content}`)
+            .join('\n\n---\n\n');
+
+          return `Found ${results.length} relevant passages:\n\n${formatted}`;
+        } finally {
+          display.endActivity('link', true);
         }
-
-        const formatted = results
-          .map((r, i) => `[${i + 1}] Source: ${r.filename} (chunk ${r.position}, score: ${r.score.toFixed(3)})\n${r.content}`)
-          .join('\n\n---\n\n');
-
-        return `Found ${results.length} relevant passages:\n\n${formatted}`;
       },
     });
 
@@ -135,24 +141,29 @@ export class Link implements ISubagent {
         name_filter: z.string().optional().describe('Optional partial filename to filter by (case-insensitive). E.g. "CV", "contrato", "readme"'),
       }),
       func: async ({ name_filter }) => {
-        const docs = repository.listDocuments('indexed');
-        if (docs.length === 0) {
-          return 'No indexed documents found.';
-        }
+        display.startActivity('link', 'Listing documents...');
+        try {
+          const docs = repository.listDocuments('indexed');
+          if (docs.length === 0) {
+            return 'No indexed documents found.';
+          }
 
-        let filtered = docs;
-        if (name_filter) {
-          const lower = name_filter.toLowerCase();
-          filtered = docs.filter(d => d.filename.toLowerCase().includes(lower));
-        }
+          let filtered = docs;
+          if (name_filter) {
+            const lower = name_filter.toLowerCase();
+            filtered = docs.filter(d => d.filename.toLowerCase().includes(lower));
+          }
 
-        if (filtered.length === 0) {
-          const allNames = docs.map(d => `- ${d.filename}`).join('\n');
-          return `No documents matching "${name_filter}". Available documents:\n${allNames}`;
-        }
+          if (filtered.length === 0) {
+            const allNames = docs.map(d => `- ${d.filename}`).join('\n');
+            return `No documents matching "${name_filter}". Available documents:\n${allNames}`;
+          }
 
-        const lines = filtered.map(d => `- [${d.id}] ${d.filename} (${d.chunk_count} chunks)`);
-        return `Found ${filtered.length} document(s):\n${lines.join('\n')}`;
+          const lines = filtered.map(d => `- [${d.id}] ${d.filename} (${d.chunk_count} chunks)`);
+          return `Found ${filtered.length} document(s):\n${lines.join('\n')}`;
+        } finally {
+          display.endActivity('link', true);
+        }
       },
     });
 
@@ -165,24 +176,29 @@ export class Link implements ISubagent {
         limit: z.number().optional().describe('Maximum number of results (default: max_results from config)'),
       }),
       func: async ({ document_id, query, limit }) => {
-        const doc = repository.getDocument(document_id);
-        if (!doc) {
-          return `Document not found: ${document_id}`;
+        display.startActivity('link', 'Searching in document...');
+        try {
+          const doc = repository.getDocument(document_id);
+          if (!doc) {
+            return `Document not found: ${document_id}`;
+          }
+
+          const maxResults = limit ?? agentConfig.max_results;
+          const threshold = agentConfig.score_threshold;
+          const results = await search.searchInDocument(query, document_id, maxResults, threshold);
+
+          if (results.length === 0) {
+            return `No relevant passages found in "${doc.filename}" for query: "${query}"`;
+          }
+
+          const formatted = results
+            .map((r, i) => `[${i + 1}] (chunk ${r.position}, score: ${r.score.toFixed(3)})\n${r.content}`)
+            .join('\n\n---\n\n');
+
+          return `Found ${results.length} passages in "${doc.filename}":\n\n${formatted}`;
+        } finally {
+          display.endActivity('link', true);
         }
-
-        const maxResults = limit ?? agentConfig.max_results;
-        const threshold = agentConfig.score_threshold;
-        const results = await search.searchInDocument(query, document_id, maxResults, threshold);
-
-        if (results.length === 0) {
-          return `No relevant passages found in "${doc.filename}" for query: "${query}"`;
-        }
-
-        const formatted = results
-          .map((r, i) => `[${i + 1}] (chunk ${r.position}, score: ${r.score.toFixed(3)})\n${r.content}`)
-          .join('\n\n---\n\n');
-
-        return `Found ${results.length} passages in "${doc.filename}":\n\n${formatted}`;
       },
     });
 
@@ -195,22 +211,27 @@ export class Link implements ISubagent {
         max_chunks: z.number().optional().describe('Maximum number of chunks to include in summary (default: 50)'),
       }),
       func: async ({ document_id, max_chunks }) => {
-        const doc = repository.getDocument(document_id);
-        if (!doc) {
-          return `Document not found: ${document_id}`;
-        }
+        display.startActivity('link', 'Summarizing document...');
+        try {
+          const doc = repository.getDocument(document_id);
+          if (!doc) {
+            return `Document not found: ${document_id}`;
+          }
 
-        const chunks = repository.getChunksByDocument(document_id);
-        if (chunks.length === 0) {
-          return `Document "${doc.filename}" has no indexed chunks.`;
-        }
+          const chunks = repository.getChunksByDocument(document_id);
+          if (chunks.length === 0) {
+            return `Document "${doc.filename}" has no indexed chunks.`;
+          }
 
-        const limit = max_chunks ?? 50;
-        const chunksToSummarize = chunks.slice(0, limit);
-        const content = chunksToSummarize.map(c => c.content).join('\n\n---\n\n');
+          const limit = max_chunks ?? 50;
+          const chunksToSummarize = chunks.slice(0, limit);
+          const content = chunksToSummarize.map(c => c.content).join('\n\n---\n\n');
 
         // Return the content for LLM to summarize - the ReactAgent will handle the summarization
         return `Document: ${doc.filename}\nTotal chunks: ${chunks.length}\nChunks to summarize: ${chunksToSummarize.length}\n\nContent:\n${content}`;
+        } finally {
+          display.endActivity('link', true);
+        }
       },
     });
 
@@ -223,19 +244,24 @@ export class Link implements ISubagent {
         position: z.number().describe('The chunk position to summarize (1-based)'),
       }),
       func: async ({ document_id, position }) => {
-        const doc = repository.getDocument(document_id);
-        if (!doc) {
-          return `Document not found: ${document_id}`;
+        display.startActivity('link', 'Summarizing chunk...');
+        try {
+          const doc = repository.getDocument(document_id);
+          if (!doc) {
+            return `Document not found: ${document_id}`;
+          }
+
+          const chunks = repository.getChunksByDocument(document_id);
+          const chunk = chunks.find(c => c.position === position);
+
+          if (!chunk) {
+            return `Chunk not found: position ${position}. Document "${doc.filename}" has ${chunks.length} chunks.`;
+          }
+
+          return `Document: ${doc.filename}\nChunk position: ${position}\n\nContent:\n${chunk.content}`;
+        } finally {
+          display.endActivity('link', true);
         }
-
-        const chunks = repository.getChunksByDocument(document_id);
-        const chunk = chunks.find(c => c.position === position);
-
-        if (!chunk) {
-          return `Chunk not found: position ${position}. Document "${doc.filename}" has ${chunks.length} chunks.`;
-        }
-
-        return `Document: ${doc.filename}\nChunk position: ${position}\n\nContent:\n${chunk.content}`;
       },
     });
 
@@ -248,21 +274,26 @@ export class Link implements ISubagent {
         max_chunks: z.number().optional().describe('Maximum number of chunks to analyze (default: 50)'),
       }),
       func: async ({ document_id, max_chunks }) => {
-        const doc = repository.getDocument(document_id);
-        if (!doc) {
-          return `Document not found: ${document_id}`;
+        display.startActivity('link', 'Extracting key points...');
+        try {
+          const doc = repository.getDocument(document_id);
+          if (!doc) {
+            return `Document not found: ${document_id}`;
+          }
+
+          const chunks = repository.getChunksByDocument(document_id);
+          if (chunks.length === 0) {
+            return `Document "${doc.filename}" has no indexed chunks.`;
+          }
+
+          const limit = max_chunks ?? 1000;
+          const chunksToAnalyze = chunks.slice(0, limit);
+          const content = chunksToAnalyze.map(c => c.content).join('\n\n---\n\n');
+
+          return `Document: ${doc.filename}\nTotal chunks: ${chunks.length}\nChunks to analyze: ${chunksToAnalyze.length}\n\nContent:\n${content}`;
+        } finally {
+          display.endActivity('link', true);
         }
-
-        const chunks = repository.getChunksByDocument(document_id);
-        if (chunks.length === 0) {
-          return `Document "${doc.filename}" has no indexed chunks.`;
-        }
-
-        const limit = max_chunks ?? 1000;
-        const chunksToAnalyze = chunks.slice(0, limit);
-        const content = chunksToAnalyze.map(c => c.content).join('\n\n---\n\n');
-
-        return `Document: ${doc.filename}\nTotal chunks: ${chunks.length}\nChunks to analyze: ${chunksToAnalyze.length}\n\nContent:\n${content}`;
       },
     });
 
@@ -275,27 +306,32 @@ export class Link implements ISubagent {
         document_id_b: z.string().describe('Second document ID to compare'),
       }),
       func: async ({ document_id_a, document_id_b }) => {
-        const docA = repository.getDocument(document_id_a);
-        const docB = repository.getDocument(document_id_b);
+        display.startActivity('link', 'Comparing documents...');
+        try {
+          const docA = repository.getDocument(document_id_a);
+          const docB = repository.getDocument(document_id_b);
 
-        if (!docA) {
-          return `Document not found: ${document_id_a}`;
+          if (!docA) {
+            return `Document not found: ${document_id_a}`;
+          }
+          if (!docB) {
+            return `Document not found: ${document_id_b}`;
+          }
+
+          if (document_id_a === document_id_b) {
+            return 'Os documentos são idênticos (mesmo documento informado duas vezes).';
+          }
+
+          const chunksA = repository.getChunksByDocument(document_id_a);
+          const chunksB = repository.getChunksByDocument(document_id_b);
+
+          const contentA = chunksA.map(c => c.content).join('\n\n---\n\n');
+          const contentB = chunksB.map(c => c.content).join('\n\n---\n\n');
+
+          return `Document A: ${docA.filename} (${chunksA.length} chunks)\nDocument B: ${docB.filename} (${chunksB.length} chunks)\n\n--- Document A Content ---\n${contentA}\n\n--- Document B Content ---\n${contentB}`;
+        } finally {
+          display.endActivity('link', true);
         }
-        if (!docB) {
-          return `Document not found: ${document_id_b}`;
-        }
-
-        if (document_id_a === document_id_b) {
-          return 'Os documentos são idênticos (mesmo documento informado duas vezes).';
-        }
-
-        const chunksA = repository.getChunksByDocument(document_id_a);
-        const chunksB = repository.getChunksByDocument(document_id_b);
-
-        const contentA = chunksA.map(c => c.content).join('\n\n---\n\n');
-        const contentB = chunksB.map(c => c.content).join('\n\n---\n\n');
-
-        return `Document A: ${docA.filename} (${chunksA.length} chunks)\nDocument B: ${docB.filename} (${chunksB.length} chunks)\n\n--- Document A Content ---\n${contentA}\n\n--- Document B Content ---\n${contentB}`;
       },
     });
 
