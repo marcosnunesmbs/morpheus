@@ -273,61 +273,111 @@ export function MorpheusVisualizer({ className }: MorpheusVisualizerProps) {
 }
 
 // ─── Activity Feed ──────────────────────────────────────────────────────────
+// Matrix-style: green code falling from top, longer duration
+
+const MATRIX_GREEN = '#00ff41';
+const MATRIX_DIM = '#00aa2a';
 
 function ActivityFeed({ feed }: { feed: FeedEntry[] }) {
   const listRef = useRef<HTMLDivElement>(null);
 
-  // Auto-scroll to bottom when new entries arrive
+  // Auto-scroll to top for new entries (Matrix style: falls from top)
   useEffect(() => {
-    if (listRef.current) {
-      listRef.current.scrollTop = listRef.current.scrollHeight;
+    if (listRef.current && feed.length > 0) {
+      listRef.current.scrollTop = 0;
     }
   }, [feed.length]);
-
-  if (feed.length === 0) return null;
 
   return (
     <div
       ref={listRef}
-      className="absolute bottom-3 left-3 z-10 max-h-48 w-72 overflow-hidden pointer-events-none flex flex-col justify-end gap-0.5"
+      className="absolute top-3 left-3 z-10 max-h-56 w-80 overflow-hidden pointer-events-none"
+      style={{
+        fontFamily: 'monospace',
+      }}
     >
-      {feed.map((entry) => (
-        <FeedRow key={entry.id} entry={entry} />
-      ))}
+      {/* Matrix-style header - always visible, blinking */}
+      <div 
+        className="text-[10px] mb-2 flex items-center gap-1"
+        style={{ color: MATRIX_GREEN }}
+      >
+        <span className="animate-pulse">{'>'}</span>
+        <span>SYSTEM_EVENTS</span>
+        <span className="animate-pulse">_</span>
+      </div>
+      
+      {/* Feed entries - newest at top (falls down like code) */}
+      <div className="flex flex-col gap-0">
+        {feed.length === 0 ? (
+          // Empty state - show waiting message
+          <div 
+            className="text-[10px] animate-pulse"
+            style={{ color: MATRIX_DIM }}
+          >
+            {'// waiting for events...'}
+          </div>
+        ) : (
+          feed.map((entry) => (
+            <FeedRow key={entry.id} entry={entry} />
+          ))
+        )}
+      </div>
     </div>
   );
 }
 
 function FeedRow({ entry }: { entry: FeedEntry }) {
   const [opacity, setOpacity] = useState(0);
-  const color = AGENT_COLORS[entry.agent || ''] || '#888';
+  const [slideIn, setSlideIn] = useState(false);
+  const color = AGENT_COLORS[entry.agent || ''] || MATRIX_GREEN;
   const label = entry.source || entry.agent || 'system';
 
-  // Fade in on mount
+  // Fade in + slide from top
   useEffect(() => {
-    requestAnimationFrame(() => setOpacity(1));
+    requestAnimationFrame(() => {
+      setSlideIn(true);
+      setOpacity(1);
+    });
   }, []);
 
-  // Fade out before removal (starts at 4s, removed at 5s)
+  // Fade out before removal - longer duration (10s)
   useEffect(() => {
-    const timer = setTimeout(() => setOpacity(0), 4000);
+    const timer = setTimeout(() => {
+      setOpacity(0);
+      setSlideIn(false);
+    }, 10000);
     return () => clearTimeout(timer);
   }, []);
 
   return (
     <div
-      className="flex items-start gap-1.5 text-[10px] leading-tight transition-opacity duration-700"
-      style={{ opacity }}
+      className="flex items-start gap-2 text-[11px] leading-tight transition-all duration-500"
+      style={{ 
+        opacity,
+        transform: slideIn ? 'translateY(0)' : 'translateY(-10px)',
+        color: MATRIX_GREEN,
+      }}
     >
       <span
-        className="shrink-0 font-bold uppercase tracking-wide"
-        style={{ color }}
+        className="shrink-0 font-bold uppercase tracking-wider"
+        style={{ 
+          color,
+          textShadow: `0 0 5px ${color}`,
+        }}
       >
-        {label}
+        [{label}]
       </span>
-      <span className="text-white/70 truncate">
+      <span 
+        className="truncate"
+        style={{
+          color: entry.type === 'message_sent' ? '#fff' : MATRIX_DIM,
+          textShadow: entry.type === 'message_sent' ? '0 0 8px #fff' : 'none',
+        }}
+      >
         {entry.message}
       </span>
+      {/* Matrix-style cursor */}
+      <span className="animate-pulse" style={{ color: MATRIX_GREEN }}>_</span>
     </div>
   );
 }

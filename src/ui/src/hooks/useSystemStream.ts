@@ -19,6 +19,7 @@ export interface FeedEntry {
   message: string;
   level?: string;
   timestamp: number;
+  type?: string;
 }
 
 // Map display source names to agentKey used in SubagentRegistry
@@ -92,6 +93,7 @@ export function useSystemStream() {
       message: event.message,
       level: event.level,
       timestamp: event.timestamp || Date.now(),
+      type: event.type,
     };
 
     setFeed(prev => [...prev.slice(-(MAX_FEED - 1)), entry]);
