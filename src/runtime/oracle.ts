@@ -592,6 +592,8 @@ Use it to inform your response and tool selection (if needed), but do not assume
       let contextDelegationAcks: Array<{ task_id: string; agent: string; task: string }> = [];
       let syncDelegationCount = 0;
       const oracleStartMs = Date.now();
+      const display = DisplayManager.getInstance();
+      display.startActivity('oracle', `LLM call (${this.config.llm.model})`);
       const response = await TaskRequestContext.run(invokeContext, async () => {
         const agentResponse = await this.provider!.invoke({ messages }, { recursionLimit: 100 });
         contextDelegationAcks = TaskRequestContext.getDelegationAcks();
@@ -599,6 +601,7 @@ Use it to inform your response and tool selection (if needed), but do not assume
         return agentResponse;
       });
       const oracleDurationMs = Date.now() - oracleStartMs;
+      display.endActivity('oracle', true);
 
       // Emit llm_call audit event for Oracle's own invocation
       try {

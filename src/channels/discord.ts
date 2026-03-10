@@ -434,7 +434,9 @@ export class DiscordAdapter {
 
       // Transcribe
       this.display.log(`Transcribing audio for ${message.author.tag}...`, { source: 'Telephonist' });
+      this.display.startActivity('telephonist', 'Transcribing audio...');
       const { text, usage } = await this.telephonist.transcribe(filePath, contentType, apiKey);
+      this.display.endActivity('telephonist', true);
       this.display.log(
         `Transcription for ${message.author.tag}: "${text}"`,
         { source: 'Telephonist', level: 'success' }
@@ -459,6 +461,7 @@ export class DiscordAdapter {
           let ttsFilePath: string | null = null;
           const ttsStart = Date.now();
           try {
+            this.display.startActivity('telephonist', 'Synthesizing TTS...');
             const ttsApiKey = getUsableApiKey(ttsConfig.apiKey) ||
               getUsableApiKey(config.audio.apiKey) ||
               (config.llm.provider === (ttsConfig.provider === 'google' ? 'gemini' : ttsConfig.provider)
@@ -467,6 +470,7 @@ export class DiscordAdapter {
             const ttsResult = await this.ttsTelephonist.synthesize(response, ttsApiKey || '', ttsConfig.voice, ttsConfig.style_prompt);
             ttsFilePath = ttsResult.filePath;
             const ttsDurationMs = Date.now() - ttsStart;
+            this.display.endActivity('telephonist', true);
 
             const attachment = new AttachmentBuilder(ttsFilePath, { name: 'response.ogg' });
             await channel.send({ files: [attachment] });
@@ -496,6 +500,7 @@ export class DiscordAdapter {
               // Audit failure never breaks the main flow
             }
           } catch (ttsError: any) {
+            this.display.endActivity('telephonist', false);
             const ttsDetail = ttsError?.message || String(ttsError);
             this.display.log(`TTS synthesis failed for ${message.author.tag}: ${ttsDetail} — falling back to text`, { source: 'Telephonist', level: 'warning' });
 

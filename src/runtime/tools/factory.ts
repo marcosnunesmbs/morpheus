@@ -10,23 +10,27 @@ function instrumentMcpTool(tool: StructuredTool, serverName: string, getSessionI
   (tool as any)._call = async function(input: any, runManager?: any) {
     const startMs = Date.now();
     const sessionId = getSessionId() ?? 'unknown';
+    const toolName = `${serverName}/${tool.name}`;
+    display.startActivity('neo', `MCP tool: ${tool.name}`);
     try {
       const result = await original(input, runManager);
       AuditRepository.getInstance().insert({
         session_id: sessionId,
         event_type: 'mcp_tool',
         agent: 'neo',
-        tool_name: `${serverName}/${tool.name}`,
+        tool_name: toolName,
         duration_ms: Date.now() - startMs,
         status: 'success',
       });
+      display.endActivity('neo', true);
       return result;
     } catch (err: any) {
+      display.endActivity('neo', false);
       AuditRepository.getInstance().insert({
         session_id: sessionId,
         event_type: 'mcp_tool',
         agent: 'neo',
-        tool_name: `${serverName}/${tool.name}`,
+        tool_name: toolName,
         duration_ms: Date.now() - startMs,
         status: 'error',
         metadata: { error: err?.message ?? String(err) },

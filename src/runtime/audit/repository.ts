@@ -52,6 +52,9 @@ export class AuditRepository {
   }
 
   insert(event: AuditEventInsert): void {
+    const createdAt = Date.now();
+    const eventId = randomUUID();
+
     try {
       this.db.prepare(`
         INSERT INTO audit_events
@@ -59,7 +62,7 @@ export class AuditRepository {
            input_tokens, output_tokens, duration_ms, status, metadata, created_at)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `).run(
-        randomUUID(),
+        eventId,
         event.session_id,
         event.task_id ?? null,
         event.event_type,
@@ -72,14 +75,86 @@ export class AuditRepository {
         event.duration_ms ?? null,
         event.status ?? null,
         event.metadata ? JSON.stringify(event.metadata) : null,
-        Date.now(),
+        createdAt,
       );
+
+      // Emit activity event for visualization when agent is working
+      this.emitActivityEvent(event, createdAt);
     } catch (err: any) {
       // Non-critical — never let audit recording break the main flow
       DisplayManager.getInstance().log(
         `AuditRepository.insert failed: ${err?.message ?? String(err)}`,
         { source: 'Audit', level: 'error' }
       );
+    }
+  }
+
+  /**
+   * Emit activity events to DisplayManager for real-time visualization.
+   * This allows the frontend to show which agent is actively working.
+   */
+  private emitActivityEvent(event: AuditEventInsert, timestamp: number): void {
+    const display = DisplayManager.getInstance();
+    const agent = event.agent;
+
+    // Only emit for agent-specific events (not system events like task_created/completed)
+    const agentEventTypes = ['llm_call', 'tool_call', 'mcp_tool', 'telephonist', 'skill_loaded', 'chronos_job', 'memory_recovery', 'memory_persist'];
+    if (!agent || !agentEventTypes.includes(event.event_type)) {
+      return;
+    }
+
+    // Build descriptive message based on event type
+    let message: string;
+    switch (event.event_type) {
+      case 'llm_call':
+        message = `LLM call (${event.model || event.provider || 'unknown'})`;
+        break;
+      case 'tool_call':
+        message = `Executing tool: ${event.tool_name || 'unknown'}`;
+        break;
+      case 'mcp_tool':
+        message = `MCP tool: ${event.tool_name || 'unknown'}`;
+        break;
+      case 'telephonist':
+        const op = event.metadata as Record<string, unknown> | null;
+        const operation = op?.operation as string | undefined;
+        message = operation === 'tts' ? 'Synthesizing TTS...' : 'Transcribing audio...';
+        break;
+      case 'skill_loaded':
+        message = `Loading skill: ${event.tool_name || 'unknown'}`;
+        break;
+      case 'chronos_job':
+        message = `Running scheduled job: ${event.tool_name || 'unknown'}`;
+        break;
+      case 'memory_recovery':
+        message = 'Recovering memories...';
+        break;
+      case 'memory_persist':
+        message = 'Persisting memories...';
+        break;
+      default:
+        message = `Working (${event.event_type})`;
+    }
+
+    // Emit activity_start with duration hint
+    // Frontend will use duration_ms to determine how long to keep agent active
+    display.emit('activity_start', {
+      agent: agent.toLowerCase(),
+      message,
+      timestamp,
+      duration_ms: event.duration_ms || 0,
+      event_type: event.event_type,
+    });
+
+    // Emit activity_end after duration (if duration_ms is provided)
+    if (event.duration_ms && event.duration_ms > 0) {
+      setTimeout(() => {
+        display.emit('activity_end', {
+          agent: agent.toLowerCase(),
+          timestamp: Date.now(),
+          duration_ms: event.duration_ms,
+        });
+      }, Math.min(event.duration_ms, 30000)); // Cap at 30s to avoid long-running timeouts
     }
   }
 

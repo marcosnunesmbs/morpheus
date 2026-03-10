@@ -408,9 +408,11 @@ export class TelegramAdapter {
 
           // Transcribe
           this.display.log(`Transcribing audio for @${user}...`, { source: 'Telephonist' });
+          this.display.startActivity('telephonist', 'Transcribing audio...');
           const transcribeStart = Date.now();
           const { text, usage } = await this.telephonist.transcribe(filePath, 'audio/ogg', apiKey);
           const transcribeDurationMs = Date.now() - transcribeStart;
+          this.display.endActivity('telephonist', true);
 
           this.display.log(`Transcription success for @${user}: "${text}"`, { source: 'Telephonist', level: 'success' });
 
@@ -471,6 +473,7 @@ export class TelegramAdapter {
               let ttsFilePath: string | null = null;
               const ttsStart = Date.now();
               try {
+                this.display.startActivity('telephonist', 'Synthesizing TTS...');
                 const ttsApiKey = getUsableApiKey(ttsConfig.apiKey) ||
                   getUsableApiKey(config.audio.apiKey) ||
                   (config.llm.provider === (ttsConfig.provider === 'google' ? 'gemini' : ttsConfig.provider)
@@ -479,6 +482,7 @@ export class TelegramAdapter {
                 const ttsResult = await this.ttsTelephonist.synthesize(response, ttsApiKey || '', ttsConfig.voice, ttsConfig.style_prompt);
                 ttsFilePath = ttsResult.filePath;
                 const ttsDurationMs = Date.now() - ttsStart;
+                this.display.endActivity('telephonist', true);
 
                 // OGG/Opus → replyWithVoice; everything else (mp3, wav) → replyWithAudio
                 const isOgg = ttsResult.mimeType.includes('ogg') || ttsResult.mimeType.includes('opus');
@@ -513,6 +517,7 @@ export class TelegramAdapter {
                   // Audit failure never breaks the main flow
                 }
               } catch (ttsError: any) {
+                this.display.endActivity('telephonist', false);
                 const ttsDetail = ttsError?.message || String(ttsError);
                 this.display.log(`TTS synthesis failed for @${user}: ${ttsDetail} — falling back to text`, { source: 'Telephonist', level: 'warning' });
 

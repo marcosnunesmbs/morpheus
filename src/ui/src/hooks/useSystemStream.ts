@@ -8,6 +8,8 @@ export interface SystemActivityEvent {
   level?: string;
   timestamp: number;
   success?: boolean;
+  duration_ms?: number;
+  event_type?: string;
 }
 
 export interface FeedEntry {
@@ -121,13 +123,26 @@ export function useSystemStream() {
             setIsConnected(true);
             break;
 
-          case 'activity_start':
+          case 'activity_start': {
+            // Use duration_ms if provided, otherwise use default
+            const durationMs = parsed.duration_ms 
+              ? Math.min(parsed.duration_ms + 500, 30000) // Add buffer, cap at 30s
+              : 5000; // Default 5s if no duration
+
             setActiveEvents(prev => {
               const filtered = prev.filter(e => !(e.type === 'activity_start' && e.agent === parsed.agent));
               return [...filtered, parsed];
             });
             addFeedEntry(parsed);
+
+            // Auto-remove after duration
+            const timer = setTimeout(() => {
+              setActiveEvents(prev => prev.filter(e => e !== parsed));
+              timersRef.current.delete(timer);
+            }, durationMs);
+            timersRef.current.add(timer);
             break;
+          }
 
           case 'activity_end':
             setActiveEvents(prev => prev.filter(e => e.type !== 'activity_start'));

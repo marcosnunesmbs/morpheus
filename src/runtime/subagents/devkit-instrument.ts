@@ -1,5 +1,8 @@
 import type { StructuredTool } from '@langchain/core/tools';
 import { AuditRepository } from '../audit/repository.js';
+import { DisplayManager } from '../display.js';
+
+const display = DisplayManager.getInstance();
 
 /**
  * Wraps a StructuredTool to record audit events on each invocation.
@@ -12,6 +15,7 @@ function instrumentTool(tool: StructuredTool, getSessionId: () => string | undef
     const startMs = Date.now();
     const sessionId = getSessionId() ?? 'unknown';
     const agent = getAgent();
+    display.startActivity(agent, `Executing tool: ${tool.name}`);
     try {
       const result = await original(input, runManager);
       const durationMs = Date.now() - startMs;
@@ -23,8 +27,10 @@ function instrumentTool(tool: StructuredTool, getSessionId: () => string | undef
         duration_ms: durationMs,
         status: 'success',
       });
+      display.endActivity(agent, true);
       return result;
     } catch (err: any) {
+      display.endActivity(agent, false);
       const durationMs = Date.now() - startMs;
       AuditRepository.getInstance().insert({
         session_id: sessionId,

@@ -86,6 +86,30 @@ export class DisplayManager extends EventEmitter implements IDisplayManager {
     }
   }
 
+  /**
+   * Start an activity for an agent - emits activity_start event for visualization.
+   * Use this when an agent begins a task (e.g., before calling an API).
+   */
+  public startActivity(agent: string, message: string): void {
+    this.emit('activity_start', {
+      agent: agent.toLowerCase(),
+      message,
+      timestamp: Date.now(),
+    });
+  }
+
+  /**
+   * End an activity for an agent - emits activity_end event for visualization.
+   * Use this when an agent finishes a task (e.g., after receiving API response).
+   */
+  public endActivity(agent: string, success?: boolean): void {
+    this.emit('activity_end', {
+      agent: agent.toLowerCase(),
+      timestamp: Date.now(),
+      success,
+    });
+  }
+
   public log(message: string, options?: LogOptions): void {
     const wasSpinning = this.spinner.isSpinning;
     const previousText = this.spinner.text;
