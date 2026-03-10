@@ -8,11 +8,11 @@ interface OracleNodeProps {
   activeCount: number;
 }
 
-// Universal palette: cool white-cyan — reads well on light and dark backgrounds
-const ORACLE_CORE = '#e0f2fe';    // soft ice-white (surface color)
-const ORACLE_GLOW = '#38bdf8';    // sky-400 cyan glow
-const ORACLE_DIM = '#1e3a5f';     // muted deep blue (idle emissive)
-const ORACLE_BRIGHT = '#7dd3fc';  // sky-300 (active emissive)
+// Matrix green palette
+const ORACLE_CORE = '#b6ffc0';    // light mint (surface)
+const ORACLE_GLOW = '#00ff41';    // classic matrix green
+const ORACLE_DIM = '#0a5c1a';     // deep forest (idle emissive)
+const ORACLE_BRIGHT = '#7dffaa';  // bright mint (active emissive)
 
 export function OracleNode({ isActive, activeCount }: OracleNodeProps) {
   const coreRef = useRef<THREE.Mesh>(null);

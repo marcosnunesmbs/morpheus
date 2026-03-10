@@ -37,7 +37,7 @@ const FALLBACK_AGENTS: AgentMeta[] = [
 ];
 
 const AGENT_COLORS: Record<string, string> = {
-  oracle: '#38bdf8',
+  oracle: '#00ff41',
   apoc: '#60a5fa',
   neo: '#e879f9',
   trinit: '#34d399',
