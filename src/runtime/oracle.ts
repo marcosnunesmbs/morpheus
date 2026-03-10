@@ -737,6 +737,9 @@ Use it to inform your response and tool selection (if needed), but do not assume
           // Persist user message + all generated messages in a single transaction
           await callHistory.addMessages([userMessage, ...newGeneratedMessages]);
         }
+
+        // Emit message sent event for visualization (rocket animation)
+        this.display.emitMessageSent('oracle');
       }
 
       this.display.log('Response generated.', { source: 'Oracle' });

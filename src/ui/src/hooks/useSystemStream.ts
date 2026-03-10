@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 
 export interface SystemActivityEvent {
-  type: 'activity_start' | 'activity_end' | 'message' | 'connected';
+  type: 'activity_start' | 'activity_end' | 'message' | 'connected' | 'message_sent';
   agent?: string;
   source?: string;
   message?: string;
@@ -151,6 +151,14 @@ export function useSystemStream() {
           case 'message':
             addTimedEvent(parsed, 3500);
             addFeedEntry(parsed);
+            break;
+
+          case 'message_sent':
+            // Message sent is a transient event - show briefly in feed
+            addTimedEvent(parsed, 2000);
+            addFeedEntry(parsed);
+            // Dispatch custom event for rocket animation
+            window.dispatchEvent(new CustomEvent('morpheus:message_sent', { detail: parsed }));
             break;
         }
       } catch (err) {

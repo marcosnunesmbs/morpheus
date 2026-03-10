@@ -1,6 +1,7 @@
 import { useMemo, useState, useCallback, useEffect, useRef } from 'react';
-import { Canvas } from '@react-three/fiber';
+import { Canvas, useFrame } from '@react-three/fiber';
 import { OrbitControls, Stars } from '@react-three/drei';
+import * as THREE from 'three';
 import { OracleNode } from './OracleNode';
 import { AgentNode } from './AgentNode';
 import { useSystemStream } from '../../../hooks/useSystemStream';
@@ -63,10 +64,80 @@ function generateOrbits(count: number) {
   });
 }
 
+// ─── Rocket Animation ──────────────────────────────────────────────────────────
+
+function RocketAnimation() {
+  const groupRef = useRef<THREE.Group>(null);
+  const startTimeRef = useRef<number>(Date.now());
+
+  useFrame(() => {
+    const elapsed = (Date.now() - startTimeRef.current) / 1000; // seconds since mount
+    
+    // Rocket flies upward from center
+    if (groupRef.current) {
+      groupRef.current.position.y = elapsed * 4 - 1; // Start at y=-1, move up
+      groupRef.current.position.x = Math.sin(elapsed * 3) * 0.2;
+      groupRef.current.rotation.z = Math.sin(elapsed * 2) * 0.1; // Slight tilt
+    }
+  });
+
+  return (
+    <group ref={groupRef} position={[0, -1, 0]}>
+      {/* Rocket body */}
+      <mesh rotation={[Math.PI, 0, 0]}>
+        <coneGeometry args={[0.12, 0.4, 8]} />
+        <meshStandardMaterial color="#ff6b35" emissive="#ff6b35" emissiveIntensity={0.8} />
+      </mesh>
+      
+      {/* Rocket fins */}
+      <mesh position={[0.12, -0.15, 0]}>
+        <boxGeometry args={[0.15, 0.08, 0.02]} />
+        <meshStandardMaterial color="#ff6b35" />
+      </mesh>
+      <mesh position={[-0.12, -0.15, 0]}>
+        <boxGeometry args={[0.15, 0.08, 0.02]} />
+        <meshStandardMaterial color="#ff6b35" />
+      </mesh>
+      <mesh position={[0, -0.15, 0.12]}>
+        <boxGeometry args={[0.02, 0.08, 0.15]} />
+        <meshStandardMaterial color="#ff6b35" />
+      </mesh>
+      <mesh position={[0, -0.15, -0.12]}>
+        <boxGeometry args={[0.02, 0.08, 0.15]} />
+        <meshStandardMaterial color="#ff6b35" />
+      </mesh>
+
+      {/* Flame */}
+      <mesh position={[0, 0.25, 0]} rotation={[0, 0, 0]}>
+        <coneGeometry args={[0.06, 0.15, 8]} />
+        <meshBasicMaterial color="#ffff00" transparent opacity={0.9} />
+      </mesh>
+      <mesh position={[0, 0.32, 0]} rotation={[0, 0, 0]}>
+        <coneGeometry args={[0.04, 0.1, 8]} />
+        <meshBasicMaterial color="#ff4500" transparent opacity={1} />
+      </mesh>
+    </group>
+  );
+}
+
 export function MorpheusVisualizer({ className }: MorpheusVisualizerProps) {
   const { activeEvents, feed, isConnected } = useSystemStream();
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [showRocket, setShowRocket] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
+
+  // Listen for message_sent events to trigger rocket animation
+  useEffect(() => {
+    const handleMessageSent = () => {
+      setShowRocket(true);
+      setTimeout(() => setShowRocket(false), 1500);
+    };
+
+    window.addEventListener('morpheus:message_sent', handleMessageSent);
+    return () => {
+      window.removeEventListener('morpheus:message_sent', handleMessageSent);
+    };
+  }, []);
 
   const { data } = useSWR<{ agents: AgentMeta[] }>('/agents/metadata', fetcher, {
     revalidateOnFocus: false,
@@ -162,6 +233,9 @@ export function MorpheusVisualizer({ className }: MorpheusVisualizerProps) {
         />
 
         <OracleNode isActive={isOracleActive} activeCount={activeEvents.length} />
+
+        {/* Rocket animation when message is sent */}
+        {showRocket && <RocketAnimation />}
 
         {agents.map((agent, index) => {
           const activeEvent = activeEvents.find((e: any) => e.agent === agent.agentKey);

@@ -468,3 +468,68 @@ try {
 | `emitActivityEvent()` (AuditRepository) | Após operação terminar (fallback) | Emite baseado em `duration_ms` |
 
 **Recomendação**: Use `startActivity`/`endActivity` diretamente quando possível, pois fornece feedback visual imediato. O `emitActivityEvent` no AuditRepository serve como fallback para operações que não têm controle direto sobre o início/fim.
+
+---
+
+## Evento de Mensagem Enviada (Rocket Animation)
+
+Quando o Oracle envia uma resposta (mensagem de IA), um evento especial é emitido que mostra uma animação de foguete decolando no visualizer 3D.
+
+### Fluxo
+
+```
+┌─────────────────────────────────────────────────────────────────────────────────────┐
+│                    EVENTO DE MENSAGEM ENVIADA                                       │
+└─────────────────────────────────────────────────────────────────────────────────────┘
+
+1. Oracle processa mensagem e gera resposta
+   │
+   ▼
+2. Mensagens persistidas no histórico (SQLite)
+   │
+   ▼
+3. display.emitMessageSent('oracle')
+   │
+   ▼
+4. API SSE transmite: { type: 'message_sent', agent: 'oracle', timestamp: ... }
+   │
+   ▼
+5. Frontend recebe evento:
+   - addTimedEvent() → adiciona ao feed por 2s
+   - dispatchEvent('morpheus:message_sent') → dispara animação
+   │
+   ▼
+6. MorpheusVisualizer:
+   - Renderiza foguete subindo com chama
+   - Animação dura ~1.5 segundos
+   - Foguete some no "espaço"
+```
+
+### Implementação
+
+**Backend:**
+- `DisplayManager.emitMessageSent(agent)` - novo método
+- `Oracle` - chama após persistir mensagens geradas
+- `/api/display/stream` - transmite evento `message_sent`
+
+**Frontend:**
+- `useSystemStream` - processa evento e dispara custom event
+- `MorpheusVisualizer` - renderiza `RocketAnimation` quando ativo
+
+### Componente RocketAnimation
+
+O foguete é renderizado com Three.js:
+- Corpo cônico laranja
+- Asas laterais
+- Chama amarela/laranja animadac
+- Movimento ascendente com oscilação lateral
+- Duração: 1.5 segundos
+
+### Quando é disparado
+
+O evento é emitido sempre que:
+1. O Oracle gera uma resposta via `chat()`
+2. As mensagens são persistidas no histórico SQLite
+3. Uma resposta é injetada via `injectAIMessage()`
+
+Isso fornece feedback visual imediato de que uma resposta foi enviada, aparecendo como um foguete decolando do Oracle no centro do visualizer.
