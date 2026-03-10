@@ -89,8 +89,8 @@ export function OracleNode({ isActive, activeCount }: OracleNodeProps) {
     }
   });
 
-  const ringColor = isActive ? ORACLE_GLOW : ORACLE_DIM;
-  const ringOpacity = isActive ? 0.6 : 0.2;
+  const ringColor = isActive ? ORACLE_BRIGHT : ORACLE_GLOW;
+  const ringOpacity = isActive ? 0.8 : 0.5;
 
   return (
     <group>

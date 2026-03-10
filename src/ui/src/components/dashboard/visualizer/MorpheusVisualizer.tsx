@@ -54,7 +54,7 @@ function generateOrbits(count: number) {
   return Array.from({ length: count }, (_, i) => {
     const frac = i / Math.max(count - 1, 1);
     return {
-      radius: 3.2 + frac * 2.0,
+      radius: 4.5 + frac * 2.5,
       speed: 0.35 - frac * 0.15,
       tiltX: Math.sin(i * golden) * 0.5,
       tiltZ: Math.cos(i * golden * 1.3) * 0.5,
@@ -92,45 +92,25 @@ export function MorpheusVisualizer({ className }: MorpheusVisualizerProps) {
   const orbits = useMemo(() => generateOrbits(agents.length), [agents.length]);
 
   const toggleFullscreen = useCallback(() => {
-    if (!isFullscreen) {
-      containerRef.current?.requestFullscreen?.().catch(() => {
-        // Fallback: use CSS fullscreen if native fails
-        setIsFullscreen(true);
-      });
+    if (!document.fullscreenElement) {
+      containerRef.current?.requestFullscreen?.().catch(() => {});
     } else {
-      if (document.fullscreenElement) {
-        document.exitFullscreen?.().catch(() => {});
-      }
-      setIsFullscreen(false);
+      document.exitFullscreen?.().catch(() => {});
     }
-  }, [isFullscreen]);
+  }, []);
 
-  // Sync state when exiting fullscreen via Escape
+  // Sync isFullscreen state from the browser fullscreen API
   useEffect(() => {
-    const handler = () => {
-      if (!document.fullscreenElement) setIsFullscreen(false);
-      else setIsFullscreen(true);
-    };
+    const handler = () => setIsFullscreen(!!document.fullscreenElement);
     document.addEventListener('fullscreenchange', handler);
     return () => document.removeEventListener('fullscreenchange', handler);
   }, []);
-
-  // ESC fallback for CSS fullscreen mode
-  useEffect(() => {
-    if (!isFullscreen) return;
-    const handler = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setIsFullscreen(false);
-    };
-    window.addEventListener('keydown', handler);
-    return () => window.removeEventListener('keydown', handler);
-  }, [isFullscreen]);
 
   return (
     <div
       ref={containerRef}
       className={clsx(
         "relative w-full h-full overflow-hidden rounded-xl",
-        isFullscreen && !document.fullscreenElement && "!fixed inset-0 z-50 !rounded-none bg-black !h-screen",
         className
       )}
     >
