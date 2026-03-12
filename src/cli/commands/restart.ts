@@ -18,6 +18,12 @@ import { TaskNotifier } from '../../runtime/tasks/notifier.js';
 import { WebhookDispatcher } from '../../runtime/webhooks/dispatcher.js';
 import { Link } from '../../runtime/subagents/link/link.js';
 import { LinkWorker } from '../../runtime/subagents/link/worker.js';
+import { ServiceContainer, SERVICE_KEYS } from '../../runtime/container.js';
+import { ChannelNotifierAdapter } from '../../runtime/adapters/ChannelNotifierAdapter.js';
+import { SQLiteTaskEnqueuerAdapter } from '../../runtime/adapters/SQLiteTaskEnqueuerAdapter.js';
+import { SQLiteChatHistoryAdapter } from '../../runtime/adapters/SQLiteChatHistoryAdapter.js';
+import { LangChainProviderAdapter } from '../../runtime/adapters/LangChainProviderAdapter.js';
+import { AuditRepositoryAdapter } from '../../runtime/adapters/AuditRepositoryAdapter.js';
 
 export const restartCommand = new Command('restart')
   .description('Restart the Morpheus agent')
@@ -80,6 +86,16 @@ export const restartCommand = new Command('restart')
 
       // Initialize persistent logging
       await display.initialize(config.logging);
+
+      // ── Composition Root ─────────────────────────────────────────────────────
+      // Register port adapters in the ServiceContainer so consumers can
+      // depend on interfaces instead of concrete implementations.
+      ServiceContainer.register(SERVICE_KEYS.notifier, new ChannelNotifierAdapter());
+      ServiceContainer.register(SERVICE_KEYS.taskEnqueuer, new SQLiteTaskEnqueuerAdapter());
+      ServiceContainer.register(SERVICE_KEYS.chatHistory, new SQLiteChatHistoryAdapter());
+      ServiceContainer.register(SERVICE_KEYS.providerFactory, new LangChainProviderAdapter());
+      ServiceContainer.register(SERVICE_KEYS.auditEmitter, new AuditRepositoryAdapter());
+      // ─────────────────────────────────────────────────────────────────────────
 
       display.log(chalk.green(`Morpheus Agent (${config.agent.name}) starting...`), { source: 'Zaion' });
       display.log(chalk.gray(`PID: ${process.pid}`), { source: 'Zaion' });

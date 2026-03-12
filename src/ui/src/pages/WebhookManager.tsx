@@ -29,6 +29,7 @@ const emptyForm = (): CreateWebhookPayload => ({
   name: '',
   prompt: '',
   notification_channels: ['ui'],
+  requires_api_key: true,
 });
 
 export const WebhookManager = () => {
@@ -65,6 +66,7 @@ export const WebhookManager = () => {
       name: wh.name,
       prompt: wh.prompt,
       notification_channels: wh.notification_channels,
+      requires_api_key: wh.requires_api_key,
     });
     setFormError(null);
     setIsModalOpen(true);
@@ -126,8 +128,10 @@ export const WebhookManager = () => {
   const getTriggerUrl = (name: string) =>
     `${window.location.origin}/api/webhooks/trigger/${name}`;
 
-  const getCurlExample = (wh: Webhook) =>
-    `curl -X POST ${getTriggerUrl(wh.name)} \\\n  -H "x-api-key: ${wh.api_key}" \\\n  -H "Content-Type: application/json" \\\n  -d '{"event":"your_payload"}'`;
+  const getCurlExample = (wh: Webhook) => {
+    const headerLine = wh.requires_api_key ? `  -H "x-api-key: ${wh.api_key}" \\\n` : '';
+    return `curl -X POST ${getTriggerUrl(wh.name)} \\\n${headerLine}  -H "Content-Type: application/json" \\\n  -d '{"event":"your_payload"}'`;
+  };
 
   const copyToClipboard = async (text: string, id: string) => {
     await navigator.clipboard.writeText(text);
@@ -233,17 +237,28 @@ export const WebhookManager = () => {
                   >
                     {/* Name */}
                     <td className="px-4 py-3">
-                      <span className="font-mono text-azure-text-primary dark:text-matrix-secondary font-medium">
-                        {wh.name}
-                      </span>
+                      <div className="flex flex-col gap-0.5">
+                        <span className="font-mono text-azure-text-primary dark:text-matrix-secondary font-medium">
+                          {wh.name}
+                        </span>
+                        {!wh.requires_api_key && (
+                          <span className="text-[10px] uppercase tracking-wider font-bold text-orange-600 dark:text-orange-400">
+                            Public / Unsecured
+                          </span>
+                        )}
+                      </div>
                     </td>
 
                     {/* API Key + Copy curl */}
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-2">
-                        <code className="text-xs font-mono text-azure-text-secondary dark:text-matrix-secondary truncate max-w-[140px]">
-                          {wh.api_key.slice(0, 16)}…
-                        </code>
+                        {wh.requires_api_key ? (
+                          <code className="text-xs font-mono text-azure-text-secondary dark:text-matrix-secondary truncate max-w-[140px]">
+                            {wh.api_key.slice(0, 16)}…
+                          </code>
+                        ) : (
+                          <span className="text-xs text-azure-text-muted dark:text-matrix-tertiary">Not required</span>
+                        )}
                         <button
                           onClick={() => copyToClipboard(getCurlExample(wh), `curl-${wh.id}`)}
                           className="p-1 rounded hover:bg-azure-border dark:hover:bg-matrix-primary/30 text-azure-text-secondary dark:text-matrix-secondary"
@@ -255,17 +270,19 @@ export const WebhookManager = () => {
                             <Terminal className="w-3.5 h-3.5" />
                           )}
                         </button>
-                        <button
-                          onClick={() => copyToClipboard(wh.api_key, `key-${wh.id}`)}
-                          className="p-1 rounded hover:bg-azure-border dark:hover:bg-matrix-primary/30 text-azure-text-secondary dark:text-matrix-secondary"
-                          title="Copy API key"
-                        >
-                          {copiedId === `key-${wh.id}` ? (
-                            <Check className="w-3.5 h-3.5 text-green-500" />
-                          ) : (
-                            <Copy className="w-3.5 h-3.5" />
-                          )}
-                        </button>
+                        {wh.requires_api_key && (
+                          <button
+                            onClick={() => copyToClipboard(wh.api_key, `key-${wh.id}`)}
+                            className="p-1 rounded hover:bg-azure-border dark:hover:bg-matrix-primary/30 text-azure-text-secondary dark:text-matrix-secondary"
+                            title="Copy API key"
+                          >
+                            {copiedId === `key-${wh.id}` ? (
+                              <Check className="w-3.5 h-3.5 text-green-500" />
+                            ) : (
+                              <Copy className="w-3.5 h-3.5" />
+                            )}
+                          </button>
+                        )}
                       </div>
                     </td>
 
@@ -401,6 +418,32 @@ export const WebhookManager = () => {
                 </label>
               ))}
             </div>
+          </div>
+
+          {/* Require API Key toggle */}
+          <div>
+            <label className="block text-sm font-medium text-azure-text-secondary dark:text-matrix-secondary mb-2">
+              Security
+            </label>
+            <button
+              onClick={() => setForm({ ...form, requires_api_key: !form.requires_api_key })}
+              className={`flex items-center gap-2 text-sm px-3 py-2 rounded-lg border transition-colors ${
+                form.requires_api_key
+                  ? 'border-green-200 dark:border-green-900/50 bg-green-50/50 dark:bg-green-900/10 text-green-700 dark:text-green-400'
+                  : 'border-orange-200 dark:border-orange-900/50 bg-orange-50/50 dark:bg-orange-900/10 text-orange-700 dark:text-orange-400'
+              }`}
+            >
+              {form.requires_api_key ? (
+                <><ToggleRight className="w-4 h-4" /> Require API Key (Secure)</>
+              ) : (
+                <><ToggleLeft className="w-4 h-4" /> No API Key (Public)</>
+              )}
+            </button>
+            <p className="mt-1.5 text-xs text-azure-text-muted dark:text-matrix-tertiary">
+              {form.requires_api_key
+                ? 'External requests must provide the x-api-key header.'
+                : 'Warning: This webhook will be publicly triggerable by its URL.'}
+            </p>
           </div>
 
           {/* Error */}

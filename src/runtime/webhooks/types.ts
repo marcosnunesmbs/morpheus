@@ -5,6 +5,7 @@ export interface Webhook {
   id: string;
   name: string; // unique slug — used in trigger URL
   api_key: string; // secret validated via x-api-key header
+  requires_api_key: boolean; // whether to validate x-api-key header
   prompt: string;
   enabled: boolean;
   notification_channels: NotificationChannel[];
@@ -30,5 +31,5 @@ export interface TriggerAckResponse {
   notification_id: string;
 }
 
-export type CreateWebhookInput = Pick<Webhook, 'name' | 'prompt' | 'notification_channels'>;
-export type UpdateWebhookInput = Partial<Pick<Webhook, 'name' | 'prompt' | 'enabled' | 'notification_channels'>>;
+export type CreateWebhookInput = Pick<Webhook, 'name' | 'prompt' | 'notification_channels'> & { requires_api_key?: boolean };
+export type UpdateWebhookInput = Partial<Pick<Webhook, 'name' | 'prompt' | 'enabled' | 'notification_channels' | 'requires_api_key'>>;

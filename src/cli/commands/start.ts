@@ -145,6 +145,16 @@ export const startCommand = new Command('start')
       // Initialize persistent logging
       await display.initialize(config.logging);
 
+      // ── Composition Root ─────────────────────────────────────────────────────
+      // Register port adapters in the ServiceContainer so consumers can
+      // depend on interfaces instead of concrete implementations.
+      ServiceContainer.register(SERVICE_KEYS.notifier, new ChannelNotifierAdapter());
+      ServiceContainer.register(SERVICE_KEYS.taskEnqueuer, new SQLiteTaskEnqueuerAdapter());
+      ServiceContainer.register(SERVICE_KEYS.chatHistory, new SQLiteChatHistoryAdapter());
+      ServiceContainer.register(SERVICE_KEYS.providerFactory, new LangChainProviderAdapter());
+      ServiceContainer.register(SERVICE_KEYS.auditEmitter, new AuditRepositoryAdapter());
+      // ─────────────────────────────────────────────────────────────────────────
+
       display.log(chalk.green(`Morpheus Agent (${config.agent.name}) starting...`));
       display.log(chalk.gray(`PID: ${process.pid}`));
       if (options.ui) {
@@ -232,16 +242,6 @@ export const startCommand = new Command('start')
         await clearPid();
         process.exit(1);
       }
-
-      // ── Composition Root ─────────────────────────────────────────────────────
-      // Register port adapters in the ServiceContainer so consumers can
-      // depend on interfaces instead of concrete implementations.
-      ServiceContainer.register(SERVICE_KEYS.notifier, new ChannelNotifierAdapter());
-      ServiceContainer.register(SERVICE_KEYS.taskEnqueuer, new SQLiteTaskEnqueuerAdapter());
-      ServiceContainer.register(SERVICE_KEYS.chatHistory, new SQLiteChatHistoryAdapter());
-      ServiceContainer.register(SERVICE_KEYS.providerFactory, new LangChainProviderAdapter());
-      ServiceContainer.register(SERVICE_KEYS.auditEmitter, new AuditRepositoryAdapter());
-      // ─────────────────────────────────────────────────────────────────────────
 
       const adapters: any[] = [];
       let httpServer: HttpServer | undefined;

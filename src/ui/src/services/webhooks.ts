@@ -8,6 +8,7 @@ export interface Webhook {
   id: string;
   name: string;
   api_key: string;
+  requires_api_key: boolean;
   prompt: string;
   enabled: boolean;
   notification_channels: NotificationChannel[];
@@ -32,10 +33,11 @@ export type CreateWebhookPayload = {
   name: string;
   prompt: string;
   notification_channels: NotificationChannel[];
+  requires_api_key?: boolean;
 };
 
 export type UpdateWebhookPayload = Partial<
-  Pick<Webhook, 'name' | 'prompt' | 'enabled' | 'notification_channels'>
+  Pick<Webhook, 'name' | 'prompt' | 'enabled' | 'notification_channels' | 'requires_api_key'>
 >;
 
 export const webhookService = {

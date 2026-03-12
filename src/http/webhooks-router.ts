@@ -13,6 +13,7 @@ const CreateWebhookSchema = z.object({
     .regex(/^[a-z0-9-_]+$/, 'Name must be a slug: lowercase letters, numbers, hyphens, underscores only'),
   prompt: z.string().min(1).max(10_000),
   notification_channels: z.array(z.enum(['ui', 'telegram', 'discord'])).min(1).default(['ui']),
+  requires_api_key: z.boolean().default(true),
 });
 
 const UpdateWebhookSchema = z.object({
@@ -25,6 +26,7 @@ const UpdateWebhookSchema = z.object({
   prompt: z.string().min(1).max(10_000).optional(),
   enabled: z.boolean().optional(),
   notification_channels: z.array(z.enum(['ui', 'telegram', 'discord'])).min(1).optional(),
+  requires_api_key: z.boolean().optional(),
 });
 
 const MarkReadSchema = z.object({
@@ -46,14 +48,18 @@ export function createWebhooksRouter(): Router {
     const { webhook_name } = req.params;
     const apiKey = req.headers['x-api-key'];
 
-    if (!apiKey || typeof apiKey !== 'string') {
-      return res.status(401).json({ error: 'Missing x-api-key header' });
+    // 1. First lookup by name to check if it requires an API key
+    const webhook = repo.getWebhookByName(webhook_name);
+    if (!webhook || !webhook.enabled) {
+      // Intentionally ambiguous
+      return res.status(401).json({ error: 'Invalid webhook name or api key' });
     }
 
-    const webhook = repo.getAndValidateWebhook(webhook_name, apiKey);
-    if (!webhook) {
-      // Intentionally ambiguous — don't reveal whether the name exists or is disabled
-      return res.status(401).json({ error: 'Invalid webhook name or api key' });
+    // 2. Validate API key if required
+    if (webhook.requires_api_key) {
+      if (!apiKey || typeof apiKey !== 'string' || apiKey !== webhook.api_key) {
+        return res.status(401).json({ error: 'Invalid webhook name or api key' });
+      }
     }
 
     const payload = req.body ?? {};

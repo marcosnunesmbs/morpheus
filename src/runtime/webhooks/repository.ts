@@ -46,6 +46,7 @@ export class WebhookRepository {
         id TEXT PRIMARY KEY,
         name TEXT NOT NULL UNIQUE,
         api_key TEXT NOT NULL UNIQUE,
+        requires_api_key INTEGER NOT NULL DEFAULT 1,
         prompt TEXT NOT NULL,
         enabled INTEGER NOT NULL DEFAULT 1,
         notification_channels TEXT NOT NULL DEFAULT '["ui"]',
@@ -77,6 +78,13 @@ export class WebhookRepository {
       CREATE INDEX IF NOT EXISTS idx_webhook_notifications_created_at
         ON webhook_notifications(created_at DESC);
     `);
+
+    // Migration: Add requires_api_key if missing (better-sqlite3 doesn't support IF NOT EXISTS in ALTER TABLE)
+    const columns = this.db.prepare('PRAGMA table_info(webhooks)').all() as any[];
+    const hasRequiresApiKey = columns.some((c) => c.name === 'requires_api_key');
+    if (!hasRequiresApiKey) {
+      this.db.exec('ALTER TABLE webhooks ADD COLUMN requires_api_key INTEGER NOT NULL DEFAULT 1');
+    }
   }
 
   // ─── Webhook CRUD ────────────────────────────────────────────────────────────
@@ -85,14 +93,16 @@ export class WebhookRepository {
     const id = randomUUID();
     const api_key = randomUUID();
     const now = Date.now();
+    const requires_api_key = data.requires_api_key !== false ? 1 : 0;
 
     this.db.prepare(`
-      INSERT INTO webhooks (id, name, api_key, prompt, enabled, notification_channels, created_at)
-      VALUES (?, ?, ?, ?, 1, ?, ?)
+      INSERT INTO webhooks (id, name, api_key, requires_api_key, prompt, enabled, notification_channels, created_at)
+      VALUES (?, ?, ?, ?, ?, 1, ?, ?)
     `).run(
       id,
       data.name,
       api_key,
+      requires_api_key,
       data.prompt,
       JSON.stringify(data.notification_channels),
       now,
@@ -121,14 +131,15 @@ export class WebhookRepository {
   /**
    * Looks up a webhook by name, then validates the api_key and enabled status.
    * Returns null if not found, disabled, or api_key mismatch (caller decides error code).
+   * If requires_api_key is false, api_key validation is skipped.
    */
-  getAndValidateWebhook(name: string, api_key: string): Webhook | null {
+  getAndValidateWebhook(name: string, api_key?: string): Webhook | null {
     const row = this.db.prepare(
       'SELECT * FROM webhooks WHERE name = ? AND enabled = 1',
     ).get(name) as any;
     if (!row) return null;
     const wh = this.deserializeWebhook(row);
-    if (wh.api_key !== api_key) return null;
+    if (wh.requires_api_key && wh.api_key !== api_key) return null;
     return wh;
   }
 
@@ -139,15 +150,16 @@ export class WebhookRepository {
     const name = data.name ?? existing.name;
     const prompt = data.prompt ?? existing.prompt;
     const enabled = data.enabled !== undefined ? (data.enabled ? 1 : 0) : (existing.enabled ? 1 : 0);
+    const requires_api_key = data.requires_api_key !== undefined ? (data.requires_api_key ? 1 : 0) : (existing.requires_api_key ? 1 : 0);
     const notification_channels = JSON.stringify(
       data.notification_channels ?? existing.notification_channels,
     );
 
     this.db.prepare(`
       UPDATE webhooks
-      SET name = ?, prompt = ?, enabled = ?, notification_channels = ?
+      SET name = ?, prompt = ?, enabled = ?, requires_api_key = ?, notification_channels = ?
       WHERE id = ?
-    `).run(name, prompt, enabled, notification_channels, id);
+    `).run(name, prompt, enabled, requires_api_key, notification_channels, id);
 
     return this.getWebhookById(id);
   }
@@ -170,6 +182,7 @@ export class WebhookRepository {
       id: row.id,
       name: row.name,
       api_key: row.api_key,
+      requires_api_key: Boolean(row.requires_api_key),
       prompt: row.prompt,
       enabled: Boolean(row.enabled),
       notification_channels: JSON.parse(row.notification_channels || '["ui"]'),
