@@ -7,6 +7,8 @@
 - [x] 1.5 Update `WebhookRepository.getAndValidateWebhook` to retrieve the webhook even if `api_key` is not provided, but only if `requires_api_key` is false.
 - [x] 1.6 Update `CreateWebhookSchema` and `UpdateWebhookSchema` in `src/http/webhooks-router.ts` to include the new field.
 - [x] 1.7 Update `POST /trigger/:webhook_name` logic in `src/http/webhooks-router.ts` to conditionally validate the API key.
+- [x] 1.8 Update `WebhookDispatcher.buildPrompt` in `src/runtime/webhooks/dispatcher.ts` to implement payload isolation and guard against prompt injection.
+
 
 ## 2. Frontend Implementation
 

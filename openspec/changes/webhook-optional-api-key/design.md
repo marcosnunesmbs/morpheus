@@ -34,6 +34,12 @@ The `/trigger/:webhook_name` endpoint logic will be modified:
 - **List View**: Add an icon or badge indicating "Public" status for webhooks without API key requirement.
 - **cURL Example**: Conditionally render the `-H "x-api-key: ..."` line based on the setting.
 
+### Prompt Safety (Payload Isolation)
+To mitigate prompt injection from incoming payloads (especially in public webhooks), the `WebhookDispatcher` will wrap the user prompt and payload in a structured format:
+1. It will clearly label the user-defined prompt as the source of instructions.
+2. It will explicitly mark the payload as DATA only.
+3. It will add a system-level directive to the Oracle to ignore any instructions found within the payload data.
+
 ## Risks / Trade-offs
 
 - **Security Risk**: Webhooks without API keys are publicly triggerable by anyone who knows the URL slug.
