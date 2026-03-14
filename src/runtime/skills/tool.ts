@@ -66,7 +66,14 @@ function buildLoadSkillDescription(): string {
     ? enabled.map(s => `- ${s.name}: ${s.description}`).join('\n')
     : '(no skills available)';
 
-  return `Load a skill's instructions into your context. After loading, follow the instructions to handle the request using your existing tools or delegate to Agents.
+  return `MANDATORY: Load a skill's expert instructions BEFORE delegating a task that matches an available skill.
+
+CRITICAL: For Google Workspace (GWS) tasks, you MUST:
+1. Call load_skill with the matching gws-* skill name FIRST
+2. Then delegate to apoc_delegate, passing the loaded skill content in the "context" parameter
+3. NEVER delegate GWS tasks without loading the skill — Apoc needs the exact CLI syntax
+
+After loading, the skill content tells you (and the subagent) the exact commands, resources, and parameters to use.
 
 Available skills:
 ${skillList}`;

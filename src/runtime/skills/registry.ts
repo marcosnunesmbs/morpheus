@@ -133,7 +133,11 @@ export class SkillRegistry {
 
 ${skillList}
 
-Use the \`load_skill\` tool when you need detailed instructions for handling a specific type of request.`;
+MANDATORY SKILL WORKFLOW:
+1. If a user request matches any skill above, you MUST call \`load_skill\` BEFORE calling any delegation tool (apoc_delegate, neo_delegate, etc.).
+2. After loading the skill, include the skill content in the \`context\` parameter when delegating to a subagent.
+3. NEVER delegate a GWS/Google Workspace task without first loading the relevant skill — the subagent needs the exact CLI syntax from the skill instructions.
+4. Example: User asks "create a Google Calendar event" → call \`load_skill("gws-calendar-insert")\` → then call \`apoc_delegate\` with the skill content in \`context\`.`;
   }
 
   /**

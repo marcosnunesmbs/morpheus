@@ -145,6 +145,129 @@ Use this tool when the user asks for ANY of the following:
   }
 
   /**
+   * Auto-resolve relevant skills for a task by matching keywords to skill names.
+   * Returns the concatenated skill content to inject into Apoc's system prompt.
+   */
+  private resolveSkillsForTask(task: string, context?: string): string {
+    const registry = SkillRegistry.getInstance();
+    const enabled = registry.getEnabled();
+    if (enabled.length === 0) return '';
+
+    const combined = `${task} ${context || ''}`.toLowerCase();
+
+    // Check if skill content was already provided in the context (Oracle loaded it)
+    if (context && context.includes('Loaded skill:')) return '';
+
+    // GWS keyword → skill name mapping
+    const gwsKeywordMap: Record<string, string[]> = {
+      'tasks': ['gws-tasks'],
+      'task': ['gws-tasks'],
+      'google tasks': ['gws-tasks'],
+      'calendar': ['gws-calendar', 'gws-calendar-insert', 'gws-calendar-agenda'],
+      'evento': ['gws-calendar', 'gws-calendar-insert'],
+      'event': ['gws-calendar', 'gws-calendar-insert'],
+      'agenda': ['gws-calendar-agenda', 'gws-calendar'],
+      'gmail': ['gws-gmail', 'gws-gmail-send'],
+      'email': ['gws-gmail', 'gws-gmail-send'],
+      'e-mail': ['gws-gmail', 'gws-gmail-send'],
+      'enviar email': ['gws-gmail-send'],
+      'send email': ['gws-gmail-send'],
+      'forward': ['gws-gmail-forward'],
+      'encaminhar': ['gws-gmail-forward'],
+      'reply': ['gws-gmail-reply'],
+      'responder email': ['gws-gmail-reply'],
+      'drive': ['gws-drive', 'gws-drive-upload'],
+      'upload': ['gws-drive-upload'],
+      'docs': ['gws-docs', 'gws-docs-write'],
+      'documento': ['gws-docs', 'gws-docs-write'],
+      'document': ['gws-docs', 'gws-docs-write'],
+      'sheets': ['gws-sheets'],
+      'planilha': ['gws-sheets'],
+      'spreadsheet': ['gws-sheets'],
+      'meet': ['gws-meet'],
+      'reunião': ['gws-meet'],
+      'meeting': ['gws-meet'],
+      'forms': ['gws-forms'],
+      'formulário': ['gws-forms'],
+      'keep': ['gws-keep'],
+      'nota': ['gws-keep'],
+      'note': ['gws-keep'],
+      'chat': ['gws-chat', 'gws-chat-send'],
+      'classroom': ['gws-classroom'],
+    };
+
+    const matchedSkills = new Set<string>();
+
+    // Check if task involves GWS at all
+    const isGwsTask = combined.includes('gws') || combined.includes('google') ||
+      Object.keys(gwsKeywordMap).some(kw => combined.includes(kw));
+
+    if (!isGwsTask) return '';
+
+    // Find matching skills by keyword
+    for (const [keyword, skillNames] of Object.entries(gwsKeywordMap)) {
+      if (combined.includes(keyword)) {
+        for (const name of skillNames) {
+          matchedSkills.add(name);
+        }
+      }
+    }
+
+    // If GWS task but no specific match, try to match by skill name fragments
+    if (matchedSkills.size === 0 && isGwsTask) {
+      for (const skill of enabled) {
+        if (skill.name.startsWith('gws-')) {
+          const service = skill.name.replace('gws-', '').replace(/-/g, ' ');
+          if (combined.includes(service)) {
+            matchedSkills.add(skill.name);
+          }
+        }
+      }
+    }
+
+    // Also check recipe skills
+    for (const skill of enabled) {
+      if (skill.name.startsWith('recipe-')) {
+        const recipe = skill.name.replace('recipe-', '').replace(/-/g, ' ');
+        if (combined.includes(recipe)) {
+          matchedSkills.add(skill.name);
+        }
+      }
+    }
+
+    if (matchedSkills.size === 0) return '';
+
+    // Load skill content (limit to 3 most relevant)
+    const skillContents: string[] = [];
+    let count = 0;
+    for (const name of matchedSkills) {
+      if (count >= 3) break;
+      const skill = registry.get(name);
+      if (skill?.enabled && skill.content) {
+        skillContents.push(`━━━ SKILL: ${skill.name} ━━━\n${skill.content}`);
+        count++;
+      }
+    }
+
+    if (skillContents.length === 0) return '';
+
+    this.display.log(`Auto-injected ${skillContents.length} skill(s) for task: ${[...matchedSkills].slice(0, 3).join(', ')}`, {
+      source: 'Apoc',
+      level: 'info',
+    });
+
+    return `\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+LOADED SKILLS — FOLLOW THESE INSTRUCTIONS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+The following skill instructions tell you EXACTLY how to execute this task.
+Use \`gws schema <resource>.<method>\` to discover required params before calling any method.
+Do NOT guess command syntax — follow the skill instructions below.
+
+${skillContents.join('\n\n')}`;
+  }
+
+  /**
    * Execute a devtools task delegated by Oracle.
    * @param task Natural language task description
    * @param context Optional additional context from the ongoing conversation
@@ -160,6 +283,9 @@ Use this tool when the user asks for ANY of the following:
       source: "Apoc",
     });
     const personality = this.config.apoc?.personality || 'pragmatic_dev';
+
+    // Auto-resolve and inject relevant skill content for the task
+    const skillSection = this.resolveSkillsForTask(task, context);
 
     const systemMessage = new SystemMessage(`
 You are Apoc, ${personality === 'pragmatic_dev' ? 'a pragmatic and methodical developer' : personality}, a high-reliability execution and verification subagent inside the Morpheus system.
@@ -182,6 +308,7 @@ CORE PRINCIPLES
 • You have the capability to execute \`gws\` CLI commands for Google Workspace operations (Sheets, Calendar, Drive, etc.).
 • **CRITICAL GWS AUTH**: Every time you run a \`gws\` command, you MUST ensure \`GOOGLE_WORKSPACE_CLI_CREDENTIALS_FILE\` is set to the absolute path of your credentials file: \`${USER_HOME}/.morpheus/gws/credentials.json\` (or the equivalent absolute path on the current OS). If not already set in your environment, prepend the command with the export (e.g., \`export GOOGLE_WORKSPACE_CLI_CREDENTIALS_FILE=... && gws ...\` on Linux/macOS or \`$env:GOOGLE_WORKSPACE_CLI_CREDENTIALS_FILE='...'; gws ...\` on Windows).
 • If the \`gws\` command fails, report the error detail. If the tool is not installed, inform the user clearly.
+• **IMPORTANT**: When skill instructions are loaded below, follow them EXACTLY. Do NOT guess CLI syntax — use \`gws schema\` to discover params first.${skillSection}
 
 If reliable evidence cannot be obtained:
 State clearly:
