@@ -12,7 +12,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 # Instalar gws CLI
-RUN npm install -g @nicholasgriffintn/google-workspace-cli
+RUN npm install -g @googleworkspace/cli
     
 # Criar diretório de trabalho
 WORKDIR /app
