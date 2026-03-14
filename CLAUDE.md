@@ -52,6 +52,11 @@ npm install <pkg> --legacy-peer-deps
 
 When adding new config keys: define the Zod schema in `src/config/schemas.ts` (child schemas must be declared BEFORE `ConfigSchema` to avoid forward-reference TS errors), add to `src/types/config.ts`, and handle env var override in `src/config/manager.ts`.
 
+Key config sections added recently:
+- `audio.tts` — TTS config (`TtsConfig`): `enabled`, `provider`, `model`, `voice`, `apiKey`, `style_prompt`; env vars: `MORPHEUS_AUDIO_TTS_*`
+- `currency` — display currency (`CurrencyConfig`): `code`, `symbol`, `rate`; env vars: `MORPHEUS_CURRENCY_CODE/SYMBOL/RATE`
+- `gws` — Google Workspace integration (`GwsConfig`): `enabled` (default: `true`), `service_account_json`; env vars: `MORPHEUS_GWS_ENABLED`, `MORPHEUS_GWS_SERVICE_ACCOUNT_JSON`
+
 ---
 
 ## Architecture
@@ -65,7 +70,8 @@ bin/morpheus.js             # Shebang entry: loads .env, dynamic import
       ServiceContainer (registers port adapters),
       Oracle, HttpServer, ChronosRepository, ChronosWorker,
       TaskWorker, TaskNotifier, TelegramAdapter, DiscordAdapter,
-      SmithRegistry (connects to remote Smiths)
+      SmithRegistry (connects to remote Smiths),
+      SkillRegistry (loads skills from ~/.morpheus/skills/)
 ```
 
 ### Agent Delegation Pattern
@@ -82,34 +88,6 @@ Oracle is the root orchestrator. It delegates to specialized subagents via tools
 All subagents self-register with `SubagentRegistry` (in `src/runtime/subagents/registry.ts`) during `getInstance()`. The registry is the single source of truth for delegation tool names, display metadata (emoji, color, Tailwind classes), session propagation, and task routing.
 
 Oracle never executes DevKit/MCP tools directly — it routes through subagents.
-
-### Ports & Adapters (Hexagonal Architecture)
-
-The codebase uses a Ports & Adapters pattern to decouple domain logic from infrastructure.
-
-**Ports** (`src/runtime/ports/`) — interfaces that define contracts:
-- `INotifier` — `sendToUser()` / `broadcast()` (replaces direct `ChannelRegistry` calls)
-- `ITaskEnqueuer` — `enqueue()` (replaces direct `TaskRepository` calls)
-- `IChatHistory` — `getMessages()` / `addMessage()` / `clear()`
-- `ILLMProviderFactory` — `create()` / `createBare()` (replaces direct `ProviderFactory` calls)
-- `IAuditEmitter` — `emit()` (replaces direct `AuditRepository` calls)
-
-**Adapters** (`src/runtime/adapters/`) — implementations that wrap existing infra:
-- `ChannelNotifierAdapter` → `ChannelRegistry`
-- `SQLiteTaskEnqueuerAdapter` → `TaskRepository`
-- `SQLiteChatHistoryAdapter` → `SQLiteChatMessageHistory`
-- `LangChainProviderAdapter` → `ProviderFactory`
-- `AuditRepositoryAdapter` → `AuditRepository`
-
-**ServiceContainer** (`src/runtime/container.ts`) — simple typed registry:
-- Configured in `start.ts` (composition root) before any service starts
-- Well-known keys in `SERVICE_KEYS` constant (e.g. `'notifier'`, `'taskEnqueuer'`)
-- Usage: `ServiceContainer.get<INotifier>(SERVICE_KEYS.notifier)`
-
-**Currently migrated consumers:**
-- `delegation-utils.ts`, `smith-tool.ts` — use `INotifier`, `ITaskEnqueuer`, `IAuditEmitter`
-- All subagents (Apoc, Neo, Trinity, Link) — use `ILLMProviderFactory`
-- Channel adapters (Telegram, Discord) — depend on `IOracle` interface, not `Oracle` class
 
 ### Creating a New Subagent
 
@@ -235,7 +213,7 @@ export { MyAgent } from './myagent.js';
 
 #### 6. Hot-reload (automatic)
 
-Hot-reload uses `SubagentRegistry.reloadAll()` — no manual changes needed. As long as your agent is registered in the `SubagentRegistry` (step 1), it will be reloaded automatically.
+Hot-reload uses `SubagentRegistry.reloadAll()` — no manual changes needed. As long as your agent is registered in the `SubagentRegistry` (step 1), it will be reloaded automatically. Skills are also reloaded during hot-reload.
 
 #### Out of scope for this pattern
 
@@ -262,8 +240,9 @@ src/http/
   ├─ routers/
   │   ├─ agents.ts     # GET /api/agents/metadata — SubagentRegistry display data
   │   ├─ chronos.ts    # createChronosJobRouter() + createChronosConfigRouter()
+  │   ├─ display.ts    # GET /api/display/stream — SSE for real-time activity events
   │   └─ smiths.ts     # Smith management, config, ping, delegation
-  ├─ webhooks-router.ts
+  ├─ webhooks-router.ts # Webhook CRUD + trigger (optional API key auth + payload isolation)
   └─ middleware/
       └─ auth.ts       # API key validation
 ```
@@ -406,15 +385,16 @@ In `tasks` table, Trinity agent rows use `agent = 'trinit'` (not `'trinity'`). S
 | CLI entry | `src/cli/index.ts` | Commander.js |
 | Start command | `src/cli/commands/start.ts` | Wires all services, registers channel adapters |
 | Channel registry | `src/channels/registry.ts` | `IChannelAdapter` + `ChannelRegistry` singleton |
-| Telegram adapter | `src/channels/telegram.ts` | `channel = 'telegram'`, implements `IChannelAdapter`, depends on `IOracle` |
-| Discord adapter | `src/channels/discord.ts` | `channel = 'discord'`, implements `IChannelAdapter`, depends on `IOracle` |
+| Telegram adapter | `src/channels/telegram.ts` | `channel = 'telegram'`, implements `IChannelAdapter`, TTS audio responses |
+| Discord adapter | `src/channels/discord.ts` | `channel = 'discord'`, implements `IChannelAdapter`, TTS audio responses |
+| Telephonist | `src/runtime/telephonist.ts` | STT (`createTelephonist`) + TTS (`createTtsTelephonist`), Gemini/Whisper/OpenAI/OpenRouter |
 | Oracle agent | `src/runtime/oracle.ts` | LangChain ReactAgent |
 | Subagent registry | `src/runtime/subagents/registry.ts` | `SubagentRegistry` singleton — single source of truth |
 | Subagent barrel | `src/runtime/subagents/index.ts` | Re-exports all subagents, registry, utils |
 | Subagent interface | `src/runtime/subagents/ISubagent.ts` | `ISubagent` contract |
 | Subagent utils | `src/runtime/subagents/utils.ts` | `extractRawUsage`, `persistAgentMessage`, `buildAgentResult` |
-| Apoc subagent | `src/runtime/subagents/apoc.ts` | DevKit, `apoc_delegate` |
-| DevKit instrument | `src/runtime/subagents/devkit-instrument.ts` | Wraps DevKit tools with audit events |
+| Apoc subagent | `src/runtime/subagents/apoc.ts` | DevKit, `apoc_delegate`, auto-resolves GWS skills |
+| DevKit instrument | `src/runtime/subagents/devkit-instrument.ts` | Wraps DevKit tools with audit events, injects GWS credentials |
 | DevKit config | `src/devkit/registry.ts` | Shared security: sandbox, readonly, category toggles |
 | DevKit library | `morpheus-devkit` | External npm package (filesystem, shell, git, network, packages, processes, system, browser) |
 | Trinity subagent | `src/runtime/subagents/trinity/trinity.ts` | DB specialist, `trinity_delegate` |
@@ -434,15 +414,12 @@ In `tasks` table, Trinity agent rows use `agent = 'trinit'` (not `'trinity'`). S
 | Link API router | `src/http/routers/link.ts` | Document upload, list, delete, reindex |
 | MCP Tool Cache | `src/runtime/tools/cache.ts` | Singleton cache for MCP tools |
 | MCP Factory | `src/runtime/tools/factory.ts` | `Construtor.create()` / `reload()` / `getStats()` |
-| Provider factory | `src/runtime/providers/factory.ts` | `create()` / `createBare()` via Strategy Pattern |
-| Provider strategies | `src/runtime/providers/strategies.ts` | `IProviderStrategy` + per-provider strategies |
-| Ports (interfaces) | `src/runtime/ports/` | `INotifier`, `ITaskEnqueuer`, `IChatHistory`, `ILLMProviderFactory`, `IAuditEmitter` |
-| Adapters (impls) | `src/runtime/adapters/` | Wraps existing infra behind port interfaces |
-| Service container | `src/runtime/container.ts` | `ServiceContainer` + `SERVICE_KEYS` — composition root |
+| Provider factory | `src/runtime/providers/factory.ts` | `create()` / `createBare()` |
 | HTTP API | `src/http/api.ts` | Express, mounted at `/api` |
 | Config manager | `src/config/manager.ts` | Singleton, `getInstance().get()` |
 | Config schemas | `src/config/schemas.ts` | Zod schemas |
 | Paths constants | `src/config/paths.ts` | `PATHS.root`, `PATHS.config`, `PATHS.shortMemoryDb`, `PATHS.trinityDb`, `PATHS.satiDb`, `PATHS.linkDb`, etc. |
+| Currency hook | `src/ui/src/hooks/useCurrency.ts` | `fmtCost()` / `fmtPrice()` — reads `config.currency`, converts USD → display currency |
 | Frontend | `src/ui/src/` | React 19 + Vite |
 | Chronos scheduler | `src/runtime/chronos/` | parser, worker, repository |
 | Memory DB | `~/.morpheus/memory/short-memory.db` | sessions, messages, tasks, chronos, audit |
@@ -451,6 +428,14 @@ In `tasks` table, Trinity agent rows use `agent = 'trinit'` (not `'trinity'`). S
 | Link DB | `~/.morpheus/memory/link.db` | Document embeddings (sqlite-vec) |
 | Documents dir | `~/.morpheus/docs/` | User uploaded documents |
 | MCP config | `~/.morpheus/mcps.json` | MCP server definitions |
+| Skill registry | `src/runtime/skills/registry.ts` | Singleton, manages loaded skills |
+| Skill loader | `src/runtime/skills/loader.ts` | Scans `~/.morpheus/skills/`, parses SKILL.md |
+| Skill tool | `src/runtime/skills/tool.ts` | `load_skill` tool for Oracle |
+| GWS sync | `src/runtime/gws-sync.ts` | Smart sync of built-in GWS skills |
+| GWS skills source | `gws-skills/skills/` | 102 built-in GWS skill definitions |
+| Display manager | `src/runtime/display.ts` | Activity event emission for real-time visualization |
+| Display SSE router | `src/http/routers/display.ts` | `GET /api/display/stream` — SSE endpoint |
+| Skills dir | `~/.morpheus/skills/` | User + synced skills (SKILL.md per folder) |
 | Daemon config | `~/.morpheus/zaion.yaml` | User config file |
 
 ### Test File Locations
