@@ -15,6 +15,7 @@ import { extractRawUsage, persistAgentMessage, buildAgentResult, emitToolAuditEv
 import { buildDelegationTool } from "../tools/delegation-utils.js";
 import { SubagentRegistry } from "./registry.js";
 import { USER_HOME } from "../../config/paths.js";
+import { SkillRegistry } from "../skills/index.js";
 
 /**
  * Apoc is a subagent of Oracle specialized in devtools operations.
@@ -46,6 +47,39 @@ export class Apoc implements ISubagent {
     Apoc.currentSessionId = sessionId;
   }
 
+  /** Update tool description with available skills */
+  static async refreshDelegateCatalog(): Promise<void> {
+    if (Apoc._delegateTool) {
+      const skills = SkillRegistry.getInstance().getEnabled();
+      const gwsSkills = skills.filter(s => s.name.startsWith('gws-') || s.name.startsWith('recipe-'));
+      
+      let description = `Delegate a devtools task to Apoc, the specialized development subagent.
+
+This tool enqueues a background task and returns an acknowledgement with task id.
+Do not expect final execution output in the same response.
+Each task must contain a single atomic action with a clear expected result.
+
+Use this tool when the user asks for ANY of the following:
+- File operations: read, write, create, delete files or directories
+- Shell commands: run scripts, execute commands, check output
+- Git: status, log, diff, commit, push, pull, clone, branch
+- Package management: npm install/update/audit, yarn, package.json inspection
+- Process management: list processes, kill processes, check ports
+- Network: ping hosts, curl URLs, DNS lookups
+- System info: environment variables, OS info, disk space, memory
+- Internet search: search DuckDuckGo and verify facts by reading at least 3 sources via browser_navigate before reporting results.
+- Browser automation: navigate websites (JS/SPA), inspect DOM, click elements, fill forms. Apoc will ask for missing user input (e.g. credentials, form fields) before proceeding.
+- Google Workspace (GWS) operations: manage Sheets, Docs, Calendar, Drive, Gmail using the \`gws\` CLI. Apoc will ensure proper authentication is set for each command and report any errors encountered.`;
+      
+      if (gwsSkills.length > 0) {
+        description += '\n\nAvailable Google Workspace (GWS) and Recipe capabilities:\n' + 
+          gwsSkills.map(s => `- ${s.name}: ${s.description}`).join('\n');
+      }
+      
+      Apoc._delegateTool.description = description;
+    }
+  }
+
   public static getInstance(config?: MorpheusConfig): Apoc {
     if (!Apoc.instance) {
       Apoc.instance = new Apoc(config);
@@ -57,9 +91,10 @@ export class Apoc implements ISubagent {
         bgClass: 'bg-amber-50 dark:bg-amber-900/10',
         badgeClass: 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300',
         instance: Apoc.instance,
-        hasDynamicDescription: false,
+        hasDynamicDescription: true,
         isMultiInstance: false,
         setSessionId: (id) => Apoc.setSessionId(id),
+        refreshCatalog: () => Apoc.refreshDelegateCatalog(),
       });
     }
     return Apoc.instance;

@@ -13,6 +13,7 @@
 
 import fs from 'fs';
 import path from 'path';
+import yaml from 'js-yaml';
 import { SkillMetadataSchema } from './schema.js';
 import type { Skill, SkillLoadResult, SkillLoadError } from './types.js';
 import { DisplayManager } from '../display.js';
@@ -22,63 +23,14 @@ const MAX_SKILL_MD_SIZE = 50 * 1024; // 50KB
 const FRONTMATTER_REGEX = /^---\r?\n([\s\S]*?)\r?\n---\r?\n?([\s\S]*)$/;
 
 /**
- * Simple YAML frontmatter parser
- * Handles basic key: value pairs and arrays
+ * Parses YAML frontmatter using js-yaml
  */
-function parseFrontmatter(yaml: string): Record<string, unknown> {
-  const result: Record<string, unknown> = {};
-  const lines = yaml.split('\n');
-  let currentKey: string | null = null;
-  let currentArray: string[] | null = null;
-
-  for (const line of lines) {
-    const trimmed = line.trim();
-    if (!trimmed || trimmed.startsWith('#')) continue;
-
-    // Check for array item (indented with -)
-    if (trimmed.startsWith('- ') && currentKey && currentArray !== null) {
-      currentArray.push(trimmed.slice(2).trim().replace(/^["']|["']$/g, ''));
-      continue;
-    }
-
-    // Check for key: value
-    const colonIndex = line.indexOf(':');
-    if (colonIndex > 0) {
-      // Save previous array if exists
-      if (currentKey && currentArray !== null && currentArray.length > 0) {
-        result[currentKey] = currentArray;
-      }
-      currentArray = null;
-
-      const key = line.slice(0, colonIndex).trim();
-      const value = line.slice(colonIndex + 1).trim();
-
-      currentKey = key;
-
-      if (value === '') {
-        // Could be start of array
-        currentArray = [];
-      } else if (value === 'true') {
-        result[key] = true;
-      } else if (value === 'false') {
-        result[key] = false;
-      } else if (/^\d+$/.test(value)) {
-        result[key] = parseInt(value, 10);
-      } else if (/^\d+\.\d+$/.test(value)) {
-        result[key] = parseFloat(value);
-      } else {
-        // Remove quotes if present
-        result[key] = value.replace(/^["']|["']$/g, '');
-      }
-    }
+function parseFrontmatter(yamlContent: string): Record<string, unknown> {
+  try {
+    return yaml.load(yamlContent) as Record<string, unknown>;
+  } catch (err) {
+    throw new Error(`YAML parse error: ${err instanceof Error ? err.message : String(err)}`);
   }
-
-  // Save last array if exists
-  if (currentKey && currentArray !== null && currentArray.length > 0) {
-    result[currentKey] = currentArray;
-  }
-
-  return result;
 }
 
 export class SkillLoader {

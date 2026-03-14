@@ -33,6 +33,6 @@ export const SkillMetadataSchema = z.object({
   tags: z.array(z.string().max(32)).max(10).optional(),
 
   examples: z.array(z.string().max(200)).max(5).optional(),
-});
+}).passthrough();
 
 export type ValidatedSkillMetadata = z.infer<typeof SkillMetadataSchema>;

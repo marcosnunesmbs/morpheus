@@ -9,6 +9,7 @@
 import { ConfigManager } from '../config/manager.js';
 import { DisplayManager } from './display.js';
 import { SubagentRegistry } from './subagents/registry.js';
+import { SkillRegistry } from './skills/index.js';
 import { IOracle } from './types.js';
 
 let currentOracle: IOracle | null = null;
@@ -47,7 +48,11 @@ export async function hotReloadConfig(): Promise<{
     await ConfigManager.getInstance().load();
     display.log('Configuration reloaded from disk', { source: 'HotReload', level: 'info' });
 
-    // 2. Reinitialize Oracle if it exists
+    // 2. Reload skills
+    await SkillRegistry.getInstance().reload();
+    display.log('Skills reloaded from disk', { source: 'HotReload', level: 'info' });
+
+    // 3. Reinitialize Oracle if it exists
     if (currentOracle && typeof (currentOracle as any).reinitialize === 'function') {
       await (currentOracle as any).reinitialize();
       reinitialized.push('Oracle');
