@@ -19,7 +19,7 @@ Core promise:
 ## 3. Multi-Agent Value
 - Oracle: conversational orchestrator and decision layer.
 - Neo: MCP/internal-tools executor for analytical and operational actions (personality: `analytical_engineer`).
-- Apoc: DevTools/browser executor for engineering and automation tasks (personality: `pragmatic_dev`).
+- Apoc: DevTools/browser executor for engineering and automation tasks (personality: `pragmatic_dev`). Auto-resolves and injects relevant skills (including GWS) based on task keywords.
 - Trinity: database specialist for SQL/NoSQL query execution (personality: `data_specialist`).
 - Link: documentation specialist for RAG over user documents (personality: `documentation_specialist`).
 - Smith: remote DevKit executor for isolated machines via WebSocket (uses Oracle's LLM with proxy tools).
@@ -106,6 +106,9 @@ User asks "status/consultou?" and Oracle uses direct task query (no delegation r
 - Sati memory configuration: evaluation interval, similarity threshold.
 - Audit dashboard: session audit, tool call tracking, cost breakdowns.
 - Display currency: Settings → Interface configures the currency used for cost displays across audit pages and model pricing (USD, BRL, EUR, CAD, JPY, GBP, AUD, CHF, ARS, or custom). Costs remain stored in USD; conversion is display-only.
+- Google Workspace integration: 102 built-in skills for Gmail, Drive, Sheets, Calendar, Docs, and more. Configurable via `gws` section in `zaion.yaml`.
+- Webhook security: per-webhook API key toggle (public or secured). Payload isolation prevents prompt injection from webhook data.
+- Real-time activity visualization: live agent activity feed on dashboard with 3D orbital visualizer.
 - Danger Zone: destructive data operations (reset sessions, tasks, jobs, audit, factory reset).
 
 ## 7. Non-Functional Requirements
@@ -123,7 +126,9 @@ Morpheus is evolving from chat assistant to an asynchronous local operator:
 - deterministic task orchestration
 - richer auditability of delegated work
 - stronger separation between orchestration and execution agents
-- better operational visibility in UI and external channels
+- better operational visibility in UI and external channels (real-time activity visualization)
 - multi-channel presence (Terminal, Web UI, Telegram, Discord)
 - temporal scheduling with Chronos for recurring and one-time automations
 - remote execution delegation via Smith agents on isolated machines
+- Google Workspace automation via skills-based `gws` CLI integration
+- extensible skill system with auto-resolution for domain-specific task handling

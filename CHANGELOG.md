@@ -5,6 +5,43 @@ All notable changes to Morpheus will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.30] - 2026-03-14
+
+### Added
+
+- **Google Workspace (GWS) Skills Integration**: Full Google Workspace automation via `gws` CLI skills
+  - 102 built-in skills synced to `~/.morpheus/skills/` at startup: 17 services, 22 helpers, 10 personas, 42 recipes + 11 new productivity/scheduling recipes
+  - Smart sync via MD5 hashing: new skills are copied, unmodified skills are updated, user-customized skills are preserved
+  - `GwsConfig` in `zaion.yaml`: `gws.enabled` (default: `true`), `gws.service_account_json` (path to Google Service Account JSON key)
+  - Env vars: `MORPHEUS_GWS_SERVICE_ACCOUNT_JSON`, `MORPHEUS_GWS_ENABLED`
+  - `syncGwsSkills()` runs at daemon startup via `scaffold()` — warns if `gws` CLI not in PATH or credentials missing
+  - **Auto-resolution in Apoc**: keyword-based skill matching (e.g., "calendar" → `gws-calendar`, "email" → `gws-gmail-send`) injects up to 3 relevant skills into Apoc's system prompt automatically
+  - **Credential injection**: `devkit-instrument.ts` injects `GOOGLE_APPLICATION_CREDENTIALS` and `GOOGLE_WORKSPACE_CLI_CREDENTIALS_FILE` env vars for all `gws` shell commands
+  - Skill categories: services (`gws-gmail`, `gws-drive`, `gws-sheets`, `gws-calendar`, etc.), helpers (`gws-gmail-send`, `gws-drive-upload`, etc.), personas (`persona-exec-assistant`, `persona-project-manager`, etc.), recipes (`recipe-create-doc-from-template`, `recipe-send-team-announcement`, etc.)
+
+- **Skill System Enhancements**: Improved skill lifecycle management
+  - `SkillRegistry` initialized in `restart` command for persistence across restarts
+  - Skills reloaded during hot-reload (`SubagentRegistry.reloadAll()`)
+  - Apoc's delegate catalog updated with available skills for better task matching
+  - Oracle `load_skill` tool description includes mandatory GWS workflow instructions
+
+- **Webhook API Key Authentication**: Optional API key requirement per webhook
+  - New `requires_api_key` column in `webhooks` table (default: `true`)
+  - Public webhooks: toggle off API key requirement for open triggers
+  - UI: "Security" toggle in create/edit modal, "Public / Unsecured" badge in list view
+  - cURL examples dynamically include/exclude `x-api-key` header
+  - **Payload isolation**: Prompt injection protection — webhook payloads explicitly labeled as "DATA ONLY" in prompt construction
+
+- **Activity Tracking & Real-Time Visualization**: Live agent activity feed on dashboard
+  - `DisplayManager` extended with `startActivity(agent, message)` / `endActivity(agent, success)` event emission
+  - `AuditRepository` auto-emits activity events from audit entries (LLM calls, tool calls, MCP tools, TTS, transcription, skill loads, etc.)
+  - SSE endpoint: `GET /api/display/stream` — Server-Sent Events for real-time activity streaming
+  - Dashboard visualizer: 3D orbital visualization with `AgentNode`, `OracleNode`, `SynapseLink` components
+  - Activity feed: Matrix-style terminal aesthetic with sequential fade-in animations, blinking cursors, color-coded agent labels
+  - Feed timing: 150ms stagger between entries, 12s TTL, max 12 visible entries
+
+- **New Recipes**: 11 productivity and scheduling recipe skills added (meeting prep, weekly planning, task prioritization, etc.)
+
 ## [0.9.20] - 2026-03-09
 
 ### Added

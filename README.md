@@ -14,7 +14,8 @@ It runs as a daemon and orchestrates LLMs, MCP tools, DevKit tools, memory, and 
 - Chronos temporal scheduler for recurring and one-time Oracle executions.
 - Smith remote agent system for DevKit execution on isolated machines via WebSocket.
 - Multi-channel output via ChannelRegistry (Telegram, Discord) with per-job routing.
-- Rich operational visibility in UI (chat traces, tasks, usage, logs).
+- Google Workspace automation via 102 built-in skills (Gmail, Drive, Sheets, Calendar, Docs, Tasks).
+- Rich operational visibility in UI (chat traces, tasks, usage, logs, real-time activity visualization).
 
 ## Multi-Agent Roles
 - `Oracle`: orchestration and routing. Decides direct answer vs async delegation.
@@ -325,6 +326,7 @@ Adding a new channel requires only implementing `IChannelAdapter` (`channel`, `s
 ## Web UI
 
 The dashboard includes:
+- **Dashboard** with real-time 3D agent visualization and Matrix-style activity feed (live agent events via SSE)
 - Chat with session management and browser notifications
 - Tasks page (stats, filters, details, retry, pagination)
 - Agent settings (Oracle/Sati/Neo/Apoc/Trinity/Smiths)
@@ -335,7 +337,7 @@ The dashboard includes:
 - Chronos scheduler (create/edit/delete jobs, execution history)
 - Smiths management (add/edit/delete, real-time status, ping)
 - Audit dashboard (session audit, tool call tracking, cost breakdowns with currency conversion)
-- Webhooks and notification inbox
+- Webhooks and notification inbox (with per-webhook API key toggle for public/secured webhooks)
 - Logs viewer
 - Danger Zone (Settings → reset sessions, tasks, jobs, audit, or factory reset)
 - Display currency setting (Settings → Interface): converts USD costs to BRL, EUR, CAD, JPY, GBP, AUD, CHF, ARS, or any custom currency
@@ -430,6 +432,10 @@ audio:
     voice: Kore              # voice name (provider-specific)
     style_prompt: ""         # optional tone/style prefix (Gemini only)
 
+gws:                         # Google Workspace integration
+  enabled: true              # sync and use GWS skills (default: true)
+  service_account_json: ""   # path to Google Service Account JSON key
+
 currency:                    # display currency for cost dashboards
   code: USD                  # ISO 4217 code (e.g. BRL, EUR)
   symbol: $                  # symbol shown in UI
@@ -519,6 +525,8 @@ Generic Morpheus overrides (selected):
 | `MORPHEUS_DISCORD_ALLOWED_USERS` | `channels.discord.allowedUsers` |
 | `MORPHEUS_UI_ENABLED` | `ui.enabled` |
 | `MORPHEUS_UI_PORT` | `ui.port` |
+| `MORPHEUS_GWS_ENABLED` | `gws.enabled` |
+| `MORPHEUS_GWS_SERVICE_ACCOUNT_JSON` | `gws.service_account_json` |
 | `MORPHEUS_LOGGING_ENABLED` | `logging.enabled` |
 | `MORPHEUS_LOGGING_LEVEL` | `logging.level` |
 | `MORPHEUS_LOGGING_RETENTION` | `logging.retention` |
@@ -617,6 +625,87 @@ Example skills are available in `examples/skills/`:
 Copy them to your skills directory:
 ```bash
 cp -r examples/skills/* ~/.morpheus/skills/
+```
+
+## Google Workspace (GWS) Integration
+
+Morpheus integrates with Google Workspace via the `gws` CLI tool. 102 built-in skills provide structured instructions for automating Gmail, Drive, Sheets, Calendar, Docs, Tasks, and more.
+
+### Prerequisites
+
+1. **Install the `gws` CLI:**
+   ```bash
+   npm install -g @nicholasgriffintn/google-workspace-cli
+   ```
+
+2. **Create a Google Service Account:**
+   - Go to [Google Cloud Console](https://console.cloud.google.com/)
+   - Create or select a project
+   - Enable desired APIs (Gmail, Drive, Sheets, Calendar, Docs, etc.)
+   - IAM & Admin → Service Accounts → Create Service Account
+   - Grant the service account [Domain-Wide Delegation](https://developers.google.com/workspace/guides/create-credentials#service-account) if needed
+   - Create a JSON key and download it
+
+3. **Configure Morpheus:**
+
+   Add to `~/.morpheus/zaion.yaml`:
+   ```yaml
+   gws:
+     enabled: true
+     service_account_json: /path/to/your-service-account-key.json
+   ```
+
+   Or via environment variable:
+   ```bash
+   MORPHEUS_GWS_SERVICE_ACCOUNT_JSON=/path/to/your-service-account-key.json
+   ```
+
+### How It Works
+
+GWS skills are synced automatically at startup from the built-in `gws-skills/skills/` directory to `~/.morpheus/skills/`. Skills are organized in four categories:
+
+| Category | Count | Description |
+|---|---|---|
+| **Services** | 17 | Core API skills (`gws-gmail`, `gws-drive`, `gws-sheets`, `gws-calendar`, `gws-docs`, `gws-tasks`, etc.) |
+| **Helpers** | 22 | Shortcut skills for common operations (`gws-gmail-send`, `gws-drive-upload`, `gws-sheets-append`, `gws-calendar-insert`) |
+| **Personas** | 10 | Role-based skill bundles (`persona-exec-assistant`, `persona-project-manager`, `persona-hr-coordinator`) |
+| **Recipes** | 42+ | Multi-step task sequences (`recipe-create-doc-from-template`, `recipe-send-team-announcement`, `recipe-plan-weekly-schedule`) |
+
+### Usage Examples
+
+Just ask Morpheus naturally — Apoc auto-detects GWS tasks and loads the right skills:
+
+```
+"Send an email to alice@example.com with the weekly report"
+"Create a Google Sheet named 'Q2 Budget' with columns for category, amount, and notes"
+"List my unread Gmail messages"
+"Add an event to my calendar tomorrow at 10 AM: Team standup"
+"Upload specs/spec.md to my Google Drive"
+```
+
+Oracle can also explicitly load skills via `load_skill` when needed.
+
+### Skill Customization
+
+GWS skills use smart sync with MD5 hashing:
+- **New skills**: Automatically copied on startup
+- **Unmodified skills**: Updated to latest version
+- **User-customized skills**: Preserved (your edits are never overwritten)
+
+To customize a skill, edit the `SKILL.md` file in `~/.morpheus/skills/<skill-name>/`. Your changes will be preserved across updates.
+
+### Docker
+
+Add the service account JSON as a volume mount:
+
+```bash
+docker run -d \
+  --name morpheus-agent \
+  -p 3333:3333 \
+  -e MORPHEUS_GWS_SERVICE_ACCOUNT_JSON=/root/.morpheus/gws/credentials.json \
+  -v /path/to/your-key.json:/root/.morpheus/gws/credentials.json:ro \
+  -v morpheus_data:/root/.morpheus \
+  morpheus
 ```
 
 ## Link — Document RAG
@@ -810,8 +899,14 @@ src/
   runtime/
     container.ts         # ServiceContainer — DI composition root
     oracle.ts            # Orchestration brain
+    gws-sync.ts          # Smart sync of built-in GWS skills
+    display.ts           # Activity event emission for real-time visualization
     ports/               # Port interfaces (INotifier, ITaskEnqueuer, IChatHistory, ILLMProviderFactory, IAuditEmitter)
     adapters/            # Concrete adapter implementations for ports
+    skills/
+      registry.ts        # SkillRegistry singleton — manages loaded skills
+      loader.ts          # Discovers and parses SKILL.md files
+      tool.ts            # load_skill tool for Oracle
     providers/
       factory.ts         # ProviderFactory — strategy-based LLM creation
       strategies.ts      # IProviderStrategy + per-provider implementations

@@ -294,8 +294,9 @@ These tools are blocked (`ChronosWorker.isExecuting`) while a Chronos job is exe
 
 ### 10.1 Components
 - `src/runtime/skills/loader.ts`: `SkillLoader` — scans `~/.morpheus/skills/` directories, parses SKILL.md frontmatter, validates schema.
-- `src/runtime/skills/registry.ts`: `SkillRegistry` — singleton managing loaded skills, enable/disable state, system prompt generation.
+- `src/runtime/skills/registry.ts`: `SkillRegistry` — singleton managing loaded skills, enable/disable state, system prompt generation. Initialized in both `start` and `restart` commands. Reloaded during hot-reload.
 - `src/runtime/skills/tool.ts`: `load_skill` tool — Oracle loads skill content into context on-demand.
+- `src/runtime/gws-sync.ts`: `syncGwsSkills()` — smart synchronization of built-in GWS skills to `~/.morpheus/skills/`.
 
 ### 10.2 Skill Format
 Each skill is a folder in `~/.morpheus/skills/` containing a single `SKILL.md` file with YAML frontmatter:
@@ -322,13 +323,38 @@ Skills are **instruction templates** that Oracle loads into its context:
 3. Tool returns the skill's full content (SKILL.md)
 4. Oracle follows the instructions using its existing tools (delegation, MCP, etc.)
 
-**Key changes from previous model:**
-- No separate `execution_mode` — skills are always loaded inline
-- No Keymaker agent — Oracle executes directly with its own tools
-- Simpler flow: load instructions → execute with available tools
+**Auto-resolution in Apoc:** When Apoc receives a task, `resolveSkillsForTask()` matches keywords (e.g., "calendar", "email", "drive") against a `gwsKeywordMap` and injects up to 3 relevant skills into Apoc's system prompt automatically. No explicit `load_skill` call needed for GWS tasks.
 
 ### 10.4 Skill Discovery
-Skills are loaded at startup and on demand via `/api/skills/reload` or `/skills_reload` commands. The registry generates a dynamic system prompt section listing available skills for Oracle.
+Skills are loaded at startup and on demand via `/api/skills/reload` or `/skills_reload` commands. The registry generates a dynamic system prompt section listing available skills for Oracle. Apoc's delegate catalog is updated with available skills for better task matching.
+
+### 10.5 Google Workspace (GWS) Skills
+
+Built-in GWS skills provide structured instructions for automating Google Workspace via the `gws` CLI tool. 102 skills are organized in four categories:
+
+| Category | Count | Examples |
+|---|---|---|
+| Services | 17 | `gws-gmail`, `gws-drive`, `gws-sheets`, `gws-calendar`, `gws-docs`, `gws-tasks` |
+| Helpers | 22 | `gws-gmail-send`, `gws-drive-upload`, `gws-sheets-append`, `gws-calendar-insert` |
+| Personas | 10 | `persona-exec-assistant`, `persona-project-manager`, `persona-hr-coordinator` |
+| Recipes | 42+ | `recipe-create-doc-from-template`, `recipe-send-team-announcement`, `recipe-plan-weekly-schedule` |
+
+**Synchronization:** `syncGwsSkills()` runs at startup via `scaffold()`:
+- Sources from `gws-skills/skills/` (built-in)
+- Targets `~/.morpheus/skills/`
+- MD5 hashing for smart conflict resolution: new skills copied, unmodified updated, user-customized preserved
+- Metadata tracked in `.gws-hashes.json`
+
+**Authentication:** `devkit-instrument.ts` injects `GOOGLE_APPLICATION_CREDENTIALS` and `GOOGLE_WORKSPACE_CLI_CREDENTIALS_FILE` env vars before any `gws` shell command.
+
+**Config:**
+```yaml
+gws:
+  enabled: true                                    # default: true
+  service_account_json: /path/to/service-account.json
+```
+
+Env vars: `MORPHEUS_GWS_ENABLED`, `MORPHEUS_GWS_SERVICE_ACCOUNT_JSON`.
 
 ## 11. Smith — Remote Agent System
 
@@ -454,13 +480,36 @@ Costs are **always stored in USD** in the database. The currency config is displ
 - **Audio tracking:** Voice message transcription and TTS synthesis events tracked; audio duration aggregated in session summaries.
 - **Cost breakdown:** Per-model usage statistics for budget monitoring, displayed in configured currency.
 - **Memory recovery logging:** Sati memory retrieval events tracked for observability.
+- **Activity events:** `AuditRepository` auto-emits `activity_start`/`activity_end` events from audit entries for real-time visualization (LLM calls, tool calls, MCP tools, TTS, transcription, skill loads, etc.).
 - **Pagination:** `AuditRepository.countBySession()` provides accurate total event count independent of summary aggregates.
 - **UI dashboard:** Session audit view (`/audit/:sessionId`) with event timeline, global totals, expandable metadata, and cost breakdowns by model.
+
+## 16. Activity Tracking & Real-Time Visualization
+
+### 16.1 Components
+- `src/runtime/display.ts`: `DisplayManager` — EventEmitter for activity events (`activity_start`, `activity_end`, `message`, `message_sent`).
+- `src/http/routers/display.ts`: SSE endpoint `GET /api/display/stream` — Server-Sent Events for real-time activity streaming to the frontend.
+- `src/ui/src/hooks/useSystemStream.ts`: EventSource listener that parses incoming events and manages feed state.
+- `src/ui/src/components/dashboard/visualizer/`: 3D orbital visualization (`MorpheusVisualizer`, `AgentNode`, `OracleNode`, `SynapseLink`).
+
+### 16.2 Event Flow
+1. Backend emits activity events via `DisplayManager.startActivity(agent, message)` / `endActivity(agent, success)`
+2. `AuditRepository` also auto-emits from audit entries with duration hints (capped at 30s)
+3. SSE endpoint streams JSON payloads to connected frontends
+4. Dashboard visualizer highlights active agents and displays Matrix-style activity feed
+
+### 16.3 Direct Activity Sources
+- Oracle: LLM invocation (`startActivity('oracle', 'LLM call (model)')`)
+- Apoc/DevKit: Tool execution (`startActivity(agent, 'Executing tool: {name}')`)
+- Neo/MCP: MCP tool execution (`startActivity('neo', 'MCP tool: {name}')`)
+- Telephonist: Audio transcription and TTS synthesis
+- Channels (Telegram, Discord): Audio processing events
 
 ## 17. Security Model
 - Local-first storage by default.
 - `x-architect-pass` protects `/api/*` management routes.
-- webhook trigger uses per-webhook `x-api-key`.
+- Webhook trigger uses per-webhook `x-api-key` (optional — `requires_api_key` field, default `true`). Public webhooks can be created by toggling off API key requirement.
+- **Webhook payload isolation:** Prompt injection protection — webhook payloads explicitly labeled as "DATA ONLY" in prompt construction, with directives to ignore any instructions found within payload JSON.
 - Telegram allowlist enforces authorized user IDs.
 - Discord DM-only responses with authorized user IDs and Message Content Intent requirement.
 - Apoc execution constrained by configurable `working_dir` and `timeout_ms`.
@@ -472,6 +521,7 @@ Costs are **always stored in USD** in the database. The currency config is displ
 ## 18. Runtime Lifecycle
 At daemon boot (`start` / `restart` commands):
 - load config and initialize Oracle
+- sync GWS skills via `syncGwsSkills()` (smart MD5-based sync from `gws-skills/skills/` to `~/.morpheus/skills/`)
 - load skills via `SkillRegistry`
 - **register port adapters in `ServiceContainer`** (composition root — all 5 adapters wired here)
 - start HTTP server (optional)
@@ -485,6 +535,6 @@ At daemon boot (`start` / `restart` commands):
   - `LinkWorker` (document indexing and embedding generation)
 - start `ChronosWorker` (polls for due scheduled jobs)
 
-**Hot-reload:** `SubagentRegistry.reloadAll()` re-initializes all registered subagents when config changes. Individual `resetInstance()` calls are no longer needed.
+**Hot-reload:** `SubagentRegistry.reloadAll()` re-initializes all registered subagents when config changes. `SkillRegistry` is also reloaded, and Apoc's delegate catalog is refreshed with updated skill availability. Individual `resetInstance()` calls are no longer needed.
 
 Graceful shutdown stops HTTP, adapters, workers, and clears PID state.

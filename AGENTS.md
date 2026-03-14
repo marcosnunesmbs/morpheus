@@ -55,6 +55,7 @@ When adding new config keys: define the Zod schema in `src/config/schemas.ts` (c
 Key config sections added recently:
 - `audio.tts` — TTS config (`TtsConfig`): `enabled`, `provider`, `model`, `voice`, `apiKey`, `style_prompt`; env vars: `MORPHEUS_AUDIO_TTS_*`
 - `currency` — display currency (`CurrencyConfig`): `code`, `symbol`, `rate`; env vars: `MORPHEUS_CURRENCY_CODE/SYMBOL/RATE`
+- `gws` — Google Workspace integration (`GwsConfig`): `enabled` (default: `true`), `service_account_json`; env vars: `MORPHEUS_GWS_ENABLED`, `MORPHEUS_GWS_SERVICE_ACCOUNT_JSON`
 
 ---
 
@@ -65,10 +66,12 @@ Key config sections added recently:
 bin/morpheus.js             # Shebang entry: loads .env, dynamic import
   → src/cli/index.ts        # Commander.js program, calls scaffold() preAction
   → src/runtime/scaffold.ts # Ensures ~/.morpheus/ dirs + zaion.yaml exist
-  → src/cli/commands/start.ts  # Instantiates all services:
+  → src/cli/commands/start.ts  # Composition Root — instantiates all services:
+      ServiceContainer (registers port adapters),
       Oracle, HttpServer, ChronosRepository, ChronosWorker,
-      TaskRepository, TaskWorker, TaskNotifier, TelegramAdapter,
-      SmithRegistry (connects to remote Smiths)
+      TaskWorker, TaskNotifier, TelegramAdapter, DiscordAdapter,
+      SmithRegistry (connects to remote Smiths),
+      SkillRegistry (loads skills from ~/.morpheus/skills/)
 ```
 
 ### Agent Delegation Pattern
@@ -208,9 +211,9 @@ MyAgent.getInstance(this.config);
 export { MyAgent } from './myagent.js';
 ```
 
-#### 6. Update hot-reload (`src/runtime/hot-reload.ts`)
+#### 6. Hot-reload (automatic)
 
-Add `MyAgent.resetInstance()` to the hot-reload function.
+Hot-reload uses `SubagentRegistry.reloadAll()` — no manual changes needed. As long as your agent is registered in the `SubagentRegistry` (step 1), it will be reloaded automatically. Skills are also reloaded during hot-reload.
 
 #### Out of scope for this pattern
 
@@ -237,8 +240,9 @@ src/http/
   ├─ routers/
   │   ├─ agents.ts     # GET /api/agents/metadata — SubagentRegistry display data
   │   ├─ chronos.ts    # createChronosJobRouter() + createChronosConfigRouter()
+  │   ├─ display.ts    # GET /api/display/stream — SSE for real-time activity events
   │   └─ smiths.ts     # Smith management, config, ping, delegation
-  ├─ webhooks-router.ts
+  ├─ webhooks-router.ts # Webhook CRUD + trigger (optional API key auth + payload isolation)
   └─ middleware/
       └─ auth.ts       # API key validation
 ```
@@ -389,8 +393,8 @@ In `tasks` table, Trinity agent rows use `agent = 'trinit'` (not `'trinity'`). S
 | Subagent barrel | `src/runtime/subagents/index.ts` | Re-exports all subagents, registry, utils |
 | Subagent interface | `src/runtime/subagents/ISubagent.ts` | `ISubagent` contract |
 | Subagent utils | `src/runtime/subagents/utils.ts` | `extractRawUsage`, `persistAgentMessage`, `buildAgentResult` |
-| Apoc subagent | `src/runtime/subagents/apoc.ts` | DevKit, `apoc_delegate` |
-| DevKit instrument | `src/runtime/subagents/devkit-instrument.ts` | Wraps DevKit tools with audit events |
+| Apoc subagent | `src/runtime/subagents/apoc.ts` | DevKit, `apoc_delegate`, auto-resolves GWS skills |
+| DevKit instrument | `src/runtime/subagents/devkit-instrument.ts` | Wraps DevKit tools with audit events, injects GWS credentials |
 | DevKit config | `src/devkit/registry.ts` | Shared security: sandbox, readonly, category toggles |
 | DevKit library | `morpheus-devkit` | External npm package (filesystem, shell, git, network, packages, processes, system, browser) |
 | Trinity subagent | `src/runtime/subagents/trinity/trinity.ts` | DB specialist, `trinity_delegate` |
@@ -424,6 +428,14 @@ In `tasks` table, Trinity agent rows use `agent = 'trinit'` (not `'trinity'`). S
 | Link DB | `~/.morpheus/memory/link.db` | Document embeddings (sqlite-vec) |
 | Documents dir | `~/.morpheus/docs/` | User uploaded documents |
 | MCP config | `~/.morpheus/mcps.json` | MCP server definitions |
+| Skill registry | `src/runtime/skills/registry.ts` | Singleton, manages loaded skills |
+| Skill loader | `src/runtime/skills/loader.ts` | Scans `~/.morpheus/skills/`, parses SKILL.md |
+| Skill tool | `src/runtime/skills/tool.ts` | `load_skill` tool for Oracle |
+| GWS sync | `src/runtime/gws-sync.ts` | Smart sync of built-in GWS skills |
+| GWS skills source | `gws-skills/skills/` | 102 built-in GWS skill definitions |
+| Display manager | `src/runtime/display.ts` | Activity event emission for real-time visualization |
+| Display SSE router | `src/http/routers/display.ts` | `GET /api/display/stream` — SSE endpoint |
+| Skills dir | `~/.morpheus/skills/` | User + synced skills (SKILL.md per folder) |
 | Daemon config | `~/.morpheus/zaion.yaml` | User config file |
 
 ### Test File Locations
