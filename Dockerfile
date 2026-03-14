@@ -10,6 +10,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     python3 \
     build-essential \
     && rm -rf /var/lib/apt/lists/*
+
+# Instalar gws CLI
+RUN wget https://github.com/googleworkspace/cli/releases/latest/download/gws-linux-amd64 -O /usr/local/bin/gws \
+    && chmod +x /usr/local/bin/gws
     
 # Criar diretório de trabalho
 WORKDIR /app

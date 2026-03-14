@@ -214,6 +214,15 @@ export interface CurrencyConfig {
   rate: number;
 }
 
+export interface GwsConfig {
+  /** Path to the Google Service Account JSON key file. */
+  service_account_json?: string;
+  /** JSON content of the service account key (used for saving from UI). */
+  service_account_json_content?: string;
+  /** Whether GWS skills should be automatically initialized. Default: true. */
+  enabled?: boolean;
+}
+
 export interface MorpheusConfig {
   agent: AgentConfig;
   llm: LLMConfig;
@@ -224,6 +233,7 @@ export interface MorpheusConfig {
   link?: LinkConfig;
   devkit?: DevKitConfig;
   smiths?: SmithsConfig;
+  gws?: GwsConfig;
   setup?: SetupConfig;
   webhooks?: WebhookConfig;
   channels: ChannelsConfig;
@@ -346,6 +356,9 @@ export const DEFAULT_CONFIG: MorpheusConfig = {
     connection_timeout_ms: 10000,
     task_timeout_ms: 60000,
     entries: [],
+  },
+  gws: {
+    enabled: true,
   },
   verbose_mode: true,
 };

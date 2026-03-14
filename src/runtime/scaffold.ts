@@ -6,6 +6,7 @@ import { DEFAULT_MCP_TEMPLATE } from '../types/mcp.js';
 import chalk from 'chalk';
 import ora from 'ora';
 import { migrateConfigFile } from './migration.js';
+import { syncGwsSkills } from './gws-sync.js';
 
 const SKILLS_README = `# Morpheus Skills
 
@@ -75,6 +76,7 @@ export async function scaffold(): Promise<void> {
       fs.ensureDir(PATHS.commands),
       fs.ensureDir(PATHS.skills),
       fs.ensureDir(PATHS.docs),
+      fs.ensureDir(PATHS.gws),
     ]);
 
     // Migrate config.yaml -> zaion.yaml if needed
@@ -98,6 +100,9 @@ export async function scaffold(): Promise<void> {
     if (!(await fs.pathExists(skillsReadme))) {
       await fs.writeFile(skillsReadme, SKILLS_README, 'utf-8');
     }
+
+    // Sync Google Workspace skills
+    await syncGwsSkills();
 
     spinner.succeed('Morpheus environment ready at ' + chalk.cyan(PATHS.root));
   } catch (error) {

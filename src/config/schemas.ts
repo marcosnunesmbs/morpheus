@@ -114,6 +114,12 @@ export const CurrencyConfigSchema = z.object({
   rate: z.number().positive().default(1.0),
 });
 
+export const GwsConfigSchema = z.object({
+  service_account_json: z.string().optional(),
+  service_account_json_content: z.string().optional(),
+  enabled: z.boolean().default(true),
+});
+
 // Zod Schema matching MorpheusConfig interface
 export const ConfigSchema = z.object({
   agent: z.object({
@@ -139,6 +145,7 @@ export const ConfigSchema = z.object({
   chronos: ChronosConfigSchema.optional(),
   devkit: DevKitConfigSchema.optional(),
   smiths: SmithsConfigSchema.optional(),
+  gws: GwsConfigSchema.optional(),
   setup: SetupConfigSchema.optional(),
   currency: CurrencyConfigSchema.optional(),
   verbose_mode: z.boolean().default(true),

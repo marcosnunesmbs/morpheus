@@ -1,6 +1,7 @@
 import type { StructuredTool } from '@langchain/core/tools';
 import { AuditRepository } from '../audit/repository.js';
 import { DisplayManager } from '../display.js';
+import { ConfigManager } from '../../config/manager.js';
 
 const display = DisplayManager.getInstance();
 
@@ -15,6 +16,23 @@ function instrumentTool(tool: StructuredTool, getSessionId: () => string | undef
     const startMs = Date.now();
     const sessionId = getSessionId() ?? 'unknown';
     const agent = getAgent();
+
+    // Inject GWS credentials if it's a shell tool and command starts with 'gws'
+    if ((tool.name === 'execShell' || tool.name === 'execCommand') && input?.command?.trim().startsWith('gws')) {
+      const gwsConfig = ConfigManager.getInstance().getGwsConfig();
+      if (gwsConfig.service_account_json) {
+        input.env = {
+          ...(input.env || {}),
+          GOOGLE_APPLICATION_CREDENTIALS: gwsConfig.service_account_json,
+          GOOGLE_WORKSPACE_CLI_CREDENTIALS_FILE: gwsConfig.service_account_json,
+        };
+        display.log(
+          `Injected GWS credentials into environment for tool ${tool.name}`,
+          { source: 'DevKitInstrumentation', level: 'debug' }
+        );
+      }
+    }
+
     display.startActivity(agent, `Executing tool: ${tool.name}`);
     try {
       const result = await original(input, runManager);

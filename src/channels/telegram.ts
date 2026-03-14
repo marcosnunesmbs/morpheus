@@ -311,13 +311,44 @@ export class TelegramAdapter {
 
           const sessionId = await this.getSessionForUser(userId);
 
-          // Process with Agent
-          const response = await this.oracle.chat(text, undefined, false, {
+          // Process with Agent - with a 30s timeout to avoid blocking the bot's update loop.
+          const CHAT_TIMEOUT_MS = 30000;
+          let timeoutTriggered = false;
+          
+          const chatPromise = this.oracle.chat(text, undefined, false, {
             origin_channel: 'telegram',
             session_id: sessionId,
             origin_message_id: String(ctx.message.message_id),
             origin_user_id: userId,
           });
+
+          const response = await Promise.race([
+            chatPromise,
+            new Promise<null>((resolve) => setTimeout(() => {
+              timeoutTriggered = true;
+              resolve(null);
+            }, CHAT_TIMEOUT_MS))
+          ]);
+
+          if (timeoutTriggered) {
+            await ctx.reply("⏳ I'm still working on that, it's taking a bit longer than usual. I'll send the response as soon as it's ready!");
+            
+            // Wait for actual response in background
+            const finalResponse = await chatPromise;
+            if (finalResponse) {
+              const rich = await toTelegramRichText(finalResponse);
+              for (const chunk of rich.chunks) {
+                try {
+                  await ctx.reply(chunk, { parse_mode: rich.parse_mode });
+                } catch {
+                  const plain = stripHtmlTags(chunk).slice(0, 4096);
+                  if (plain) await ctx.reply(plain);
+                }
+              }
+              this.display.log(`Responded to @${user} (delayed): ${finalResponse.slice(0, 50)}...`, { source: 'Telegram' });
+            }
+            return;
+          }
 
           if (response) {
             const rich = await toTelegramRichText(response);
@@ -329,7 +360,7 @@ export class TelegramAdapter {
                 if (plain) await ctx.reply(plain);
               }
             }
-            this.display.log(`Responded to @${user}: ${response}`, { source: 'Telegram' });
+            this.display.log(`Responded to @${user}: ${response.slice(0, 50)}...`, { source: 'Telegram' });
           }
         } catch (error: any) {
           this.display.log(`Error processing message for @${user}: ${error.message}`, { source: 'Telegram', level: 'error' });
@@ -450,123 +481,38 @@ export class TelegramAdapter {
 
           const sessionId = await this.getSessionForUser(userId);
 
-          // Process with Agent
-          const response = await this.oracle.chat(text, usage, true, {
+          // Process with Agent - with a 30s timeout to avoid blocking the bot's update loop.
+          const CHAT_TIMEOUT_MS = 30000;
+          let timeoutTriggered = false;
+          
+          const chatPromise = this.oracle.chat(text, usage, true, {
             origin_channel: 'telegram',
             session_id: sessionId,
             origin_message_id: String(ctx.message.message_id),
             origin_user_id: userId,
           });
 
-          // if (listeningMsg) {
-          //   try {
-          //     await ctx.telegram.deleteMessage(ctx.chat.id, listeningMsg.message_id);
-          //   } catch (e) {
-          //     // Ignore delete error
-          //   }
-          // }
+          const response = await Promise.race([
+            chatPromise,
+            new Promise<null>((resolve) => setTimeout(() => {
+              timeoutTriggered = true;
+              resolve(null);
+            }, CHAT_TIMEOUT_MS))
+          ]);
+
+          if (timeoutTriggered) {
+            await ctx.reply("⏳ I'm still working on that, it's taking a bit longer than usual. I'll send the response as soon as it's ready!");
+            
+            // Wait for actual response in background
+            const finalResponse = await chatPromise;
+            if (finalResponse) {
+              await this.handleAgentResponse(ctx, finalResponse, config, user, userId);
+            }
+            return;
+          }
 
           if (response) {
-            const ttsConfig = config.audio.tts;
-            if (ttsConfig?.enabled && this.ttsTelephonist?.synthesize) {
-              // TTS path: synthesize and send as voice message
-              let ttsFilePath: string | null = null;
-              const ttsStart = Date.now();
-              try {
-                this.display.startActivity('telephonist', 'Synthesizing TTS...');
-                const ttsApiKey = getUsableApiKey(ttsConfig.apiKey) ||
-                  getUsableApiKey(config.audio.apiKey) ||
-                  (config.llm.provider === (ttsConfig.provider === 'google' ? 'gemini' : ttsConfig.provider)
-                    ? getUsableApiKey(config.llm.api_key) : undefined);
-
-                const ttsResult = await this.ttsTelephonist.synthesize(response, ttsApiKey || '', ttsConfig.voice, ttsConfig.style_prompt);
-                ttsFilePath = ttsResult.filePath;
-                const ttsDurationMs = Date.now() - ttsStart;
-                this.display.endActivity('telephonist', true);
-
-                // OGG/Opus → replyWithVoice; everything else (mp3, wav) → replyWithAudio
-                const isOgg = ttsResult.mimeType.includes('ogg') || ttsResult.mimeType.includes('opus');
-                if (isOgg) {
-                  await ctx.replyWithVoice({ source: ttsFilePath });
-                } else {
-                  await ctx.replyWithAudio({ source: ttsFilePath });
-                }
-                this.display.log(`Responded to @${user} (TTS audio)`, { source: 'Telegram' });
-
-                // Audit TTS success
-                try {
-                  const auditSessionId = await this.getSessionForUser(userId);
-                  AuditRepository.getInstance().insert({
-                    session_id: auditSessionId,
-                    event_type: 'telephonist',
-                    agent: 'telephonist',
-                    provider: ttsConfig.provider,
-                    model: ttsConfig.model,
-                    input_tokens: ttsResult.usage.input_tokens || null,
-                    output_tokens: ttsResult.usage.output_tokens || null,
-                    duration_ms: ttsDurationMs,
-                    status: 'success',
-                    metadata: {
-                      operation: 'tts',
-                      characters: response.length,
-                      voice: ttsConfig.voice,
-                      user,
-                    },
-                  });
-                } catch {
-                  // Audit failure never breaks the main flow
-                }
-              } catch (ttsError: any) {
-                this.display.endActivity('telephonist', false);
-                const ttsDetail = ttsError?.message || String(ttsError);
-                this.display.log(`TTS synthesis failed for @${user}: ${ttsDetail} — falling back to text`, { source: 'Telephonist', level: 'warning' });
-
-                // Audit TTS failure
-                try {
-                  const auditSessionId = await this.getSessionForUser(userId);
-                  AuditRepository.getInstance().insert({
-                    session_id: auditSessionId,
-                    event_type: 'telephonist',
-                    agent: 'telephonist',
-                    provider: ttsConfig.provider,
-                    model: ttsConfig.model,
-                    duration_ms: Date.now() - ttsStart,
-                    status: 'error',
-                    metadata: { operation: 'tts', error: ttsDetail, user },
-                  });
-                } catch {
-                  // Audit failure never breaks the main flow
-                }
-
-                // Fallback to text
-                const rich = await toTelegramRichText(response);
-                for (const chunk of rich.chunks) {
-                  try {
-                    await ctx.reply(chunk, { parse_mode: rich.parse_mode });
-                  } catch {
-                    const plain = stripHtmlTags(chunk).slice(0, 4096);
-                    if (plain) await ctx.reply(plain);
-                  }
-                }
-              } finally {
-                // Cleanup TTS temp file
-                if (ttsFilePath) {
-                  await fs.promises.unlink(ttsFilePath).catch(() => {});
-                }
-              }
-            } else {
-              // Text path (TTS disabled)
-              const rich = await toTelegramRichText(response);
-              for (const chunk of rich.chunks) {
-                try {
-                  await ctx.reply(chunk, { parse_mode: rich.parse_mode });
-                } catch {
-                  const plain = stripHtmlTags(chunk).slice(0, 4096);
-                  if (plain) await ctx.reply(plain);
-                }
-              }
-              this.display.log(`Responded to @${user} (via audio)`, { source: 'Telegram' });
-            }
+            await this.handleAgentResponse(ctx, response, config, user, userId);
           }
 
         } catch (error: any) {
@@ -930,11 +876,19 @@ export class TelegramAdapter {
         }
       });
 
-      this.bot.launch().catch((err) => {
-        if (this.isConnected) {
-          this.display.log(`Telegram bot error: ${err}`, { source: 'Telegram', level: 'error' });
+      // Global error handler to prevent crashes on long-running tasks or network errors
+      this.bot.catch((err: any, ctx) => {
+        const updateId = ctx?.update?.update_id;
+        const errorMsg = err?.message || String(err);
+        this.display.log(`Unhandled Telegram error (Update: ${updateId}): ${errorMsg}`, { source: 'Telegram', level: 'error' });
+        
+        // If it's a timeout error, notify the user if possible
+        if (errorMsg.includes('timeout') || errorMsg.includes('90000')) {
+          ctx.reply("⏳ Sorry, that request is taking longer than expected. I'm still working on it, but the connection timed out. I'll notify you once it's done.").catch(() => {});
         }
       });
+
+      this.launchBot();
 
       this.isConnected = true;
 
@@ -2112,6 +2066,106 @@ How can I assist you today?`;
         'An error occurred while retrieving the list of MCP servers\\. Please check the logs for more details\\.',
         { parse_mode: 'MarkdownV2' }
       );
+    }
+  }
+
+  private launchBot(): void {
+    if (!this.bot) return;
+
+    this.bot.launch().catch((err) => {
+      this.display.log(`Telegram bot error: ${err.message || String(err)}`, { source: 'Telegram', level: 'error' });
+      
+      if (this.isConnected) {
+        this.display.log('Attempting to restart Telegram bot in 5 seconds...', { source: 'Telegram', level: 'info' });
+        setTimeout(() => {
+          if (this.isConnected) this.launchBot();
+        }, 5000);
+      }
+    });
+  }
+
+  private async handleAgentResponse(ctx: any, response: string, config: any, user: string, userId: string) {
+    const ttsConfig = config.audio.tts;
+    if (ttsConfig?.enabled && this.ttsTelephonist?.synthesize) {
+      // TTS path: synthesize and send as voice message
+      let ttsFilePath: string | null = null;
+      const ttsStart = Date.now();
+      try {
+        this.display.startActivity('telephonist', 'Synthesizing TTS...');
+        const ttsApiKey = getUsableApiKey(ttsConfig.apiKey) ||
+          getUsableApiKey(config.audio.apiKey) ||
+          (config.llm.provider === (ttsConfig.provider === 'google' ? 'gemini' : ttsConfig.provider)
+            ? getUsableApiKey(config.llm.api_key) : undefined);
+
+        const ttsResult = await this.ttsTelephonist.synthesize(response, ttsApiKey || '', ttsConfig.voice, ttsConfig.style_prompt);
+        ttsFilePath = ttsResult.filePath;
+        const ttsDurationMs = Date.now() - ttsStart;
+        this.display.endActivity('telephonist', true);
+
+        // OGG/Opus → replyWithVoice; everything else (mp3, wav) → replyWithAudio
+        const isOgg = ttsResult.mimeType.includes('ogg') || ttsResult.mimeType.includes('opus');
+        if (isOgg) {
+          await ctx.replyWithVoice({ source: ttsFilePath });
+        } else {
+          await ctx.replyWithAudio({ source: ttsFilePath });
+        }
+        this.display.log(`Responded to @${user} (TTS audio)`, { source: 'Telegram' });
+
+        // Audit TTS success
+        try {
+          const auditSessionId = await this.getSessionForUser(userId);
+          AuditRepository.getInstance().insert({
+            session_id: auditSessionId,
+            event_type: 'telephonist',
+            agent: 'telephonist',
+            provider: ttsConfig.provider,
+            model: ttsConfig.model,
+            input_tokens: ttsResult.usage.input_tokens || null,
+            output_tokens: ttsResult.usage.output_tokens || null,
+            duration_ms: ttsDurationMs,
+            status: 'success',
+            metadata: {
+              operation: 'tts',
+              characters: response.length,
+              voice: ttsConfig.voice,
+              user,
+            },
+          });
+        } catch {
+          // Audit failure never breaks the main flow
+        }
+      } catch (ttsError: any) {
+        this.display.endActivity('telephonist', false);
+        const ttsDetail = ttsError?.message || String(ttsError);
+        this.display.log(`TTS synthesis failed for @${user}: ${ttsDetail} — falling back to text`, { source: 'Telephonist', level: 'warning' });
+
+        // Fallback to text
+        const rich = await toTelegramRichText(response);
+        for (const chunk of rich.chunks) {
+          try {
+            await ctx.reply(chunk, { parse_mode: rich.parse_mode });
+          } catch {
+            const plain = stripHtmlTags(chunk).slice(0, 4096);
+            if (plain) await ctx.reply(plain);
+          }
+        }
+      } finally {
+        if (ttsFilePath) {
+          await fs.promises.unlink(ttsFilePath).catch(() => {});
+        }
+      }
+    } else {
+      // Text path
+      const rich = await toTelegramRichText(response);
+      for (const chunk of rich.chunks) {
+        try {
+          await ctx.reply(chunk, { parse_mode: rich.parse_mode });
+        } catch {
+          const plain = stripHtmlTags(chunk).slice(0, 4096);
+          if (plain) await ctx.reply(plain);
+        }
+      }
+      this.display.log(`Responded to @${user}`, { source: 'Telegram' });
     }
   }
 }

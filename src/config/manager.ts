@@ -1,7 +1,7 @@
 import fs from 'fs-extra';
 import yaml from 'js-yaml';
 import { z } from 'zod';
-import { MorpheusConfig, DEFAULT_CONFIG, SatiConfig, ApocConfig, NeoConfig, TrinityConfig, LinkConfig, LLMProvider, ChronosConfig, SubAgentExecutionMode, DevKitConfig, SmithsConfig, SetupConfig, CurrencyConfig } from '../types/config.js';
+import { MorpheusConfig, DEFAULT_CONFIG, SatiConfig, ApocConfig, NeoConfig, TrinityConfig, LinkConfig, LLMProvider, ChronosConfig, SubAgentExecutionMode, DevKitConfig, SmithsConfig, SetupConfig, CurrencyConfig, GwsConfig } from '../types/config.js';
 import { PATHS } from './paths.js';
 import { setByPath } from './utils.js';
 import { ConfigSchema } from './schemas.js';
@@ -403,6 +403,12 @@ export class ConfigManager {
       };
     }
 
+    // Apply precedence to GWS config
+    const gwsConfig: GwsConfig = {
+      service_account_json: resolveString('MORPHEUS_GWS_SERVICE_ACCOUNT_JSON', config.gws?.service_account_json, ''),
+      enabled: resolveBoolean('MORPHEUS_GWS_ENABLED', config.gws?.enabled, true),
+    };
+
     // Apply precedence to DevKit config
     // Migration: if devkit is absent but apoc.working_dir exists, migrate it
     const rawDevKit = config.devkit ?? {};
@@ -474,6 +480,23 @@ export class ConfigManager {
     // Deep merge or overwrite? simpler to overwrite for now or merge top level
     let updated = { ...this.config, ...newConfig };
     
+    // If GWS credentials string is provided, save it to file
+    if (newConfig.gws?.service_account_json_content) {
+      const content = newConfig.gws.service_account_json_content;
+      try {
+        // Validate JSON
+        JSON.parse(content);
+        await fs.ensureDir(PATHS.gws);
+        await fs.writeFile(PATHS.gwsCredentials, content, 'utf8');
+        
+        // Update the path in config and remove the raw content
+        newConfig.gws.service_account_json = PATHS.gwsCredentials;
+        delete newConfig.gws.service_account_json_content;
+      } catch (err) {
+        throw new Error(`Invalid Google Service Account JSON: ${err instanceof Error ? err.message : String(err)}`);
+      }
+    }
+
     // Encrypt API keys before saving if MORPHEUS_SECRET is set
     updated = this.encryptAgentApiKeys(updated);
     
@@ -609,7 +632,7 @@ export class ConfigManager {
       sandbox_dir: process.cwd(),
       readonly_mode: false,
       allowed_shell_commands: [],
-      allowed_paths: [PATHS.docs, PATHS.skills],
+      allowed_paths: [PATHS.docs, PATHS.skills, PATHS.gws],
       enable_filesystem: true,
       enable_shell: true,
       enable_git: true,
@@ -620,9 +643,20 @@ export class ConfigManager {
       const merged = { ...defaults, ...this.config.devkit };
       // Ensure allowed_paths has default if empty or undefined
       if (!merged.allowed_paths?.length) {
-        merged.allowed_paths = [PATHS.docs, PATHS.skills];
+        merged.allowed_paths = [PATHS.docs, PATHS.skills, PATHS.gws];
+      } else if (!merged.allowed_paths.includes(PATHS.gws)) {
+        // Force inclusion of GWS path if it's not there
+        merged.allowed_paths.push(PATHS.gws);
       }
       return merged;
+    }
+    return defaults;
+  }
+
+  public getGwsConfig(): GwsConfig {
+    const defaults: GwsConfig = { enabled: true };
+    if (this.config.gws) {
+      return { ...defaults, ...this.config.gws };
     }
     return defaults;
   }

@@ -406,6 +406,7 @@ Always call time_verifier first, then use the resolved date in your tool call or
 11. If a delegation is rejected as "not atomic", immediately split into smaller delegations and retry.
 12. When the user message contains @link, @neo, @apoc, or @trinity (case-insensitive), delegate to that specific agent. The mention is an explicit routing directive — respect it even if another agent might also handle the request.
 13. Smiths also have names and could be called by @smithname — respect this as an explicit routing directive as well.
+14. Delegate Google Workspace (GWS) tasks (Sheets, Docs, Calendar, Drive, Gmail) to the Apoc agent using the \`apoc_delegate\` tool.
 
 ## Delegation quality ##
 - Write delegation input in the same language requested by the user.

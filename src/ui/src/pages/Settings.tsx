@@ -29,6 +29,7 @@ const TABS = [
   { id: 'general', label: 'General' },
   { id: 'agents', label: 'Agents' },
   { id: 'devkit', label: 'DevKit' },
+  { id: 'gws', label: 'GWS' },
   { id: 'audio', label: 'Audio' },
   { id: 'channels', label: 'Channels' },
   { id: 'ui', label: 'Interface' },
@@ -190,6 +191,7 @@ export default function Settings() {
       JSON.stringify(trinityServerConfig) !== JSON.stringify(localTrinityConfig) ||
       JSON.stringify(linkServerConfig) !== JSON.stringify(localLinkConfig),
     devkit: JSON.stringify(serverConfig?.devkit) !== JSON.stringify(localConfig?.devkit),
+    gws: JSON.stringify(serverConfig?.gws) !== JSON.stringify(localConfig?.gws),
     audio: JSON.stringify(serverConfig?.audio) !== JSON.stringify(localConfig?.audio),
     channels:
       JSON.stringify(serverConfig?.channels?.telegram) !== JSON.stringify(localConfig?.channels?.telegram) ||
@@ -1587,11 +1589,53 @@ export default function Settings() {
             />
           </Section>
           </>
-        )}
+          )}
 
-        {activeTab === 'audio' && (
+          {activeTab === 'gws' && (
+          <Section title="Google Workspace">
+          <p className="text-sm text-azure-text-secondary dark:text-matrix-secondary mb-4">
+            Configure Google Workspace integration for Sheet, Calendar, and Drive tools.
+          </p>
+
+          <Switch
+            label="Enable GWS Skill Initialization"
+            checked={localConfig.gws?.enabled !== false}
+            onChange={(checked: boolean) =>
+              handleUpdate(['gws', 'enabled'], checked)
+            }
+            helperText="When enabled, GWS skills are automatically synchronized during startup."
+          />
+
+          <div className="flex items-center justify-between">
+            <label className="block text-sm font-medium text-azure-text-primary dark:text-matrix-secondary">
+              Service Account JSON
+            </label>
+            {renderEnvOverrideBadge('gws.service_account_json')}
+          </div>
+          <TextAreaInput
+            label=""
+            value={localConfig.gws?.service_account_json_content || ''}
+            onChange={(e) =>
+              handleUpdate(['gws', 'service_account_json_content'], e.target.value)
+            }
+            placeholder='{ "type": "service_account", ... }'
+            helperText="Paste your Google Service Account JSON key content here. It will be saved securely to ~/.morpheus/gws/credentials.json"
+            disabled={isEnvOverridden('gws.service_account_json')}
+            rows={8}
+          />
+          {localConfig.gws?.service_account_json && !localConfig.gws?.service_account_json_content && (
+            <p className="text-xs text-emerald-600 dark:text-emerald-400 mt-1">
+              ✅ Credentials file present at: {localConfig.gws.service_account_json}
+            </p>
+          )}
+
+          </Section>
+          )}
+
+          {activeTab === 'audio' && (
           <>
           <Section title="Audio Transcription">
+
             <Switch
               label="Enable Audio"
               checked={localConfig.audio.enabled}

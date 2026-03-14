@@ -18,6 +18,8 @@ export const PATHS = {
   mcps: path.join(MORPHEUS_ROOT, 'mcps.json'),
   skills: path.join(MORPHEUS_ROOT, 'skills'),
   docs: path.join(MORPHEUS_ROOT, 'docs'),
+  gws: path.join(MORPHEUS_ROOT, 'gws'),
+  gwsCredentials: path.join(MORPHEUS_ROOT, 'gws', 'credentials.json'),
   shortMemoryDb: path.join(MORPHEUS_ROOT, 'memory', 'short-memory.db'),
   trinityDb: path.join(MORPHEUS_ROOT, 'memory', 'trinity.db'),
   satiDb: path.join(MORPHEUS_ROOT, 'memory', 'sati-memory.db'),

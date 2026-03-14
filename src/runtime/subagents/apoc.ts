@@ -14,6 +14,7 @@ import type { ISubagent } from "./ISubagent.js";
 import { extractRawUsage, persistAgentMessage, buildAgentResult, emitToolAuditEvents } from "./utils.js";
 import { buildDelegationTool } from "../tools/delegation-utils.js";
 import { SubagentRegistry } from "./registry.js";
+import { USER_HOME } from "../../config/paths.js";
 
 /**
  * Apoc is a subagent of Oracle specialized in devtools operations.
@@ -143,6 +144,9 @@ CORE PRINCIPLES
 • Prefer authoritative sources over secondary commentary.
 • Prefer verification over assumption.
 • Explicitly measure and report confidence.
+• You have the capability to execute \`gws\` CLI commands for Google Workspace operations (Sheets, Calendar, Drive, etc.).
+• **CRITICAL GWS AUTH**: Every time you run a \`gws\` command, you MUST ensure \`GOOGLE_WORKSPACE_CLI_CREDENTIALS_FILE\` is set to the absolute path of your credentials file: \`${USER_HOME}/.morpheus/gws/credentials.json\` (or the equivalent absolute path on the current OS). If not already set in your environment, prepend the command with the export (e.g., \`export GOOGLE_WORKSPACE_CLI_CREDENTIALS_FILE=... && gws ...\` on Linux/macOS or \`$env:GOOGLE_WORKSPACE_CLI_CREDENTIALS_FILE='...'; gws ...\` on Windows).
+• If the \`gws\` command fails, report the error detail. If the tool is not installed, inform the user clearly.
 
 If reliable evidence cannot be obtained:
 State clearly:
@@ -350,6 +354,7 @@ Use this tool when the user asks for ANY of the following:
 - System info: environment variables, OS info, disk space, memory
 - Internet search: search DuckDuckGo and verify facts by reading at least 3 sources via browser_navigate before reporting results.
 - Browser automation: navigate websites (JS/SPA), inspect DOM, click elements, fill forms. Apoc will ask for missing user input (e.g. credentials, form fields) before proceeding.
+- Google Workspace (GWS) operations: manage Sheets, Docs, Calendar, Drive, Gmail using the \`gws\` CLI. Apoc will ensure proper authentication is set for each command and report any errors encountered.
 
 Provide a clear natural language task description. Optionally provide context
 from the current conversation to help Apoc understand the broader goal.`,
