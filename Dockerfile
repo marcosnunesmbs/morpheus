@@ -12,11 +12,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 # Instalar gws CLI
-RUN wget https://github.com/googleworkspace/cli/releases/latest/download/gws-x86_64-unknown-linux-gnu.tar.gz -O /tmp/gws.tar.gz \
-    && tar -xzf /tmp/gws.tar.gz -C /tmp \
-    && mv /tmp/gws /usr/local/bin/gws \
-    && chmod +x /usr/local/bin/gws \
-    && rm -rf /tmp/gws*
+RUN npm install -g @nicholasgriffintn/google-workspace-cli
     
 # Criar diretório de trabalho
 WORKDIR /app
