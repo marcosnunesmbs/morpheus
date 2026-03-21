@@ -46,11 +46,13 @@ export class TaskWorker {
   }
 
   private tick(): void {
-    if (this.activeTasks.size >= this.maxConcurrent) return;
-    const task = this.repository.claimNextPending(this.workerId);
-    if (!task) return;
-    this.activeTasks.add(task.id);
-    this.executeTask(task).finally(() => this.activeTasks.delete(task.id));
+    // Claim as many tasks as concurrency allows per tick
+    while (this.activeTasks.size < this.maxConcurrent) {
+      const task = this.repository.claimNextPending(this.workerId);
+      if (!task) break;
+      this.activeTasks.add(task.id);
+      this.executeTask(task).finally(() => this.activeTasks.delete(task.id));
+    }
   }
 
   private async executeTask(task: TaskRecord): Promise<void> {

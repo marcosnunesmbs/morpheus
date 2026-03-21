@@ -17,6 +17,8 @@ const display = DisplayManager.getInstance();
 export class SatiService implements ISatiService {
   private repository: SatiRepository;
   private static instance: SatiService;
+  private cachedAgent: any = null;
+  private cachedAgentConfigKey: string | null = null;
 
   private constructor() {
     this.repository = SatiRepository.getInstance();
@@ -88,9 +90,16 @@ export class SatiService implements ISatiService {
       const satiConfig = ConfigManager.getInstance().getSatiConfig();
       if (!satiConfig) return;
 
-      // Use the main provider factory to get an agent (Reusing Zion configuration)
-      // We pass empty tools as Sati is a pure reasoning agent here
-      const agent = await ProviderFactory.create(satiConfig, []);
+      // Reuse cached agent when config hasn't changed to avoid per-call overhead
+      const configKey = `${satiConfig.provider}:${satiConfig.model}`;
+      let agent: any;
+      if (this.cachedAgent && this.cachedAgentConfigKey === configKey) {
+        agent = this.cachedAgent;
+      } else {
+        agent = await ProviderFactory.create(satiConfig, []);
+        this.cachedAgent = agent;
+        this.cachedAgentConfigKey = configKey;
+      }
 
       // Get existing memories for context (Simulated "Working Memory" or full list if small)
       const allMemories = this.repository.getAllMemories();

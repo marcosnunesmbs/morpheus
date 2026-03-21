@@ -26,7 +26,7 @@ import { SetupRepository } from './setup/repository.js';
 import { buildSetupTool } from './tools/setup-tool.js';
 import { SmithDelegator } from "./smiths/delegator.js";
 import { PATHS } from "../config/paths.js";
-import { writeFileSync } from "fs";
+import { writeFile } from "fs/promises";
 
 type AckGenerationResult = {
   content: string;
@@ -241,6 +241,14 @@ export class Oracle implements IOracle {
 
       // Refresh dynamic tool catalogs so delegate descriptions contain runtime info.
       await SubagentRegistry.refreshAllCatalogs();
+
+      // Eagerly initialize subagents so first delegation doesn't pay init cost.
+      await Promise.allSettled([
+        Apoc.getInstance().initialize(),
+        Neo.getInstance().initialize(),
+        Trinity.getInstance().initialize(),
+        Link.getInstance().initialize(),
+      ]);
 
       // Initialize setup repository (creates table if needed)
       SetupRepository.getInstance();
@@ -525,7 +533,7 @@ ${SkillRegistry.getInstance().getSystemPromptSection()}
 ${SmithRegistry.getInstance().getSystemPromptSection()}
 `);
 //save the system prompt on ~/.morpheus/system_prompt.txt for debugging and prompt engineering purposes
-try { writeFileSync(`${PATHS.root}/system_prompt.txt`,String(systemMessage.content), 'utf-8'); } catch {}
+writeFile(`${PATHS.root}/system_prompt.txt`, String(systemMessage.content), 'utf-8').catch(() => {});
       // Resolve the authoritative session ID for this call.
       // Priority: explicit taskContext > current history instance > fallback.
       const currentSessionId: string | undefined =
@@ -550,13 +558,18 @@ try { writeFileSync(`${PATHS.root}/system_prompt.txt`,String(systemMessage.conte
       let previousMessages = await callHistory.getMessages();
       previousMessages = previousMessages.reverse();
 
-      // Sati Middleware: Retrieval
+      // Sati Middleware: Retrieval (with 3s timeout to avoid blocking the response)
       let memoryMessage: AIMessage | null = null;
       try {
-        memoryMessage = await this.satiMiddleware.beforeAgent(message, previousMessages, currentSessionId);
+        const satiTimeout = new Promise<null>((resolve) => setTimeout(() => resolve(null), 3000));
+        memoryMessage = await Promise.race([
+          this.satiMiddleware.beforeAgent(message, previousMessages, currentSessionId),
+          satiTimeout,
+        ]);
         if (memoryMessage) {
           this.display.log('Sati memory retrieved.', { source: 'Sati' });
-          
+        } else if (memoryMessage === null) {
+          // Could be timeout or no memories found — either way, proceed
         }
       } catch (e: any) {
         // Fail open - do not disrupt main flow

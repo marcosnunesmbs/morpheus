@@ -13,10 +13,10 @@ export class TaskNotifier {
   private running = false;
 
   constructor(opts?: { pollIntervalMs?: number; maxAttempts?: number; staleSendingMs?: number; notificationGraceMs?: number }) {
-    this.pollIntervalMs = opts?.pollIntervalMs ?? 1200;
+    this.pollIntervalMs = opts?.pollIntervalMs ?? 300;
     this.maxAttempts = opts?.maxAttempts ?? 5;
     this.staleSendingMs = opts?.staleSendingMs ?? 30_000;
-    this.notificationGraceMs = opts?.notificationGraceMs ?? 2000;
+    this.notificationGraceMs = opts?.notificationGraceMs ?? 500;
   }
 
   start(): void {
