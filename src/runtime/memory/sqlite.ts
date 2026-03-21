@@ -32,6 +32,49 @@ export class SQLiteChatMessageHistory extends BaseListChatMessageHistory {
 
   private static migrationDone = false; // run migrations only once per process
 
+  // ---------------------------------------------------------------------------
+  // In-memory message cache — eliminates repeated SQLite reads for active sessions
+  // Key: sessionId  Value: { messages (DESC order, newest first), touchedAt, limit }
+  // ---------------------------------------------------------------------------
+  private static readonly _cache = new Map<string, {
+    messages: BaseMessage[];
+    touchedAt: number;
+    limit: number;
+  }>();
+  private static readonly _CACHE_MAX_SESSIONS = 50;
+  private static readonly _CACHE_TTL_MS = 30 * 60 * 1000; // 30 minutes
+
+  /** Populate or replace a cache entry, evicting LRU if over capacity. */
+  private static _setCacheEntry(sessionId: string, messages: BaseMessage[], limit: number): void {
+    if (!sessionId) return;
+    if (SQLiteChatMessageHistory._cache.size >= SQLiteChatMessageHistory._CACHE_MAX_SESSIONS) {
+      let oldestKey = '';
+      let oldestTime = Infinity;
+      for (const [k, v] of SQLiteChatMessageHistory._cache) {
+        if (v.touchedAt < oldestTime) { oldestTime = v.touchedAt; oldestKey = k; }
+      }
+      if (oldestKey) SQLiteChatMessageHistory._cache.delete(oldestKey);
+    }
+    SQLiteChatMessageHistory._cache.set(sessionId, { messages: [...messages], touchedAt: Date.now(), limit });
+  }
+
+  /** Remove a session from the cache (used on clear()). */
+  static invalidateCacheForSession(sessionId: string): void {
+    SQLiteChatMessageHistory._cache.delete(sessionId);
+  }
+
+  /** Prepend new messages (newest-first order) to an existing cache entry. */
+  private static _appendToCache(sessionId: string, newMessages: BaseMessage[]): void {
+    if (!sessionId || newMessages.length === 0) return;
+    const entry = SQLiteChatMessageHistory._cache.get(sessionId);
+    if (!entry) return; // session not cached — will be populated on next read
+    // newMessages is in chronological order (oldest first); reverse so newest goes first
+    const newestFirst = [...newMessages].reverse();
+    const merged = [...newestFirst, ...entry.messages];
+    entry.messages = merged.slice(0, entry.limit);
+    entry.touchedAt = Date.now();
+  }
+
   private db: Database.Database;
   private sessionId: string;
   private limit?: number;
@@ -323,6 +366,22 @@ export class SQLiteChatMessageHistory extends BaseListChatMessageHistory {
    */
   async getMessages(): Promise<BaseMessage[]> {
     try {
+      // -----------------------------------------------------------------------
+      // Cache fast-path: return cached messages if session is warm and not stale
+      // -----------------------------------------------------------------------
+      if (this.sessionId) {
+        const cached = SQLiteChatMessageHistory._cache.get(this.sessionId);
+        if (cached) {
+          const isStale = Date.now() - cached.touchedAt > SQLiteChatMessageHistory._CACHE_TTL_MS;
+          if (!isStale) {
+            cached.touchedAt = Date.now();
+            return [...cached.messages]; // defensive copy
+          }
+          // Stale — evict and fall through to DB
+          SQLiteChatMessageHistory._cache.delete(this.sessionId);
+        }
+      }
+
       // Fetch new columns
       const stmt = this.db.prepare(
         `SELECT type, content, input_tokens, output_tokens, total_tokens, cache_read_tokens, provider, model
@@ -417,7 +476,10 @@ export class SQLiteChatMessageHistory extends BaseListChatMessageHistory {
       // Messages are in DESC order (newest first) here — orphans appear at the tail.
       // Remove trailing ToolMessages and AIMessages with tool_calls that have no
       // matching ToolMessage response (i.e. incomplete tool-call groups at the boundary).
-      return this.sanitizeMessageWindow(mapped);
+      const result = this.sanitizeMessageWindow(mapped);
+      // Populate cache for subsequent reads in this session
+      SQLiteChatMessageHistory._setCacheEntry(this.sessionId, result, this.limit ?? 100);
+      return result;
     } catch (error) {
       // Check if it's a database lock error
       if (error instanceof Error && error.message.includes('SQLITE_BUSY')) {
@@ -562,6 +624,9 @@ export class SQLiteChatMessageHistory extends BaseListChatMessageHistory {
       );
       stmt.run(this.sessionId, type, finalContent, Date.now(), inputTokens, outputTokens, totalTokens, cacheReadTokens, provider, model, audioDurationSeconds, agent, durationMs, source);
 
+      // Update in-memory cache so the next getMessages() call is a cache hit
+      SQLiteChatMessageHistory._appendToCache(this.sessionId, [message]);
+
       // Verificar se a sessão tem título e definir automaticamente se necessário
       await this.setSessionTitleIfNeeded();
     } catch (error) {
@@ -635,6 +700,10 @@ export class SQLiteChatMessageHistory extends BaseListChatMessageHistory {
 
     try {
       insertAll(messages);
+
+      // Update in-memory cache so the next getMessages() call is a cache hit
+      SQLiteChatMessageHistory._appendToCache(this.sessionId, messages);
+
       await this.setSessionTitleIfNeeded();
     } catch (error) {
       if (error instanceof Error) {
@@ -905,6 +974,7 @@ export class SQLiteChatMessageHistory extends BaseListChatMessageHistory {
     try {
       const stmt = this.db.prepare("DELETE FROM messages WHERE session_id = ?");
       stmt.run(this.sessionId);
+      SQLiteChatMessageHistory._cache.delete(this.sessionId);
     } catch (error) {
       // Check for database lock errors
       if (error instanceof Error && error.message.includes('SQLITE_BUSY')) {
