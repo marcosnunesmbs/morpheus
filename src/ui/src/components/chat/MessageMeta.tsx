@@ -17,7 +17,7 @@ function fmtNum(n: number): string {
   return String(n);
 }
 
-export const MessageMeta: React.FC<MessageMetaProps> = ({ message }) => {
+export const MessageMeta: React.FC<MessageMetaProps> = React.memo(({ message }) => {
   const usage = message.usage_metadata as any;
   const inputTokens: number = usage?.input_tokens ?? usage?.prompt_tokens ?? 0;
   const outputTokens: number = usage?.output_tokens ?? usage?.completion_tokens ?? 0;
@@ -61,4 +61,4 @@ export const MessageMeta: React.FC<MessageMetaProps> = ({ message }) => {
       )}
     </div>
   );
-};
+});

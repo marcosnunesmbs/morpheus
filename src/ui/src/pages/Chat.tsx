@@ -1,9 +1,10 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { SessionList } from '../components/chat/SessionList';
 import { ChatArea } from '../components/chat/ChatArea';
 import { chatService } from '../services/chat';
 import type { Session, Message } from '../services/chat';
 import { ConfirmationModal } from '../components/ConfirmationModal';
+import { useAgentMetadata } from '../services/agents';
 
 export const ChatPage: React.FC = () => {
   const [sessions, setSessions] = useState<Session[]>([]);
@@ -11,6 +12,9 @@ export const ChatPage: React.FC = () => {
   const [messages, setMessages] = useState<Message[]>([]);
   // Per-session loading state: allows concurrent conversations without blocking
   const [loadingSessions, setLoadingSessions] = useState<Record<string, boolean>>({});
+  
+  // Get agents metadata at parent level to avoid re-renders in ChatArea
+  const { agents } = useAgentMetadata();
 
   // Sidebar starts open on desktop, closed on mobile
   const [isSidebarOpen, setIsSidebarOpen] = useState(
@@ -26,11 +30,21 @@ export const ChatPage: React.FC = () => {
   const activeSessionRef = useRef(activeSessionId);
   useEffect(() => { activeSessionRef.current = activeSessionId; }, [activeSessionId]);
 
+  // Track if user is typing (to pause polling) — ref to avoid re-renders on every keystroke
+  const isUserTypingRef = useRef(false);
+  const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const handleUserTyping = useCallback(() => {
+    isUserTypingRef.current = true;
+    if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+    typingTimeoutRef.current = setTimeout(() => { isUserTypingRef.current = false; }, 2000);
+  }, []);
+
   // Background poll — picks up async task results written by the dispatcher
   useEffect(() => {
     if (!activeSessionId) return;
     const poll = setInterval(async () => {
-      if (isLoadingRef.current) return;
+      if (isLoadingRef.current || isUserTypingRef.current) return;
       try {
         const history = await chatService.getMessages(activeSessionId);
         const filtered = history.filter((m: Message) => m.type !== 'system');
@@ -43,7 +57,7 @@ export const ChatPage: React.FC = () => {
       } catch {
         // silent — don't surface background poll errors
       }
-    }, 3000);
+    }, 5000);
     return () => clearInterval(poll);
   }, [activeSessionId]);
 
@@ -119,7 +133,7 @@ export const ChatPage: React.FC = () => {
     if (window.innerWidth < 768) setIsSidebarOpen(false);
   };
 
-  const handleSendMessage = async (text: string) => {
+  const handleSendMessage = useCallback(async (text: string) => {
     if (!activeSessionId) return;
     const targetSessionId = activeSessionId;
     const optimisticMessage: Message = { type: 'human', content: text };
@@ -141,7 +155,7 @@ export const ChatPage: React.FC = () => {
         return next;
       });
     }
-  };
+  }, [activeSessionId]);
 
   const handleArchiveSession = (id: string) => {
     setConfirmationModal({
@@ -235,6 +249,8 @@ export const ChatPage: React.FC = () => {
           activeSessionId={activeSessionId}
           activeSession={activeSession}
           onToggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)}
+          onUserTyping={handleUserTyping}
+          agents={agents}
         />
       </div>
 

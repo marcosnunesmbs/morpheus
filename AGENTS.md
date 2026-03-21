@@ -523,12 +523,3 @@ Prefer reusable components in `src/ui/src/components/forms/`:
 - `SelectInput` — select with label + options + error
 
 These already have the correct dark mode classes applied.
-
----
-
-## Spec-Driven Development
-New features require a `specs/NNN-feature-name/` folder with:
-- `spec.md` — functional requirements (source of truth)
-- `plan.md` — technical implementation strategy
-- `tasks.md` — implementation checklist
-- `contracts/` — TypeScript interfaces defined before coding

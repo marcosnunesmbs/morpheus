@@ -15,7 +15,7 @@ function formatJson(val: any): string {
   try { return JSON.stringify(val, null, 2); } catch { return String(val); }
 }
 
-export const ToolCallBlock: React.FC<ToolCallBlockProps> = ({ group }) => {
+export const ToolCallBlock: React.FC<ToolCallBlockProps> = React.memo(({ group }) => {
   const [open, setOpen] = useState(false);
 
   const hasResult = group.result !== null;
@@ -79,4 +79,4 @@ export const ToolCallBlock: React.FC<ToolCallBlockProps> = ({ group }) => {
       </AnimatePresence>
     </div>
   );
-};
+});

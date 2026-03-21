@@ -1,4 +1,4 @@
-import React, { useRef, useEffect, useState } from 'react';
+import React, { useRef, useEffect, useState, useLayoutEffect, useMemo, useCallback } from 'react';
 import type { Message, Session } from '../../services/chat';
 import { groupMessages, isDelegationCall } from '../../services/chat';
 import { Send, Bot, User, Menu, ChevronDown, Mic, X, Webhook, Clock } from 'lucide-react';
@@ -8,7 +8,7 @@ import { ToolCallBlock } from './ToolCallBlock';
 import { AgentBlock } from './AgentBlock';
 import { MessageMeta } from './MessageMeta';
 import { httpClient } from '../../services/httpClient';
-import { useAgentMetadata } from '../../services/agents';
+import type { AgentDisplayMeta } from '../../services/agents';
 
 interface ChatAreaProps {
   messages: Message[];
@@ -17,6 +17,8 @@ interface ChatAreaProps {
   activeSessionId: string | null;
   activeSession?: Session | null;
   onToggleSidebar?: () => void;
+  onUserTyping?: () => void;
+  agents?: AgentDisplayMeta[];
 }
 
 /* ─── Agent mention badge color mapping ──────────────────────────── */
@@ -109,6 +111,147 @@ const mdComponents = {
   ),
 };
 
+/* ─── Memoized message list (doesn't re-render on input changes) ── */
+
+interface MessageListProps {
+  messages: Message[];
+  isLoading: boolean;
+  messagesEndRef: React.RefObject<HTMLDivElement | null>;
+}
+
+const MessageList = React.memo<MessageListProps>(({ messages, isLoading, messagesEndRef }) => {
+  const groupedMessages = useMemo(() => groupMessages(messages), [messages]);
+
+  return (
+    <>
+      {groupedMessages.map((grouped) => {
+        const { message: msg, toolGroups } = grouped;
+
+        if (msg.type === 'tool') {
+          return (
+            <div key={grouped.index} className="px-2 py-0.5">
+              <StandaloneToolBlock message={msg} />
+            </div>
+          );
+        }
+
+        const isHuman = msg.type === 'human';
+        const isAutomated = msg.source === 'webhook' || msg.source === 'chronos';
+        const isUserMessage = isHuman && !isAutomated;
+
+        return (
+          <div
+            key={grouped.index}
+            className={`flex items-end gap-2.5 ${isUserMessage ? 'justify-end' : 'justify-start'}`}
+          >
+            {!isUserMessage && (
+              <div className="w-7 h-7 rounded-full flex-shrink-0 flex items-center justify-center bg-azure-primary/10 text-azure-primary dark:bg-matrix-primary/20 dark:text-matrix-highlight mb-0.5">
+                {isAutomated && msg.source === 'webhook' ? <Webhook size={14} /> : isAutomated && msg.source === 'chronos' ? <Clock size={14} /> : <Bot size={14} />}
+              </div>
+            )}
+
+            <div
+              className={`
+                max-w-[85%] md:max-w-[72%] min-w-0
+                ${isUserMessage
+                  ? 'bg-azure-primary text-white dark:text-white/80 dark:bg-matrix-primary rounded-2xl rounded-br-sm px-4 py-2.5'
+                  : 'bg-gray-50 dark:bg-zinc-900 border border-gray-300 dark:border-matrix-primary/60 text-gray-800 dark:text-matrix-secondary rounded-2xl rounded-bl-sm px-4 py-3'
+                }
+              `}
+            >
+              {isAutomated && (
+                <div className="flex items-center gap-1.5 mb-1.5">
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wider border bg-amber-50 text-amber-700 border-amber-300 dark:bg-amber-900/30 dark:text-amber-300 dark:border-amber-700/60">
+                    {msg.source === 'webhook' ? 'Webhook' : 'Chronos'}
+                  </span>
+                </div>
+              )}
+
+              {isHuman && (
+                <>
+                  {msg.audio_duration_seconds != null && (
+                    <div className="flex items-center gap-1 mb-1.5 text-white/70 dark:text-white/50">
+                      <Mic size={11} />
+                      <span className="text-[10px] font-mono tracking-wide">
+                        voice · {msg.audio_duration_seconds}s
+                      </span>
+                    </div>
+                  )}
+                  <p className="text-sm leading-relaxed whitespace-pre-wrap break-words">
+                    {msg.content}
+                  </p>
+                </>
+              )}
+
+              {msg.type === 'ai' && (
+                <>
+                  {toolGroups && toolGroups.length > 0 && (
+                    <div className="mb-2.5 space-y-1">
+                      {toolGroups.map((group) =>
+                        isDelegationCall(group.call.name) ? (
+                          <AgentBlock key={group.call.id} group={group} />
+                        ) : (
+                          <ToolCallBlock key={group.call.id} group={group} />
+                        )
+                      )}
+                    </div>
+                  )}
+
+                  {msg.content && (
+                    <div className="
+                      prose prose-sm dark:prose-invert max-w-none
+                      prose-p:my-1.5 prose-p:leading-relaxed
+                      prose-headings:my-2 prose-headings:font-semibold
+                      prose-ul:my-1.5 prose-ol:my-1.5 prose-li:my-0.5
+                      prose-pre:my-2 prose-pre:rounded-lg prose-pre:text-xs
+                      prose-code:text-[0.8em] prose-code:px-1 prose-code:py-0.5 prose-code:rounded prose-code:font-mono
+                      prose-table:my-0 prose-thead:border-0 prose-tbody:border-0
+                      prose-tr:border-0 prose-th:p-0 prose-td:p-0
+                      dark:prose-p:text-matrix-secondary
+                      dark:prose-headings:text-matrix-highlight
+                      dark:prose-strong:text-matrix-highlight
+                      dark:prose-li:text-matrix-secondary
+                      dark:prose-code:text-matrix-highlight dark:prose-code:bg-black/60
+                      dark:prose-pre:bg-black dark:prose-pre:border dark:prose-pre:border-matrix-primary/30
+                    ">
+                      <Markdown remarkPlugins={[remarkGfm]} components={mdComponents}>{msg.content}</Markdown>
+                    </div>
+                  )}
+
+                  <MessageMeta message={msg} />
+                </>
+              )}
+            </div>
+
+            {isUserMessage && (
+              <div className="w-7 h-7 rounded-full flex-shrink-0 flex items-center justify-center bg-gray-200 dark:bg-matrix-primary/30 text-gray-500 dark:text-matrix-secondary mb-0.5">
+                <User size={14} />
+              </div>
+            )}
+          </div>
+        );
+      })}
+
+      {isLoading && (
+        <div className="flex items-end gap-2.5 justify-start">
+          <div className="w-7 h-7 rounded-full flex-shrink-0 flex items-center justify-center bg-azure-primary/10 text-azure-primary dark:bg-matrix-primary/20 dark:text-matrix-highlight mb-0.5">
+            <Bot size={14} />
+          </div>
+          <div className="bg-gray-50 dark:bg-zinc-900 border border-gray-300 dark:border-matrix-primary/60 rounded-2xl rounded-bl-sm px-4 py-3 flex items-center gap-1.5">
+            <span className="w-1.5 h-1.5 rounded-full bg-azure-primary dark:bg-matrix-highlight animate-bounce" style={{ animationDelay: '0ms' }} />
+            <span className="w-1.5 h-1.5 rounded-full bg-azure-primary dark:bg-matrix-highlight animate-bounce" style={{ animationDelay: '160ms' }} />
+            <span className="w-1.5 h-1.5 rounded-full bg-azure-primary dark:bg-matrix-highlight animate-bounce" style={{ animationDelay: '320ms' }} />
+          </div>
+        </div>
+      )}
+
+      <div ref={messagesEndRef} />
+    </>
+  );
+});
+
+MessageList.displayName = 'MessageList';
+
 /* ─── Main component ─────────────────────────────────────────────── */
 
 export const ChatArea: React.FC<ChatAreaProps> = ({
@@ -118,27 +261,49 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
   activeSessionId,
   activeSession,
   onToggleSidebar,
+  onUserTyping,
+  agents: agentsProp,
 }) => {
   const [input, setInput] = useState('');
   const [mentionedAgents, setMentionedAgents] = useState<string[]>([]);
   const [mentionState, setMentionState] = useState<{ query: string; startIdx: number } | null>(null);
   const [mentionSelectedIdx, setMentionSelectedIdx] = useState(0);
   const [smithAgents, setSmithAgents] = useState<{ name: string; emoji: string; description: string; color: string }[]>([]);
-  const { getSubagents } = useAgentMetadata();
+  // Use agents from props (passed from parent) to avoid re-renders
+  const agents = agentsProp ?? [];
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const prevMessagesLengthRef = useRef(messages.length);
+  const prevIsLoadingRef = useRef(isLoading);
 
+  // Optimized scroll - only scroll when messages actually change or loading completes
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    const shouldScroll = messages.length !== prevMessagesLengthRef.current || 
+      (prevIsLoadingRef.current && !isLoading);
+    
+    if (shouldScroll) {
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+      prevMessagesLengthRef.current = messages.length;
+      prevIsLoadingRef.current = isLoading;
+    }
   }, [messages, isLoading]);
 
-  // Auto-grow textarea
-  useEffect(() => {
+  // Auto-grow textarea - useLayoutEffect + requestAnimationFrame for better performance
+  useLayoutEffect(() => {
     const ta = textareaRef.current;
     if (!ta) return;
-    ta.style.height = 'auto';
-    ta.style.height = ta.scrollHeight + 'px';
+    
+    const adjustHeight = () => {
+      requestAnimationFrame(() => {
+        if (ta) {
+          ta.style.height = 'auto';
+          ta.style.height = Math.min(ta.scrollHeight, 160) + 'px'; // max-height: 160px (40 rows * 4px)
+        }
+      });
+    };
+    
+    adjustHeight();
   }, [input]);
 
   // Fetch smith agents for mention suggestions
@@ -158,18 +323,29 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
       .catch(() => {});
   }, []);
 
-  const registryAgents = getSubagents().map(a => ({
-    name: a.auditAgent, emoji: a.emoji, description: a.description, color: a.color,
-  }));
-  const allAgents = [...registryAgents, ...smithAgents.filter(s => !registryAgents.some(r => r.name === s.name))];
+  // Memoize agents list to avoid recalculating on every render
+  const registryAgents = useMemo(() => 
+    agents.filter(a => a.delegateToolName !== '').map(a => ({
+      name: a.auditAgent, emoji: a.emoji, description: a.description, color: a.color,
+    })),
+    [agents]
+  );
 
-  const filteredAgents = mentionState
-    ? allAgents.filter(a => a.name.toLowerCase().startsWith(mentionState.query.toLowerCase()))
-    : [];
+  const allAgents = useMemo(() => 
+    [...registryAgents, ...smithAgents.filter(s => !registryAgents.some(r => r.name === s.name))],
+    [registryAgents, smithAgents]
+  );
+
+  const filteredAgents = useMemo(() => 
+    mentionState
+      ? allAgents.filter(a => a.name.toLowerCase().startsWith(mentionState.query.toLowerCase()))
+      : [],
+    [mentionState, allAgents]
+  );
 
   /* ── Mention selection ─────────────────────────────────────────── */
 
-  const selectMention = (agentName: string) => {
+  const selectMention = useCallback((agentName: string) => {
     if (!mentionState) return;
     const before = input.slice(0, mentionState.startIdx);
     const after = input.slice(mentionState.startIdx + 1 + mentionState.query.length);
@@ -179,17 +355,22 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
     setMentionState(null);
     setMentionSelectedIdx(0);
     setTimeout(() => textareaRef.current?.focus(), 0);
-  };
+  }, [mentionState, input]);
 
-  const removeBadge = (agentName: string) => {
+  const removeBadge = useCallback((agentName: string) => {
     setMentionedAgents(prev => prev.filter(a => a !== agentName));
-  };
+  }, []);
 
   /* ── Input handlers ────────────────────────────────────────────── */
 
-  const handleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+  const handleChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const val = e.target.value;
     setInput(val);
+
+    // Notify parent that user is typing (to pause polling)
+    if (onUserTyping) {
+      onUserTyping();
+    }
 
     const cursorPos = e.target.selectionStart ?? val.length;
     const textBeforeCursor = val.slice(0, cursorPos);
@@ -201,9 +382,9 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
     } else {
       setMentionState(null);
     }
-  };
+  }, []);
 
-  const handleSend = () => {
+  const handleSend = useCallback(() => {
     const hasContent = input.trim() || mentionedAgents.length > 0;
     if (!hasContent || isLoading) return;
     const parts = [...mentionedAgents.map(a => `@${a}`), input.trim()].filter(Boolean);
@@ -212,9 +393,9 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
     setMentionedAgents([]);
     setMentionState(null);
     if (textareaRef.current) textareaRef.current.style.height = 'auto';
-  };
+  }, [input, mentionedAgents, isLoading, onSendMessage]);
 
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+  const handleKeyDown = useCallback((e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (mentionState && filteredAgents.length > 0) {
       if (e.key === 'ArrowDown') {
         e.preventDefault();
@@ -242,7 +423,7 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
       e.preventDefault();
       handleSend();
     }
-  };
+  }, [mentionState, filteredAgents, mentionSelectedIdx, selectMention, handleSend]);
 
   /* ── Agent badge helper ────────────────────────────────────────── */
 
@@ -285,141 +466,9 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
         </div>
       ) : (
         <>
-          {/* ── Message list ────────────────────────────────────── */}
+          {/* ── Message list (memoized — doesn't re-render on input changes) */}
           <div className="flex-1 overflow-y-auto min-h-0 px-4 py-5 space-y-4">
-            {groupMessages(messages).map((grouped) => {
-              const { message: msg, toolGroups } = grouped;
-
-              /* Standalone tool messages — centered system events */
-              if (msg.type === 'tool') {
-                return (
-                  <div key={grouped.index} className="px-2 py-0.5">
-                    <StandaloneToolBlock message={msg} />
-                  </div>
-                );
-              }
-
-              const isHuman = msg.type === 'human';
-              const isAutomated = msg.source === 'webhook' || msg.source === 'chronos';
-              const isUserMessage = isHuman && !isAutomated;
-
-              return (
-                <div
-                  key={grouped.index}
-                  className={`flex items-end gap-2.5 ${isUserMessage ? 'justify-end' : 'justify-start'}`}
-                >
-                  {/* AI / automated avatar */}
-                  {!isUserMessage && (
-                    <div className="w-7 h-7 rounded-full flex-shrink-0 flex items-center justify-center bg-azure-primary/10 text-azure-primary dark:bg-matrix-primary/20 dark:text-matrix-highlight mb-0.5">
-                      {isAutomated && msg.source === 'webhook' ? <Webhook size={14} /> : isAutomated && msg.source === 'chronos' ? <Clock size={14} /> : <Bot size={14} />}
-                    </div>
-                  )}
-
-                  {/* Bubble */}
-                  <div
-                    className={`
-                      max-w-[85%] md:max-w-[72%] min-w-0
-                      ${isUserMessage
-                        ? 'bg-azure-primary text-white dark:text-white/80 dark:bg-matrix-primary rounded-2xl rounded-br-sm px-4 py-2.5'
-                        : 'bg-gray-50 dark:bg-zinc-900 border border-gray-300 dark:border-matrix-primary/60 text-gray-800 dark:text-matrix-secondary rounded-2xl rounded-bl-sm px-4 py-3'
-                      }
-                    `}
-                  >
-                    {/* Automated source badge */}
-                    {isAutomated && (
-                      <div className="flex items-center gap-1.5 mb-1.5">
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wider border bg-amber-50 text-amber-700 border-amber-300 dark:bg-amber-900/30 dark:text-amber-300 dark:border-amber-700/60">
-                          {msg.source === 'webhook' ? 'Webhook' : 'Chronos'}
-                        </span>
-                      </div>
-                    )}
-
-                    {/* Human text */}
-                    {isHuman && (
-                      <>
-                        {msg.audio_duration_seconds != null && (
-                          <div className="flex items-center gap-1 mb-1.5 text-white/70 dark:text-white/50">
-                            <Mic size={11} />
-                            <span className="text-[10px] font-mono tracking-wide">
-                              voice · {msg.audio_duration_seconds}s
-                            </span>
-                          </div>
-                        )}
-                        <p className="text-sm leading-relaxed whitespace-pre-wrap break-words">
-                          {msg.content}
-                        </p>
-                      </>
-                    )}
-
-                    {/* AI response */}
-                    {msg.type === 'ai' && (
-                      <>
-                        {/* Tool call blocks */}
-                        {toolGroups && toolGroups.length > 0 && (
-                          <div className="mb-2.5 space-y-1">
-                            {toolGroups.map((group) =>
-                              isDelegationCall(group.call.name) ? (
-                                <AgentBlock key={group.call.id} group={group} />
-                              ) : (
-                                <ToolCallBlock key={group.call.id} group={group} />
-                              )
-                            )}
-                          </div>
-                        )}
-
-                        {/* AI text */}
-                        {msg.content && (
-                          <div className="
-                            prose prose-sm dark:prose-invert max-w-none
-                            prose-p:my-1.5 prose-p:leading-relaxed
-                            prose-headings:my-2 prose-headings:font-semibold
-                            prose-ul:my-1.5 prose-ol:my-1.5 prose-li:my-0.5
-                            prose-pre:my-2 prose-pre:rounded-lg prose-pre:text-xs
-                            prose-code:text-[0.8em] prose-code:px-1 prose-code:py-0.5 prose-code:rounded prose-code:font-mono
-                            prose-table:my-0 prose-thead:border-0 prose-tbody:border-0
-                            prose-tr:border-0 prose-th:p-0 prose-td:p-0
-                            dark:prose-p:text-matrix-secondary
-                            dark:prose-headings:text-matrix-highlight
-                            dark:prose-strong:text-matrix-highlight
-                            dark:prose-li:text-matrix-secondary
-                            dark:prose-code:text-matrix-highlight dark:prose-code:bg-black/60
-                            dark:prose-pre:bg-black dark:prose-pre:border dark:prose-pre:border-matrix-primary/30
-                          ">
-                            <Markdown remarkPlugins={[remarkGfm]} components={mdComponents}>{msg.content}</Markdown>
-                          </div>
-                        )}
-
-                        {/* Metadata footer */}
-                        <MessageMeta message={msg} />
-                      </>
-                    )}
-                  </div>
-
-                  {/* Human avatar */}
-                  {isUserMessage && (
-                    <div className="w-7 h-7 rounded-full flex-shrink-0 flex items-center justify-center bg-gray-200 dark:bg-matrix-primary/30 text-gray-500 dark:text-matrix-secondary mb-0.5">
-                      <User size={14} />
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-
-            {/* Typing indicator */}
-            {isLoading && (
-              <div className="flex items-end gap-2.5 justify-start">
-                <div className="w-7 h-7 rounded-full flex-shrink-0 flex items-center justify-center bg-azure-primary/10 text-azure-primary dark:bg-matrix-primary/20 dark:text-matrix-highlight mb-0.5">
-                  <Bot size={14} />
-                </div>
-                <div className="bg-gray-50 dark:bg-zinc-900 border border-gray-300 dark:border-matrix-primary/60 rounded-2xl rounded-bl-sm px-4 py-3 flex items-center gap-1.5">
-                  <span className="w-1.5 h-1.5 rounded-full bg-azure-primary dark:bg-matrix-highlight animate-bounce" style={{ animationDelay: '0ms' }} />
-                  <span className="w-1.5 h-1.5 rounded-full bg-azure-primary dark:bg-matrix-highlight animate-bounce" style={{ animationDelay: '160ms' }} />
-                  <span className="w-1.5 h-1.5 rounded-full bg-azure-primary dark:bg-matrix-highlight animate-bounce" style={{ animationDelay: '320ms' }} />
-                </div>
-              </div>
-            )}
-
-            <div ref={messagesEndRef} />
+            <MessageList messages={messages} isLoading={isLoading} messagesEndRef={messagesEndRef} />
           </div>
 
           {/* ── Input area ──────────────────────────────────────── */}

@@ -17,7 +17,7 @@ function formatOutput(content: string): string {
   try { return JSON.stringify(JSON.parse(content), null, 2); } catch { return content; }
 }
 
-export const AgentBlock: React.FC<AgentBlockProps> = ({ group }) => {
+export const AgentBlock: React.FC<AgentBlockProps> = React.memo(({ group }) => {
   const [open, setOpen] = useState(false);
   const { getByToolName } = useAgentMetadata();
 
@@ -93,4 +93,4 @@ export const AgentBlock: React.FC<AgentBlockProps> = ({ group }) => {
       </AnimatePresence>
     </div>
   );
-};
+});
