@@ -449,6 +449,29 @@ export class TaskRepository {
     return result.changes;
   }
 
+  /**
+   * Atomically claim a specific task for notification by ID.
+   * Returns the task record if successfully claimed, null if already claimed or not eligible.
+   */
+  claimNotificationById(taskId: string): TaskRecord | null {
+    const tx = this.db.transaction(() => {
+      const changed = this.db.prepare(`
+        UPDATE tasks
+        SET notify_status = 'sending',
+            notify_last_error = NULL,
+            updated_at = ?
+        WHERE id = ?
+          AND status IN ('completed', 'failed', 'cancelled')
+          AND notify_status = 'pending'
+      `).run(Date.now(), taskId);
+
+      if (changed.changes === 0) return null;
+      return this.getTaskById(taskId);
+    });
+
+    return tx();
+  }
+
   claimNextNotificationCandidate(minFinishedAgeMs: number = 0): TaskRecord | null {
     const now = Date.now();
     const tx = this.db.transaction(() => {

@@ -3,6 +3,7 @@ import { DisplayManager } from '../display.js';
 import { SubagentRegistry } from '../subagents/registry.js';
 import { TaskRepository } from './repository.js';
 import { AuditRepository } from '../audit/repository.js';
+import { taskEventBus } from './event-bus.js';
 import type { TaskRecord } from './types.js';
 
 export class TaskWorker {
@@ -109,6 +110,7 @@ export class TaskWorker {
       }
 
       this.display.log(`Task completed: ${task.id}`, { source: 'TaskWorker', level: 'success' });
+      taskEventBus.emit('task:ready', task.id);
     } catch (err: any) {
       const latest = this.repository.getTaskById(task.id);
       const attempt = latest?.attempt_count ?? task.attempt_count;
@@ -132,6 +134,7 @@ export class TaskWorker {
         metadata: { error: errorMessage },
       });
       this.display.log(`Task failed: ${task.id} (${errorMessage})`, { source: 'TaskWorker', level: 'error' });
+      taskEventBus.emit('task:ready', task.id);
     }
   }
 }
