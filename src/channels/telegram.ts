@@ -1534,7 +1534,7 @@ export class TelegramAdapter {
 
   private async handleStartCommand(ctx: any, user: string) {
     const welcomeMessage = `
-Hello, @${user}! I am ${this.config.get().agent.name}, ${this.config.get().agent.personality}.
+Hello, @${user}! I am ${this.config.get().agent.name},
 
 I am your local AI operator/agent. Here are the commands you can use:
 
