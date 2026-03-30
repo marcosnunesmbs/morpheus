@@ -172,6 +172,13 @@ export const ConfigSchema = z.object({
   }).default(DEFAULT_CONFIG.logging),
 });
 
+export const OAuth2ConfigSchema = z.object({
+  grant_type: z.enum(['client_credentials', 'authorization_code']).default('authorization_code'),
+  client_id: z.string().optional(),
+  client_secret: z.string().optional(),
+  scope: z.string().optional(),
+});
+
 export const MCPServerConfigSchema = z.discriminatedUnion('transport', [
   z.object({
     transport: z.literal('stdio'),
@@ -184,6 +191,7 @@ export const MCPServerConfigSchema = z.discriminatedUnion('transport', [
     transport: z.literal('http'),
     url: z.string().url('Valid URL is required for http transport'),
     headers: z.record(z.string(), z.string()).optional().default({}),
+    oauth2: OAuth2ConfigSchema.optional(),
     args: z.array(z.string()).optional().default([]),
     env: z.record(z.string(), z.string()).optional().default({}),
     _comment: z.string().optional(),

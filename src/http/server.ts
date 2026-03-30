@@ -11,6 +11,7 @@ import { authMiddleware } from './middleware/auth.js';
 import { IOracle } from '../runtime/types.js';
 import { WebhookDispatcher } from '../runtime/webhooks/dispatcher.js';
 import type { ChronosWorker } from '../runtime/chronos/worker.js';
+import { createOAuthRouter } from './routers/oauth.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -65,6 +66,10 @@ export class HttpServer {
     // The trigger endpoint is public (validated via x-api-key header internally).
     // All other webhook management endpoints apply authMiddleware internally.
     this.app.use('/api/webhooks', createWebhooksRouter());
+
+    // OAuth callback — public (browser redirect from OAuth provider, no API key).
+    // Status/revoke endpoints remain auth-guarded inside the /api block.
+    this.app.use('/api/oauth', createOAuthRouter());
 
     this.app.use('/api', authMiddleware, createApiRouter(this.oracle, this.chronosWorker));
 

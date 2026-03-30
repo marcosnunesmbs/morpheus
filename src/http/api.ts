@@ -74,6 +74,9 @@ export function createApiRouter(oracle: IOracle, chronosWorker?: ChronosWorker) 
   // Mount Display Stream router
   router.use('/display', createDisplayRouter());
 
+  // NOTE: OAuth router is mounted in server.ts BEFORE auth middleware
+  // so the callback endpoint is publicly accessible (browser redirect).
+
   // --- Session Management ---
 
   router.get('/sessions', async (req, res) => {

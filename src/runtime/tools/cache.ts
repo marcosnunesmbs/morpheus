@@ -2,6 +2,8 @@ import { StructuredTool } from "@langchain/core/tools";
 import { MultiServerMCPClient } from "@langchain/mcp-adapters";
 import { loadMCPConfig } from "../../config/mcp-loader.js";
 import { DisplayManager } from "../display.js";
+import { OAuthManager } from "../oauth/manager.js";
+import type { MCPServerConfig } from "../../types/mcp.js";
 
 const display = DisplayManager.getInstance();
 
@@ -169,24 +171,24 @@ export class MCPToolCache {
           meta: { server: serverName, transport: serverConfig.transport }
         });
 
-        const client = new MultiServerMCPClient({
-          mcpServers: { [serverName]: serverConfig } as any,
-          onConnectionError: "ignore",
-        });
+        let serverTools: StructuredTool[];
 
-        const tools = await Promise.race([
-          client.getTools(),
-          connectTimeout(serverName, MCP_CONNECT_TIMEOUT_MS),
-        ]);
-
-        // Rename tools with server prefix to avoid collisions
-        tools.forEach(tool => {
-          const newName = `${serverName}_${tool.name}`;
-          Object.defineProperty(tool, "name", { value: newName });
-        });
+        if (serverConfig.transport === 'http') {
+          // HTTP MCPs: use MCP SDK directly (supports OAuth auto-discovery)
+          serverTools = await Promise.race([
+            this.loadHttpMcpServer(serverName, serverConfig as MCPServerConfig & { transport: 'http' }),
+            connectTimeout(serverName, MCP_CONNECT_TIMEOUT_MS),
+          ]);
+        } else {
+          // stdio MCPs: use MultiServerMCPClient as before
+          serverTools = await Promise.race([
+            this.loadStdioMcpServer(serverName, serverConfig),
+            connectTimeout(serverName, MCP_CONNECT_TIMEOUT_MS),
+          ]);
+        }
 
         // Sanitize schemas for Gemini compatibility
-        const sanitizedTools = tools.map(wrapToolWithSanitizedSchema);
+        const sanitizedTools = serverTools.map(wrapToolWithSanitizedSchema);
 
         newTools.push(...sanitizedTools);
         newServerInfos.push({
@@ -231,6 +233,74 @@ export class MCPToolCache {
       level: 'info',
       source: 'MCPToolCache'
     });
+  }
+
+  /**
+   * Load tools from an HTTP MCP server using MCP SDK directly.
+   * Supports OAuth auto-discovery — if the server returns 401,
+   * the SDK triggers authorization and the user gets a link.
+   */
+  private async loadHttpMcpServer(
+    serverName: string,
+    serverConfig: MCPServerConfig & { transport: 'http' },
+  ): Promise<StructuredTool[]> {
+    let oauthManager: OAuthManager;
+    try {
+      oauthManager = OAuthManager.getInstance();
+    } catch {
+      // OAuthManager not initialized (no port yet) — fall back to basic HTTP
+      return this.loadViaMultiServerClient(serverName, serverConfig);
+    }
+
+    const { tools, authPending } = await oauthManager.connectHttpMcp(
+      serverName,
+      serverConfig.url,
+      serverConfig.oauth2,
+      serverConfig.headers,
+    );
+
+    if (authPending) {
+      display.log(`MCP '${serverName}': OAuth authorization pending — tools will load after user authorizes`, {
+        level: 'info',
+        source: 'MCPToolCache',
+      });
+      return [];
+    }
+
+    return tools;
+  }
+
+  /**
+   * Load tools from a stdio MCP server using MultiServerMCPClient.
+   */
+  private async loadStdioMcpServer(
+    serverName: string,
+    serverConfig: Record<string, any>,
+  ): Promise<StructuredTool[]> {
+    return this.loadViaMultiServerClient(serverName, serverConfig);
+  }
+
+  /**
+   * Shared fallback: load tools via @langchain/mcp-adapters MultiServerMCPClient.
+   */
+  private async loadViaMultiServerClient(
+    serverName: string,
+    serverConfig: Record<string, any>,
+  ): Promise<StructuredTool[]> {
+    const client = new MultiServerMCPClient({
+      mcpServers: { [serverName]: serverConfig } as any,
+      onConnectionError: "ignore",
+    });
+
+    const tools = await client.getTools();
+
+    // Rename tools with server prefix to avoid collisions
+    tools.forEach(tool => {
+      const newName = `${serverName}_${tool.name}`;
+      Object.defineProperty(tool, "name", { value: newName });
+    });
+
+    return tools;
   }
 
   /**

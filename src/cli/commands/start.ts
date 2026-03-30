@@ -23,6 +23,7 @@ import { TaskWorker } from '../../runtime/tasks/worker.js';
 import { TaskNotifier } from '../../runtime/tasks/notifier.js';
 import { ChronosWorker } from '../../runtime/chronos/worker.js';
 import { ChronosRepository } from '../../runtime/chronos/repository.js';
+import { OAuthManager } from '../../runtime/oauth/manager.js';
 import { SkillRegistry } from '../../runtime/skills/index.js';
 import { MCPToolCache } from '../../runtime/tools/cache.js';
 import { SmithRegistry } from '../../runtime/smiths/registry.js';
@@ -259,6 +260,13 @@ export const startCommand = new Command('start')
           // Use CLI port if provided and valid, otherwise fallback to config or default
           const port = parseInt(options.port) || config.ui.port || 3333;
           httpServer.start(port);
+
+          // Initialize OAuth manager with the HTTP port (needed for redirect URI)
+          const oauthManager = OAuthManager.getInstance(port);
+          oauthManager.setNotifyFn(async (serverName, url) => {
+            const msg = `🔐 MCP *${serverName}* requires OAuth authorization.\n\nClick to authenticate:\n${url.toString()}`;
+            ChannelRegistry.broadcast(msg);
+          });
         } catch (e: any) {
           display.log(chalk.red(`Failed to start Web UI: ${e.message}`), { source: 'Zaion' });
         }

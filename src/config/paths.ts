@@ -24,4 +24,5 @@ export const PATHS = {
   trinityDb: path.join(MORPHEUS_ROOT, 'memory', 'trinity.db'),
   satiDb: path.join(MORPHEUS_ROOT, 'memory', 'sati-memory.db'),
   linkDb: path.join(MORPHEUS_ROOT, 'memory', 'link.db'),
+  oauthTokens: path.join(MORPHEUS_ROOT, 'oauth-tokens.json'),
 };

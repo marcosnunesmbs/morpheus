@@ -1,3 +1,10 @@
+export type OAuth2Config = {
+  grant_type?: 'client_credentials' | 'authorization_code';
+  client_id?: string;
+  client_secret?: string;
+  scope?: string;
+};
+
 export type MCPServerConfig =
   | {
       transport: 'stdio';
@@ -10,6 +17,7 @@ export type MCPServerConfig =
       transport: 'http';
       url: string;
       headers?: Record<string, string>;
+      oauth2?: OAuth2Config;
       args?: string[];
       env?: Record<string, string>;
       _comment?: string;
