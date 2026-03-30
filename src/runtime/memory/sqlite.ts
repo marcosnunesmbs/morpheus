@@ -357,12 +357,13 @@ export class SQLiteChatMessageHistory extends BaseListChatMessageHistory {
 
   /**
    * Removes orphaned ToolMessages and incomplete tool-call groups that can
-   * appear when the LIMIT clause truncates the message window mid-sequence.
+   * appear when the LIMIT clause truncates the message window mid-sequence,
+   * or when a previous session ended mid-execution leaving dangling tool calls.
    *
-   * Messages arrive in DESC order (newest first). An orphaned ToolMessage at
-   * the end of this array means its parent AIMessage (with tool_calls) was
-   * outside the window. We also strip AIMessages whose tool_calls have no
-   * corresponding ToolMessage responses in the window.
+   * Handles both ends of the window:
+   *   START — orphaned ToolMessages / AIMessages whose tool responses were cut off
+   *   END   — AIMessages with unanswered tool_calls (session ended mid-execution),
+   *            which would cause Gemini to reject the next human turn
    */
   private sanitizeMessageWindow(messages: BaseMessage[]): BaseMessage[] {
     if (messages.length === 0) return messages;
@@ -370,38 +371,62 @@ export class SQLiteChatMessageHistory extends BaseListChatMessageHistory {
     // Work in chronological order (reverse of DESC) for easier reasoning.
     const chrono = [...messages].reverse();
 
-    // Drop leading ToolMessages that have no preceding AIMessage with matching tool_calls.
+    // ── START sanitization ─────────────────────────────────────────────────
+    // Drop leading ToolMessages that have no preceding AIMessage with tool_calls.
     let startIdx = 0;
     while (startIdx < chrono.length && chrono[startIdx] instanceof ToolMessage) {
       startIdx++;
     }
 
-    // Also drop a leading AIMessage that has tool_calls but whose ToolMessage
+    // Drop a leading AIMessage that has tool_calls but whose ToolMessage
     // responses were trimmed (they would have been before it in the DB).
     if (startIdx < chrono.length && chrono[startIdx] instanceof AIMessage) {
       const ai = chrono[startIdx] as AIMessage;
       if (ai.tool_calls && ai.tool_calls.length > 0) {
-        // Check if ALL tool_call responses exist after this AIMessage
         const toolCallIds = ai.tool_calls.map((tc: any) => tc.id).filter(Boolean);
         const remaining = chrono.slice(startIdx + 1);
-        let allFound = true;
-        for (let i = 0; i < toolCallIds.length; i++) {
-          const hasResponse = remaining.some(
-            (m) => m instanceof ToolMessage && (m as ToolMessage).tool_call_id === toolCallIds[i]
-          );
-          if (!hasResponse) { allFound = false; break; }
-        }
+        const allFound = toolCallIds.every((id: string) =>
+          remaining.some(
+            (m) => m instanceof ToolMessage && (m as ToolMessage).tool_call_id === id
+          )
+        );
         if (!allFound) startIdx++;
       }
     }
 
-    if (startIdx === 0) {
+    // ── END sanitization ───────────────────────────────────────────────────
+    // Walk backwards from the end and strip any trailing AIMessage that has
+    // unanswered tool_calls (session ended mid-execution). Gemini requires that
+    // a function_call turn is ALWAYS immediately followed by a function_response
+    // turn — a human turn after a dangling tool call causes a 400 error.
+    let endIdx = chrono.length;
+    while (endIdx > startIdx) {
+      const last = chrono[endIdx - 1];
+      if (!(last instanceof AIMessage)) break;
+      const ai = last as AIMessage;
+      if (!ai.tool_calls || ai.tool_calls.length === 0) break;
+      // This AIMessage has tool_calls — check if all responses exist before it
+      const toolCallIds = ai.tool_calls.map((tc: any) => tc.id).filter(Boolean);
+      const before = chrono.slice(startIdx, endIdx - 1);
+      const allAnswered = toolCallIds.every((id: string) =>
+        before.some(
+          (m) => m instanceof ToolMessage && (m as ToolMessage).tool_call_id === id
+        )
+      );
+      if (allAnswered) break; // complete group — keep it
+      // Incomplete: strip this AIMessage and any trailing ToolMessages after it
+      endIdx--;
+      while (endIdx > startIdx && chrono[endIdx - 1] instanceof ToolMessage) {
+        endIdx--;
+      }
+    }
+
+    if (startIdx === 0 && endIdx === chrono.length) {
       // No sanitization needed — return original DESC order.
       return messages;
     }
 
-    // Return in the original DESC order (newest first), excluding trimmed messages.
-    const sanitized = chrono.slice(startIdx);
+    const sanitized = chrono.slice(startIdx, endIdx);
     sanitized.reverse();
     return sanitized;
   }

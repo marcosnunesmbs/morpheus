@@ -7,34 +7,6 @@ import type { MCPServerConfig } from "../../types/mcp.js";
 
 const display = DisplayManager.getInstance();
 
-/** Fields not supported by Google Gemini API */
-const UNSUPPORTED_SCHEMA_FIELDS = ['examples', 'additionalInfo', 'default', '$schema'];
-
-/**
- * Recursively removes unsupported fields from JSON schema objects.
- */
-function sanitizeSchema(obj: unknown): unknown {
-  if (obj === null || typeof obj !== 'object') return obj;
-  if (Array.isArray(obj)) return obj.map(sanitizeSchema);
-  const sanitized: Record<string, unknown> = {};
-  for (const [key, value] of Object.entries(obj as Record<string, unknown>)) {
-    if (!UNSUPPORTED_SCHEMA_FIELDS.includes(key)) {
-      sanitized[key] = sanitizeSchema(value);
-    }
-  }
-  return sanitized;
-}
-
-/**
- * Wraps a tool to sanitize its schema for Gemini compatibility.
- */
-function wrapToolWithSanitizedSchema(tool: StructuredTool): StructuredTool {
-  const originalSchema = (tool as any).schema;
-  if (originalSchema && typeof originalSchema === 'object') {
-    (tool as any).schema = sanitizeSchema(originalSchema);
-  }
-  return tool;
-}
 
 /** Timeout (ms) for connecting to each MCP server */
 const MCP_CONNECT_TIMEOUT_MS = 60_000;
@@ -187,20 +159,17 @@ export class MCPToolCache {
           ]);
         }
 
-        // Sanitize schemas for Gemini compatibility
-        const sanitizedTools = serverTools.map(wrapToolWithSanitizedSchema);
-
-        newTools.push(...sanitizedTools);
+        newTools.push(...serverTools);
         newServerInfos.push({
           name: serverName,
-          toolCount: sanitizedTools.length,
-          tools: sanitizedTools,
+          toolCount: serverTools.length,
+          tools: serverTools,
           ok: true,
           loadedAt: new Date(),
         });
 
         const elapsed = Date.now() - serverStart;
-        display.log(`Loaded ${sanitizedTools.length} tools from '${serverName}' in ${elapsed}ms`, {
+        display.log(`Loaded ${serverTools.length} tools from '${serverName}' in ${elapsed}ms`, {
           level: 'info',
           source: 'MCPToolCache'
         });
