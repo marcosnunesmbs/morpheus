@@ -8,6 +8,7 @@ import { SelectInput } from '../components/forms/SelectInput';
 import { NumberInput } from '../components/forms/NumberInput';
 import { Switch } from '../components/forms/Switch';
 import { configService } from '../services/config';
+import { modelPresetsService } from '../services/modelPresets';
 import { httpClient } from '../services/httpClient';
 // @ts-ignore
 import { ConfigSchema } from '../../../config/schemas';
@@ -93,8 +94,12 @@ export default function Settings() {
     () => configService.getEnvOverrides()
   );
 
+  const { data: modelPresets = [] } = useSWR('/api/model-presets', modelPresetsService.list);
+
   const { data: chronosServerConfig } = useChronosConfig();
   const [localChronosConfig, setLocalChronosConfig] = useState<ChronosConfig | null>(null);
+
+  const [selectedPresets, setSelectedPresets] = useState<Record<string, string>>({});
 
   const [localConfig, setLocalConfig] = useState<MorpheusConfig | null>(null);
   const [localSatiConfig, setLocalSatiConfig] = useState<SatiConfig | null>(null);
@@ -420,6 +425,56 @@ export default function Settings() {
     });
   };
 
+  const handleApplyPreset = async (presetId: string, target: 'oracle' | 'sati' | 'neo' | 'apoc' | 'trinity' | 'link') => {
+    if (!presetId) return;
+    const preset = modelPresets.find((p) => p.id === presetId);
+    if (!preset) return;
+
+    let apiKey: string | undefined;
+    if (preset.has_api_key) {
+      const result = await modelPresetsService.decryptApiKey(presetId);
+      apiKey = result.api_key ?? undefined;
+    }
+
+    const fields = {
+      provider: preset.provider as any,
+      model: preset.model,
+      api_key: apiKey,
+      base_url: preset.base_url ?? undefined,
+      ...(preset.temperature != null ? { temperature: preset.temperature } : {}),
+      ...(preset.max_tokens != null ? { max_tokens: preset.max_tokens } : {}),
+    };
+
+    switch (target) {
+      case 'oracle':
+        if (!localConfig) return;
+        setLocalConfig({ ...localConfig, llm: { ...localConfig.llm, ...fields } });
+        break;
+      case 'sati':
+        if (!localSatiConfig) return;
+        setLocalSatiConfig({ ...localSatiConfig, ...fields });
+        break;
+      case 'neo':
+        if (!localNeoConfig) return;
+        setLocalNeoConfig({ ...localNeoConfig, ...fields });
+        break;
+      case 'apoc':
+        if (!localApocConfig) return;
+        setLocalApocConfig({ ...localApocConfig, ...fields });
+        break;
+      case 'trinity':
+        if (!localTrinityConfig) return;
+        setLocalTrinityConfig({ ...localTrinityConfig, ...fields });
+        break;
+      case 'link':
+        if (!localLinkConfig) return;
+        setLocalLinkConfig({ ...localLinkConfig, ...fields });
+        break;
+    }
+
+    setSelectedPresets((prev) => ({ ...prev, [target]: '' }));
+  };
+
   const handleSave = async () => {
     if (!localConfig) return;
     setSaving(true);
@@ -616,6 +671,21 @@ export default function Settings() {
             {/* Oracle */}
             {activeAgentTab === 'oracle' && (
               <Section title="Oracle Agent">
+                {modelPresets.length > 0 && (
+                  <div className="mb-4 flex items-center gap-3">
+                    <select
+                      value={selectedPresets['oracle'] ?? ''}
+                      onChange={(e) => handleApplyPreset(e.target.value, 'oracle')}
+                      className="flex-1 px-3 py-2 rounded-lg border border-azure-border dark:border-matrix-primary bg-azure-surface dark:bg-black text-azure-text-primary dark:text-matrix-secondary text-sm focus:outline-none focus:ring-1 focus:ring-azure-primary dark:focus:ring-matrix-highlight"
+                    >
+                      <option value="" disabled>Apply a preset...</option>
+                      {modelPresets.map((p) => (
+                        <option key={p.id} value={p.id}>{p.name} ({p.provider} / {p.model})</option>
+                      ))}
+                    </select>
+                    <span className="text-xs text-azure-text-secondary dark:text-matrix-secondary shrink-0">Auto-fills fields below.</span>
+                  </div>
+                )}
                 <p className="text-sm text-azure-text-secondary dark:text-matrix-secondary mb-4">
                   Main orchestration agent — handles user requests and delegates to subagents
                 </p>
@@ -748,6 +818,21 @@ export default function Settings() {
             {/* Sati */}
             {activeAgentTab === 'sati' && (
               <Section title="Sati Agent">
+                {modelPresets.length > 0 && (
+                  <div className="mb-4 flex items-center gap-3">
+                    <select
+                      value={selectedPresets['sati'] ?? ''}
+                      onChange={(e) => handleApplyPreset(e.target.value, 'sati')}
+                      className="flex-1 px-3 py-2 rounded-lg border border-azure-border dark:border-matrix-primary bg-azure-surface dark:bg-black text-azure-text-primary dark:text-matrix-secondary text-sm focus:outline-none focus:ring-1 focus:ring-azure-primary dark:focus:ring-matrix-highlight"
+                    >
+                      <option value="" disabled>Apply a preset...</option>
+                      {modelPresets.map((p) => (
+                        <option key={p.id} value={p.id}>{p.name} ({p.provider} / {p.model})</option>
+                      ))}
+                    </select>
+                    <span className="text-xs text-azure-text-secondary dark:text-matrix-secondary shrink-0">Auto-fills fields below.</span>
+                  </div>
+                )}
                 <p className="text-sm text-azure-text-secondary dark:text-matrix-secondary mb-4">
                   Background memory consolidation agent — evaluates conversations and persists important context
                 </p>
@@ -896,6 +981,21 @@ export default function Settings() {
             {/* Neo */}
             {activeAgentTab === 'neo' && (
               <Section title="Neo Agent">
+                {modelPresets.length > 0 && (
+                  <div className="mb-4 flex items-center gap-3">
+                    <select
+                      value={selectedPresets['neo'] ?? ''}
+                      onChange={(e) => handleApplyPreset(e.target.value, 'neo')}
+                      className="flex-1 px-3 py-2 rounded-lg border border-azure-border dark:border-matrix-primary bg-azure-surface dark:bg-black text-azure-text-primary dark:text-matrix-secondary text-sm focus:outline-none focus:ring-1 focus:ring-azure-primary dark:focus:ring-matrix-highlight"
+                    >
+                      <option value="" disabled>Apply a preset...</option>
+                      {modelPresets.map((p) => (
+                        <option key={p.id} value={p.id}>{p.name} ({p.provider} / {p.model})</option>
+                      ))}
+                    </select>
+                    <span className="text-xs text-azure-text-secondary dark:text-matrix-secondary shrink-0">Auto-fills fields below.</span>
+                  </div>
+                )}
                 <p className="text-sm text-azure-text-secondary dark:text-matrix-secondary mb-4">
                   MCP + internal tools subagent — executes analytical and operational tasks delegated by Oracle
                 </p>
@@ -1057,6 +1157,21 @@ export default function Settings() {
             {/* Trinity */}
             {activeAgentTab === 'trinity' && (
               <Section title="Trinity Agent">
+                {modelPresets.length > 0 && (
+                  <div className="mb-4 flex items-center gap-3">
+                    <select
+                      value={selectedPresets['trinity'] ?? ''}
+                      onChange={(e) => handleApplyPreset(e.target.value, 'trinity')}
+                      className="flex-1 px-3 py-2 rounded-lg border border-azure-border dark:border-matrix-primary bg-azure-surface dark:bg-black text-azure-text-primary dark:text-matrix-secondary text-sm focus:outline-none focus:ring-1 focus:ring-azure-primary dark:focus:ring-matrix-highlight"
+                    >
+                      <option value="" disabled>Apply a preset...</option>
+                      {modelPresets.map((p) => (
+                        <option key={p.id} value={p.id}>{p.name} ({p.provider} / {p.model})</option>
+                      ))}
+                    </select>
+                    <span className="text-xs text-azure-text-secondary dark:text-matrix-secondary shrink-0">Auto-fills fields below.</span>
+                  </div>
+                )}
                 <p className="text-sm text-azure-text-secondary dark:text-matrix-secondary mb-4">
                   Database subagent — interprets natural language queries and executes them against registered databases (PostgreSQL, MySQL, SQLite, MongoDB)
                 </p>
@@ -1196,6 +1311,21 @@ export default function Settings() {
             {/* Link */}
             {activeAgentTab === 'link' && (
               <Section title="Link Agent">
+                {modelPresets.length > 0 && (
+                  <div className="mb-4 flex items-center gap-3">
+                    <select
+                      value={selectedPresets['link'] ?? ''}
+                      onChange={(e) => handleApplyPreset(e.target.value, 'link')}
+                      className="flex-1 px-3 py-2 rounded-lg border border-azure-border dark:border-matrix-primary bg-azure-surface dark:bg-black text-azure-text-primary dark:text-matrix-secondary text-sm focus:outline-none focus:ring-1 focus:ring-azure-primary dark:focus:ring-matrix-highlight"
+                    >
+                      <option value="" disabled>Apply a preset...</option>
+                      {modelPresets.map((p) => (
+                        <option key={p.id} value={p.id}>{p.name} ({p.provider} / {p.model})</option>
+                      ))}
+                    </select>
+                    <span className="text-xs text-azure-text-secondary dark:text-matrix-secondary shrink-0">Auto-fills fields below.</span>
+                  </div>
+                )}
                 <p className="text-sm text-azure-text-secondary dark:text-matrix-secondary mb-4">
                   Documentation specialist — indexes documents from ~/.morpheus/docs, uses an LLM to reason over search results and synthesize intelligent answers
                 </p>
@@ -1335,6 +1465,21 @@ export default function Settings() {
             {/* Apoc */}
             {activeAgentTab === 'apoc' && (
               <Section title="Apoc Agent">
+                {modelPresets.length > 0 && (
+                  <div className="mb-4 flex items-center gap-3">
+                    <select
+                      value={selectedPresets['apoc'] ?? ''}
+                      onChange={(e) => handleApplyPreset(e.target.value, 'apoc')}
+                      className="flex-1 px-3 py-2 rounded-lg border border-azure-border dark:border-matrix-primary bg-azure-surface dark:bg-black text-azure-text-primary dark:text-matrix-secondary text-sm focus:outline-none focus:ring-1 focus:ring-azure-primary dark:focus:ring-matrix-highlight"
+                    >
+                      <option value="" disabled>Apply a preset...</option>
+                      {modelPresets.map((p) => (
+                        <option key={p.id} value={p.id}>{p.name} ({p.provider} / {p.model})</option>
+                      ))}
+                    </select>
+                    <span className="text-xs text-azure-text-secondary dark:text-matrix-secondary shrink-0">Auto-fills fields below.</span>
+                  </div>
+                )}
                 <p className="text-sm text-azure-text-secondary dark:text-matrix-secondary mb-4">
                   DevTools subagent — executes file, shell, git, network, and system operations on behalf of Oracle
                 </p>

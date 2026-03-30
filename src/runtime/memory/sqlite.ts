@@ -4,6 +4,19 @@ import Database from "better-sqlite3";
 import fs from "fs-extra";
 import * as path from "path";
 import type { ProviderModelUsageStats, ModelPricingEntry } from "../../types/stats.js";
+
+export interface ModelPresetEntry {
+  id: string;
+  name: string;
+  provider: string;
+  model: string;
+  api_key?: string | null;
+  base_url?: string | null;
+  temperature?: number | null;
+  max_tokens?: number | null;
+  created_at: string;
+  updated_at: string;
+}
 import { PATHS } from "../../config/paths.js";
 import { randomUUID } from 'crypto';
 import { DisplayManager } from "../display.js";
@@ -242,6 +255,19 @@ export class SQLiteChatMessageHistory extends BaseListChatMessageHistory {
           ('google', 'gemini-1.5-pro', 1.25, 5.0),
           ('google', 'gemini-1.5-flash', 0.075, 0.3);
 
+        CREATE TABLE IF NOT EXISTS model_presets (
+          id          TEXT PRIMARY KEY,
+          name        TEXT UNIQUE NOT NULL,
+          provider    TEXT NOT NULL,
+          model       TEXT NOT NULL,
+          api_key     TEXT,
+          base_url    TEXT,
+          temperature REAL,
+          max_tokens  INTEGER,
+          created_at  TEXT NOT NULL,
+          updated_at  TEXT NOT NULL
+        );
+
       `);
 
       this.migrateTable();
@@ -306,6 +332,26 @@ export class SQLiteChatMessageHistory extends BaseListChatMessageHistory {
       }
     } catch (error) {
       console.warn(`[SQLite] model_pricing migration failed: ${error}`);
+    }
+
+    // Ensure model_presets table exists for databases created before this feature
+    try {
+      this.db.exec(`
+        CREATE TABLE IF NOT EXISTS model_presets (
+          id          TEXT PRIMARY KEY,
+          name        TEXT UNIQUE NOT NULL,
+          provider    TEXT NOT NULL,
+          model       TEXT NOT NULL,
+          api_key     TEXT,
+          base_url    TEXT,
+          temperature REAL,
+          max_tokens  INTEGER,
+          created_at  TEXT NOT NULL,
+          updated_at  TEXT NOT NULL
+        )
+      `);
+    } catch (error) {
+      console.warn(`[SQLite] model_presets migration failed: ${error}`);
     }
   }
 
@@ -965,6 +1011,46 @@ export class SQLiteChatMessageHistory extends BaseListChatMessageHistory {
   deleteModelPricing(provider: string, model: string): number {
     const result = this.db.prepare('DELETE FROM model_pricing WHERE provider = ? AND model = ?').run(provider, model);
     return result.changes;
+  }
+
+  // --- Model Presets CRUD ---
+
+  listModelPresets(): ModelPresetEntry[] {
+    return this.db.prepare(
+      'SELECT id, name, provider, model, api_key, base_url, temperature, max_tokens, created_at, updated_at FROM model_presets ORDER BY name'
+    ).all() as ModelPresetEntry[];
+  }
+
+  getModelPreset(id: string): ModelPresetEntry | undefined {
+    return this.db.prepare(
+      'SELECT id, name, provider, model, api_key, base_url, temperature, max_tokens, created_at, updated_at FROM model_presets WHERE id = ?'
+    ).get(id) as ModelPresetEntry | undefined;
+  }
+
+  upsertModelPreset(entry: ModelPresetEntry): void {
+    const now = new Date().toISOString();
+    this.db.prepare(`
+      INSERT INTO model_presets (id, name, provider, model, api_key, base_url, temperature, max_tokens, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(id) DO UPDATE SET
+        name        = excluded.name,
+        provider    = excluded.provider,
+        model       = excluded.model,
+        api_key     = excluded.api_key,
+        base_url    = excluded.base_url,
+        temperature = excluded.temperature,
+        max_tokens  = excluded.max_tokens,
+        updated_at  = excluded.updated_at
+    `).run(
+      entry.id, entry.name, entry.provider, entry.model,
+      entry.api_key ?? null, entry.base_url ?? null,
+      entry.temperature ?? null, entry.max_tokens ?? null,
+      entry.created_at ?? now, now
+    );
+  }
+
+  deleteModelPreset(id: string): number {
+    return this.db.prepare('DELETE FROM model_presets WHERE id = ?').run(id).changes;
   }
 
   /**

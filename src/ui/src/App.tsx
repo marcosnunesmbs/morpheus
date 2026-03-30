@@ -12,6 +12,7 @@ const UsageStats = lazy(() => import('./pages/UsageStats').then(m => ({ default:
 const SatiMemories = lazy(() => import('./pages/SatiMemories').then(m => ({ default: m.SatiMemories })));
 const MCPManager = lazy(() => import('./pages/MCPManager').then(m => ({ default: m.MCPManager })));
 const ModelPricing = lazy(() => import('./pages/ModelPricing').then(m => ({ default: m.ModelPricing })));
+const ModelPresets = lazy(() => import('./pages/ModelPresets').then(m => ({ default: m.ModelPresets })));
 const WebhookManager = lazy(() => import('./pages/WebhookManager').then(m => ({ default: m.WebhookManager })));
 const Notifications = lazy(() => import('./pages/Notifications').then(m => ({ default: m.Notifications })));
 const TasksPage = lazy(() => import('./pages/Tasks').then(m => ({ default: m.TasksPage })));
@@ -43,6 +44,7 @@ function App() {
                     <Route path="/sati-memories" element={<SatiMemories />} />
                     <Route path="/mcp-servers" element={<MCPManager />} />
                     <Route path="/model-pricing" element={<ModelPricing />} />
+                    <Route path="/model-presets" element={<ModelPresets />} />
                     <Route path="/webhooks" element={<WebhookManager />} />
                     <Route path="/notifications" element={<Notifications />} />
                     <Route path="/tasks" element={<TasksPage />} />

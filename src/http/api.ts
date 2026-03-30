@@ -28,6 +28,7 @@ import { createDangerRouter } from './routers/danger.js';
 import { createLinkRouter } from './routers/link.js';
 import { createAgentsRouter } from './routers/agents.js';
 import { createDisplayRouter } from './routers/display.js';
+import { createModelPresetsRouter } from './routers/model-presets.js';
 import { getActiveEnvOverrides } from '../config/precedence.js';
 import { hotReloadConfig, getRestartRequiredChanges } from '../runtime/hot-reload.js';
 import { AuditRepository } from '../runtime/audit/repository.js';
@@ -73,6 +74,9 @@ export function createApiRouter(oracle: IOracle, chronosWorker?: ChronosWorker) 
 
   // Mount Display Stream router
   router.use('/display', createDisplayRouter());
+
+  // Mount Model Presets router
+  router.use('/model-presets', createModelPresetsRouter());
 
   // NOTE: OAuth router is mounted in server.ts BEFORE auth middleware
   // so the callback endpoint is publicly accessible (browser redirect).

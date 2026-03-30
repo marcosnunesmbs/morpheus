@@ -14,6 +14,7 @@ import {
   RotateCcw,
   MessageSquare,
   DollarSign,
+  Sliders,
   Webhook,
   Bell,
   ListChecks,
@@ -134,6 +135,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
     { icon: Clock, label: 'Chronos', path: '/chronos' },
     { icon: ShieldCheck, label: 'Audit', path: '/audit' },
     { icon: DollarSign, label: 'Model Pricing', path: '/model-pricing' },
+    { icon: Sliders, label: 'Model Presets', path: '/model-presets' },
     { icon: Terminal, label: 'Logs', path: '/logs' },
   ];
 
@@ -154,6 +156,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
     { icon: Clock, label: 'Chronos', path: '/chronos' },
     { icon: Terminal, label: 'Logs', path: '/logs' },
     { icon: DollarSign, label: 'Model Pricing', path: '/model-pricing' },
+    { icon: Sliders, label: 'Model Presets', path: '/model-presets' },
     { icon: ShieldCheck, label: 'Audit', path: '/audit' },
   ];
 
