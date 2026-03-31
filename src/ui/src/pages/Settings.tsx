@@ -973,6 +973,20 @@ export default function Settings() {
                       Lower values retrieve more memories, but may increase token consumption.
                       </p>
                     </div>
+                    <NumberInput
+                      label="Chunk Size"
+                      value={(localSatiConfig as any).chunk_size ?? 500}
+                      onChange={(e: any) =>
+                        handleSatiUpdate(
+                          'chunk_size' as any,
+                          parseInt(e.target.value)
+                        )
+                      }
+                      min={100}
+                      max={5000}
+                      step={50}
+                      helperText="Characters per chunk when archiving sessions."
+                    />
                   </>
                 )}
               </Section>

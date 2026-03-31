@@ -196,6 +196,7 @@ export class ConfigManager {
         enabled_archived_sessions: resolveBoolean('MORPHEUS_SATI_ENABLED_ARCHIVED_SESSIONS', config.sati.enabled_archived_sessions, true),
         similarity_threshold: resolveNumeric('MORPHEUS_SATI_SIMILARITY_THRESHOLD', config.sati.similarity_threshold, 0.9),
         evaluation_interval: resolveNumeric('MORPHEUS_SATI_EVALUATION_INTERVAL', config.sati.evaluation_interval, 1),
+        chunk_size: resolveNumeric('MORPHEUS_SATI_CHUNK_SIZE', config.sati.chunk_size, 500),
       };
     }
 
@@ -524,7 +525,8 @@ export class ConfigManager {
   public getSatiConfig(): SatiConfig {
     if (this.config.sati) {
       return {
-        memory_limit: 10, // Default if undefined
+        memory_limit: 10,
+        chunk_size: 500,
         ...this.config.sati
       };
     }
@@ -532,7 +534,8 @@ export class ConfigManager {
     // Fallback to main LLM config
     return {
       ...this.config.llm,
-      memory_limit: 10 // Default fallback
+      memory_limit: 10,
+      chunk_size: 500,
     };
   }
 

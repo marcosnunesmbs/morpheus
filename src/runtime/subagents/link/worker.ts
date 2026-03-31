@@ -341,6 +341,7 @@ export class LinkWorker {
 
   /**
    * Generate embeddings for chunks using Sati's EmbeddingService.
+   * Processes chunks in parallel batches for better performance.
    */
   async generateEmbeddings(chunks: { id: string; content: string }[]): Promise<void> {
     if (!this.embeddingService) {
@@ -349,8 +350,8 @@ export class LinkWorker {
 
     const embeddings: { chunk_id: string; embedding: number[] }[] = [];
 
-    // Process in batches to avoid memory issues
     const batchSize = 50;
+
     for (let i = 0; i < chunks.length; i += batchSize) {
       const batch = chunks.slice(i, i + batchSize);
 
@@ -362,6 +363,11 @@ export class LinkWorker {
       );
 
       embeddings.push(...batchEmbeddings);
+
+      this.display.log(
+        `Generated embeddings: batch ${Math.floor(i / batchSize) + 1}/${Math.ceil(chunks.length / batchSize)} (${embeddings.length}/${chunks.length})`,
+        { source: 'Link', level: 'debug' }
+      );
     }
 
     // Store embeddings in database

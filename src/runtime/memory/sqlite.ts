@@ -4,6 +4,7 @@ import Database from "better-sqlite3";
 import fs from "fs-extra";
 import * as path from "path";
 import type { ProviderModelUsageStats, ModelPricingEntry } from "../../types/stats.js";
+import { ConfigManager } from "../../config/manager.js";
 
 export interface ModelPresetEntry {
   id: string;
@@ -1262,7 +1263,7 @@ export class SQLiteChatMessageHistory extends BaseListChatMessageHistory {
           CREATE INDEX IF NOT EXISTS idx_session_chunks_session_id ON session_chunks(session_id);
         `);
 
-        const chunks = this.chunkText(sessionText);
+        const chunks = this.chunkText(sessionText, ConfigManager.getInstance().getSatiConfig().chunk_size ?? 500);
         const now = Date.now();
         const insert = dbSati.prepare(`
           INSERT INTO session_chunks (id, session_id, chunk_index, content, created_at)

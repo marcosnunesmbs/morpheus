@@ -21,6 +21,7 @@ const SATI_DB_PATH = path.join(
 
 const EMBEDDING_DIM = 384;
 const BATCH_LIMIT = 5;
+const PARALLEL_CHUNKS = 50;
 
 export async function runSessionEmbeddingWorker() {
     const display = DisplayManager.getInstance();
@@ -92,24 +93,35 @@ export async function runSessionEmbeddingWorker() {
           VALUES (?, ?)
         `);
 
-                    for (const chunk of chunks) {
-                        display.log(`   ↳ Embedding chunk ${chunk.id}`, { source: 'SessionEmbeddingWorker' });
+                    display.log(`   ↳ Processando ${chunks.length} chunks em paralelo (${PARALLEL_CHUNKS})...`, { source: 'SessionEmbeddingWorker' });
 
-                        const embedding = await embeddingService.generate(chunk.content);
+                    for (let i = 0; i < chunks.length; i += PARALLEL_CHUNKS) {
+                        const batch = chunks.slice(i, i + PARALLEL_CHUNKS);
 
-                        if (!embedding || embedding.length !== EMBEDDING_DIM) {
-                            throw new Error(
-                                `Embedding inválido. Esperado ${EMBEDDING_DIM}, recebido ${embedding?.length}`
-                            );
-                        }
-
-                        const result = insertVec.run(
-                            new Float32Array(embedding)
+                        const batchEmbeddings = await Promise.all(
+                            batch.map(async chunk => {
+                                const embedding = await embeddingService.generate(chunk.content);
+                                return { chunkId: chunk.id, embedding };
+                            })
                         );
 
-                        const vecRowId = result.lastInsertRowid as number;
+                        for (const { chunkId, embedding } of batchEmbeddings) {
+                            if (!embedding || embedding.length !== EMBEDDING_DIM) {
+                                throw new Error(
+                                    `Embedding inválido. Esperado ${EMBEDDING_DIM}, recebido ${embedding?.length}`
+                                );
+                            }
 
-                        insertMap.run(chunk.id, vecRowId);
+                            const result = insertVec.run(
+                                new Float32Array(embedding)
+                            );
+
+                            const vecRowId = result.lastInsertRowid as number;
+
+                            insertMap.run(chunkId, vecRowId);
+                        }
+
+                        display.log(`   ↳ Batch ${Math.floor(i / PARALLEL_CHUNKS) + 1}/${Math.ceil(chunks.length / PARALLEL_CHUNKS)} concluído`, { source: 'SessionEmbeddingWorker' });
                     }
 
                     // ✅ finalizar sessão

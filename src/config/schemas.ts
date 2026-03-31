@@ -36,6 +36,7 @@ export const SatiConfigSchema = LLMConfigSchema.extend({
     enabled_archived_sessions: z.boolean().default(true),
     similarity_threshold: z.number().min(0).max(1).default(0.9),
     evaluation_interval: z.number().int().min(1).default(1),
+    chunk_size: z.number().int().positive().default(500),
 });
 
 export const ApocConfigSchema = LLMConfigSchema.extend({
