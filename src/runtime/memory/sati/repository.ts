@@ -251,20 +251,26 @@ export class SatiRepository {
   ): IMemoryRecord[] {
     if (!this.db) return [];
 
-    const SIMILARITY_THRESHOLD = ConfigManager.getInstance().getSatiConfig().similarity_threshold ?? 0.9;
+    const satiConfig = ConfigManager.getInstance().getSatiConfig();
+    const SIMILARITY_THRESHOLD = satiConfig.similarity_threshold ?? 0.7;
+
+    // Fetch a larger candidate pool so post-filtering still has enough results.
+    // weighted_score is used for ranking; cosine_similarity is used for threshold filtering.
+    const candidateLimit = limit * 10;
 
     const stmt = this.db.prepare(`
     SELECT *
     FROM (
       -- LONG TERM MEMORY
-      SELECT 
+      SELECT
         m.id as id,
         m.summary as summary,
         m.details as details,
         m.category as category,
         m.importance as importance,
         'long_term' as source_type,
-        (1 - vec_distance_cosine(v.embedding, ?)) * 0.8 as distance
+        (1 - vec_distance_cosine(v.embedding, ?)) as cosine_similarity,
+        (1 - vec_distance_cosine(v.embedding, ?)) * 0.8 as weighted_score
       FROM memory_vec v
       JOIN memory_embedding_map map ON map.vec_rowid = v.rowid
       JOIN long_term_memory m ON m.id = map.memory_id
@@ -273,56 +279,50 @@ export class SatiRepository {
       UNION ALL
 
       -- SESSION CHUNKS
-      SELECT 
+      SELECT
         sc.id as id,
         sc.content as summary,
         sc.content as details,
         'session' as category,
         'medium' as importance,
         'session_chunk' as source_type,
-        (1 - vec_distance_cosine(v.embedding, ?)) * 0.2 as distance
+        (1 - vec_distance_cosine(v.embedding, ?)) as cosine_similarity,
+        (1 - vec_distance_cosine(v.embedding, ?)) * 0.2 as weighted_score
       FROM session_vec v
       JOIN session_embedding_map map ON map.vec_rowid = v.rowid
       JOIN session_chunks sc ON sc.id = map.session_chunk_id
     )
-    ORDER BY distance ASC
+    ORDER BY weighted_score DESC
     LIMIT ?
   `);
 
     const rows = stmt.all(
       new Float32Array(embedding),
       new Float32Array(embedding),
-      limit
+      new Float32Array(embedding),
+      new Float32Array(embedding),
+      candidateLimit
     ) as any[];
 
-    // console.log(
-    //   `[SatiRepository] Unified vector search returned ${rows.length} raw results`
-    // );
-    // console each row
-    // rows.forEach((row, index) => {
-    //   console.log(`[SatiRepository] Row ${index + 1}:`, row);
-    // });
+    // Filter by raw cosine similarity (not the weighted score) so the threshold
+    // is independent of the long-term vs. session-chunk weighting.
+    const filtered = rows.filter(r => r.cosine_similarity >= SIMILARITY_THRESHOLD);
 
-    // Note: the SQL query already computes distance as (1 - cosine_distance) * weight,
-    // so higher values mean higher similarity. Use distance directly as similarity score.
-    const ranked = rows
-      .map(r => ({
-        ...r,
-        similarity: 1 - r.distance
-      }))
-      .sort((a, b) => b.similarity - a.similarity);
+    // Cap session chunks to avoid flooding from large archived sessions.
+    const chunkCap = satiConfig.session_chunk_limit ?? Math.ceil(limit * 0.3);
+    const longTerm = filtered.filter(r => r.source_type === 'long_term');
+    const chunks   = filtered.filter(r => r.source_type === 'session_chunk');
 
-    const filtered = ranked
-      .filter(r => r.similarity >= SIMILARITY_THRESHOLD)
-      .sort((a, b) => b.similarity - a.similarity);
+    const combined = [...longTerm, ...chunks.slice(0, chunkCap)]
+      .sort((a, b) => b.weighted_score - a.weighted_score)
+      .slice(0, limit);
 
     this.display.log(
-      `🧠 Unified vector search retornou ${filtered.length} resultados`,
+      `🧠 Unified vector search: ${filtered.length} acima do threshold (${longTerm.length} long-term, ${Math.min(chunks.length, chunkCap)} chunks) → ${combined.length} retornados`,
       { source: 'Sati', level: 'debug' }
     );
 
-
-    return filtered.map(r => ({
+    return combined.map(r => ({
       id: r.id,
       summary: r.summary,
       details: r.details,
@@ -481,7 +481,7 @@ export class SatiRepository {
 
       const likeStmt = this.db!.prepare(`
       SELECT * FROM long_term_memory
-      WHERE (summary LIKE ? OR details LIKE ?) 
+      WHERE (summary LIKE ? OR details LIKE ?)
       AND archived = 0
       ORDER BY importance DESC, access_count DESC
       LIMIT ?

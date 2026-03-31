@@ -75,6 +75,10 @@ export interface SatiConfig extends LLMConfig {
   evaluation_interval?: number;
   /** Chunk size for session archiving. Default: 500 */
   chunk_size?: number;
+  /** Max session chunks to include in retrieval results. Default: 30% of memory_limit. */
+  session_chunk_limit?: number;
+  /** Max tokens budget for injected memories in the prompt. Default: 3000. */
+  max_memory_tokens?: number;
 }
 
 export type SubAgentExecutionMode = 'sync' | 'async';
@@ -301,7 +305,7 @@ export const DEFAULT_CONFIG: MorpheusConfig = {
     context_window: 100,
     memory_limit: 100,
     enabled_archived_sessions: true,
-    similarity_threshold: 0.9,
+    similarity_threshold: 0.7,
     evaluation_interval: 1,
     chunk_size: 500,
   },

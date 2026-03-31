@@ -952,7 +952,7 @@ export default function Settings() {
                           Similarity Threshold
                         </label>
                         <span className="text-sm font-mono text-azure-text-primary dark:text-matrix-highlight">
-                          {((localSatiConfig as any).similarity_threshold ?? 0.9).toFixed(2)}
+                          {((localSatiConfig as any).similarity_threshold ?? 0.7).toFixed(2)}
                         </span>
                       </div>
                       <input
@@ -960,7 +960,7 @@ export default function Settings() {
                         min={0}
                         max={1}
                         step={0.01}
-                        value={(localSatiConfig as any).similarity_threshold ?? 0.9}
+                        value={(localSatiConfig as any).similarity_threshold ?? 0.7}
                         onChange={(e) =>
                           handleSatiUpdate('similarity_threshold' as any, parseFloat(e.target.value))
                         }
@@ -986,6 +986,29 @@ export default function Settings() {
                       max={5000}
                       step={50}
                       helperText="Characters per chunk when archiving sessions."
+                    />
+                    <NumberInput
+                      label="Session Chunk Limit"
+                      value={(localSatiConfig as any).session_chunk_limit ?? ''}
+                      onChange={(e: any) => {
+                        const val = parseInt(e.target.value);
+                        handleSatiUpdate('session_chunk_limit' as any, isNaN(val) ? undefined : val);
+                      }}
+                      min={0}
+                      max={50}
+                      helperText="Max session chunks per retrieval (default: 30% of Memory Limit). Prevents flooding from large archived sessions."
+                    />
+                    <NumberInput
+                      label="Max Memory Tokens"
+                      value={(localSatiConfig as any).max_memory_tokens ?? ''}
+                      onChange={(e: any) => {
+                        const val = parseInt(e.target.value);
+                        handleSatiUpdate('max_memory_tokens' as any, isNaN(val) ? undefined : val);
+                      }}
+                      min={500}
+                      max={16000}
+                      step={500}
+                      helperText="Token budget for memories injected into the prompt (default: 3000)."
                     />
                   </>
                 )}

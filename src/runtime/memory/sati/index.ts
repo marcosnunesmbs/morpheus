@@ -2,6 +2,7 @@ import { AIMessage, BaseMessage, SystemMessage, FunctionMessage } from "@langcha
 import { SatiService } from "./service.js";
 import { DisplayManager } from "../../display.js";
 import { AuditRepository } from "../../audit/repository.js";
+import { ConfigManager } from "../../../config/manager.js";
 
 const display = DisplayManager.getInstance();
 
@@ -48,11 +49,22 @@ export class SatiMemoryMiddleware {
                 return null;
             }
 
-            const memoryContext = result.relevant_memories
+            // Apply token budget: stop adding memories once we exceed the char limit.
+            const satiConfig = ConfigManager.getInstance().getSatiConfig();
+            const maxMemoryChars = (satiConfig.max_memory_tokens ?? 3000) * 4;
+            let usedChars = 0;
+            const budgetedMemories = result.relevant_memories.filter(m => {
+                const cost = m.summary.length + m.category.length + 20;
+                if (usedChars + cost > maxMemoryChars) return false;
+                usedChars += cost;
+                return true;
+            });
+
+            const memoryContext = budgetedMemories
                 .map(m => `- [${m.category.toUpperCase()}] ${m.summary}`)
                 .join('\n');
 
-            display.log(`Retrieved ${result.relevant_memories.length} memories.`, { source: 'Sati' });
+            display.log(`Retrieved ${budgetedMemories.length}/${result.relevant_memories.length} memories (budget: ~${Math.round(usedChars / 4)} tokens).`, { source: 'Sati' });
 
             return new AIMessage(`
                 ### LONG-TERM MEMORY (SATI)
