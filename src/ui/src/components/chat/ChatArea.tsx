@@ -24,12 +24,12 @@ interface ChatAreaProps {
 /* ─── Agent mention badge color mapping ──────────────────────────── */
 
 const AGENT_BADGE_CLASSES: Record<string, string> = {
-  amber:  'bg-amber-100  text-amber-800  border-amber-300  dark:bg-amber-900/30  dark:text-amber-300  dark:border-amber-700/60',
-  purple: 'bg-purple-100 text-purple-800 border-purple-300 dark:bg-purple-900/30 dark:text-purple-300 dark:border-purple-700/60',
-  violet: 'bg-violet-100 text-violet-800 border-violet-300 dark:bg-violet-900/30 dark:text-violet-300 dark:border-violet-700/60',
-  teal:   'bg-teal-100   text-teal-800   border-teal-300   dark:bg-teal-900/30   dark:text-teal-300   dark:border-teal-700/60',
-  gray:   'bg-zinc-100   text-zinc-700   border-zinc-300   dark:bg-zinc-800      dark:text-zinc-300   dark:border-zinc-600',
-  indigo: 'bg-indigo-100 text-indigo-800 border-indigo-300 dark:bg-indigo-900/30 dark:text-indigo-300 dark:border-indigo-700/60',
+  amber:  'bg-amber-100  text-amber-800  border-amber-300  dark:bg-amber-800  dark:text-amber-200  dark:border-amber-700',
+  purple: 'bg-purple-100 text-purple-800 border-purple-300 dark:bg-purple-800 dark:text-purple-200 dark:border-purple-700',
+  violet: 'bg-violet-100 text-violet-800 border-violet-300 dark:bg-violet-800 dark:text-violet-200 dark:border-violet-700',
+  teal:   'bg-teal-100   text-teal-800   border-teal-300   dark:bg-teal-800   dark:text-teal-200   dark:border-teal-700',
+  gray:   'bg-zinc-100   text-zinc-700   border-zinc-300   dark:bg-zinc-700  dark:text-zinc-200   dark:border-zinc-600',
+  indigo: 'bg-indigo-100 text-indigo-800 border-indigo-300 dark:bg-indigo-800 dark:text-indigo-200 dark:border-indigo-700',
 };
 
 /* ─── Helpers ────────────────────────────────────────────────────── */
@@ -154,14 +154,14 @@ const MessageList = React.memo<MessageListProps>(({ messages, isLoading, message
               className={`
                 max-w-[85%] md:max-w-[72%] min-w-0
                 ${isUserMessage
-                  ? 'bg-azure-primary text-white dark:text-white/80 dark:bg-matrix-primary rounded-2xl rounded-br-sm px-4 py-2.5'
+                  ? 'bg-azure-primary text-white dark:text-matrix-highlight dark:bg-matrix-primary rounded-2xl rounded-br-sm px-4 py-2.5'
                   : 'bg-gray-50 dark:bg-zinc-900 border border-gray-300 dark:border-matrix-primary/60 text-gray-800 dark:text-matrix-secondary rounded-2xl rounded-bl-sm px-4 py-3'
                 }
               `}
             >
               {isAutomated && (
                 <div className="flex items-center gap-1.5 mb-1.5">
-                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wider border bg-amber-50 text-amber-700 border-amber-300 dark:bg-amber-900/30 dark:text-amber-300 dark:border-amber-700/60">
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wider border bg-amber-50 text-amber-700 border-amber-300 dark:bg-amber-800 dark:text-amber-200 dark:border-amber-700">
                     {msg.source === 'webhook' ? 'Webhook' : 'Chronos'}
                   </span>
                 </div>
@@ -170,7 +170,7 @@ const MessageList = React.memo<MessageListProps>(({ messages, isLoading, message
               {isHuman && (
                 <>
                   {msg.audio_duration_seconds != null && (
-                    <div className="flex items-center gap-1 mb-1.5 text-white/70 dark:text-white/50">
+                    <div className="flex items-center gap-1 mb-1.5 text-white/70 dark:text-matrix-secondary/70">
                       <Mic size={11} />
                       <span className="text-[10px] font-mono tracking-wide">
                         voice · {msg.audio_duration_seconds}s
