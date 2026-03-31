@@ -9,7 +9,7 @@ import { useCurrency } from '../hooks/useCurrency';
 const container = { hidden: { opacity: 0 }, show: { opacity: 1, transition: { staggerChildren: 0.05 } } };
 const item = { hidden: { opacity: 0, y: 10 }, show: { opacity: 1, y: 0 } };
 
-const PROVIDERS = ['anthropic', 'openai', 'google', 'openrouter', 'ollama', 'other'];
+const PROVIDERS = ['anthropic', 'openai', 'gemini', 'openrouter', 'ollama', 'other'];
 
 const emptyForm = (): ModelPricingEntry => ({
   provider: '',

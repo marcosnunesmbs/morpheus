@@ -81,7 +81,8 @@ export function emitToolAuditEvents(
         if (skipTools?.has(tc.name)) continue;
         const result = tc.id ? toolResults.get(tc.id) : undefined;
         const isError = typeof result === 'string' && /^error:/i.test(result.trim());
-        const eventType: AuditEventType = internalToolNames?.has(tc.name) ? 'tool_call' : defaultEventType;
+        const eventType: AuditEventType | undefined = internalToolNames?.has(tc.name) ? 'tool_call' : defaultEventType;
+        if (!eventType) continue; // no event type assigned — caller opted out for this tool
         const meta: Record<string, unknown> = {};
         if (tc.args && Object.keys(tc.args).length > 0) meta.args = tc.args;
         if (result !== undefined) meta.result = result.length > 500 ? result.slice(0, 500) + '…' : result;

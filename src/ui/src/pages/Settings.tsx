@@ -1797,12 +1797,12 @@ export default function Settings() {
             </div>
             <SelectInput
               label=""
-              value={localConfig.audio.provider || 'google'}
+              value={localConfig.audio.provider || 'gemini'}
               onChange={(e: any) =>
                 handleUpdate(['audio', 'provider'], e.target.value)
               }
               options={[
-                { label: 'Google Gemini', value: 'google' },
+                { label: 'Google Gemini', value: 'gemini' },
                 { label: 'OpenAI (Whisper)', value: 'openai' },
                 { label: 'OpenRouter (multimodal)', value: 'openrouter' },
                 { label: 'Ollama (Whisper local)', value: 'ollama' },
@@ -1919,7 +1919,7 @@ export default function Settings() {
                 handleUpdate(['audio', 'tts', 'provider'], e.target.value)
               }
               options={[
-                { label: 'Google Gemini', value: 'google' },
+                { label: 'Google Gemini', value: 'gemini' },
               ]}
               error={errors['audio.tts.provider']}
               disabled={isEnvOverridden('audio.tts.provider')}

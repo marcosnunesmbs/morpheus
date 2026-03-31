@@ -34,6 +34,9 @@ export async function migrateConfigFile(): Promise<void> {
 
   // Migrate santi -> sati
   await migrateSantiToSati();
+
+  // Migrate google -> gemini in audio and tts providers
+  await migrateGoogleToGemini();
 }
 
 /**
@@ -133,9 +136,61 @@ async function migrateSantiToSati(): Promise<void> {
       display.log('Migrated santi → sati in configuration', { source: 'Migration', level: 'info' });
     }
   } catch (error: any) {
-    display.log(`Config migration (santi->sati) failed: ${error.message}`, { 
-      source: 'Migration', 
-      level: 'warning' 
+    display.log(`Config migration (santi->sati) failed: ${error.message}`, {
+      source: 'Migration',
+      level: 'warning'
+    });
+  }
+}
+
+/**
+ * Migrates audio.provider and audio.tts.provider from 'google' to 'gemini'
+ * Ensures consistency across the system (LLMs and audio use 'gemini' as provider)
+ */
+async function migrateGoogleToGemini(): Promise<void> {
+  const display = DisplayManager.getInstance();
+  const configPath = PATHS.config;
+
+  try {
+    if (!await fs.pathExists(configPath)) {
+      return;
+    }
+
+    const configContent = await fs.readFile(configPath, 'utf8');
+    const config: any = yaml.load(configContent);
+
+    // Check if migration is needed
+    const needsMigration =
+      config?.audio?.provider === 'google' ||
+      config?.audio?.tts?.provider === 'google';
+
+    if (!needsMigration) {
+      return;
+    }
+
+    // Create backup before migration
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+    const backupPath = `${configPath}.backup-${timestamp}`;
+    await fs.copy(configPath, backupPath);
+    display.log(`Created config backup: ${backupPath}`, { source: 'Migration', level: 'info' });
+
+    // Perform migration
+    if (config?.audio?.provider === 'google') {
+      config.audio.provider = 'gemini';
+    }
+    if (config?.audio?.tts?.provider === 'google') {
+      config.audio.tts.provider = 'gemini';
+    }
+
+    // Write migrated config
+    const migratedYaml = yaml.dump(config);
+    await fs.writeFile(configPath, migratedYaml, 'utf8');
+
+    display.log('Migrated audio providers: google → gemini', { source: 'Migration', level: 'info' });
+  } catch (error: any) {
+    display.log(`Config migration (google->gemini) failed: ${error.message}`, {
+      source: 'Migration',
+      level: 'warning'
     });
   }
 }

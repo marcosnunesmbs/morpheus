@@ -334,14 +334,14 @@ export class ConfigManager {
 
     // Apply precedence to audio config
     const audioProvider = resolveString('MORPHEUS_AUDIO_PROVIDER', config.audio.provider, DEFAULT_CONFIG.audio.provider) as typeof config.audio.provider;
-    // AudioProvider uses 'google' but resolveApiKey expects LLMProvider which uses 'gemini'
-    const audioProviderForKey = (audioProvider === 'google' ? 'gemini' : audioProvider) as LLMProvider;
+    // AudioProvider uses 'gemini' which maps to LLMProvider 'gemini' (already compatible)
+    const audioProviderForKey = audioProvider as LLMProvider;
 
     // TTS config
     const ttsDefaults = DEFAULT_CONFIG.audio.tts!;
     const ttsCfg = config.audio.tts;
-    const ttsProvider = resolveString('MORPHEUS_AUDIO_TTS_PROVIDER', ttsCfg?.provider, ttsDefaults.provider) as 'openai' | 'google';
-    const ttsProviderForKey = (ttsProvider === 'google' ? 'gemini' : ttsProvider) as LLMProvider;
+    const ttsProvider = resolveString('MORPHEUS_AUDIO_TTS_PROVIDER', ttsCfg?.provider, ttsDefaults.provider) as 'openai' | 'gemini';
+    const ttsProviderForKey = ttsProvider as LLMProvider;
     const ttsConfig = {
       enabled: resolveBoolean('MORPHEUS_AUDIO_TTS_ENABLED', ttsCfg?.enabled, ttsDefaults.enabled),
       provider: ttsProvider,

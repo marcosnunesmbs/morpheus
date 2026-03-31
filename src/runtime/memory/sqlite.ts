@@ -249,11 +249,11 @@ export class SQLiteChatMessageHistory extends BaseListChatMessageHistory {
           ('openai', 'gpt-3.5-turbo', 0.5, 1.5),
           ('openai', 'o1', 15.0, 60.0),
           ('openai', 'o1-mini', 3.0, 12.0),
-          ('google', 'gemini-2.5-flash', 0.15, 0.6),
-          ('google', 'gemini-2.5-flash-lite', 0.075, 0.3),
-          ('google', 'gemini-2.0-flash', 0.1, 0.4),
-          ('google', 'gemini-1.5-pro', 1.25, 5.0),
-          ('google', 'gemini-1.5-flash', 0.075, 0.3);
+          ('gemini', 'gemini-2.5-flash', 0.15, 0.6),
+          ('gemini', 'gemini-2.5-flash-lite', 0.075, 0.3),
+          ('gemini', 'gemini-2.0-flash', 0.1, 0.4),
+          ('gemini', 'gemini-1.5-pro', 1.25, 5.0),
+          ('gemini', 'gemini-1.5-flash', 0.075, 0.3);
 
         CREATE TABLE IF NOT EXISTS model_presets (
           id          TEXT PRIMARY KEY,
@@ -332,6 +332,17 @@ export class SQLiteChatMessageHistory extends BaseListChatMessageHistory {
       }
     } catch (error) {
       console.warn(`[SQLite] model_pricing migration failed: ${error}`);
+    }
+
+    // Migration: rename 'google' provider to 'gemini' for consistency
+    // This ensures existing model_pricing records work with the unified 'gemini' provider
+    try {
+      const result = this.db.prepare("UPDATE model_pricing SET provider = 'gemini' WHERE provider = 'google'").run();
+      if (result.changes > 0) {
+        console.log(`[SQLite] Migrated ${result.changes} model_pricing records from 'google' to 'gemini'`);
+      }
+    } catch (error) {
+      console.warn(`[SQLite] google->gemini migration failed: ${error}`);
     }
 
     // Ensure model_presets table exists for databases created before this feature

@@ -17,7 +17,7 @@ const mockConfig: MorpheusConfig = {
   ui: { enabled: false, port: 3333 },
   logging: { enabled: false, level: 'info', retention: '1d' },
   audio: {
-    provider: 'google',
+    provider: 'gemini',
     model: 'gemini-2.5-flash-lite',
     enabled: false,
     maxDurationSeconds: 60,

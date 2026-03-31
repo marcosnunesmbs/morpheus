@@ -223,14 +223,14 @@ class OpenRouterTelephonist implements ITelephonist {
  * based on the audio provider configuration.
  *
  * Supported providers:
- * - google:     Google Gemini (native audio file upload)
+ * - gemini:     Google Gemini (native audio file upload)
  * - openai:     OpenAI Whisper API (/audio/transcriptions)
  * - openrouter: OpenRouter SDK with input_audio (multimodal models)
  * - ollama:     Ollama local Whisper via OpenAI-compatible endpoint
  */
 export function createTelephonist(config: AudioConfig): ITelephonist {
   switch (config.provider) {
-    case 'google':
+    case 'gemini':
       return new GeminiTelephonist(config.model);
     case 'openai':
       return new WhisperTelephonist(config.model);
@@ -244,7 +244,7 @@ export function createTelephonist(config: AudioConfig): ITelephonist {
         (config.base_url || 'http://localhost:11434') + '/v1'
       );
     default:
-      throw new Error(`Unsupported audio provider: '${(config as any).provider}'. Supported: google, openai, openrouter, ollama.`);
+      throw new Error(`Unsupported audio provider: '${(config as any).provider}'. Supported: gemini, openai, openrouter, ollama.`);
   }
 }
 
@@ -400,16 +400,16 @@ class GeminiTtsTelephonist implements ITelephonist {
 
 /**
  * Factory that creates an ITelephonist with TTS (synthesize) support.
- * Supports providers: openai, google.
+ * Supports providers: openai, gemini.
  */
 export function createTtsTelephonist(config: TtsConfig): ITelephonist {
   switch (config.provider) {
     case 'openai':
       return new OpenAITtsTelephonist(config.model, config.voice);
-    case 'google':
+    case 'gemini':
       return new GeminiTtsTelephonist(config.model, config.voice);
     default:
-      throw new Error(`Unsupported TTS provider: '${(config as any).provider}'. Supported: openai, google.`);
+      throw new Error(`Unsupported TTS provider: '${(config as any).provider}'. Supported: openai, gemini.`);
   }
 }
 

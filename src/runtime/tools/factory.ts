@@ -6,39 +6,54 @@ import { AuditRepository } from "../audit/repository.js";
 const display = DisplayManager.getInstance();
 
 function instrumentMcpTool(tool: StructuredTool, serverName: string, getSessionId: () => string | undefined): StructuredTool {
-  const original = (tool as any)._call.bind(tool);
-  (tool as any)._call = async function(input: any, runManager?: any) {
-    const startMs = Date.now();
-    const sessionId = getSessionId() ?? 'unknown';
-    const toolName = `${serverName}/${tool.name}`;
-    display.startActivity('neo', `MCP tool: ${tool.name}`);
-    try {
-      const result = await original(input, runManager);
-      AuditRepository.getInstance().insert({
-        session_id: sessionId,
-        event_type: 'mcp_tool',
-        agent: 'neo',
-        tool_name: toolName,
-        duration_ms: Date.now() - startMs,
-        status: 'success',
-      });
-      display.endActivity('neo', true);
-      return result;
-    } catch (err: any) {
-      display.endActivity('neo', false);
-      AuditRepository.getInstance().insert({
-        session_id: sessionId,
-        event_type: 'mcp_tool',
-        agent: 'neo',
-        tool_name: toolName,
-        duration_ms: Date.now() - startMs,
-        status: 'error',
-        metadata: { error: err?.message ?? String(err) },
-      });
-      throw err;
-    }
-  };
-  return tool;
+  // Use a Proxy instead of mutating the cached tool object.
+  // Mutating _call directly on the cached object accumulates wrappers across sessions,
+  // causing N audit events per tool call after N Neo invocations.
+  const toolName = `${serverName}/${tool.name}`;
+  return new Proxy(tool, {
+    get(target: StructuredTool, prop: string | symbol) {
+      if (prop === '_call') {
+        return async function(input: any, runManager?: any) {
+          const startMs = Date.now();
+          const sessionId = getSessionId() ?? 'unknown';
+          display.startActivity('neo', `MCP tool: ${tool.name}`);
+          try {
+            const result = await (target as any)._call(input, runManager);
+            const meta: Record<string, unknown> = {};
+            if (input && Object.keys(input).length > 0) meta.args = input;
+            if (result !== undefined) {
+              const resultStr = typeof result === 'string' ? result : JSON.stringify(result);
+              meta.result = resultStr.length > 500 ? resultStr.slice(0, 500) + '…' : resultStr;
+            }
+            AuditRepository.getInstance().insert({
+              session_id: sessionId,
+              event_type: 'mcp_tool',
+              agent: 'neo',
+              tool_name: toolName,
+              duration_ms: Date.now() - startMs,
+              status: 'success',
+              metadata: Object.keys(meta).length > 0 ? meta : undefined,
+            });
+            display.endActivity('neo', true);
+            return result;
+          } catch (err: any) {
+            display.endActivity('neo', false);
+            AuditRepository.getInstance().insert({
+              session_id: sessionId,
+              event_type: 'mcp_tool',
+              agent: 'neo',
+              tool_name: toolName,
+              duration_ms: Date.now() - startMs,
+              status: 'error',
+              metadata: { error: err?.message ?? String(err) },
+            });
+            throw err;
+          }
+        };
+      }
+      return (target as any)[prop];
+    },
+  });
 }
 
 export type MCPProbeResult = {

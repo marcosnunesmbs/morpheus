@@ -3,7 +3,7 @@ import { DEFAULT_CONFIG } from '../types/config.js';
 
 export const TtsConfigSchema = z.object({
   enabled: z.boolean().default(false),
-  provider: z.enum(['openai', 'google']).default('google'),
+  provider: z.enum(['openai', 'gemini']).default('gemini'),
   model: z.string().min(1).default('gemini-2.5-flash-preview-tts'),
   voice: z.string().min(1).default('Kore'),
   apiKey: z.string().optional(),
@@ -11,7 +11,7 @@ export const TtsConfigSchema = z.object({
 });
 
 export const AudioConfigSchema = z.object({
-  provider: z.enum(['google', 'openai', 'openrouter', 'ollama']).default(DEFAULT_CONFIG.audio.provider),
+  provider: z.enum(['gemini', 'openai', 'openrouter', 'ollama']).default(DEFAULT_CONFIG.audio.provider),
   model: z.string().min(1).default(DEFAULT_CONFIG.audio.model),
   enabled: z.boolean().default(DEFAULT_CONFIG.audio.enabled),
   apiKey: z.string().optional(),

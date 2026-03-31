@@ -464,7 +464,7 @@ export class DiscordAdapter {
             this.display.startActivity('telephonist', 'Synthesizing TTS...');
             const ttsApiKey = getUsableApiKey(ttsConfig.apiKey) ||
               getUsableApiKey(config.audio.apiKey) ||
-              (config.llm.provider === (ttsConfig.provider === 'google' ? 'gemini' : ttsConfig.provider)
+              (config.llm.provider === ttsConfig.provider
                 ? getUsableApiKey(config.llm.api_key) : undefined);
 
             const ttsResult = await this.ttsTelephonist.synthesize(response, ttsApiKey || '', ttsConfig.voice, ttsConfig.style_prompt);

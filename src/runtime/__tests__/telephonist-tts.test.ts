@@ -15,10 +15,10 @@ describe('createTtsTelephonist', () => {
     expect(typeof telephonist.synthesize).toBe('function');
   });
 
-  it('returns an instance with synthesize() for google provider', () => {
+  it('returns an instance with synthesize() for gemini provider', () => {
     const telephonist = createTtsTelephonist({
       enabled: true,
-      provider: 'google',
+      provider: 'gemini',
       model: 'gemini-2.5-flash',
       voice: 'Kore',
     });

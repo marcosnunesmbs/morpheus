@@ -43,9 +43,9 @@ export interface LogConfig {
   retention: string;
 }
 
-export type AudioProvider = 'google' | 'openai' | 'openrouter' | 'ollama';
+export type AudioProvider = 'gemini' | 'openai' | 'openrouter' | 'ollama';
 
-export type TtsProvider = 'openai' | 'google';
+export type TtsProvider = 'openai' | 'gemini';
 
 export interface TtsConfig {
   enabled: boolean;
@@ -258,14 +258,14 @@ export const DEFAULT_CONFIG: MorpheusConfig = {
     retention: '14d',
   },
   audio: {
-    provider: 'google',
+    provider: 'gemini',
     model: 'gemini-2.5-flash-lite',
     enabled: true,
     maxDurationSeconds: 300,
     supportedMimeTypes: ['audio/ogg', 'audio/mp3', 'audio/mpeg', 'audio/wav'],
     tts: {
       enabled: false,
-      provider: 'google',
+      provider: 'gemini',
       model: 'gemini-2.5-flash-preview-tts',
       voice: 'Kore',
     },

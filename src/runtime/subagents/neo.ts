@@ -201,8 +201,10 @@ ${context ? `Context:\n${context}` : ""}
       const targetSession = sessionId ?? Neo.currentSessionId ?? "neo";
       await persistAgentMessage('neo', content, neoConfig, targetSession, rawUsage, durationMs);
 
+      // MCP tools are already audited inline by instrumentMcpTool (with timing + args/result).
+      // Only emit audit events here for internal Morpheus tools (not MCP tools).
       emitToolAuditEvents(response.messages.slice(inputCount), targetSession, 'neo', {
-        defaultEventType: 'mcp_tool',
+        defaultEventType: undefined, // skip MCP tools — audited by instrumentMcpTool
         internalToolNames: MORPHEUS_TOOL_NAMES,
       });
 
