@@ -188,6 +188,11 @@ export class Oracle implements IOracle {
     return valid;
   }
 
+  private isGeminiToolHistoryError(err: any): boolean {
+    const msg = String(err?.message ?? err ?? '').toLowerCase();
+    return msg.includes('function response turn') || msg.includes('function call turn');
+  }
+
   private hasDelegationToolCall(messages: BaseMessage[]): boolean {
     const delegationTools = SubagentRegistry.getDelegationToolNames();
     // Also include smith_delegate which may not be in registry if smiths are disabled
@@ -576,7 +581,7 @@ writeFile(`${PATHS.root}/system_prompt.txt`, String(systemMessage.content), 'utf
         this.display.log(`Sati memory retrieval failed: ${e.message}`, { source: 'Sati' });
       }
 
-      const messages: BaseMessage[] = [
+      let messages: BaseMessage[] = [
         systemMessage
       ];
 
@@ -608,12 +613,40 @@ Use it to inform your response and tool selection (if needed), but do not assume
       const oracleStartMs = Date.now();
       const display = DisplayManager.getInstance();
       display.startActivity('oracle', `LLM call (${this.config.llm.model})`);
-      const response = await TaskRequestContext.run(invokeContext, async () => {
-        const agentResponse = await this.provider!.invoke({ messages }, { recursionLimit: 100 });
-        contextDelegationAcks = TaskRequestContext.getDelegationAcks();
-        syncDelegationCount = TaskRequestContext.getSyncDelegationCount();
-        return agentResponse;
-      });
+      // eslint-disable-next-line prefer-const
+      let response: any;
+      try {
+        response = await TaskRequestContext.run(invokeContext, async () => {
+          const agentResponse = await this.provider!.invoke({ messages }, { recursionLimit: 100 });
+          contextDelegationAcks = TaskRequestContext.getDelegationAcks();
+          syncDelegationCount = TaskRequestContext.getSyncDelegationCount();
+          return agentResponse;
+        });
+      } catch (invokeErr: any) {
+        if (this.isGeminiToolHistoryError(invokeErr)) {
+          // Gemini rejects histories that contain tool-call/response pairs from previous turns.
+          // Strip all AIMessages with tool_calls and ToolMessages, keep only text messages, and retry.
+          this.display.log(
+            'Gemini rejected tool-call history. Retrying with stripped history.',
+            { source: 'Oracle', level: 'warning' }
+          );
+          const cleanPrevious = previousMessages.filter((m: BaseMessage) =>
+            !(m instanceof ToolMessage) &&
+            !(m instanceof AIMessage && ((m as AIMessage).tool_calls?.length ?? 0) > 0)
+          );
+          messages = [systemMessage, ...cleanPrevious, userMessage];
+          contextDelegationAcks = [];
+          syncDelegationCount = 0;
+          response = await TaskRequestContext.run(invokeContext, async () => {
+            const agentResponse = await this.provider!.invoke({ messages }, { recursionLimit: 100 });
+            contextDelegationAcks = TaskRequestContext.getDelegationAcks();
+            syncDelegationCount = TaskRequestContext.getSyncDelegationCount();
+            return agentResponse;
+          });
+        } else {
+          throw invokeErr;
+        }
+      }
       const oracleDurationMs = Date.now() - oracleStartMs;
       display.endActivity('oracle', true);
 
