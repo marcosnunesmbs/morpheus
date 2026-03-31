@@ -10,6 +10,7 @@ import { ConfigManager } from '../config/manager.js';
 import { DisplayManager } from './display.js';
 import { SubagentRegistry } from './subagents/registry.js';
 import { SkillRegistry } from './skills/index.js';
+import { SQLiteChatMessageHistory } from './memory/sqlite.js';
 import { IOracle } from './types.js';
 
 let currentOracle: IOracle | null = null;
@@ -64,6 +65,11 @@ export async function hotReloadConfig(): Promise<{
     const agentNames = SubagentRegistry.getAll().map(r => r.label);
     reinitialized.push(...agentNames);
     display.log(`Subagents reloaded: ${agentNames.join(', ')}`, { source: 'HotReload', level: 'info' });
+
+    // 4. Clear message cache to prevent stale tool_calls causing Gemini 400 errors
+    // This ensures the next chat() call re-fetches from DB with proper sanitization
+    SQLiteChatMessageHistory.clearCache();
+    display.log('Message cache cleared', { source: 'HotReload', level: 'info' });
 
     return {
       success: true,

@@ -76,6 +76,11 @@ export class SQLiteChatMessageHistory extends BaseListChatMessageHistory {
     SQLiteChatMessageHistory._cache.delete(sessionId);
   }
 
+  /** Clear the entire message cache. Called during hot-reload to prevent stale tool_calls. */
+  static clearCache(): void {
+    SQLiteChatMessageHistory._cache.clear();
+  }
+
   /** Prepend new messages (newest-first order) to an existing cache entry. */
   private static _appendToCache(sessionId: string, newMessages: BaseMessage[]): void {
     if (!sessionId || newMessages.length === 0) return;

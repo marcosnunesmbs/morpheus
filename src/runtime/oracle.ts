@@ -875,6 +875,10 @@ Use it to inform your response and tool selection (if needed), but do not assume
     ]);
     await SubagentRegistry.reloadAll();
     this.display.log(`Oracle and subagent tools reloaded`, { source: 'Oracle' });
+
+    // Clear message cache to prevent stale tool_calls from causing Gemini 400 errors
+    SQLiteChatMessageHistory.clearCache();
+    this.display.log(`Message cache cleared after tool reload`, { source: 'Oracle' });
   }
 }
 
