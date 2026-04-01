@@ -169,7 +169,7 @@ export function Dashboard() {
         <div className="lg:w-4/5 h-72 lg:h-auto min-h-0 rounded-lg border border-azure-border dark:border-matrix-primary overflow-hidden relative">
           <MorpheusVisualizer />
         </div>
-        <div className="lg:w-1/5 flex flex-row lg:flex-col gap-4">
+        <div className="lg:w-1/5 hidden lg:flex flex-col gap-4">
           <StatCard
             title="Agent Status"
             value={status?.status.toUpperCase() ?? 'CONNECTING...'}

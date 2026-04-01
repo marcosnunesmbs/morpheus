@@ -147,7 +147,7 @@ export function OracleNode({ isActive, activeCount }: OracleNodeProps) {
       </mesh>
 
       {/* Label */}
-      <Html position={[0, -2.0, 0]} center transform sprite zIndexRange={[100, 0]}>
+      <Html position={[0, -2.0, 0]} center transform sprite zIndexRange={[10, 0]}>
         <div
           className="text-[11px] font-bold tracking-[0.25em] uppercase transition-all duration-500"
           style={{

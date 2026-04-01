@@ -204,7 +204,7 @@ function AgentLabel({
 
   return (
     <group ref={groupRef}>
-      <Html center transform sprite zIndexRange={[100, 0]}>
+      <Html center transform sprite zIndexRange={[10, 0]}>
         <div className="flex flex-col items-center gap-0.5 pointer-events-none">
           <div
             className="text-[11px] font-bold tracking-wider uppercase transition-all duration-200"
