@@ -851,6 +851,7 @@ export class SQLiteChatMessageHistory extends BaseListChatMessageHistory {
   }
 
   /**
+   * @deprecated Use AuditRepository.getGlobalSummary() instead.
    * Retrieves aggregated usage statistics for all messages in the database.
    */
   async getGlobalUsageStats(): Promise<{ totalInputTokens: number; totalOutputTokens: number; totalEstimatedCostUsd: number | null }> {
@@ -968,6 +969,7 @@ export class SQLiteChatMessageHistory extends BaseListChatMessageHistory {
   }
 
   /**
+   * @deprecated Use AuditRepository.getGlobalSummary() instead.
    * Retrieves aggregated usage statistics grouped by agent.
    * Merges data from `messages` (Oracle's direct messages) with `audit_events` (subagent LLM calls).
    */

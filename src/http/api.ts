@@ -463,10 +463,15 @@ export function createApiRouter(oracle: IOracle, chronosWorker?: ChronosWorker) 
 
   router.get('/stats/usage', async (req, res) => {
     try {
-      const history = new SQLiteChatMessageHistory({ sessionId: 'api-reader' });
-      const stats = await history.getGlobalUsageStats();
-      history.close();
-      res.json(stats);
+      const summary = AuditRepository.getInstance().getGlobalSummary();
+      // Map Audit totals to the expected response structure
+      res.json({
+        totalInputTokens: summary.totals.totalInputTokens,
+        totalOutputTokens: summary.totals.totalOutputTokens,
+        totalEstimatedCostUsd: summary.totals.estimatedCostUsd,
+        totalAudioSeconds: summary.totals.totalAudioSeconds,
+        totalDurationMs: summary.totals.totalDurationMs
+      });
     } catch (error: any) {
       res.status(500).json({ error: error.message });
     }
@@ -474,10 +479,17 @@ export function createApiRouter(oracle: IOracle, chronosWorker?: ChronosWorker) 
 
   router.get('/stats/usage/grouped', async (req, res) => {
     try {
-      const history = new SQLiteChatMessageHistory({ sessionId: 'api-reader' });
-      const stats = await history.getUsageStatsByProviderAndModel();
-      history.close();
-      res.json(stats);
+      const summary = AuditRepository.getInstance().getGlobalSummary();
+      // Map Audit byModel to the expected response structure
+      res.json(summary.byModel.map(m => ({
+        provider: m.provider,
+        model: m.model,
+        totalInputTokens: m.inputTokens,
+        totalOutputTokens: m.outputTokens,
+        totalTokens: m.inputTokens + m.outputTokens,
+        messageCount: m.calls, // Audit call count is more accurate
+        estimatedCostUsd: m.estimatedCostUsd
+      })));
     } catch (error: any) {
       res.status(500).json({ error: error.message });
     }
@@ -485,10 +497,15 @@ export function createApiRouter(oracle: IOracle, chronosWorker?: ChronosWorker) 
 
   router.get('/stats/usage/by-agent', (req, res) => {
     try {
-      const h = new SQLiteChatMessageHistory({ sessionId: 'api-reader' });
-      const stats = h.getUsageStatsByAgent();
-      h.close();
-      res.json(stats);
+      const summary = AuditRepository.getInstance().getGlobalSummary();
+      res.json(summary.byAgent.map(a => ({
+        agent: a.agent,
+        totalInputTokens: a.inputTokens,
+        totalOutputTokens: a.outputTokens,
+        messageCount: a.llmCalls,
+        estimatedCostUsd: a.estimatedCostUsd,
+        totalDurationMs: a.totalDurationMs
+      })));
     } catch (error: any) {
       res.status(500).json({ error: error.message });
     }
