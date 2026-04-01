@@ -31,12 +31,8 @@ const AGENT_COLORS: Record<string, string> = {
 
 // ─── Shared Geometries ───────────────────────────────────────────────────────
 const boxG = new THREE.BoxGeometry(1, 1, 1);
-const sphereG = new THREE.SphereGeometry(1, 12, 12);
-const planeG = new THREE.PlaneGeometry(1, 1);
 
 // ─── Shared Materials ────────────────────────────────────────────────────────
-const rackMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.2, metalness: 0.1 });
-const faceMat = new THREE.MeshStandardMaterial({ color: 0x111111, emissive: 0x001100, emissiveIntensity: 0.2 });
 const deskMat = new THREE.MeshStandardMaterial({ color: 0x444444, roughness: 0.6, metalness: 0.2, emissive: 0x050505 }); 
 const monMat = new THREE.MeshStandardMaterial({ color: 0x333333, roughness: 0.5 });
 
@@ -68,47 +64,6 @@ function useMatrixRainTexture(color: string) {
     texture.needsUpdate = true;
   });
   return texture;
-}
-
-// ─── Server Rack Component ───────────────────────────────────────────────────
-
-function ServerRack({ position }: { position: [number, number, number] }) {
-  const ledRefs = useRef<THREE.Mesh[]>([]);
-  const leds = useMemo(() => Array.from({ length: 8 }, () => ({
-    y: (Math.random() - 0.5) * 2.8,
-    z: (Math.random() - 0.5) * 1.8,
-    color: ['#00ff41', '#0088ff', '#ff4400', '#00ff41'][Math.floor(Math.random() * 4)],
-    offset: Math.random() * Math.PI * 2,
-    speed: 5 + Math.random() * 10
-  })), []);
-
-  useFrame((state) => {
-    const t = state.clock.elapsedTime;
-    ledRefs.current.forEach((led, i) => {
-      if (!led) return;
-      const mat = led.material as THREE.MeshStandardMaterial;
-      const blink = Math.sin(t * leds[i].speed + leds[i].offset);
-      mat.emissiveIntensity = blink > 0.5 ? 2.5 : 0.1;
-    });
-  });
-
-  return (
-    <group position={position}>
-      <mesh geometry={boxG} material={rackMat} position={[0, 1.6, 0]} scale={[0.8, 3.2, 2.4]} />
-      <mesh position={[position[0] < 0 ? 0.41 : -0.41, 1.6, 0]} rotation={[0, position[0] < 0 ? -Math.PI / 2 : Math.PI / 2, 0]} geometry={planeG} material={faceMat} scale={[2.38, 3.18, 1]} />
-      {leds.map((led, i) => (
-        <mesh 
-          key={i} 
-          ref={el => ledRefs.current[i] = el!}
-          position={[position[0] < 0 ? 0.42 : -0.42, 1.6 + led.y, led.z]} 
-          rotation={[0, position[0] < 0 ? -Math.PI / 2 : Math.PI / 2, 0]}
-        >
-          <boxGeometry args={[0.05, 0.05, 0.01]} />
-          <meshStandardMaterial emissive={led.color} emissiveIntensity={2} color="#000000" />
-        </mesh>
-      ))}
-    </group>
-  );
 }
 
 // ─── Cables Component ────────────────────────────────────────────────────────
