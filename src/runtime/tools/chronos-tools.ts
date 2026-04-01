@@ -11,7 +11,7 @@ import { TaskRequestContext } from '../tasks/context.js';
 const NON_CHANNEL_ORIGINS = new Set(['ui', 'api', 'cli', 'chronos', 'webhook']);
 
 export const ChronosScheduleTool = tool(
-  async ({ prompt, schedule_type, schedule_expression, timezone, notify_channels }) => {
+  async ({ prompt, schedule_type, expression, timezone, notify_channels }) => {
     if (ChronosWorker.isExecuting) {
       return JSON.stringify({ success: false, error: 'Cannot create a new Chronos job from within an active Chronos execution.' });
     }
@@ -19,7 +19,7 @@ export const ChronosScheduleTool = tool(
       const cfg = ConfigManager.getInstance().getChronosConfig();
       const tz = timezone ?? cfg.timezone;
 
-      const parsed = parseScheduleExpression(schedule_expression, schedule_type, { timezone: tz });
+      const parsed = parseScheduleExpression(expression, schedule_type, { timezone: tz });
 
       // Resolve notify_channels:
       // - Explicitly provided → use as-is
@@ -39,7 +39,7 @@ export const ChronosScheduleTool = tool(
       const job = repo.createJob({
         prompt,
         schedule_type,
-        schedule_expression,
+        schedule_expression: expression,
         timezone: tz,
         next_run_at: parsed.next_run_at,
         cron_normalized: parsed.cron_normalized,
@@ -77,7 +77,7 @@ export const ChronosScheduleTool = tool(
       schedule_type: z
         .enum(['once', 'cron', 'interval'])
         .describe('"once" for one-time, "cron" for cron expression, "interval" for natural phrase.'),
-      schedule_expression: z
+      expression: z
         .string()
         .describe(
           'The schedule expression. For "once": ISO datetime or natural language like "tomorrow at 9am". ' +
@@ -116,7 +116,7 @@ export const ChronosListTool = tool(
         id: j.id,
         prompt: j.prompt.length > 80 ? j.prompt.slice(0, 80) + '…' : j.prompt,
         schedule_type: j.schedule_type,
-        schedule_expression: j.schedule_expression,
+        expression: j.schedule_expression,
         next_run_at: j.next_run_at != null ? new Date(j.next_run_at).toISOString() : null,
         last_run_at: j.last_run_at != null ? new Date(j.last_run_at).toISOString() : null,
         enabled: j.enabled,
@@ -186,13 +186,13 @@ export const ChronosCancelTool = tool(
 
 // ─── chronos_preview ─────────────────────────────────────────────────────────
 export const ChronosPreviewTool = tool(
-  async ({ schedule_type, schedule_expression, timezone, occurrences }) => {
+  async ({ schedule_type, expression, timezone, occurrences }) => {
     try {
       const cfg = ConfigManager.getInstance().getChronosConfig();
       const tz = timezone ?? cfg.timezone;
       const count = occurrences ?? 3;
 
-      const parsed = parseScheduleExpression(schedule_expression, schedule_type, { timezone: tz });
+      const parsed = parseScheduleExpression(expression, schedule_type, { timezone: tz });
 
       let next_occurrences: string[] = [];
       if (schedule_type !== 'once' && parsed.cron_normalized) {
@@ -220,7 +220,7 @@ export const ChronosPreviewTool = tool(
       'Useful for confirming a schedule before committing to it.',
     schema: z.object({
       schedule_type: z.enum(['once', 'cron', 'interval']).describe('Type of schedule expression.'),
-      schedule_expression: z.string().describe('The schedule expression to validate and preview.'),
+      expression: z.string().describe('The schedule expression to validate and preview.'),
       timezone: z.string().optional().describe('IANA timezone. Defaults to global Chronos timezone.'),
       occurrences: z
         .number()

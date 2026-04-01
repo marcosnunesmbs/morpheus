@@ -228,6 +228,9 @@ export function parseScheduleExpression(
   type: ScheduleType,
   opts: ParseScheduleOptions = {}
 ): ParsedSchedule {
+  if (!expression) {
+    throw new Error('Schedule expression is required.');
+  }
   const timezone = opts.timezone ?? 'UTC';
   const refDate = opts.referenceDate ? new Date(opts.referenceDate) : new Date();
 
