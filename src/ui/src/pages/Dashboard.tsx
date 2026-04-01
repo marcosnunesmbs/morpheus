@@ -3,18 +3,21 @@ import {
   Activity, Cpu, Clock, Brain, Box, LayoutDashboard,
   ListChecks, Puzzle, HatGlasses, DollarSign, Wand2,
   ChevronRight, CheckCircle2, XCircle, LoaderCircle,
+  Monitor,
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { Link } from 'react-router-dom';
 import { StatCard } from '../components/dashboard/StatCard';
 import { formatUptime } from '@/lib/formatUptime';
 import useSWR from 'swr';
+import { useState, useEffect } from 'react';
 import { taskService } from '../services/tasks';
 import { statsService } from '../services/stats';
 import { mcpService } from '../services/mcp';
 import { skillsService } from '../services/skills';
 import { httpClient } from '../services/httpClient';
 import { MorpheusVisualizer } from '../components/dashboard/visualizer/MorpheusVisualizer';
+import { MorpheusVisualizerV2 } from '../components/dashboard/visualizer/MorpheusVisualizerV2';
 
 const container = { hidden: { opacity: 0 }, show: { opacity: 1, transition: { staggerChildren: 0.07 } } };
 const item = { hidden: { opacity: 0, y: 12 }, show: { opacity: 1, y: 0 } };
@@ -84,6 +87,10 @@ function TaskStatusIcon({ status }: { status: string }) {
 
 export function Dashboard() {
   const { data: status } = useStatus();
+  const [viewMode, setViewMode] = useState<number>(() => {
+    const saved = localStorage.getItem('morpheus_view_mode');
+    return saved ? parseInt(saved, 10) : 1;
+  });
 
   const { data: taskStats } = useSWR(
     '/tasks/stats',
@@ -121,6 +128,10 @@ export function Dashboard() {
     { refreshInterval: 5_000 },
   );
 
+  useEffect(() => {
+    localStorage.setItem('morpheus_view_mode', viewMode.toString());
+  }, [viewMode]);
+
   // ── Derived values ──────────────────────────────────────────────────────────
   const totalTokens = (globalStats?.totalInputTokens ?? 0) + (globalStats?.totalOutputTokens ?? 0);
   const hasCost     = globalStats?.totalEstimatedCostUsd != null;
@@ -154,20 +165,52 @@ export function Dashboard() {
     <motion.div className="space-y-6" variants={container} initial="hidden" animate="show">
 
       {/* ── Header ──────────────────────────────────────── */}
-      <motion.div variants={item} className="flex items-center gap-3">
-        <div className="w-10 h-10 rounded-lg bg-azure-primary/10 dark:bg-matrix-highlight/10 border border-azure-primary/20 dark:border-matrix-highlight/30 flex items-center justify-center">
-          <LayoutDashboard className="w-5 h-5 text-azure-primary dark:text-matrix-highlight" />
-        </div>
-        <div>
-          <h1 className="text-xl font-bold text-azure-text dark:text-matrix-highlight">Dashboard</h1>
-          <p className="text-sm text-azure-text-secondary dark:text-matrix-tertiary">Overview of the Morpheus agent runtime.</p>
+      <motion.div variants={item} className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-lg bg-azure-primary/10 dark:bg-matrix-highlight/10 border border-azure-primary/20 dark:border-matrix-highlight/30 flex items-center justify-center">
+            <LayoutDashboard className="w-5 h-5 text-azure-primary dark:text-matrix-highlight" />
+          </div>
+          <div>
+            <h1 className="text-xl font-bold text-azure-text dark:text-matrix-highlight">Dashboard</h1>
+            <div className="flex items-center gap-2">
+              <p className="text-sm text-azure-text-secondary dark:text-matrix-tertiary">Overview of the Morpheus agent runtime.</p>
+              
+              {/* View Mode Toggle */}
+              <div className="flex items-center bg-azure-surface/50 dark:bg-matrix-highlight/5 border border-azure-border dark:border-matrix-primary/50 rounded-md p-0.5 ml-1 overflow-hidden">
+                <button
+                  onClick={() => setViewMode(1)}
+                  className={`px-1.5 py-0.5 text-[9px] font-bold uppercase transition-all flex items-center gap-1 ${
+                    viewMode === 1
+                      ? 'bg-azure-primary text-white dark:bg-matrix-highlight dark:text-black rounded-sm shadow-sm'
+                      : 'text-azure-text-secondary hover:text-azure-text dark:text-matrix-tertiary dark:hover:text-matrix-secondary'
+                  }`}
+                  title="Orbital View"
+                >
+                  <Monitor className="w-2.5 h-2.5" />
+                  v1
+                </button>
+                <button
+                  onClick={() => setViewMode(2)}
+                  className={`px-1.5 py-0.5 text-[9px] font-bold uppercase transition-all flex items-center gap-1 ${
+                    viewMode === 2
+                      ? 'bg-azure-primary text-white dark:bg-matrix-highlight dark:text-black rounded-sm shadow-sm'
+                      : 'text-azure-text-secondary hover:text-azure-text dark:text-matrix-tertiary dark:hover:text-matrix-secondary'
+                  }`}
+                  title="Operations Center"
+                >
+                  <Monitor className="w-2.5 h-2.5" />
+                  v2
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
       </motion.div>
 
       {/* ── Visualizer 80% + Stats 20% ─────────────────── */}
       <motion.div variants={item} className="flex flex-col lg:flex-row lg:items-stretch gap-4">
-        <div className="lg:w-4/5 h-72 lg:h-auto min-h-0 rounded-lg border border-azure-border dark:border-matrix-primary overflow-hidden relative">
-          <MorpheusVisualizer />
+        <div className="lg:w-4/5 h-72 lg:h-[400px] min-h-0 rounded-lg border border-azure-border dark:border-matrix-primary overflow-hidden relative">
+          {viewMode === 1 ? <MorpheusVisualizer /> : <MorpheusVisualizerV2 />}
         </div>
         <div className="lg:w-1/5 hidden lg:flex flex-col gap-4">
           <StatCard
