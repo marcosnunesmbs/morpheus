@@ -116,11 +116,47 @@ export default function Settings() {
     message: string;
   } | null>(null);
 
+  // GWS OAuth state
+  const [gwsOAuthStatus, setGwsOAuthStatus] = useState<{
+    auth_method: string;
+    status: string;
+    scopes: string[];
+    expires_at?: number;
+    binary_available: boolean;
+    error_message?: string;
+    auth_url?: string;
+  } | null>(null);
+  const [gwsAuthUrl, setGwsAuthUrl] = useState<string | null>(null);
+  const [gwsSetupLoading, setGwsSetupLoading] = useState(false);
+
   useEffect(() => {
     if (serverConfig && !localConfig) {
       setLocalConfig(serverConfig);
     }
   }, [serverConfig]);
+
+  // GWS OAuth status polling
+  useEffect(() => {
+    const fetchGwsStatus = async () => {
+      try {
+        const res = await httpClient.get<any>('/gws/oauth/status');
+        setGwsOAuthStatus(res);
+        // Capture auth_url from status if available (e.g. after page refresh during pending setup)
+        if (res.auth_url) setGwsAuthUrl(res.auth_url);
+        // Clear auth URL when authorization completes
+        if (res.status === 'authorized') setGwsAuthUrl(null);
+      } catch {
+        // Ignore errors — status will show as not configured
+      }
+    };
+
+    fetchGwsStatus();
+
+    // Poll every 3s when pending, every 30s otherwise
+    const isPending = gwsOAuthStatus?.status === 'pending' || gwsOAuthStatus?.status === 'pending_auth';
+    const interval = setInterval(fetchGwsStatus, isPending ? 3000 : 30000);
+    return () => clearInterval(interval);
+  }, [gwsOAuthStatus?.status]);
 
   useEffect(() => {
     if (satiServerConfig && !localSatiConfig) {
@@ -205,6 +241,53 @@ export default function Settings() {
     ui: JSON.stringify(serverConfig?.ui) !== JSON.stringify(localConfig?.ui),
     logging: JSON.stringify(serverConfig?.logging) !== JSON.stringify(localConfig?.logging),
     chronos: JSON.stringify(chronosServerConfig) !== JSON.stringify(localChronosConfig),
+  };
+
+  // ── GWS OAuth handlers ──────────────────────────────────
+
+  const handleGwsOAuthSetup = async () => {
+    setGwsSetupLoading(true);
+    try {
+      const res: any = await httpClient.post('/gws/oauth/setup', {
+        scopes: localConfig?.gws?.oauth_scopes,
+      });
+      if (res.url) {
+        setGwsAuthUrl(res.url);
+        setNotification({ type: 'success', message: 'Authorization link ready. Click it below to connect your Google Account.' });
+      } else {
+        setNotification({ type: 'success', message: 'OAuth setup initiated. Check your browser for authorization.' });
+      }
+    } catch (err: any) {
+      setNotification({ type: 'error', message: err.response?.data?.message || err.message || 'Failed to start OAuth setup' });
+    } finally {
+      setGwsSetupLoading(false);
+    }
+  };
+
+  const handleGwsOAuthRevoke = async () => {
+    if (!confirm('Are you sure you want to revoke GWS OAuth access? This will disconnect all Google Workspace features.')) return;
+    try {
+      await httpClient.delete('/gws/oauth/revoke');
+      setGwsOAuthStatus(null);
+      setGwsAuthUrl(null);
+      setNotification({ type: 'success', message: 'GWS OAuth access revoked successfully.' });
+    } catch (err: any) {
+      setNotification({ type: 'error', message: err.response?.data?.message || err.message || 'Failed to revoke OAuth access' });
+    }
+  };
+
+  const handleGwsOAuthRefresh = async () => {
+    setGwsSetupLoading(true);
+    try {
+      const res: any = await httpClient.post('/gws/oauth/refresh', {
+        scopes: localConfig?.gws?.oauth_scopes,
+      });
+      setNotification({ type: 'success', message: res.message || 'OAuth refresh initiated.' });
+    } catch (err: any) {
+      setNotification({ type: 'error', message: err.response?.data?.message || err.message || 'Failed to refresh OAuth tokens' });
+    } finally {
+      setGwsSetupLoading(false);
+    }
   };
 
   /**
@@ -1774,9 +1857,10 @@ export default function Settings() {
           )}
 
           {activeTab === 'gws' && (
+          <>
           <Section title="Google Workspace">
           <p className="text-sm text-azure-text-secondary dark:text-matrix-secondary mb-4">
-            Configure Google Workspace integration for Sheet, Calendar, and Drive tools.
+            Configure Google Workspace integration for Sheets, Calendar, Drive, and more.
           </p>
 
           <Switch
@@ -1788,6 +1872,165 @@ export default function Settings() {
             helperText="When enabled, GWS skills are automatically synchronized during startup."
           />
 
+          {/* Auth Method Selector */}
+          <div className="mb-6">
+            <label className="block text-sm font-medium text-azure-text-primary dark:text-matrix-secondary mb-2">
+              Authentication Method
+            </label>
+            <SelectInput
+              label=""
+              value={localConfig.gws?.auth_method || 'service_account'}
+              onChange={(e: React.ChangeEvent<HTMLSelectElement>) => handleUpdate(['gws', 'auth_method'], e.target.value)}
+              options={[
+                { label: '🔗 OAuth (Recommended — click link to authorize)', value: 'oauth' },
+                { label: '🔑 Service Account (JSON key file)', value: 'service_account' },
+              ]}
+            />
+          </div>
+
+          {/* OAuth Section */}
+          {localConfig.gws?.auth_method === 'oauth' && (
+            <div className="rounded-xl border border-azure-border dark:border-matrix-primary p-4 mb-6 bg-azure-surface/50 dark:bg-black">
+              <h4 className="text-sm font-semibold text-azure-text-primary dark:text-matrix-highlight mb-3">
+                OAuth 2.0 Authentication
+              </h4>
+
+              {!gwsOAuthStatus || gwsOAuthStatus.status === 'not_configured' ? (
+                <div>
+                  <p className="text-sm text-azure-text-secondary dark:text-matrix-secondary mb-3">
+                    Connect your Google Account to enable GWS skills with OAuth 2.0.
+                    {gwsOAuthStatus?.binary_available === false && (
+                      <span className="block mt-1 text-amber-600 dark:text-amber-400">
+                        ⚠️ gws CLI not found. Install with: npm install -g @googleworkspace/cli
+                      </span>
+                    )}
+                  </p>
+                  <button
+                    onClick={handleGwsOAuthSetup}
+                    disabled={gwsSetupLoading || gwsOAuthStatus?.binary_available === false}
+                    className="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  >
+                    {gwsSetupLoading ? 'Connecting...' : '🔐 Connect Google Account'}
+                  </button>
+                </div>
+              ) : gwsOAuthStatus.status === 'pending' || gwsOAuthStatus.status === 'pending_auth' ? (
+                <div>
+                  <div className="flex items-center gap-2 mb-3">
+                    <div className="w-2 h-2 rounded-full bg-amber-500 animate-pulse"></div>
+                    <p className="text-sm font-medium text-amber-600 dark:text-amber-400">
+                      Waiting for authorization...
+                    </p>
+                  </div>
+
+                  {gwsAuthUrl ? (
+                    <>
+                      <p className="text-sm text-azure-text-secondary dark:text-matrix-secondary mb-3">
+                        Click the link below to authorize Morpheus with your Google Account:
+                      </p>
+                      <a
+                        href={gwsAuthUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium transition-colors mb-3"
+                      >
+                        <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>
+                        Authorize with Google
+                      </a>
+                      <p className="text-xs text-azure-text-secondary dark:text-matrix-tertiary">
+                        This page will update automatically once authorization is complete.
+                      </p>
+                    </>
+                  ) : (
+                    <>
+                      <p className="text-sm text-azure-text-secondary dark:text-matrix-secondary mb-2">
+                        Complete the OAuth flow in your browser.
+                      </p>
+                      <button
+                        onClick={handleGwsOAuthSetup}
+                        disabled={gwsSetupLoading}
+                        className="px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-medium disabled:opacity-50 transition-colors"
+                      >
+                        🔄 Retry
+                      </button>
+                    </>
+                  )}
+                </div>
+              ) : gwsOAuthStatus.status === 'authorized' ? (
+                <div>
+                  <div className="flex items-center gap-2 mb-3">
+                    <div className="w-2 h-2 rounded-full bg-emerald-500"></div>
+                    <p className="text-sm font-medium text-emerald-600 dark:text-emerald-400">
+                      ✅ Authorized
+                    </p>
+                  </div>
+                  {gwsOAuthStatus.scopes.length > 0 && (
+                    <p className="text-xs text-azure-text-secondary dark:text-matrix-secondary mb-2">
+                      Scopes: {gwsOAuthStatus.scopes.join(', ')}
+                    </p>
+                  )}
+                  {gwsOAuthStatus.expires_at && (
+                    <p className="text-xs text-azure-text-secondary dark:text-matrix-secondary mb-3">
+                      Expires: {new Date(gwsOAuthStatus.expires_at).toLocaleString()}
+                    </p>
+                  )}
+                  <div className="flex gap-2">
+                    <button
+                      onClick={handleGwsOAuthRefresh}
+                      disabled={gwsSetupLoading}
+                      className="px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-medium disabled:opacity-50 transition-colors"
+                    >
+                      🔄 Refresh Tokens
+                    </button>
+                    <button
+                      onClick={handleGwsOAuthRevoke}
+                      className="px-3 py-1.5 rounded-lg bg-red-600 hover:bg-red-700 text-white text-xs font-medium transition-colors"
+                    >
+                      🔓 Revoke Access
+                    </button>
+                  </div>
+                </div>
+              ) : gwsOAuthStatus.status === 'expired' ? (
+                <div>
+                  <div className="flex items-center gap-2 mb-3">
+                    <div className="w-2 h-2 rounded-full bg-red-500"></div>
+                    <p className="text-sm font-medium text-red-600 dark:text-red-400">
+                      ⚠️ Tokens Expired
+                    </p>
+                  </div>
+                  <button
+                    onClick={handleGwsOAuthRefresh}
+                    disabled={gwsSetupLoading}
+                    className="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium disabled:opacity-50 transition-colors"
+                  >
+                    🔄 Re-authorize
+                  </button>
+                </div>
+              ) : gwsOAuthStatus.status === 'error' ? (
+                <div>
+                  <div className="flex items-center gap-2 mb-3">
+                    <div className="w-2 h-2 rounded-full bg-red-500"></div>
+                    <p className="text-sm font-medium text-red-600 dark:text-red-400">
+                      ❌ Error
+                    </p>
+                  </div>
+                  <p className="text-xs text-red-600 dark:text-red-400 mb-3">
+                    {gwsOAuthStatus.error_message || 'Unknown error'}
+                  </p>
+                  <button
+                    onClick={handleGwsOAuthSetup}
+                    disabled={gwsSetupLoading}
+                    className="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium disabled:opacity-50 transition-colors"
+                  >
+                    🔐 Retry Setup
+                  </button>
+                </div>
+              ) : null}
+            </div>
+          )}
+
+          {/* Service Account Section */}
+          {localConfig.gws?.auth_method !== 'oauth' && (
+            <>
           <div className="flex items-center justify-between">
             <label className="block text-sm font-medium text-azure-text-primary dark:text-matrix-secondary">
               Service Account JSON
@@ -1810,8 +2053,11 @@ export default function Settings() {
               ✅ Credentials file present at: {localConfig.gws.service_account_json}
             </p>
           )}
+            </>
+          )}
 
           </Section>
+          </>
           )}
 
           {activeTab === 'audio' && (

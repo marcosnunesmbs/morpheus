@@ -6,6 +6,7 @@ import { calculateFileMd5 } from './hash-utils.js';
 import { DisplayManager } from './display.js';
 import chalk from 'chalk';
 import { execSync } from 'child_process';
+import { GwsOAuthManager } from './gws-oauth/manager.js';
 
 interface SyncMetadata {
   skills: Record<string, string>;
@@ -46,13 +47,38 @@ export async function syncGwsSkills(destOverride?: string): Promise<void> {
     );
   }
 
-  // Validate Service Account JSON if provided
-  if (config.service_account_json) {
-    if (!(await fs.pathExists(config.service_account_json))) {
-      display.log(
-        `⚠️ Google Workspace Service Account JSON not found at: ${chalk.yellow(config.service_account_json)}. GWS tools may fail to authenticate.`,
-        { source: 'GwsSync', level: 'warning' }
-      );
+  // Validate auth status based on auth method
+  if (config.auth_method === 'oauth') {
+    try {
+      const oauthStatus = await GwsOAuthManager.getInstance().getStatus();
+      if (oauthStatus.status === 'pending' || oauthStatus.status === 'not_configured') {
+        display.log(
+          `⚠️ GWS OAuth not configured. Skills will prompt for auth on first use. Run setup from Settings → GWS tab.`,
+          { source: 'GwsSync', level: 'warning' }
+        );
+      } else if (oauthStatus.status === 'expired') {
+        display.log(
+          `⚠️ GWS OAuth tokens expired. Please re-authorize from Settings → GWS tab.`,
+          { source: 'GwsSync', level: 'warning' }
+        );
+      } else if (oauthStatus.status === 'authorized') {
+        display.log(
+          `✅ GWS OAuth authorized. ${oauthStatus.scopes.length > 0 ? `Scopes: ${oauthStatus.scopes.join(', ')}` : ''}`,
+          { source: 'GwsSync', level: 'info' }
+        );
+      }
+    } catch {
+      // Ignore OAuth status errors — skills can still sync
+    }
+  } else {
+    // Validate Service Account JSON if provided
+    if (config.service_account_json) {
+      if (!(await fs.pathExists(config.service_account_json))) {
+        display.log(
+          `⚠️ Google Workspace Service Account JSON not found at: ${chalk.yellow(config.service_account_json)}. GWS tools may fail to authenticate.`,
+          { source: 'GwsSync', level: 'warning' }
+        );
+      }
     }
   }
 

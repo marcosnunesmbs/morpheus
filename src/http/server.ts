@@ -12,6 +12,8 @@ import { IOracle } from '../runtime/types.js';
 import { WebhookDispatcher } from '../runtime/webhooks/dispatcher.js';
 import type { ChronosWorker } from '../runtime/chronos/worker.js';
 import { createOAuthRouter } from './routers/oauth.js';
+import { createGwsRouter } from './routers/gws.js';
+import { GwsOAuthManager } from '../runtime/gws-oauth/manager.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -70,6 +72,9 @@ export class HttpServer {
     // OAuth callback — public (browser redirect from OAuth provider, no API key).
     // Status/revoke endpoints remain auth-guarded inside the /api block.
     this.app.use('/api/oauth', createOAuthRouter());
+
+    // GWS OAuth endpoints — public (setup needs to be accessible without API key).
+    this.app.use('/api/gws', createGwsRouter(GwsOAuthManager.getInstance()));
 
     this.app.use('/api', authMiddleware, createApiRouter(this.oracle, this.chronosWorker));
 

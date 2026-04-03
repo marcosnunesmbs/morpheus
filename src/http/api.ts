@@ -78,6 +78,8 @@ export function createApiRouter(oracle: IOracle, chronosWorker?: ChronosWorker) 
   // Mount Model Presets router
   router.use('/model-presets', createModelPresetsRouter());
 
+  // NOTE: GWS OAuth router is mounted in server.ts BEFORE auth middleware
+
   // NOTE: OAuth router is mounted in server.ts BEFORE auth middleware
   // so the callback endpoint is publicly accessible (browser redirect).
 

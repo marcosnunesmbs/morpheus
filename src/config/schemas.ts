@@ -121,6 +121,8 @@ export const GwsConfigSchema = z.object({
   service_account_json: z.string().optional(),
   service_account_json_content: z.string().optional(),
   enabled: z.boolean().default(true),
+  auth_method: z.enum(['oauth', 'service_account']).optional(),
+  oauth_scopes: z.array(z.string()).optional(),
 });
 
 // Zod Schema matching MorpheusConfig interface

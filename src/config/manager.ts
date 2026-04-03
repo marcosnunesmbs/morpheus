@@ -1,7 +1,7 @@
 import fs from 'fs-extra';
 import yaml from 'js-yaml';
 import { z } from 'zod';
-import { MorpheusConfig, DEFAULT_CONFIG, SatiConfig, ApocConfig, NeoConfig, TrinityConfig, LinkConfig, LLMProvider, ChronosConfig, SubAgentExecutionMode, DevKitConfig, SmithsConfig, SetupConfig, CurrencyConfig, GwsConfig } from '../types/config.js';
+import { MorpheusConfig, DEFAULT_CONFIG, SatiConfig, ApocConfig, NeoConfig, TrinityConfig, LinkConfig, LLMProvider, ChronosConfig, SubAgentExecutionMode, DevKitConfig, SmithsConfig, SetupConfig, CurrencyConfig, GwsConfig, GwsAuthMethod, DEFAULT_GWS_OAUTH_SCOPES } from '../types/config.js';
 import { PATHS } from './paths.js';
 import { setByPath } from './utils.js';
 import { ConfigSchema } from './schemas.js';
@@ -408,6 +408,10 @@ export class ConfigManager {
     const gwsConfig: GwsConfig = {
       service_account_json: resolveString('MORPHEUS_GWS_SERVICE_ACCOUNT_JSON', config.gws?.service_account_json, ''),
       enabled: resolveBoolean('MORPHEUS_GWS_ENABLED', config.gws?.enabled, true),
+      auth_method: resolveString('MORPHEUS_GWS_AUTH_METHOD', config.gws?.auth_method, 'service_account') as GwsAuthMethod,
+      oauth_scopes: process.env.MORPHEUS_GWS_OAUTH_SCOPES
+        ? process.env.MORPHEUS_GWS_OAUTH_SCOPES.split(',').map(s => s.trim()).filter(Boolean)
+        : (config.gws?.oauth_scopes ?? DEFAULT_GWS_OAUTH_SCOPES),
     };
 
     // Apply precedence to DevKit config
@@ -657,7 +661,11 @@ export class ConfigManager {
   }
 
   public getGwsConfig(): GwsConfig {
-    const defaults: GwsConfig = { enabled: true };
+    const defaults: GwsConfig = {
+      enabled: true,
+      auth_method: 'service_account',
+      oauth_scopes: DEFAULT_GWS_OAUTH_SCOPES,
+    };
     if (this.config.gws) {
       return { ...defaults, ...this.config.gws };
     }

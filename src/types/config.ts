@@ -220,6 +220,18 @@ export interface CurrencyConfig {
   rate: number;
 }
 
+export type GwsAuthMethod = 'oauth' | 'service_account';
+
+export const DEFAULT_GWS_OAUTH_SCOPES = [
+  'gmail',
+  'drive',
+  'calendar',
+  'contacts',
+  'docs',
+  'sheets',
+  'presentations',
+];
+
 export interface GwsConfig {
   /** Path to the Google Service Account JSON key file. */
   service_account_json?: string;
@@ -227,6 +239,10 @@ export interface GwsConfig {
   service_account_json_content?: string;
   /** Whether GWS skills should be automatically initialized. Default: true. */
   enabled?: boolean;
+  /** Authentication method: 'oauth' for interactive OAuth, 'service_account' for JSON key. Default: 'service_account'. */
+  auth_method?: GwsAuthMethod;
+  /** OAuth scopes to request (short names like 'gmail', 'drive'). Default: all core scopes. */
+  oauth_scopes?: string[];
 }
 
 export interface MorpheusConfig {

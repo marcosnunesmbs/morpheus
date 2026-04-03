@@ -16,6 +16,7 @@ import { buildDelegationTool } from "../tools/delegation-utils.js";
 import { SubagentRegistry } from "./registry.js";
 import { USER_HOME } from "../../config/paths.js";
 import { SkillRegistry } from "../skills/index.js";
+import { GwsOAuthManager } from "../gws-oauth/manager.js";
 
 /**
  * Apoc is a subagent of Oracle specialized in devtools operations.
@@ -142,6 +143,65 @@ Use this tool when the user asks for ANY of the following:
         "Apoc subagent initialization failed"
       );
     }
+  }
+
+  /**
+   * Validates GWS authentication status before executing GWS-related tasks.
+   * Returns an error message if auth is not properly configured.
+   */
+  private async validateGwsAuth(): Promise<{ valid: boolean; error?: string }> {
+    const config = ConfigManager.getInstance().getGwsConfig();
+
+    // If GWS is disabled, skip validation
+    if (config.enabled === false) {
+      return { valid: true };
+    }
+
+    // If using service account mode, just check if file exists
+    if (config.auth_method !== 'oauth') {
+      if (config.service_account_json) {
+        return { valid: true };
+      }
+      return {
+        valid: false,
+        error: 'GWS service account not configured. Set service_account_json in zaion.yaml or switch to OAuth mode.',
+      };
+    }
+
+    // OAuth mode — check status
+    const gwsManager = GwsOAuthManager.getInstance();
+
+    if (!gwsManager.isGwsBinaryAvailable()) {
+      return {
+        valid: false,
+        error: 'Google Workspace CLI (gws) not found in system PATH. Install with: npm install -g @googleworkspace/cli',
+      };
+    }
+
+    const status = await gwsManager.getStatus();
+
+    if (status.status === 'not_configured' || status.status === 'pending') {
+      return {
+        valid: false,
+        error: 'GWS OAuth not configured. Please run OAuth setup from Settings → Channels → Google Workspace, or ask Oracle to "Set up GWS OAuth".',
+      };
+    }
+
+    if (status.status === 'expired') {
+      return {
+        valid: false,
+        error: 'GWS OAuth tokens expired. Please refresh OAuth setup from Settings.',
+      };
+    }
+
+    if (status.status === 'error') {
+      return {
+        valid: false,
+        error: `GWS OAuth error: ${status.error_message ?? 'Unknown error'}`,
+      };
+    }
+
+    return { valid: true };
   }
 
   /**
@@ -282,6 +342,23 @@ ${skillContents.join('\n\n')}`;
     this.display.log(`Executing delegated task: ${task.slice(0, 80)}...`, {
       source: "Apoc",
     });
+
+    // Pre-flight GWS auth check if task involves Google Workspace
+    const isGwsTask = /gws|google\s*(workspace|sheets|docs|drive|gmail|calendar|meet|chat|forms|keep|classroom)/i.test(task);
+    if (isGwsTask) {
+      const gwsAuth = await this.validateGwsAuth();
+      if (!gwsAuth.valid) {
+        this.display.log(`GWS auth validation failed: ${gwsAuth.error}`, {
+          source: 'Apoc',
+          level: 'warning',
+        });
+        // Return error message directly instead of executing task
+        const apocConfig = this.config.apoc || this.config.llm;
+        const errorMsg = `🔐 GWS Authentication Required\n\n${gwsAuth.error}\n\nPlease set up GWS OAuth authentication to access Google Workspace features.`;
+        return buildAgentResult(errorMsg, apocConfig, undefined, 0, 0);
+      }
+    }
+
     const personality = this.config.apoc?.personality || 'pragmatic_dev';
 
     // Auto-resolve and inject relevant skill content for the task
