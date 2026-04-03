@@ -18,6 +18,7 @@ import { skillsService } from '../services/skills';
 import { httpClient } from '../services/httpClient';
 import { MorpheusVisualizer } from '../components/dashboard/visualizer/MorpheusVisualizer';
 import { MorpheusVisualizerV2 } from '../components/dashboard/visualizer/MorpheusVisualizerV2';
+import { MorpheusVisualizerV3 } from '../components/dashboard/visualizer/MorpheusVisualizerV3';
 
 const container = { hidden: { opacity: 0 }, show: { opacity: 1, transition: { staggerChildren: 0.07 } } };
 const item = { hidden: { opacity: 0, y: 12 }, show: { opacity: 1, y: 0 } };
@@ -201,6 +202,18 @@ export function Dashboard() {
                   <Monitor className="w-2.5 h-2.5" />
                   v2
                 </button>
+                <button
+                  onClick={() => setViewMode(3)}
+                  className={`px-1.5 py-0.5 text-[9px] font-bold uppercase transition-all flex items-center gap-1 ${
+                    viewMode === 3
+                      ? 'bg-azure-primary text-white dark:bg-matrix-highlight dark:text-black rounded-sm shadow-sm'
+                      : 'text-azure-text-secondary hover:text-azure-text dark:text-matrix-tertiary dark:hover:text-matrix-secondary'
+                  }`}
+                  title="The Construct"
+                >
+                  <Monitor className="w-2.5 h-2.5" />
+                  v3
+                </button>
               </div>
             </div>
           </div>
@@ -210,7 +223,7 @@ export function Dashboard() {
       {/* ── Visualizer 80% + Stats 20% ─────────────────── */}
       <motion.div variants={item} className="flex flex-col lg:flex-row lg:items-stretch gap-4">
         <div className="lg:w-4/5 h-72 lg:h-[400px] min-h-0 rounded-lg border border-azure-border dark:border-matrix-primary overflow-hidden relative">
-          {viewMode === 1 ? <MorpheusVisualizer /> : <MorpheusVisualizerV2 />}
+          {viewMode === 1 ? <MorpheusVisualizer /> : viewMode === 2 ? <MorpheusVisualizerV2 /> : <MorpheusVisualizerV3 />}
         </div>
         <div className="lg:w-1/5 hidden lg:flex flex-col gap-4">
           <StatCard
