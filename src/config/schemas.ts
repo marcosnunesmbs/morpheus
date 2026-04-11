@@ -67,6 +67,7 @@ export const LinkConfigSchema = LLMConfigSchema.extend({
     bm25_weight: z.number().min(0).max(1).default(0.2),
 });
 
+
 export const WebhookConfigSchema = z.object({
   telegram_notify_all: z.boolean().optional(),
 }).optional();

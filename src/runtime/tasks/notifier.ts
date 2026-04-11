@@ -2,6 +2,9 @@ import { DisplayManager } from '../display.js';
 import { TaskDispatcher } from './dispatcher.js';
 import { TaskRepository } from './repository.js';
 import { taskEventBus } from './event-bus.js';
+import type { IOracle } from '../types.js';
+import type { TaskRecord, OracleTaskContext } from './types.js';
+import { ChannelRegistry } from '../../channels/registry.js';
 
 export class TaskNotifier {
   private readonly maxAttempts: number;
@@ -11,12 +14,14 @@ export class TaskNotifier {
   private readonly display = DisplayManager.getInstance();
   private timer: NodeJS.Timeout | null = null;
   private readonly inFlight = new Set<string>(); // task IDs currently being dispatched
+  private readonly oracle?: IOracle;
 
-  constructor(opts?: { maxAttempts?: number; staleSendingMs?: number; recoveryPollMs?: number }) {
+  constructor(opts?: { maxAttempts?: number; staleSendingMs?: number; recoveryPollMs?: number; oracle?: IOracle }) {
     this.maxAttempts = opts?.maxAttempts ?? 5;
     this.staleSendingMs = opts?.staleSendingMs ?? 30_000;
     // Slow poll only for orphan recovery (process restarts, crash scenarios)
     this.recoveryPollMs = opts?.recoveryPollMs ?? 30_000;
+    this.oracle = opts?.oracle;
   }
 
   start(): void {
@@ -86,7 +91,12 @@ export class TaskNotifier {
 
   private async dispatch(task: { id: string; [key: string]: any }): Promise<void> {
     try {
-      await TaskDispatcher.onTaskFinished(task as any);
+      const t = task as TaskRecord;
+      if (this.oracle && t.origin_channel !== 'webhook') {
+        await this.dispatchViaOracle(t);
+      } else {
+        await TaskDispatcher.onTaskFinished(t);
+      }
       this.repository.markNotificationSent(task.id);
     } catch (err: any) {
       const latest = this.repository.getTaskById(task.id);
@@ -97,6 +107,67 @@ export class TaskNotifier {
         source: 'TaskNotifier',
         level: retry ? 'warning' : 'error',
       });
+    }
+  }
+
+  /**
+   * Routes a completed/failed task through Oracle so the result is injected
+   * into the conversation history and Oracle can synthesize a reply, chain
+   * follow-up actions, or ask for missing information before responding.
+   * Mirrors the pattern used by ChronosWorker for scheduled job execution.
+   */
+  private async dispatchViaOracle(task: TaskRecord): Promise<void> {
+    const agentLabel = task.agent.toUpperCase();
+    let prompt: string;
+
+    if (task.status === 'completed') {
+      const output = task.output?.trim() || 'Task completed without output.';
+      prompt = `[TASK COMPLETED — task_id: ${task.id}]\nAgent: ${agentLabel}\n\n${output}`;
+    } else {
+      const error = task.error?.trim() || 'Task failed with unknown error.';
+      prompt = `[TASK FAILED — task_id: ${task.id}]\nAgent: ${agentLabel}\n\nError: ${error}`;
+    }
+
+    const taskContext: OracleTaskContext = {
+      origin_channel: task.origin_channel,
+      session_id: task.session_id,
+      origin_user_id: task.origin_user_id ?? undefined,
+      origin_message_id: task.origin_message_id ?? undefined,
+      source: 'task',
+    };
+
+    this.display.log(
+      `Task ${task.id} completed — routing result through Oracle (session: ${task.session_id}, channel: ${task.origin_channel})`,
+      { source: 'TaskNotifier' },
+    );
+
+    const response = await this.oracle!.chat(prompt, undefined, false, taskContext);
+
+    // ui: Oracle.chat() already wrote to history — UI polls and picks it up
+    if (task.origin_channel === 'ui') return;
+    // api/cli: no push channel available
+    if (task.origin_channel === 'api' || task.origin_channel === 'cli') return;
+
+    // chronos-origin tasks: broadcast Oracle response to all registered adapters
+    if (task.origin_channel === 'chronos') {
+      await ChannelRegistry.broadcast(response);
+      return;
+    }
+
+    // telegram, discord, etc.: route to specific user or broadcast on channel
+    if (task.origin_user_id) {
+      await ChannelRegistry.sendToUser(task.origin_channel, task.origin_user_id, response);
+      return;
+    }
+
+    const adapter = ChannelRegistry.get(task.origin_channel);
+    if (adapter) {
+      await adapter.sendMessage(response);
+    } else {
+      this.display.log(
+        `Task ${task.id}: no adapter for channel "${task.origin_channel}" — Oracle response not delivered.`,
+        { source: 'TaskNotifier', level: 'warning' },
+      );
     }
   }
 }

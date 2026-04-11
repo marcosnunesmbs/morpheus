@@ -147,6 +147,7 @@ export interface LinkConfig extends LLMConfig {
   bm25_weight: number;
 }
 
+
 export interface WebhookConfig {
   /** If true, all webhook notifications are also sent to Telegram by default */
   telegram_notify_all?: boolean;

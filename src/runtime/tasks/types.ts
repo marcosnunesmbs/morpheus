@@ -82,7 +82,7 @@ export interface OracleTaskContext {
   origin_message_id?: string;
   origin_user_id?: string;
   /** Explicit message source for persistence (overrides origin_channel for source_metadata). */
-  source?: 'webhook' | 'chronos';
+  source?: 'webhook' | 'chronos' | 'task';
 }
 
 /** Token and timing usage returned by subagent execute() calls. */

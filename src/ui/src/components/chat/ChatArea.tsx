@@ -1,7 +1,7 @@
 import React, { useRef, useEffect, useState, useLayoutEffect, useMemo, useCallback } from 'react';
 import type { Message, Session } from '../../services/chat';
 import { groupMessages, isDelegationCall } from '../../services/chat';
-import { Send, Bot, User, Menu, ChevronDown, Mic, X, Webhook, Clock } from 'lucide-react';
+import { Send, Bot, User, Menu, ChevronDown, Mic, X, Webhook, Clock, CheckCircle2 } from 'lucide-react';
 import Markdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { ToolCallBlock } from './ToolCallBlock';
@@ -136,7 +136,7 @@ const MessageList = React.memo<MessageListProps>(({ messages, isLoading, message
         }
 
         const isHuman = msg.type === 'human';
-        const isAutomated = msg.source === 'webhook' || msg.source === 'chronos';
+        const isAutomated = msg.source === 'webhook' || msg.source === 'chronos' || msg.source === 'task';
         const isUserMessage = isHuman && !isAutomated;
 
         return (
@@ -146,7 +146,7 @@ const MessageList = React.memo<MessageListProps>(({ messages, isLoading, message
           >
             {!isUserMessage && (
               <div className="w-7 h-7 rounded-full flex-shrink-0 flex items-center justify-center bg-azure-primary/10 text-azure-primary dark:bg-matrix-primary/20 dark:text-matrix-highlight mb-0.5">
-                {isAutomated && msg.source === 'webhook' ? <Webhook size={14} /> : isAutomated && msg.source === 'chronos' ? <Clock size={14} /> : <Bot size={14} />}
+                {msg.source === 'webhook' ? <Webhook size={14} /> : msg.source === 'chronos' ? <Clock size={14} /> : msg.source === 'task' ? <CheckCircle2 size={14} /> : <Bot size={14} />}
               </div>
             )}
 
@@ -162,7 +162,7 @@ const MessageList = React.memo<MessageListProps>(({ messages, isLoading, message
               {isAutomated && (
                 <div className="flex items-center gap-1.5 mb-1.5">
                   <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wider border bg-amber-50 text-amber-700 border-amber-300 dark:bg-amber-800 dark:text-amber-200 dark:border-amber-700">
-                    {msg.source === 'webhook' ? 'Webhook' : 'Chronos'}
+                    {msg.source === 'webhook' ? 'Webhook' : msg.source === 'task' ? 'Task' : 'Chronos'}
                   </span>
                 </div>
               )}

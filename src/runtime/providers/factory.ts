@@ -82,6 +82,24 @@ function sanitizeSchemaForGemini(
     if ((out['required'] as string[]).length === 0) delete out['required'];
   }
 
+  // Filter empty {} elements from anyOf/oneOf/allOf — Gemini fails on them
+  for (const key of ['anyOf', 'oneOf', 'allOf']) {
+    if (!Array.isArray(out[key])) continue;
+    const filtered = (out[key] as unknown[]).filter(
+      (item) => item !== null && typeof item === 'object' && Object.keys(item as object).length > 0,
+    );
+    if (filtered.length === 0) {
+      delete out[key];
+    } else if (filtered.length === 1) {
+      // Unwrap single-element combiner (e.g. anyOf:[{type:"string"}] → {type:"string"})
+      const unwrapped = filtered[0] as Record<string, unknown>;
+      for (const [k, v] of Object.entries(unwrapped)) out[k] = v;
+      delete out[key];
+    } else {
+      out[key] = filtered;
+    }
+  }
+
   return out;
 }
 
@@ -144,8 +162,21 @@ export class ProviderFactory {
 
         try {
           const result = handler(request);
-          display.endActivity(agent, true);
-          display.log(`Tool completed successfully. Result: ${JSON.stringify(result)}`, { level: "info", source: 'ConstructLoad' });
+          if (result instanceof Promise) {
+            result.then(
+              (r) => {
+                display.endActivity(agent, true);
+                display.log(`Tool completed successfully. Result: ${JSON.stringify(r)}`, { level: "info", source: 'ConstructLoad' });
+              },
+              (e) => {
+                display.endActivity(agent, false);
+                display.log(`Tool failed: ${e}`, { level: "error", source: 'ConstructLoad' });
+              },
+            );
+          } else {
+            display.endActivity(agent, true);
+            display.log(`Tool completed successfully. Result: ${JSON.stringify(result)}`, { level: "info", source: 'ConstructLoad' });
+          }
           return result;
         } catch (e) {
           display.endActivity(agent, false);

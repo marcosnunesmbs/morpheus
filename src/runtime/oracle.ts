@@ -98,19 +98,31 @@ export class Oracle implements IOracle {
     const raw = (text || "").trim();
     if (!raw) return false;
 
-    // Detect the structured ack format that Oracle itself generates.
-    // LLMs can learn to reproduce this format from conversation history without calling any tool.
+    // All known agent names (for reuse across patterns below)
+    const agentNames = 'apoc|neo|trinit|trinity|link|smith';
+
+    // 1. Detect the structured ack format Oracle itself generates (✅ Task / Agent / Status).
+    //    LLMs can learn to reproduce this from conversation history without calling any tool.
     const hasAckTaskLine = /Task\s+`[0-9a-fA-F]{8}-[0-9a-fA-F]{4}/i.test(raw);
-    const hasAckAgentLine = /Agent:\s*`(APOC|NEO|apoc|neo)/i.test(raw);
+    const hasAckAgentLine = new RegExp(`Agent:\\s*\`(${agentNames.toUpperCase()}|${agentNames})`, 'i').test(raw);
     const hasAckStatusLine = /Status:\s*`(QUEUED|PENDING|RUNNING|COMPLETED|FAILED)/i.test(raw);
     if (hasAckTaskLine && hasAckAgentLine && hasAckStatusLine) return true;
 
-    const hasCreationClaim = /(as\s+tarefas?\s+foram\s+criadas|tarefa\s+criada|nova\s+tarefa\s+criada|deleguei|delegado|delegada|tasks?\s+created|task\s+created|queued\s+for|agendei|agendado|agendada|foi\s+agendad)/i.test(raw);
+    // 2. Detect written/narrated delegation — Oracle describing a tool call instead of making one.
+    //    Patterns: "delegate to 'neo_delegate'", "delegating to apoc_delegate", etc.
+    const hasDelegateToPattern = new RegExp(
+      `(delegate\\s+to\\s+["\']?(${agentNames})_delegate|delegat(?:e|ing|ed)\\s+to\\s+(${agentNames}))`,
+      'i'
+    ).test(raw);
+    if (hasDelegateToPattern) return true;
+
+    // 3. Broad creation-claim language that, combined with an agent name or UUID, signals a fake ack.
+    const hasCreationClaim = /(as\s+tarefas?\s+foram\s+criadas|tarefa\s+criada|nova\s+tarefa\s+criada|deleguei|delegado|delegada|delegarei|vou\s+delegar|tasks?\s+created|task\s+created|queued\s+for|agendei|agendado|agendada|foi\s+agendad)/i.test(raw);
     if (!hasCreationClaim) return false;
 
-    const hasAgentMention = /\b(apoc|neo|trinit|trinity)\b/i.test(raw);
+    const hasAgentMention = new RegExp(`\\b(${agentNames})\\b`, 'i').test(raw);
     const hasUuid = /\b[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}\b/.test(raw);
-    const hasAgentListLine = /(?:\*|-)?.{0,8}(apoc|neo|trinit|trinity)\s*[:：]/i.test(raw);
+    const hasAgentListLine = new RegExp(`(?:\\*|-)?.{0,8}(${agentNames})\\s*[:：]`, 'i').test(raw);
 
     return hasCreationClaim && (hasAgentMention || hasUuid || hasAgentListLine);
   }
@@ -141,7 +153,7 @@ export class Oracle implements IOracle {
 
   private extractDelegationAcksFromMessages(messages: BaseMessage[]): Array<{ task_id: string; agent: string }> {
     const acks: Array<{ task_id: string; agent: string }> = [];
-    const regex = /Task\s+([0-9a-fA-F-]{36})\s+(?:queued|already queued)\s+for\s+(Apoc|Neo|Trinity|apoc|neo|trinity)\s+execution/i;
+    const regex = /Task\s+([0-9a-fA-F-]{36})\s+(?:queued|already queued)\s+for\s+(Apoc|Neo|Trinity|Link|apoc|neo|trinity|link)\s+execution/i;
 
     for (const msg of messages) {
       if (!(msg instanceof ToolMessage)) continue;
@@ -347,6 +359,7 @@ export class Oracle implements IOracle {
       const messageSource = taskContext?.source ?? (
         taskContext?.origin_channel === 'webhook' ? 'webhook'
         : taskContext?.origin_channel === 'chronos' ? 'chronos'
+        : taskContext?.source === 'task' ? 'task'
         : null
       );
       if (messageSource) {
@@ -507,6 +520,30 @@ Behavior rules for Chronos execution context:
   - Bad: "Combinado! Vou beber agora. Você também deveria se hidratar!" (adds unnecessary commentary)
 - **Action / task prompts** (e.g., "executar npm build", "verificar se o servidor está online", "enviar relatório"): execute normally using the appropriate tools.
 - NEVER re-schedule or create new Chronos jobs from within a Chronos execution.
+
+## Async Task Completion
+When the current user message starts with [TASK COMPLETED] or [TASK FAILED], it means an async task previously delegated to a subagent has just finished. The content after the header is the subagent's output or error.
+
+**CRITICAL: You must act, not narrate.** Do NOT say "I will retry", "I'm going to fix this", "Vou corrigir e reenviar", or any equivalent. If a follow-up action is needed, **call the delegation tool in this very response** to create the new task. If you say you will do something but don't call the tool, nothing will happen.
+
+Behavior rules for task completion context:
+
+### [TASK COMPLETED]
+- **Synthesize the result** for the user: summarize what was done, highlight key findings. Do NOT repeat the raw output verbatim.
+- If the result is partial or a follow-up search/action would clearly improve it, **call the appropriate delegation tool now** to continue.
+- NEVER re-execute the same task with the same input if it already completed successfully.
+
+### [TASK FAILED]
+Analyze the error and choose one of these paths — do NOT describe what you plan to do without acting:
+
+1. **You can fix it** (missing param, wrong input format, correctable error): Call the delegation tool immediately with the corrected input. Do not ask the user — just fix it.
+2. **You need user input** (missing information you cannot infer): Ask the user a single, direct question with the exact information needed. Do NOT create a task until the user answers.
+3. **Unrecoverable error** (service down, permission denied, resource not found): Inform the user clearly and concisely. Suggest what they can do.
+
+### General rules
+- Keep responses concise. Do NOT include raw task_id or agent metadata unless it adds value.
+- If you call a delegation tool, your text response should be brief (e.g., "Corrigindo e reenviando..." or "Retrying with fixed parameters...").
+- NEVER narrate intentions without backing them with a tool call in the same response.
 
 ---------------------
 LINK DELEGATION RULES

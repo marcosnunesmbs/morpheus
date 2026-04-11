@@ -247,7 +247,7 @@ export const startCommand = new Command('start')
       const adapters: any[] = [];
       let httpServer: HttpServer | undefined;
       const taskWorker = new TaskWorker();
-      const taskNotifier = new TaskNotifier();
+      const taskNotifier = new TaskNotifier({ oracle });
       const asyncTasksEnabled = config.runtime?.async_tasks?.enabled !== false;
       const chronosRepo = ChronosRepository.getInstance();
       const chronosWorker = new ChronosWorker(chronosRepo, oracle);

@@ -59,6 +59,7 @@ export const configService = {
     return httpClient.delete<{ success: boolean }>('/config/trinity');
   },
 
+
   getEncryptionStatus: async () => {
     return httpClient.get<{
       morpheusSecretSet: boolean;

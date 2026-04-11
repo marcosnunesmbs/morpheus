@@ -175,6 +175,7 @@ export default function Settings() {
     }
   }, [linkServerConfig]);
 
+
   const isDirty =
     JSON.stringify(serverConfig) !== JSON.stringify(localConfig) ||
     JSON.stringify(satiServerConfig) !== JSON.stringify(localSatiConfig) ||
@@ -415,6 +416,7 @@ export default function Settings() {
     setLocalLinkConfig({ ...localLinkConfig, [field]: value });
   };
 
+
   const handleCopyLinkFromOracle = () => {
     if (!localConfig || !localLinkConfig) return;
     setLocalLinkConfig({
@@ -506,6 +508,7 @@ export default function Settings() {
       if (localLinkConfig) {
         await httpClient.post('/link/config', localLinkConfig);
       }
+
 
       mutate('/api/config');
       mutate('/api/config/sati');
@@ -1649,6 +1652,7 @@ export default function Settings() {
                 )}
               </Section>
             )}
+
           </div>
         )}
 
