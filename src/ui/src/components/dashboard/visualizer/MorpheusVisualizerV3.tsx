@@ -21,7 +21,6 @@ const AGENT_COLORS: Record<string, string> = {
 };
 
 const MATRIX_GREEN = '#00ff41';
-const _MATRIX_DIM = '#003b0f';
 
 interface AgentMeta {
   key: string;
