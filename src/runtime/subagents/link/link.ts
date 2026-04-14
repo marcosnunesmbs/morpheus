@@ -14,7 +14,7 @@ import { ProviderError } from '../../errors.js';
 import { DisplayManager } from '../../display.js';
 import { TaskRequestContext } from '../../tasks/context.js';
 import type { OracleTaskContext, AgentResult } from '../../tasks/types.js';
-import { extractRawUsage, persistAgentMessage, buildAgentResult, emitToolAuditEvents } from '../utils.js';
+import { extractRawUsage, sumRawUsage, persistAgentMessage, buildAgentResult, emitToolAuditEvents } from '../utils.js';
 import { buildDelegationTool } from '../../tools/delegation-utils.js';
 import { SubagentRegistry } from '../registry.js';
 
@@ -476,11 +476,12 @@ ${context ? `Context:\n${context}` : ''}
           ? lastMessage.content
           : JSON.stringify(lastMessage.content);
 
-      const rawUsage = extractRawUsage(lastMessage);
+      const rawUsage = sumRawUsage(response.messages);
       const stepCount = response.messages.filter((m: BaseMessage) => m instanceof AIMessage).length;
 
-      const targetSession = sessionId ?? Link.currentSessionId ?? 'link';
+      const targetSession = sessionId ?? Link.currentSessionId ?? "link";
       await persistAgentMessage('link', content, linkConfig, targetSession, rawUsage, durationMs);
+
 
       emitToolAuditEvents(response.messages.slice(inputCount), targetSession, 'link');
 

@@ -13,7 +13,7 @@ import { DatabaseRegistry } from "../../memory/trinity-db.js";
 import { testConnection, introspectSchema, executeQuery } from "./connector.js";
 import type { OracleTaskContext, AgentResult } from "../../tasks/types.js";
 import type { ISubagent } from "../ISubagent.js";
-import { extractRawUsage, persistAgentMessage, buildAgentResult, emitToolAuditEvents } from "../utils.js";
+import { extractRawUsage, sumRawUsage, persistAgentMessage, buildAgentResult, emitToolAuditEvents } from "../utils.js";
 import { buildDelegationTool } from "../../tools/delegation-utils.js";
 import { SubagentRegistry } from "../registry.js";
 
@@ -337,11 +337,12 @@ ${context ? `CONTEXT FROM ORACLE:\n${context}` : ''}
           ? lastMessage.content
           : JSON.stringify(lastMessage.content);
 
-      const rawUsage = extractRawUsage(lastMessage);
+      const rawUsage = sumRawUsage(response.messages);
       const stepCount = response.messages.filter((m: BaseMessage) => m instanceof AIMessage).length;
 
-      const targetSession = sessionId ?? Trinity.currentSessionId ?? 'trinity';
+      const targetSession = sessionId ?? Trinity.currentSessionId ?? "trinity";
       await persistAgentMessage('trinity', content, trinityConfig, targetSession, rawUsage, durationMs);
+
       emitToolAuditEvents(response.messages.slice(2), targetSession, 'trinity');
 
       this.display.log('Trinity task completed.', { source: 'Trinity' });

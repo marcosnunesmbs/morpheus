@@ -5,7 +5,7 @@ export { Trinity } from './trinity/trinity.js';
 export { Link } from './link/link.js';
 export { SubagentRegistry, SYSTEM_AGENTS } from './registry.js';
 export type { SubagentDisplayMeta, SubagentRegistration } from './registry.js';
-export { extractRawUsage, persistAgentMessage, buildAgentResult, emitToolAuditEvents } from './utils.js';
+export { extractRawUsage, sumRawUsage, persistAgentMessage, buildAgentResult, emitToolAuditEvents } from './utils.js';
 export type { RawUsage } from './utils.js';
 export type { ISubagent } from './ISubagent.js';
 export { LinkRepository } from './link/repository.js';

@@ -12,7 +12,7 @@ import { morpheusTools } from "../tools/index.js";
 import { TaskRequestContext } from "../tasks/context.js";
 import type { OracleTaskContext, AgentResult } from "../tasks/types.js";
 import type { ISubagent } from "./ISubagent.js";
-import { extractRawUsage, persistAgentMessage, buildAgentResult, emitToolAuditEvents } from "./utils.js";
+import { extractRawUsage, sumRawUsage, persistAgentMessage, buildAgentResult, emitToolAuditEvents } from "./utils.js";
 import { buildDelegationTool } from "../tools/delegation-utils.js";
 import { SubagentRegistry } from "./registry.js";
 
@@ -195,7 +195,7 @@ ${context ? `Context:\n${context}` : ""}
           ? lastMessage.content
           : JSON.stringify(lastMessage.content);
 
-      const rawUsage = extractRawUsage(lastMessage);
+      const rawUsage = sumRawUsage(response.messages);
       const stepCount = response.messages.filter((m: BaseMessage) => m instanceof AIMessage).length;
 
       const targetSession = sessionId ?? Neo.currentSessionId ?? "neo";

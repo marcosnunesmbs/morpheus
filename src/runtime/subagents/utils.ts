@@ -21,6 +21,23 @@ export function extractRawUsage(lastMessage: BaseMessage): RawUsage | undefined 
     ?? (lastMessage as any).usage;
 }
 
+/**
+ * Sum token usage from all messages in a sequence (e.g. ReactAgent multi-step loop).
+ */
+export function sumRawUsage(messages: BaseMessage[]): RawUsage {
+  const total: RawUsage = { input_tokens: 0, output_tokens: 0 };
+  for (const msg of messages) {
+    if (msg instanceof AIMessage || (msg as any).usage_metadata || (msg as any).response_metadata?.usage) {
+      const usage = extractRawUsage(msg);
+      if (usage) {
+        total.input_tokens = (total.input_tokens || 0) + (usage.input_tokens ?? usage.prompt_tokens ?? 0);
+        total.output_tokens = (total.output_tokens || 0) + (usage.output_tokens ?? usage.completion_tokens ?? 0);
+      }
+    }
+  }
+  return total;
+}
+
 /** Persist an agent's AI message to SQLite with provider + agent metadata. */
 export async function persistAgentMessage(
   agentName: string,

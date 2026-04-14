@@ -11,7 +11,7 @@ import { buildDevKit } from "morpheus-devkit";
 import { instrumentDevKitTools } from "./devkit-instrument.js";
 import type { OracleTaskContext, AgentResult } from "../tasks/types.js";
 import type { ISubagent } from "./ISubagent.js";
-import { extractRawUsage, persistAgentMessage, buildAgentResult, emitToolAuditEvents } from "./utils.js";
+import { extractRawUsage, sumRawUsage, persistAgentMessage, buildAgentResult, emitToolAuditEvents } from "./utils.js";
 import { buildDelegationTool } from "../tools/delegation-utils.js";
 import { SubagentRegistry } from "./registry.js";
 import { USER_HOME } from "../../config/paths.js";
@@ -477,7 +477,7 @@ ${context ? `CONTEXT FROM ORACLE:\n${context}` : ""}
           ? lastMessage.content
           : JSON.stringify(lastMessage.content);
 
-      const rawUsage = extractRawUsage(lastMessage);
+      const rawUsage = sumRawUsage(response.messages);
       const stepCount = response.messages.filter((m: BaseMessage) => m instanceof AIMessage).length;
 
       const targetSession = sessionId ?? Apoc.currentSessionId ?? "apoc";

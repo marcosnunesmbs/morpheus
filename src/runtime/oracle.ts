@@ -11,7 +11,7 @@ import { SQLiteChatMessageHistory } from "./memory/sqlite.js";
 import { ReactAgent } from "langchain";
 import { UsageMetadata } from "../types/usage.js";
 import { SatiMemoryMiddleware } from "./memory/sati/index.js";
-import { Apoc, Neo, Trinity, Link, SubagentRegistry, emitToolAuditEvents } from "./subagents/index.js";
+import { Apoc, Neo, Trinity, Link, SubagentRegistry, emitToolAuditEvents, sumRawUsage } from "./subagents/index.js";
 import { TaskRequestContext } from "./tasks/context.js";
 import type { OracleTaskContext } from "./tasks/types.js";
 import { TaskRepository } from "./tasks/repository.js";
@@ -691,19 +691,15 @@ Use it to inform your response and tool selection (if needed), but do not assume
 
       // Emit llm_call audit event for Oracle's own invocation
       try {
-        const lastMsg = response.messages[response.messages.length - 1];
-        const rawUsage = (lastMsg as any).usage_metadata
-          ?? (lastMsg as any).response_metadata?.usage
-          ?? (lastMsg as any).response_metadata?.tokenUsage
-          ?? (lastMsg as any).usage;
+        const totalUsage = sumRawUsage(response.messages);
         AuditRepository.getInstance().insert({
           session_id: currentSessionId ?? 'default',
           event_type: 'llm_call',
           agent: 'oracle',
           provider: this.config.llm.provider,
           model: this.config.llm.model,
-          input_tokens: rawUsage?.input_tokens ?? rawUsage?.prompt_tokens ?? 0,
-          output_tokens: rawUsage?.output_tokens ?? rawUsage?.completion_tokens ?? 0,
+          input_tokens: totalUsage.input_tokens || 0,
+          output_tokens: totalUsage.output_tokens || 0,
           duration_ms: oracleDurationMs,
           status: 'success',
         });
@@ -803,11 +799,7 @@ Use it to inform your response and tool selection (if needed), but do not assume
             { source: "Oracle", level: "error", meta: { preview: responseContent.slice(0, 200) } }
           );
 
-          const usage =
-            (lastMessage as any).usage_metadata
-            ?? (lastMessage as any).response_metadata?.usage
-            ?? (lastMessage as any).response_metadata?.tokenUsage
-            ?? (lastMessage as any).usage;
+          const totalUsage = sumRawUsage(response.messages);
 
           responseContent = this.buildDelegationFailureResponse();
           const failureMessage = new AIMessage(responseContent);
@@ -815,8 +807,8 @@ Use it to inform your response and tool selection (if needed), but do not assume
             provider: this.config.llm.provider,
             model: this.config.llm.model,
           };
-          if (usage) {
-            (failureMessage as any).usage_metadata = usage;
+          if ((totalUsage.input_tokens || 0) > 0 || (totalUsage.output_tokens || 0) > 0) {
+            (failureMessage as any).usage_metadata = totalUsage;
           }
           await callHistory.addMessages([userMessage, failureMessage]);
         } else {
