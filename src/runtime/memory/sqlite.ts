@@ -39,6 +39,39 @@ export interface MessageProviderMetadata {
   model: string;
 }
 
+/**
+ * Normalize persisted tool_calls so every provider accepts them.
+ *
+ * Why: strict OpenAI-compatible backends (e.g. DashScope/Qwen via OpenRouter) reject
+ * `function.arguments` unless it's a valid JSON-encodable object. If args were persisted
+ * as `null`/`undefined`/a string, or if `id`/`name` are missing, the next turn fails
+ * with 400 `"function.arguments parameter must be in JSON format"`.
+ *
+ * How to apply: call during AIMessage deserialization — guarantees every tool_call has
+ * `{ id, name, args: object, type: 'tool_call' }` before being sent back to any model.
+ */
+function sanitizeToolCalls(toolCalls: any[]): any[] {
+  if (!Array.isArray(toolCalls)) return [];
+  return toolCalls
+    .filter((tc) => tc && typeof tc === 'object')
+    .map((tc) => {
+      let args = tc.args;
+      if (typeof args === 'string') {
+        try { args = args.trim() ? JSON.parse(args) : {}; } catch { args = {}; }
+      }
+      if (args === null || args === undefined || typeof args !== 'object' || Array.isArray(args)) {
+        args = {};
+      }
+      return {
+        id: typeof tc.id === 'string' && tc.id ? tc.id : `call_${Math.random().toString(36).slice(2, 12)}`,
+        name: typeof tc.name === 'string' ? tc.name : '',
+        args,
+        type: 'tool_call' as const,
+      };
+    })
+    .filter((tc) => tc.name);
+}
+
 export class SQLiteChatMessageHistory extends BaseListChatMessageHistory {
   lc_namespace = ["langchain", "stores", "message", "sqlite"];
 
@@ -518,7 +551,7 @@ export class SQLiteChatMessageHistory extends BaseListChatMessageHistory {
               if (parsed && typeof parsed === 'object' && Array.isArray(parsed.tool_calls)) {
                 msg = new AIMessage({
                   content: parsed.text || "",
-                  tool_calls: parsed.tool_calls
+                  tool_calls: sanitizeToolCalls(parsed.tool_calls)
                 });
               } else {
                 msg = new AIMessage(row.content);
